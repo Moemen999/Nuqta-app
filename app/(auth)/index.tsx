@@ -1,21 +1,53 @@
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { useMemo, useState } from 'react';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform,
-  StyleSheet, Text, TextInput, TouchableOpacity
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
+
+WebBrowser.maybeCompleteAuthSession();
+
+// الـ Web Client ID بتاع مشروع Firebase "nuqta" — عمومي وآمن يتحط في الكود
+const GOOGLE_WEB_CLIENT_ID = '662258111881-r6c7jaudqjeud0oa7dsn119rf0tsv4tu.apps.googleusercontent.com';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogleCredential } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
+  const [, response, promptAsync] = Google.useAuthRequest({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+
+  useEffect(() => {
+    (async () => {
+      if (response?.type === 'success') {
+        const idToken = response.params?.id_token;
+        if (idToken) {
+          setGoogleBusy(true);
+          try {
+            await signInWithGoogleCredential(idToken);
+          } catch {
+            setError('حصل خطأ في تسجيل الدخول بجوجل، جرب تاني');
+          } finally {
+            setGoogleBusy(false);
+          }
+        }
+      } else if (response?.type === 'error') {
+        setError('حصل خطأ في تسجيل الدخول بجوجل');
+      }
+    })();
+  }, [response]);
 
   async function handleSubmit() {
     setError('');
@@ -40,7 +72,20 @@ export default function AuthScreen() {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Text style={styles.title}>نقطة</Text>
+      <Text style={styles.tagline}>نقطة على السطر</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
+
+      <TouchableOpacity style={styles.googleBtn} onPress={() => promptAsync()} disabled={googleBusy}>
+        {googleBusy ? <ActivityIndicator color={colors.text} /> : (
+          <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>تسجيل الدخول بحساب جوجل</Text>
+        )}
+      </TouchableOpacity>
+
+      <View style={styles.dividerRow}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>أو</Text>
+        <View style={styles.dividerLine} />
+      </View>
 
       {mode === 'signup' && (
         <TextInput style={styles.input} placeholder="الاسم" placeholderTextColor={colors.textSecondary}
@@ -83,8 +128,13 @@ function mapError(code: string) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-    title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
-    subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 20 },
+    title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
+    tagline: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 18 },
+    subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 4 },
+    googleBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+    dividerText: { color: c.textMuted, fontSize: 12 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     error: { color: c.danger, fontSize: 13, textAlign: 'center' },
     button: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },

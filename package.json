@@ -17,6 +17,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "~54.0.37",
+    "expo-auth-session": "PENDING_LOCAL_INSTALL",
     "expo-constants": "~18.0.14",
     "expo-contacts": "~15.0.11",
     "expo-crypto": "~15.0.9",
