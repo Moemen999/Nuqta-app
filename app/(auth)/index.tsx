@@ -1,11 +1,14 @@
 import { useAuth } from '@/context/AuthContext';
-import { useState } from 'react';
+import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { useMemo, useState } from 'react';
 import {
-    ActivityIndicator, KeyboardAvoidingView, Platform,
-    StyleSheet, Text, TextInput, TouchableOpacity
+  ActivityIndicator, KeyboardAvoidingView, Platform,
+  StyleSheet, Text, TextInput, TouchableOpacity
 } from 'react-native';
 
 export default function AuthScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
@@ -40,18 +43,18 @@ export default function AuthScreen() {
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
 
       {mode === 'signup' && (
-        <TextInput style={styles.input} placeholder="الاسم" placeholderTextColor="#6B7280"
+        <TextInput style={styles.input} placeholder="الاسم" placeholderTextColor={colors.textSecondary}
           value={name} onChangeText={setName} textAlign="right" />
       )}
-      <TextInput style={styles.input} placeholder="الإيميل" placeholderTextColor="#6B7280"
+      <TextInput style={styles.input} placeholder="الإيميل" placeholderTextColor={colors.textSecondary}
         value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textAlign="right" />
-      <TextInput style={styles.input} placeholder="الباسورد" placeholderTextColor="#6B7280"
+      <TextInput style={styles.input} placeholder="الباسورد" placeholderTextColor={colors.textSecondary}
         value={password} onChangeText={setPassword} secureTextEntry textAlign="right" />
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
       <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={busy}>
-        {busy ? <ActivityIndicator color="#0B0D10" /> : (
+        {busy ? <ActivityIndicator color={colors.onAccent} /> : (
           <Text style={styles.buttonText}>{mode === 'login' ? 'دخول' : 'إنشاء حساب'}</Text>
         )}
       </TouchableOpacity>
@@ -77,13 +80,15 @@ function mapError(code: string) {
   }
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0B0D10', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  title: { color: '#C9A961', fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
-  subtitle: { color: '#8B92A0', fontSize: 15, textAlign: 'center', marginBottom: 20 },
-  input: { backgroundColor: '#1C2027', borderWidth: 1, borderColor: '#262B33', borderRadius: 10, color: '#EDEBE6', paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  error: { color: '#D97878', fontSize: 13, textAlign: 'center' },
-  button: { backgroundColor: '#C9A961', borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-  buttonText: { color: '#0B0D10', fontSize: 15, fontWeight: '700' },
-  switchText: { color: '#8B92A0', fontSize: 13, textAlign: 'center', marginTop: 14 },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+    title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+    subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 20 },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+    error: { color: c.danger, fontSize: 13, textAlign: 'center' },
+    button: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
+    buttonText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
+    switchText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 14 },
+  });
+}

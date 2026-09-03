@@ -26,3 +26,27 @@ export function fmt(n: number) {
 export function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
+
+export function formatTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  const period = hours >= 12 ? 'م' : 'ص';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const mm = String(minutes).padStart(2, '0');
+  return `${hours}:${mm} ${period}`;
+}
+
+export function categoryLabel(c?: { name: string; icon?: string }) {
+  if (!c) return '';
+  return c.icon ? `${c.icon} ${c.name}` : c.name;
+}
+
+export const CATEGORY_ICONS = [
+  '🚗', '🍳', '🛒', '🍔', '💡', '🏠', '👕', '💊',
+  '🎓', '🎮', '✈️', '🎁', '💰', '📱', '☕', '💼',
+  '🐾', '🧾', '⚡', '❓',
+];

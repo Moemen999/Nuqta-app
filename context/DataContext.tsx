@@ -1,12 +1,12 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import {
-  addDoc, collection, deleteDoc, doc, onSnapshot, setDoc, updateDoc,
+  addDoc, collection, deleteDoc, doc, onSnapshot, runTransaction, setDoc, updateDoc,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 export type Wallet = { id: string; name: string; openingBalance: number; lowAlert: number };
-export type Category = { id: string; name: string };
+export type Category = { id: string; name: string; bucket?: 'needs' | 'wants' | 'future' | ''; icon?: string };
 export type Transaction = {
   id: string;
   type: 'expense' | 'income' | 'withdraw';
@@ -16,23 +16,113 @@ export type Transaction = {
   categoryId?: string;
   note?: string;
   date: string;
+  createdAt?: string;
 };
 export type Budgets = Record<string, number>;
+export type ShakhbataIncome = Record<string, number>;
+export type ShakhbataPercents = { needs: number; wants: number; future: number };
+
+export type DebtPayment = { id: string; date: string; amount: number; walletId: string; categoryId?: string; transactionId?: string };
+export type DebtEntry = { id: string; date: string; amount: number; walletId?: string; transactionId?: string };
+export type Debt = {
+  id: string;
+  direction: 'owed_to_me' | 'i_owe';
+  personName: string;
+  totalAmount: number;
+  date: string;
+  isInstallment: boolean;
+  installmentCount?: number;
+  note?: string;
+  createdAt: string;
+  payments: DebtPayment[];
+  increases: DebtEntry[];
+  initialWalletId?: string;
+  initialTransactionId?: string;
+};
+
+export type SubscriptionPayment = { id: string; date: string; amount: number; transactionId?: string };
+export type Subscription = {
+  id: string;
+  name: string;
+  amount: number;
+  walletId: string;
+  categoryId?: string;
+  frequency: 'monthly' | 'yearly' | 'custom';
+  customDays?: number;
+  nextDueDate: string;
+  reminderDaysBefore: number;
+  active: boolean;
+  createdAt: string;
+  history: SubscriptionPayment[];
+};
+
+export type GamiyaMonth = {
+  id: string;
+  monthIndex: number;
+  dueDate: string;
+  isPayoutMonth: boolean;
+  amount: number;
+  status: 'pending' | 'done';
+  transactionId?: string;
+};
+export type Gamiya = {
+  id: string;
+  name: string;
+  monthlyAmount: number;
+  totalMonths: number;
+  payoutMonthIndex: number;
+  payoutAmount: number;
+  walletId: string;
+  startDate: string;
+  reminderDaysBefore: number;
+  months: GamiyaMonth[];
+  createdAt: string;
+};
 
 type DataContextType = {
   wallets: Wallet[];
   categories: Category[];
   transactions: Transaction[];
   budgets: Budgets;
+  shakhbataIncome: ShakhbataIncome;
+  shakhbataPercents: ShakhbataPercents;
+  debts: Debt[];
+  subscriptions: Subscription[];
+  gamiyas: Gamiya[];
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
+  updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
-  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>;
+  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
+  setMonthlyIncome: (month: string, income: number) => Promise<void>;
+  setShakhbataPercents: (p: ShakhbataPercents) => Promise<void>;
+  addDebt: (data: {
+    direction: 'owed_to_me' | 'i_owe'; personName: string; totalAmount: number;
+    isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
+  }) => Promise<void>;
+  deleteDebt: (id: string) => Promise<void>;
+  addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<void>;
+  deleteDebtPayment: (debtId: string, paymentId: string) => Promise<void>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<void>;
+  deleteDebtIncrease: (debtId: string, entryId: string) => Promise<void>;
+  addSubscription: (data: {
+    name: string; amount: number; walletId: string; categoryId?: string;
+    frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
+  }) => Promise<void>;
+  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
+  deleteSubscription: (id: string) => Promise<void>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<void>;
+  addGamiya: (data: {
+    name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
+    payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
+  }) => Promise<void>;
+  deleteGamiya: (id: string) => Promise<void>;
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<void>;
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -43,6 +133,29 @@ const DEFAULT_WALLETS = [
   { name: 'CASH', openingBalance: 0, lowAlert: 50 },
 ];
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
+const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
+
+function addMonths(dateStr: string, n: number) {
+  const d = new Date(dateStr); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10);
+}
+function addDaysStr(dateStr: string, n: number) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10);
+}
+
+async function claimSeeding(uid: string): Promise<boolean> {
+  const userRef = doc(db, 'users', uid);
+  try {
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(userRef);
+      const data = snap.exists() ? snap.data() : {};
+      if (data?.seeded) return false;
+      tx.set(userRef, { ...(data || {}), seeded: true }, { merge: true });
+      return true;
+    });
+  } catch {
+    return false;
+  }
+}
 
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -52,47 +165,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budgets>({});
+  const [shakhbataIncome, setShakhbataIncome] = useState<ShakhbataIncome>({});
+  const [shakhbataPercents, setShakhbataPercentsState] = useState<ShakhbataPercents>(DEFAULT_PERCENTS);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [gamiyas, setGamiyas] = useState<Gamiya[]>([]);
 
   useEffect(() => {
     if (!uid) {
-      setWallets([]); setCategories([]); setTransactions([]); setBudgets({});
+      setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
+      setShakhbataPercentsState(DEFAULT_PERCENTS);
+      setDebts([]); setSubscriptions([]); setGamiyas([]);
       return;
     }
 
-    // العلمين دول بيضمنوا إن "التعبئة التلقائية الأولى" تحصل مرة واحدة بس،
-    // أول ما نستقبل أول رد من Firebase — مش في أي وقت القايمة تبقى فاضية
-    let isFirstWalletsSnapshot = true;
-    let isFirstCategoriesSnapshot = true;
+    (async () => {
+      const shouldSeed = await claimSeeding(uid);
+      if (shouldSeed) {
+        DEFAULT_WALLETS.forEach(w => addDoc(collection(db, 'users', uid, 'wallets'), w));
+        DEFAULT_CATEGORIES.forEach(name => addDoc(collection(db, 'users', uid, 'categories'), { name }));
+      }
+    })();
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), (snap) => {
-      if (snap.empty && isFirstWalletsSnapshot) {
-        DEFAULT_WALLETS.forEach(w => addDoc(collection(db, 'users', uid, 'wallets'), w));
-      } else {
-        setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
-      }
-      isFirstWalletsSnapshot = false;
+      setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     });
-
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
-      if (snap.empty && isFirstCategoriesSnapshot) {
-        DEFAULT_CATEGORIES.forEach(name => addDoc(collection(db, 'users', uid, 'categories'), { name }));
-      } else {
-        setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
-      }
-      isFirstCategoriesSnapshot = false;
+      setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     });
-
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), (snap) => {
       setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     });
-
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       const b: Budgets = {};
       snap.docs.forEach(d => { b[d.id] = (d.data() as any).limit; });
       setBudgets(b);
     });
+    const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), (snap) => {
+      const s: ShakhbataIncome = {};
+      snap.docs.forEach(d => { s[d.id] = (d.data() as any).income; });
+      setShakhbataIncome(s);
+    });
+    const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as any;
+        setShakhbataPercentsState({
+          needs: data.needs ?? DEFAULT_PERCENTS.needs,
+          wants: data.wants ?? DEFAULT_PERCENTS.wants,
+          future: data.future ?? DEFAULT_PERCENTS.future,
+        });
+      } else {
+        setShakhbataPercentsState(DEFAULT_PERCENTS);
+      }
+    });
+    const unsubDebts = onSnapshot(collection(db, 'users', uid, 'debts'), (snap) => {
+      setDebts(snap.docs.map(d => ({ id: d.id, increases: [], ...(d.data() as any) })) as Debt[]);
+    });
+    const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
+      setSubscriptions(snap.docs.map(d => ({ id: d.id, history: [], ...(d.data() as any) })) as Subscription[]);
+    });
+    const unsubGamiyas = onSnapshot(collection(db, 'users', uid, 'gamiyas'), (snap) => {
+      setGamiyas(snap.docs.map(d => ({ id: d.id, months: [], ...(d.data() as any) })) as Gamiya[]);
+    });
 
-    return () => { unsubWallets(); unsubCategories(); unsubTx(); unsubBudgets(); };
+    return () => {
+      unsubWallets(); unsubCategories(); unsubTx(); unsubBudgets(); unsubShakhbata(); unsubPercents();
+      unsubDebts(); unsubSubs(); unsubGamiyas();
+    };
   }, [uid]);
 
   async function addWallet(name: string) {
@@ -111,14 +250,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     await addDoc(collection(db, 'users', uid, 'categories'), { name });
   }
+  async function updateCategory(id: string, data: Partial<Category>) {
+    if (!uid) return;
+    await updateDoc(doc(db, 'users', uid, 'categories', id), data);
+  }
   async function deleteCategory(id: string) {
     if (!uid) return;
     await deleteDoc(doc(db, 'users', uid, 'categories', id));
   }
-  async function addTransaction(tx: Omit<Transaction, 'id'>) {
-    if (!uid) return;
+  async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
+    if (!uid) return '';
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
-    await addDoc(collection(db, 'users', uid, 'transactions'), clean);
+    const ref = await addDoc(collection(db, 'users', uid, 'transactions'), clean);
+    return ref.id;
   }
   async function updateTransaction(id: string, tx: Partial<Transaction>) {
     if (!uid) return;
@@ -133,15 +277,189 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     await setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit });
   }
+  async function setMonthlyIncome(month: string, income: number) {
+    if (!uid) return;
+    await setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income });
+  }
+  async function setShakhbataPercents(p: ShakhbataPercents) {
+    if (!uid) return;
+    await setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p);
+  }
+
+  async function addDebt(data: {
+    direction: 'owed_to_me' | 'i_owe'; personName: string; totalAmount: number;
+    isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
+  }) {
+    if (!uid) return;
+    let initialTransactionId: string | undefined;
+    if (data.walletId) {
+      const type = data.direction === 'owed_to_me' ? 'expense' : 'income';
+      initialTransactionId = await addTransaction({
+        type, amount: data.totalAmount, walletId: data.walletId, date: data.date,
+        note: `${data.direction === 'owed_to_me' ? 'قرض لـ' : 'استلاف من'} ${data.personName}`,
+      });
+    }
+    const clean = Object.fromEntries(Object.entries({
+      direction: data.direction, personName: data.personName, totalAmount: data.totalAmount, date: data.date,
+      isInstallment: data.isInstallment, installmentCount: data.installmentCount, note: data.note,
+      initialWalletId: data.walletId, initialTransactionId,
+    }).filter(([, v]) => v !== undefined));
+    await addDoc(collection(db, 'users', uid, 'debts'), { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
+  }
+  async function deleteDebt(id: string) {
+    if (!uid) return;
+    const debt = debts.find(d => d.id === id);
+    if (debt) {
+      if (debt.initialTransactionId) await deleteTransaction(debt.initialTransactionId);
+      for (const p of debt.payments) if (p.transactionId) await deleteTransaction(p.transactionId);
+      for (const inc of debt.increases || []) if (inc.transactionId) await deleteTransaction(inc.transactionId);
+    }
+    await deleteDoc(doc(db, 'users', uid, 'debts', id));
+  }
+  async function addDebtPayment(debtId: string, amount: number, walletId: string, date: string, categoryId?: string) {
+    if (!uid) return;
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return;
+    const type = debt.direction === 'owed_to_me' ? 'income' : 'expense';
+    const txId = await addTransaction({
+      type, amount, walletId, date,
+      categoryId: type === 'expense' ? categoryId : undefined,
+      note: `${debt.direction === 'owed_to_me' ? 'استلام دين من' : 'سداد دين لـ'} ${debt.personName}`,
+    });
+    const payment: DebtPayment = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      date, amount, walletId, transactionId: txId,
+      ...(categoryId ? { categoryId } : {}),
+    };
+    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: [...debt.payments, payment] });
+  }
+  async function deleteDebtPayment(debtId: string, paymentId: string) {
+    if (!uid) return;
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return;
+    const payment = debt.payments.find(p => p.id === paymentId);
+    if (payment?.transactionId) await deleteTransaction(payment.transactionId);
+    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) });
+  }
+  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
+    if (!uid) return;
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return;
+    let transactionId: string | undefined;
+    if (walletId) {
+      const type = debt.direction === 'owed_to_me' ? 'expense' : 'income';
+      transactionId = await addTransaction({
+        type, amount, walletId, date,
+        note: `${debt.direction === 'owed_to_me' ? 'زيادة قرض لـ' : 'زيادة استلاف من'} ${debt.personName}`,
+      });
+    }
+    const entry: DebtEntry = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      date, amount,
+      ...(walletId ? { walletId, transactionId } : {}),
+    };
+    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] });
+  }
+  async function deleteDebtIncrease(debtId: string, entryId: string) {
+    if (!uid) return;
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return;
+    const entry = (debt.increases || []).find(e => e.id === entryId);
+    if (entry?.transactionId) await deleteTransaction(entry.transactionId);
+    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) });
+  }
+
+  async function addSubscription(data: {
+    name: string; amount: number; walletId: string; categoryId?: string;
+    frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
+  }) {
+    if (!uid) return;
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+    await addDoc(collection(db, 'users', uid, 'subscriptions'), { ...clean, active: true, history: [], createdAt: new Date().toISOString() });
+  }
+  async function updateSubscription(id: string, data: Partial<Subscription>) {
+    if (!uid) return;
+    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), data);
+  }
+  async function deleteSubscription(id: string) {
+    if (!uid) return;
+    const sub = subscriptions.find(s => s.id === id);
+    if (sub) for (const h of sub.history || []) if (h.transactionId) await deleteTransaction(h.transactionId);
+    await deleteDoc(doc(db, 'users', uid, 'subscriptions', id));
+  }
+  async function markSubscriptionPaid(id: string, date: string) {
+    if (!uid) return;
+    const sub = subscriptions.find(s => s.id === id);
+    if (!sub) return;
+    const txId = await addTransaction({
+      type: 'expense', amount: sub.amount, walletId: sub.walletId, date,
+      categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+    });
+    const payment: SubscriptionPayment = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      date, amount: sub.amount, transactionId: txId,
+    };
+    const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
+      : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
+      : addDaysStr(sub.nextDueDate, sub.customDays || 30);
+    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), {
+      history: [...(sub.history || []), payment],
+      nextDueDate: nextDue,
+    });
+  }
+
+  async function addGamiya(data: {
+    name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
+    payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
+  }) {
+    if (!uid) return;
+    const months: GamiyaMonth[] = Array.from({ length: data.totalMonths }, (_, i) => {
+      const monthIndex = i + 1;
+      const isPayoutMonth = monthIndex === data.payoutMonthIndex;
+      return {
+        id: `${monthIndex}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`,
+        monthIndex,
+        dueDate: addMonths(data.startDate, i),
+        isPayoutMonth,
+        amount: isPayoutMonth ? data.payoutAmount : data.monthlyAmount,
+        status: 'pending',
+      };
+    });
+    await addDoc(collection(db, 'users', uid, 'gamiyas'), { ...data, months, createdAt: new Date().toISOString() });
+  }
+  async function deleteGamiya(id: string) {
+    if (!uid) return;
+    const g = gamiyas.find(x => x.id === id);
+    if (g) for (const m of g.months) if (m.transactionId) await deleteTransaction(m.transactionId);
+    await deleteDoc(doc(db, 'users', uid, 'gamiyas', id));
+  }
+  async function markGamiyaMonthDone(gamiyaId: string, monthId: string) {
+    if (!uid) return;
+    const g = gamiyas.find(x => x.id === gamiyaId);
+    if (!g) return;
+    const month = g.months.find(m => m.id === monthId);
+    if (!month) return;
+    const type = month.isPayoutMonth ? 'income' : 'expense';
+    const txId = await addTransaction({
+      type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
+      note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+    });
+    const updatedMonths = g.months.map(m => m.id === monthId ? { ...m, status: 'done' as const, transactionId: txId } : m);
+    await updateDoc(doc(db, 'users', uid, 'gamiyas', gamiyaId), { months: updatedMonths });
+  }
 
   return (
     <DataContext.Provider
       value={{
-        wallets, categories, transactions, budgets,
+        wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
+        debts, subscriptions, gamiyas,
         addWallet, updateWallet, deleteWallet,
-        addCategory, deleteCategory,
+        addCategory, updateCategory, deleteCategory,
         addTransaction, updateTransaction, deleteTransaction,
-        setBudget,
+        setBudget, setMonthlyIncome, setShakhbataPercents,
+        addDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
+        addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
+        addGamiya, deleteGamiya, markGamiyaMonthDone,
       }}>
       {children}
     </DataContext.Provider>

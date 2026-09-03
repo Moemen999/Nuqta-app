@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
 const MONTH_NAMES = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-const MONTH_SHORT = ['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'];
 
 function daysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
 function firstWeekday(year: number, month: number) { return new Date(year, month, 1).getDay(); }
@@ -19,13 +19,16 @@ type Props = {
 };
 
 export default function CalendarPickerModal({ visible, value, onSelect, onClose }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+
   const initial = value ? new Date(value) : new Date();
   const [viewYear, setViewYear] = useState(initial.getFullYear());
   const [viewMonth, setViewMonth] = useState(initial.getMonth());
   const [level, setLevel] = useState<ViewLevel>('days');
   const [yearsPageStart, setYearsPageStart] = useState(Math.floor(initial.getFullYear() / 12) * 12);
 
-  function handlePrev() {
+  function goPrev() {
     if (level === 'days') {
       if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1);
     } else if (level === 'months') {
@@ -34,7 +37,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
       setYearsPageStart(s => s - 12);
     }
   }
-  function handleNext() {
+  function goNext() {
     if (level === 'days') {
       if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else setViewMonth(m => m + 1);
     } else if (level === 'months') {
@@ -55,36 +58,27 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
     onSelect(`${viewYear}-${pad(viewMonth + 1)}-${pad(day)}`);
     close();
   }
-  function selectMonth(m: number) {
-    setViewMonth(m);
-    setLevel('days');
-  }
-  function selectYear(y: number) {
-    setViewYear(y);
-    setLevel('months');
-  }
-  function close() {
-    setLevel('days');
-    onClose();
-  }
+  function selectMonth(m: number) { setViewMonth(m); setLevel('days'); }
+  function selectYear(y: number) { setViewYear(y); setLevel('months'); }
+  function close() { setLevel('days'); onClose(); }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={close}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleNext} style={styles.navBtn}>
+            <TouchableOpacity onPress={goPrev} style={styles.navBtn}>
               <Text style={styles.navText}>‹</Text>
             </TouchableOpacity>
 
             <View style={styles.labelRow}>
               {level === 'days' && (
                 <>
-                  <TouchableOpacity onPress={() => setLevel('months')}>
-                    <Text style={styles.label}>{MONTH_NAMES[viewMonth]}</Text>
-                  </TouchableOpacity>
                   <TouchableOpacity onPress={() => setLevel('years')}>
                     <Text style={styles.label}>{viewYear}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setLevel('months')}>
+                    <Text style={styles.label}>{MONTH_NAMES[viewMonth]}</Text>
                   </TouchableOpacity>
                 </>
               )}
@@ -98,7 +92,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
               )}
             </View>
 
-            <TouchableOpacity onPress={handlePrev} style={styles.navBtn}>
+            <TouchableOpacity onPress={goNext} style={styles.navBtn}>
               <Text style={styles.navText}>›</Text>
             </TouchableOpacity>
           </View>
@@ -125,7 +119,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 
           {level === 'months' && (
             <View style={styles.grid}>
-              {MONTH_SHORT.map((m, i) => (
+              {['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'].map((m, i) => (
                 <TouchableOpacity key={m} onPress={() => selectMonth(i)}
                   style={[styles.monthCell, i === viewMonth && styles.cellSelected]}>
                   <Text style={[styles.cellText, i === viewMonth && styles.cellTextSelected]}>{m}</Text>
@@ -150,20 +144,22 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
-  card: { backgroundColor: '#15181D', borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: '#262B33' },
-  header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#1C2027', alignItems: 'center', justifyContent: 'center' },
-  navText: { color: '#EDEBE6', fontSize: 20 },
-  labelRow: { flexDirection: 'row-reverse', gap: 10 },
-  label: { color: '#C9A961', fontSize: 15, fontWeight: '700' },
-  weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
-  weekday: { flex: 1, textAlign: 'center', color: '#8B92A0', fontSize: 11 },
-  grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
-  dayCell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-  monthCell: { width: '33.33%', aspectRatio: 1.6, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
-  cellSelected: { backgroundColor: '#C9A961' },
-  cellText: { color: '#EDEBE6', fontSize: 13 },
-  cellTextSelected: { color: '#0B0D10', fontWeight: '700' },
-});
+function makeStyles(c: ThemeColors) {
+  return StyleSheet.create({
+    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: c.borderStrong },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    navText: { color: c.text, fontSize: 20 },
+    labelRow: { flexDirection: 'row-reverse', gap: 10 },
+    label: { color: c.accent, fontSize: 15, fontWeight: '700' },
+    weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
+    weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: 11 },
+    grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
+    dayCell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+    monthCell: { width: '33.33%', aspectRatio: 1.6, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+    cellSelected: { backgroundColor: c.accent },
+    cellText: { color: c.text, fontSize: 13 },
+    cellTextSelected: { color: c.onAccent, fontWeight: '700' },
+  });
+}
