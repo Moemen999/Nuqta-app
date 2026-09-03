@@ -146,7 +146,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>

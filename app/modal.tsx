@@ -4,7 +4,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, todayStr } from '@/lib/finance';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TYPES = [
   { key: 'expense', label: 'مصروف' },
@@ -15,6 +16,7 @@ const TYPES = [
 export default function AddTransactionModal() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const insets = useSafeAreaInsets();
   const TYPE_COLORS: Record<string, string> = {
     expense: colors.danger, income: colors.success, withdraw: colors.accent,
   };
@@ -96,7 +98,8 @@ export default function AddTransactionModal() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</Text>
 
       <View style={styles.row}>
@@ -182,6 +185,7 @@ export default function AddTransactionModal() {
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
