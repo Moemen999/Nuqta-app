@@ -2,7 +2,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { fmt, todayStr } from '@/lib/finance';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BUCKET_META = [
@@ -64,7 +64,8 @@ export default function ShakhbataScreen() {
   const unassigned = categories.filter(c => !c.bucket);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>شخبطة</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها</Text>
 
@@ -169,6 +170,7 @@ export default function ShakhbataScreen() {
         </Text>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,7 +1,14 @@
-import { useAppLock } from '@/context/AppLockContext';
-import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useAppLock } from '@/context/AppLockContext';
+import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+
+const KEY_ROWS = [
+  ['1', '2', '3'],
+  ['4', '5', '6'],
+  ['7', '8', '9'],
+  ['', '0', '⌫'],
+];
 
 export default function LockScreen() {
   const { colors } = useTheme();
@@ -36,29 +43,37 @@ export default function LockScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>نقطة مقفولة 🔒</Text>
+      <Text style={styles.lockEmoji}>🔒</Text>
+      <Text style={styles.title}>نقطة مقفولة</Text>
+
       {lockType === 'pin' ? (
         <>
           <View style={styles.dotsRow}>
             {[0, 1, 2, 3].map(i => (
-              <View key={i} style={[styles.dot, { backgroundColor: i < code.length ? colors.accent : colors.surface2 }]} />
+              <View key={i} style={[styles.dot, { backgroundColor: i < code.length ? colors.accent : colors.surface2, borderColor: colors.borderStrong }]} />
             ))}
           </View>
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          <Text style={styles.error}>{error || ' '}</Text>
+
           <View style={styles.keypad}>
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((k, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.key}
-                disabled={k === ''}
-                onPress={() => (k === '⌫' ? backspace() : k !== '' && pressDigit(k))}>
-                <Text style={styles.keyText}>{k}</Text>
-              </TouchableOpacity>
+            {KEY_ROWS.map((row, ri) => (
+              <View key={ri} style={styles.keyRow}>
+                {row.map((k, ki) => (
+                  <TouchableOpacity
+                    key={ki}
+                    style={[styles.key, k === '' && styles.keyHidden, { backgroundColor: colors.surface }]}
+                    disabled={k === ''}
+                    activeOpacity={0.6}
+                    onPress={() => (k === '⌫' ? backspace() : k !== '' && pressDigit(k))}>
+                    <Text style={[styles.keyText, { color: colors.text }]}>{k}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             ))}
           </View>
         </>
       ) : (
-        <>
+        <View style={styles.passwordArea}>
           <TextInput
             style={styles.input}
             value={code}
@@ -67,12 +82,13 @@ export default function LockScreen() {
             placeholderTextColor={colors.textSecondary}
             secureTextEntry
             textAlign="right"
+            autoFocus
           />
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          <Text style={styles.error}>{error || ' '}</Text>
           <TouchableOpacity style={styles.submitBtn} onPress={() => handleSubmit()}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>دخول</Text>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
           </TouchableOpacity>
-        </>
+        </View>
       )}
     </View>
   );
@@ -81,14 +97,18 @@ export default function LockScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
-    title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 30 },
-    dotsRow: { flexDirection: 'row', gap: 14, marginBottom: 20 },
-    dot: { width: 16, height: 16, borderRadius: 8 },
-    error: { color: c.danger, fontSize: 13, marginBottom: 14 },
-    keypad: { flexDirection: 'row', flexWrap: 'wrap', width: 240, justifyContent: 'center' },
-    key: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center' },
-    keyText: { color: c.text, fontSize: 24 },
-    input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, padding: 14, fontSize: 16, marginBottom: 14 },
-    submitBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 30, paddingVertical: 12 },
+    lockEmoji: { fontSize: 44, marginBottom: 10 },
+    title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
+    dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
+    dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
+    error: { color: c.danger, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
+    keypad: { gap: 18 },
+    keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
+    key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },
+    keyHidden: { backgroundColor: 'transparent' },
+    keyText: { fontSize: 28, fontWeight: '500' },
+    passwordArea: { width: '100%', maxWidth: 320 },
+    input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
+    submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
   });
 }

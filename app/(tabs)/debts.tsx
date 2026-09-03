@@ -7,7 +7,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, fmt, todayStr } from '@/lib/finance';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 function grandTotalOf(d: Debt) {
   return d.totalAmount + (d.increases || []).reduce((s, e) => s + e.amount, 0);
@@ -240,6 +240,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <ScrollView style={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>دين جديد</Text>
@@ -343,6 +344,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -370,6 +372,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <ScrollView style={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
@@ -422,6 +425,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -448,6 +452,7 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <ScrollView style={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>زيادة على دين — {debt.personName}</Text>
@@ -501,6 +506,7 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

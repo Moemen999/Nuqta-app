@@ -20,7 +20,8 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.nuqta.app"
+      "package": "com.nuqta.app",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "output": "static",

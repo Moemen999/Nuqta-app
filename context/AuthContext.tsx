@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       displayName,
       email,
       createdAt: serverTimestamp(),
-    });
+    }, { merge: true });
   }
 
   async function logOut() {

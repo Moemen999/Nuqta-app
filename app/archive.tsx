@@ -2,7 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, fmt, formatTime, todayStr } from '@/lib/finance';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';

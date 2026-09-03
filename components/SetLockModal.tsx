@@ -1,7 +1,7 @@
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useState } from 'react';
-import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Mode = 'enable' | 'change' | 'disable';
 
@@ -52,6 +52,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.title}>
@@ -105,6 +106,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           </View>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

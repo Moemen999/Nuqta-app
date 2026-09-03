@@ -3,7 +3,7 @@ import { useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { fmt, todayStr } from '@/lib/finance';
 import { useMemo, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 function daysUntil(dateStr: string) {
   const today = new Date(todayStr());
@@ -144,6 +144,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <ScrollView style={styles.sheet} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
@@ -201,6 +202,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <CalendarPickerModal visible={showPicker} value={startDate} onSelect={setStartDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
