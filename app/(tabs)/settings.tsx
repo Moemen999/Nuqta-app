@@ -1,8 +1,10 @@
 import SetLockModal from '@/components/SetLockModal';
+import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -45,6 +47,18 @@ export default function SettingsScreen() {
       { text: 'حذف', style: 'destructive', onPress: () => deleteCategory(id) },
     ]);
   }
+  function replayOnboarding() {
+    Alert.alert('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'تمام',
+        onPress: async () => {
+          try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {}
+        },
+      },
+    ]);
+  }
+
   function confirmLogout() {
     Alert.alert('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
@@ -78,6 +92,14 @@ export default function SettingsScreen() {
 
         <TouchableOpacity style={styles.archiveBtn} onPress={() => router.push('/archive')}>
           <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13.5 }}>📄 أرشيف العمليات وتصدير إكسيل</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.archiveBtn} onPress={() => router.push('/user-guide')}>
+          <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13.5 }}>📖 دليل المستخدم</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.archiveBtn} onPress={replayOnboarding}>
+          <Text style={{ color: colors.textSecondary, fontSize: 13 }}>🔄 إعادة عرض شاشة الترحيب</Text>
         </TouchableOpacity>
 
         <Text style={styles.sectionTitle}>الأمان</Text>

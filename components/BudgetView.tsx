@@ -3,12 +3,10 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, fmt, monthSpend, todayStr } from '@/lib/finance';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_KEY = 'total_budget';
 
-export default function BudgetScreen() {
-  const insets = useSafeAreaInsets();
+export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, budgets, setBudget } = useData();
@@ -39,7 +37,7 @@ export default function BudgetScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>الميزانية الشهرية</Text>
 

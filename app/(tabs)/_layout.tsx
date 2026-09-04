@@ -35,10 +35,10 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="shakhbata"
+          name="planning"
           options={{
-            title: 'شخبطة',
-            tabBarIcon: ({ color }) => <IconSymbol size={22} name="chart.bar.fill" color={color} />,
+            title: 'التخطيط',
+            tabBarIcon: ({ color }) => <IconSymbol size={22} name="banknote.fill" color={color} />,
           }}
         />
         <Tabs.Screen
@@ -46,13 +46,6 @@ export default function TabLayout() {
           options={{
             title: 'الديون',
             tabBarIcon: ({ color }) => <IconSymbol size={22} name="person.2.fill" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="budget"
-          options={{
-            title: 'الميزانية',
-            tabBarIcon: ({ color }) => <IconSymbol size={22} name="banknote.fill" color={color} />,
           }}
         />
         <Tabs.Screen

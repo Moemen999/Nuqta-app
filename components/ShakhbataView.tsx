@@ -3,7 +3,6 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { fmt, todayStr } from '@/lib/finance';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -11,8 +10,7 @@ const BUCKET_META = [
   { key: 'future', label: 'خطط مستقبلية' },
 ] as const;
 
-export default function ShakhbataScreen() {
-  const insets = useSafeAreaInsets();
+export default function ShakhbataView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
@@ -65,7 +63,7 @@ export default function ShakhbataScreen() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>شخبطة</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها</Text>
 

@@ -5,6 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState } from 'react';
+import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { applyGlobalFont } from '@/lib/applyGlobalFont';
 
 import LockScreen from '@/components/LockScreen';
@@ -21,8 +24,25 @@ function RootNavigator() {
   const { user, loading } = useAuth();
   const { theme } = useTheme();
   const { enabled, isLocked, loading: lockLoading } = useAppLock();
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
-  if (loading || lockLoading) return null;
+  useEffect(() => {
+    AsyncStorage.getItem(ONBOARDING_KEY)
+      .then(v => setOnboardingDone(v === '1'))
+      .catch(() => setOnboardingDone(true));
+  }, []);
+
+  if (loading || lockLoading || onboardingDone === null) return null;
+
+  // شاشة الترحيب بتظهر مرة واحدة بس لأول مستخدم جديد
+  if (!onboardingDone) {
+    return (
+      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+        <OnboardingScreen onDone={() => setOnboardingDone(true)} />
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      </NavThemeProvider>
+    );
+  }
 
   if (enabled && isLocked) {
     return (
@@ -41,6 +61,7 @@ function RootNavigator() {
           <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
           <Stack.Screen name="person-ledger" options={{ headerShown: false }} />
           <Stack.Screen name="archive" options={{ headerShown: false }} />
+          <Stack.Screen name="user-guide" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
