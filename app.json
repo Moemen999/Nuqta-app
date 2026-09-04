@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "nuqtaapp",
+    "scheme": [
+      "nuqtaapp",
+      "com.googleusercontent.apps.662258111881-suhr5mgqa116f56p5439mq5gmaj8682e"
+    ],
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

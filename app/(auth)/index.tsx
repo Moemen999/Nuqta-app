@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
@@ -14,6 +15,8 @@ WebBrowser.maybeCompleteAuthSession();
 const GOOGLE_WEB_CLIENT_ID = '662258111881-r6c7jaudqjeud0oa7dsn119rf0tsv4tu.apps.googleusercontent.com';
 // الـ Android Client ID (مرتبط بـ SHA-1 بتاع نسخة preview) — لازم يتحدث لو الـ keystore اتغيّر
 const GOOGLE_ANDROID_CLIENT_ID = '662258111881-suhr5mgqa116f56p5439mq5gmaj8682e.apps.googleusercontent.com';
+// جوجل بترفض الـ scheme العادي لتطبيقات أندرويد وبتطلب الصيغة دي المبنية على الـ Client ID نفسه (معكوسة)
+const GOOGLE_REVERSED_SCHEME = 'com.googleusercontent.apps.662258111881-suhr5mgqa116f56p5439mq5gmaj8682e';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
@@ -27,9 +30,15 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
+  const redirectUri = useMemo(
+    () => makeRedirectUri({ scheme: GOOGLE_REVERSED_SCHEME, path: 'oauth2redirect' }),
+    []
+  );
+
   const [, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri,
   });
 
   useEffect(() => {
