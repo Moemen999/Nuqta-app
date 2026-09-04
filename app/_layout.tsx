@@ -1,7 +1,11 @@
+import { Tajawal_400Regular, Tajawal_500Medium, Tajawal_700Bold, useFonts } from '@expo-google-fonts/tajawal';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
+import { useEffect } from 'react';
+
+import { applyGlobalFont } from '@/lib/applyGlobalFont';
 
 import LockScreen from '@/components/LockScreen';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
@@ -50,6 +54,19 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Tajawal_400Regular,
+    Tajawal_500Medium,
+    Tajawal_700Bold,
+  });
+
+  // بنطبّق الخط على كل نصوص التطبيق أول ما يحمّل
+  useEffect(() => {
+    if (fontsLoaded) applyGlobalFont();
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <ThemeProvider>
       <AppLockProvider>

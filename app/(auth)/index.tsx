@@ -4,7 +4,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, Image, KeyboardAvoidingView, Platform,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 
@@ -83,6 +83,11 @@ export default function AuthScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <Image
+        source={require('@/assets/images/brandmark.png')}
+        style={styles.brandMark}
+        resizeMode="contain"
+      />
       <Text style={styles.title}>نقطة</Text>
       <Text style={styles.tagline}>نقطة على السطر</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
@@ -140,6 +145,7 @@ function mapError(code: string) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+    brandMark: { width: 92, height: 130, alignSelf: 'center', marginBottom: 10 },
     title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
     tagline: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 18 },
     subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 4 },
