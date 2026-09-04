@@ -7,7 +7,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, fmt, todayStr } from '@/lib/finance';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 function grandTotalOf(d: Debt) {
   return d.totalAmount + (d.increases || []).reduce((s, e) => s + e.amount, 0);
@@ -103,7 +103,13 @@ function DebtsContent() {
       <View key={d.id} style={styles.debtCard}>
         <TouchableOpacity onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
-            <Text style={styles.personName}>{d.personName}</Text>
+            {d.personPhone ? (
+              <TouchableOpacity onPress={() => Linking.openURL(`tel:${d.personPhone}`)}>
+                <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 📞</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={styles.personName}>{d.personName}</Text>
+            )}
             <Text style={[styles.remainingText, { color }]}>
               {settled ? 'اتسدد بالكامل' : `${fmt(remaining)} ج.م`}
             </Text>
@@ -207,13 +213,14 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const [showContacts, setShowContacts] = useState(false);
-  const [contactList, setContactList] = useState<{ id: string; name: string }[]>([]);
+  const [contactList, setContactList] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [contactSearch, setContactSearch] = useState('');
+  const [personPhone, setPersonPhone] = useState('');
 
   function reset() {
     setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
     setIsInstallment(false); setInstallmentCount(''); setNote('');
-    setLinkedToWallet(true); setDate(todayStr()); setError('');
+    setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone('');
   }
 
   async function pickContact() {
@@ -225,14 +232,27 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
         return;
       }
       const { data } = await Contacts.getContactsAsync({
-        fields: [Contacts.Fields.Name],
+        fields: [
+          Contacts.Fields.Name,
+          Contacts.Fields.FirstName,
+          Contacts.Fields.LastName,
+          Contacts.Fields.PhoneNumbers,
+        ],
       });
-      const named = (data || []).filter(x => x.name && x.name.trim());
+      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل
+      const named = (data || [])
+        .map(x => {
+          const composed = [x.firstName, x.lastName].filter(Boolean).join(' ').trim();
+          const finalName = (x.name && x.name.trim()) || composed;
+          const phone = x.phoneNumbers && x.phoneNumbers.length > 0 ? (x.phoneNumbers[0].number || '') : '';
+          return { id: x.id || String(Math.random()), name: finalName, phone };
+        })
+        .filter(x => x.name);
       if (named.length === 0) {
         Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
         return;
       }
-      setContactList(named.map(x => ({ id: x.id || String(Math.random()), name: x.name! })));
+      setContactList(named);
       setShowContacts(true);
     } catch (e: any) {
       Alert.alert('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
@@ -244,7 +264,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
     if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await addDebt({
-      direction, personName: personName.trim(), totalAmount: amt,
+      direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, totalAmount: amt,
       isInstallment,
       installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
       note: note.trim() || undefined,
@@ -382,10 +402,12 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
                         style={styles.contactRow}
                         onPress={() => {
                           setPersonName(ct.name);
+                          setPersonPhone(ct.phone);
                           setShowContacts(false);
                           setContactSearch('');
                         }}>
                         <Text style={styles.contactName}>{ct.name}</Text>
+                        {!!ct.phone && <Text style={styles.contactPhone}>{ct.phone}</Text>}
                       </TouchableOpacity>
                     ))}
                 </ScrollView>
@@ -583,6 +605,7 @@ function makeStyles(c: ThemeColors) {
     debtCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
     debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
     personName: { color: c.text, fontSize: 14.5, fontWeight: '700' },
+    personNameLink: { color: c.accent, textDecorationLine: 'underline' },
     remainingText: { fontSize: 14, fontWeight: '700' },
     noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
     track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
@@ -606,6 +629,7 @@ function makeStyles(c: ThemeColors) {
     contactBtn: { padding: 4 },
     contactRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
+    contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },

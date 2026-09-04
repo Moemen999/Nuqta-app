@@ -28,6 +28,7 @@ export type Debt = {
   id: string;
   direction: 'owed_to_me' | 'i_owe';
   personName: string;
+  personPhone?: string;
   totalAmount: number;
   date: string;
   isInstallment: boolean;
@@ -102,7 +103,7 @@ type DataContextType = {
   setMonthlyIncome: (month: string, income: number) => Promise<void>;
   setShakhbataPercents: (p: ShakhbataPercents) => Promise<void>;
   addDebt: (data: {
-    direction: 'owed_to_me' | 'i_owe'; personName: string; totalAmount: number;
+    direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
   }) => Promise<void>;
   deleteDebt: (id: string) => Promise<void>;
@@ -290,7 +291,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   async function addDebt(data: {
-    direction: 'owed_to_me' | 'i_owe'; personName: string; totalAmount: number;
+    direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
   }) {
     if (!uid) return;
@@ -303,7 +304,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       });
     }
     const clean = Object.fromEntries(Object.entries({
-      direction: data.direction, personName: data.personName, totalAmount: data.totalAmount, date: data.date,
+      direction: data.direction, personName: data.personName, personPhone: data.personPhone, totalAmount: data.totalAmount, date: data.date,
       isInstallment: data.isInstallment, installmentCount: data.installmentCount, note: data.note,
       initialWalletId: data.walletId, initialTransactionId,
     }).filter(([, v]) => v !== undefined));
