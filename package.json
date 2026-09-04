@@ -11,14 +11,14 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "@expo-google-fonts/tajawal": "PENDING_LOCAL_INSTALL",
+    "@expo-google-fonts/tajawal": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
     "expo": "~54.0.37",
-    "expo-auth-session": "PENDING_LOCAL_INSTALL",
+    "expo-auth-session": "~7.0.11",
     "expo-constants": "~18.0.14",
     "expo-contacts": "~15.0.11",
     "expo-crypto": "~15.0.9",

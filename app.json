@@ -50,7 +50,8 @@
         {
           "contactsPermission": "نقطة بتستخدم جهات الاتصال عشان تختار اسم الشخص بسرعة وقت تسجيل دين، من غير ما تكتبه بإيدك."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
