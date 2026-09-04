@@ -206,6 +206,9 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+  const [showContacts, setShowContacts] = useState(false);
+  const [contactList, setContactList] = useState<{ id: string; name: string }[]>([]);
+  const [contactSearch, setContactSearch] = useState('');
 
   function reset() {
     setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
@@ -215,10 +218,24 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
 
   async function pickContact() {
     try {
-      const contact = await Contacts.presentContactPickerAsync();
-      if (contact?.name) setPersonName(contact.name);
-    } catch {
-      Alert.alert('حصل خطأ', 'مقدرش أفتح جهات الاتصال دلوقتي');
+      // لازم نطلب الصلاحية صراحةً الأول — من غير كده النظام بيقفل التطبيق
+      const { status } = await Contacts.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('محتاج إذن', 'عشان تختار من جهات الاتصال، لازم تسمح للتطبيق يوصلها من إعدادات الموبايل.');
+        return;
+      }
+      const { data } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.Name],
+      });
+      const named = (data || []).filter(x => x.name && x.name.trim());
+      if (named.length === 0) {
+        Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
+        return;
+      }
+      setContactList(named.map(x => ({ id: x.id || String(Math.random()), name: x.name! })));
+      setShowContacts(true);
+    } catch (e: any) {
+      Alert.alert('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
     }
   }
 
@@ -342,6 +359,42 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           </View>
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
+
+          <Modal visible={showContacts} transparent animationType="slide" onRequestClose={() => setShowContacts(false)}>
+            <View style={styles.overlay}>
+              <View style={[styles.sheet, { maxHeight: '80%' }]}>
+                <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
+                <TextInput
+                  style={styles.input}
+                  value={contactSearch}
+                  onChangeText={setContactSearch}
+                  placeholder="دور بالاسم..."
+                  placeholderTextColor={colors.textSecondary}
+                  textAlign="right"
+                />
+                <ScrollView style={{ marginTop: 10 }} keyboardShouldPersistTaps="handled">
+                  {contactList
+                    .filter(ct => ct.name.toLowerCase().includes(contactSearch.trim().toLowerCase()))
+                    .slice(0, 200)
+                    .map(ct => (
+                      <TouchableOpacity
+                        key={ct.id}
+                        style={styles.contactRow}
+                        onPress={() => {
+                          setPersonName(ct.name);
+                          setShowContacts(false);
+                          setContactSearch('');
+                        }}>
+                        <Text style={styles.contactName}>{ct.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowContacts(false); setContactSearch(''); }}>
+                  <Text style={{ color: colors.textSecondary }}>إغلاق</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </ScrollView>
       </View>
       </KeyboardAvoidingView>
@@ -551,6 +604,8 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
     contactBtn: { padding: 4 },
+    contactRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
+    contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
