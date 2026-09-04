@@ -274,6 +274,8 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
         Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
         return;
       }
+      // ترتيب أبجدي بيتعامل مع العربي والإنجليزي مع بعض
+      named.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
       setContactList(named);
       setShowContacts(true);
     } catch (e: any) {
@@ -414,10 +416,16 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
                   placeholderTextColor={colors.textSecondary}
                   textAlign="right"
                 />
-                <ScrollView style={{ marginTop: 10 }} keyboardShouldPersistTaps="handled">
+                <Text style={styles.contactCount}>
+                  {(() => {
+                    const q = contactSearch.trim().toLocaleLowerCase('ar');
+                    const n = contactList.filter(ct => ct.name.toLocaleLowerCase('ar').includes(q)).length;
+                    return q ? `${n} نتيجة من ${contactList.length}` : `${contactList.length} جهة اتصال`;
+                  })()}
+                </Text>
+                <ScrollView style={{ marginTop: 6 }} keyboardShouldPersistTaps="handled">
                   {contactList
-                    .filter(ct => ct.name.toLowerCase().includes(contactSearch.trim().toLowerCase()))
-                    .slice(0, 200)
+                    .filter(ct => ct.name.toLocaleLowerCase('ar').includes(contactSearch.trim().toLocaleLowerCase('ar')))
                     .map(ct => (
                       <TouchableOpacity
                         key={ct.id}
@@ -653,6 +661,7 @@ function makeStyles(c: ThemeColors) {
     contactRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
     contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
     contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
+    contactCount: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginTop: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
