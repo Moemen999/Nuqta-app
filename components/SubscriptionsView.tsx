@@ -18,6 +18,7 @@ export default function SubscriptionsView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, deleteSubscription, markSubscriptionPaid } = useData();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
 
   const active = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
 
@@ -65,6 +66,9 @@ export default function SubscriptionsView() {
               <TouchableOpacity style={styles.payBtn} onPress={() => confirmPay(s)}>
                 <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)}>
+                <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(s)}>
                 <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف</Text>
               </TouchableOpacity>
@@ -74,6 +78,7 @@ export default function SubscriptionsView() {
       })}
 
       <AddSubscriptionModal visible={showAdd} onClose={() => setShowAdd(false)} />
+      {editingSub && <EditSubscriptionModal sub={editingSub} onClose={() => setEditingSub(null)} />}
     </ScrollView>
   );
 }
@@ -211,6 +216,7 @@ function makeStyles(c: ThemeColors) {
     due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
     actionsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
@@ -229,4 +235,119 @@ function makeStyles(c: ThemeColors) {
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
   });
+}
+function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { wallets, categories, updateSubscription } = useData();
+
+  const [name, setName] = useState(sub.name);
+  const [amount, setAmount] = useState(String(sub.amount));
+  const [walletId, setWalletId] = useState(sub.walletId);
+  const [categoryId, setCategoryId] = useState<string | undefined>(sub.categoryId);
+  const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'custom'>(sub.frequency);
+  const [customDays, setCustomDays] = useState(String(sub.customDays || 30));
+  const [nextDueDate, setNextDueDate] = useState(sub.nextDueDate);
+  const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore));
+  const [showPicker, setShowPicker] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    const amt = Number(amount);
+    if (!name.trim() || !amt || amt <= 0 || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
+    await updateSubscription(sub.id, {
+      name: name.trim(),
+      amount: amt,
+      walletId,
+      categoryId: categoryId ?? undefined,
+      frequency,
+      customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
+      nextDueDate,
+      reminderDaysBefore: Number(reminderDays) || 0,
+    });
+    onClose();
+  }
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
+      <View style={styles.overlay}>
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>تعديل اشتراك</Text>
+
+          <Text style={styles.label}>الاسم</Text>
+          <TextInput style={styles.input} value={name} onChangeText={setName}
+            placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          <Text style={styles.label}>المبلغ</Text>
+          <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+            keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          <Text style={styles.label}>المحفظة</Text>
+          <View style={styles.chipRow}>
+            {wallets.map(w => (
+              <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+                style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>الفئة (اختياري)</Text>
+          <View style={styles.chipRow}>
+            {categories.map(c => (
+              <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+                style={[styles.chip, { borderColor: categoryId === c.id ? colors.accent : colors.borderStrong }]}>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>التكرار</Text>
+          <View style={styles.row}>
+            <TouchableOpacity onPress={() => setFrequency('monthly')} style={[styles.typeBtn, { borderColor: frequency === 'monthly' ? colors.accent : colors.borderStrong }]}>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setFrequency('yearly')} style={[styles.typeBtn, { borderColor: frequency === 'yearly' ? colors.accent : colors.borderStrong }]}>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setFrequency('custom')} style={[styles.typeBtn, { borderColor: frequency === 'custom' ? colors.accent : colors.borderStrong }]}>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>مخصص</Text>
+            </TouchableOpacity>
+          </View>
+
+          {frequency === 'custom' && (
+            <>
+              <Text style={styles.label}>كل كام يوم</Text>
+              <TextInput style={styles.input} value={customDays} onChangeText={setCustomDays}
+                keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+            </>
+          )}
+
+          <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
+          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+            <Text style={styles.dateBtnText}>{nextDueDate}</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
+          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+            keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          {!!error && <Text style={styles.error}>{error}</Text>}
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ التعديل</Text>
+            </TouchableOpacity>
+          </View>
+
+          <CalendarPickerModal visible={showPicker} value={nextDueDate} onSelect={setNextDueDate} onClose={() => setShowPicker(false)} />
+        </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 }

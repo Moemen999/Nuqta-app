@@ -121,6 +121,7 @@ type DataContextType = {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
   }) => Promise<void>;
+  updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
   deleteGamiya: (id: string) => Promise<void>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<void>;
 };
@@ -260,7 +261,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
     if (!uid) return '';
-    const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+    // بنضمن وجود createdAt دايمًا عشان الوقت يظهر مع كل العمليات (حتى اللي بتتولد من الديون والاشتراكات والجمعية)
+    const withTimestamp = { createdAt: new Date().toISOString(), ...tx };
+    const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
     const ref = await addDoc(collection(db, 'users', uid, 'transactions'), clean);
     return ref.id;
   }
@@ -427,6 +430,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     });
     await addDoc(collection(db, 'users', uid, 'gamiyas'), { ...data, months, createdAt: new Date().toISOString() });
   }
+  async function updateGamiya(id: string, data: Partial<Gamiya>) {
+    if (!uid) return;
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+    await updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean);
+  }
   async function deleteGamiya(id: string) {
     if (!uid) return;
     const g = gamiyas.find(x => x.id === id);
@@ -459,7 +467,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
-        addGamiya, deleteGamiya, markGamiyaMonthDone,
+        addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
       }}>
       {children}
     </DataContext.Provider>

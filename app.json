@@ -41,7 +41,13 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "نقطة بتستخدم جهات الاتصال عشان تختار اسم الشخص بسرعة وقت تسجيل دين، من غير ما تكتبه بإيدك."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

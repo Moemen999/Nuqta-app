@@ -16,6 +16,7 @@ export default function GamiyaView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, deleteGamiya, markGamiyaMonthDone } = useData();
   const [showAdd, setShowAdd] = useState(false);
+  const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   function confirmDelete(g: Gamiya) {
@@ -89,9 +90,14 @@ export default function GamiyaView() {
                     )}
                   </View>
                 ))}
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(g)}>
-                  <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف الجمعية</Text>
-                </TouchableOpacity>
+                <View style={styles.gamiyaActions}>
+                  <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+                    <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteBtnFlex} onPress={() => confirmDelete(g)}>
+                    <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف الجمعية</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -99,6 +105,7 @@ export default function GamiyaView() {
       })}
 
       <AddGamiyaModal visible={showAdd} onClose={() => setShowAdd(false)} />
+      {editingGamiya && <EditGamiyaModal gamiya={editingGamiya} onClose={() => setEditingGamiya(null)} />}
     </ScrollView>
   );
 }
@@ -229,9 +236,13 @@ function makeStyles(c: ThemeColors) {
     monthText: { fontSize: 12, flex: 1, textAlign: 'right' },
     markBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9, marginTop: 10 },
+    gamiyaActions: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
+    editBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
+    deleteBtnFlex: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
     sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
+    hintNote: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', lineHeight: 17, marginBottom: 4 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
@@ -244,4 +255,71 @@ function makeStyles(c: ThemeColors) {
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
   });
+}
+function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { wallets, updateGamiya } = useData();
+
+  const [name, setName] = useState(gamiya.name);
+  const [walletId, setWalletId] = useState(gamiya.walletId);
+  const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore));
+  const [error, setError] = useState('');
+
+  const doneCount = gamiya.months.filter(m => m.status === 'done').length;
+
+  async function handleSave() {
+    if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
+    await updateGamiya(gamiya.id, {
+      name: name.trim(),
+      walletId,
+      reminderDaysBefore: Number(reminderDays) || 0,
+    });
+    onClose();
+  }
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
+      <View style={styles.overlay}>
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sheetTitle}>تعديل جمعية</Text>
+          <Text style={styles.hintNote}>
+            المبالغ وعدد الشهور وشهر الاستلام مش بيتعدلوا هنا عشان الجدول اتبنى عليهم بالفعل
+            {doneCount > 0 ? ` (واتسدد منهم ${doneCount} شهر)` : ''}. لو محتاج تغيّرهم، امسح الجمعية واعملها من جديد.
+          </Text>
+
+          <Text style={styles.label}>اسم الجمعية</Text>
+          <TextInput style={styles.input} value={name} onChangeText={setName}
+            placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          <Text style={styles.label}>المحفظة</Text>
+          <View style={styles.chipRow}>
+            {wallets.map(w => (
+              <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+                style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>
+          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+            keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          {!!error && <Text style={styles.error}>{error}</Text>}
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ التعديل</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 }
