@@ -16,6 +16,8 @@ type AppLockContextType = {
   disableLock: (code: string) => Promise<boolean>;
   changeCode: (oldCode: string, newCode: string, newType: LockType) => Promise<boolean>;
   setFrequency: (f: LockFrequency) => void;
+  graceMinutes: number;
+  setGraceMinutes: (m: number) => void;
   verify: (code: string) => Promise<boolean>;
   unlock: () => void;
 };
@@ -26,6 +28,7 @@ const K_ENABLED = 'nuqta_lock_enabled';
 const K_TYPE = 'nuqta_lock_type';
 const K_FREQ = 'nuqta_lock_freq';
 const K_HASH = 'nuqta_lock_hash';
+const K_GRACE = 'nuqta_lock_grace';
 
 async function hash(code: string) {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, code);
@@ -37,7 +40,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [frequency, setFrequencyState] = useState<LockFrequency>('onOpen');
   const [isLocked, setIsLocked] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [graceMinutes, setGraceMinutesState] = useState(0);
   const appState = useRef(AppState.currentState);
+  const backgroundedAt = useRef<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -49,6 +54,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         setEnabled(isEnabled);
         if (t === 'pin' || t === 'password') setLockType(t);
         if (f === 'onOpen' || f === 'everyResume') setFrequencyState(f);
+        const g = await SecureStore.getItemAsync(K_GRACE);
+        if (g !== null) setGraceMinutesState(Number(g) || 0);
         setIsLocked(isEnabled);
       } catch {
         // لو التخزين الآمن مش متاح لأي سبب، التطبيق يكمل من غير قفل بدل ما يتكسر
@@ -60,13 +67,21 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (enabled && frequency === 'everyResume' && appState.current.match(/inactive|background/) && next === 'active') {
-        setIsLocked(true);
+      const wasBackground = appState.current.match(/inactive|background/);
+      if (next.match(/inactive|background/)) {
+        backgroundedAt.current = Date.now();
+      }
+      if (enabled && frequency === 'everyResume' && wasBackground && next === 'active') {
+        // لو المستخدم حدد مهلة، منقفلش إلا لو عدّت المهلة دي وهو بره التطبيق
+        const awayMs = backgroundedAt.current ? Date.now() - backgroundedAt.current : Infinity;
+        if (awayMs >= graceMinutes * 60 * 1000) {
+          setIsLocked(true);
+        }
       }
       appState.current = next;
     });
     return () => sub.remove();
-  }, [enabled, frequency]);
+  }, [enabled, frequency, graceMinutes]);
 
   async function setupLock(type: LockType, code: string) {
     const h = await hash(code);
@@ -101,6 +116,11 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
+  async function setGraceMinutes(m: number) {
+    await SecureStore.setItemAsync(K_GRACE, String(m));
+    setGraceMinutesState(m);
+  }
+
   async function setFrequency(f: LockFrequency) {
     await SecureStore.setItemAsync(K_FREQ, f);
     setFrequencyState(f);
@@ -122,7 +142,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, changeCode, setFrequency, verify, unlock }}>
+    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
       {children}
     </AppLockContext.Provider>
   );

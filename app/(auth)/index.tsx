@@ -1,6 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { makeRedirectUri } from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
@@ -30,8 +29,9 @@ export default function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
+  // جوجل بتطلب شرطة واحدة بعد النقطتين في الصيغة دي (scheme:/path مش scheme://path)
   const redirectUri = useMemo(
-    () => makeRedirectUri({ scheme: GOOGLE_REVERSED_SCHEME, path: 'oauth2redirect' }),
+    () => `${GOOGLE_REVERSED_SCHEME}:/oauth2redirect`,
     []
   );
 

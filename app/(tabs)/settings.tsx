@@ -20,7 +20,7 @@ export default function SettingsScreen() {
   const { colors, theme, setTheme } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, logOut } = useAuth();
-  const { enabled: lockEnabled, lockType, frequency, setFrequency } = useAppLock();
+  const { enabled: lockEnabled, lockType, frequency, setFrequency, graceMinutes, setGraceMinutes } = useAppLock();
   const {
     wallets, categories,
     addWallet, updateWallet, deleteWallet,
@@ -101,6 +101,26 @@ export default function SettingsScreen() {
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>كل مرة ترجع للتطبيق</Text>
               </TouchableOpacity>
             </View>
+
+            {frequency === 'everyResume' && (
+              <>
+                <Text style={[styles.hint, { marginTop: 14 }]}>يقفل بعد قد إيه من خروجك من التطبيق؟</Text>
+                <View style={styles.row}>
+                  {[
+                    { m: 0, label: 'فورًا' },
+                    { m: 1, label: 'بعد دقيقة' },
+                    { m: 5, label: 'بعد 5 دقايق' },
+                    { m: 15, label: 'بعد 15 دقيقة' },
+                  ].map(opt => (
+                    <TouchableOpacity key={opt.m} onPress={() => setGraceMinutes(opt.m)}
+                      style={[styles.graceBtn, { borderColor: graceMinutes === opt.m ? colors.accent : colors.borderStrong }]}>
+                      <Text style={{ color: colors.text, fontSize: 11.5 }}>{opt.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
             <View style={[styles.row, { marginTop: 14 }]}>
               <TouchableOpacity style={styles.changeBtn} onPress={() => setLockModalMode('change')}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تغيير الباسورد</Text>
@@ -226,6 +246,7 @@ function makeStyles(c: ThemeColors) {
     securityStatus: { color: c.success, fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
     row: { flexDirection: 'row-reverse', gap: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
+    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 9 },
     changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 4 },
