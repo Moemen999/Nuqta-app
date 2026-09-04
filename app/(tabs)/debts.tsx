@@ -84,6 +84,27 @@ function DebtsContent() {
     ]);
   }
 
+  async function openContactCard(d: Debt) {
+    try {
+      if (d.personContactId) {
+        // بيفتح كارت جهة الاتصال الكامل في تطبيق جهات الاتصال
+        await Contacts.presentFormAsync(d.personContactId);
+        return;
+      }
+      if (d.personPhone) {
+        await Linking.openURL(`tel:${d.personPhone}`);
+      }
+    } catch {
+      if (d.personPhone) {
+        Linking.openURL(`tel:${d.personPhone}`).catch(() => {
+          Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+        });
+      } else {
+        Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+      }
+    }
+  }
+
   function renderDebt(d: Debt) {
     const grandTotal = grandTotalOf(d);
     const paid = paidOf(d);
@@ -103,9 +124,9 @@ function DebtsContent() {
       <View key={d.id} style={styles.debtCard}>
         <TouchableOpacity onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
-            {d.personPhone ? (
-              <TouchableOpacity onPress={() => Linking.openURL(`tel:${d.personPhone}`)}>
-                <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 📞</Text>
+            {(d.personContactId || d.personPhone) ? (
+              <TouchableOpacity onPress={() => openContactCard(d)}>
+                <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
               </TouchableOpacity>
             ) : (
               <Text style={styles.personName}>{d.personName}</Text>
@@ -216,11 +237,12 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const [contactList, setContactList] = useState<{ id: string; name: string; phone: string }[]>([]);
   const [contactSearch, setContactSearch] = useState('');
   const [personPhone, setPersonPhone] = useState('');
+  const [personContactId, setPersonContactId] = useState('');
 
   function reset() {
     setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
     setIsInstallment(false); setInstallmentCount(''); setNote('');
-    setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone('');
+    setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone(''); setPersonContactId('');
   }
 
   async function pickContact() {
@@ -264,7 +286,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
     if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await addDebt({
-      direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, totalAmount: amt,
+      direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
       isInstallment,
       installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
       note: note.trim() || undefined,
@@ -403,6 +425,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
                         onPress={() => {
                           setPersonName(ct.name);
                           setPersonPhone(ct.phone);
+                          setPersonContactId(ct.id);
                           setShowContacts(false);
                           setContactSearch('');
                         }}>
