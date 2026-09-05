@@ -4,7 +4,7 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 
@@ -82,7 +82,12 @@ export default function AuthScreen() {
   }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>نقطة</Text>
       <Text style={styles.tagline}>نقطة على السطر</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
@@ -121,6 +126,7 @@ export default function AuthScreen() {
           {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب بالفعل؟ سجّل دخول'}
         </Text>
       </TouchableOpacity>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -139,7 +145,8 @@ function mapError(code: string) {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
+    flex: { flex: 1, backgroundColor: c.bg },
+    container: { flexGrow: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 12 },
     title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
     tagline: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 18 },
     subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 4 },
