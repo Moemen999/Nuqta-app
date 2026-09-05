@@ -14,6 +14,7 @@ import LockScreen from '@/components/LockScreen';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
+import { NotificationsProvider } from '@/context/NotificationsContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 
 export const unstable_settings = {
@@ -93,7 +94,9 @@ export default function RootLayout() {
       <AppLockProvider>
         <AuthProvider>
           <DataProvider>
-            <RootNavigator />
+            <NotificationsProvider>
+              <RootNavigator />
+            </NotificationsProvider>
           </DataProvider>
         </AuthProvider>
       </AppLockProvider>

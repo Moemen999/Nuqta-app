@@ -1,6 +1,7 @@
 import SetLockModal from '@/components/SetLockModal';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
+import { useNotifications } from '@/context/NotificationsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -23,6 +24,7 @@ export default function SettingsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled, lockType, frequency, setFrequency, graceMinutes, setGraceMinutes } = useAppLock();
+  const notifs = useNotifications();
   const {
     wallets, categories,
     addWallet, updateWallet, deleteWallet,
@@ -101,6 +103,61 @@ export default function SettingsScreen() {
         <TouchableOpacity style={styles.archiveBtn} onPress={replayOnboarding}>
           <Text style={{ color: colors.textSecondary, fontSize: 13 }}>🔄 إعادة عرض شاشة الترحيب</Text>
         </TouchableOpacity>
+
+        <Text style={styles.sectionTitle}>الإشعارات</Text>
+        {!notifs.enabled ? (
+          <>
+            <Text style={styles.hint}>فعّل الإشعارات عشان توصلك تذكيرات الاشتراكات والجمعية حتى والتطبيق مقفول</Text>
+            <TouchableOpacity
+              style={styles.archiveBtn}
+              onPress={async () => {
+                const ok = await notifs.enableNotifications();
+                if (!ok) {
+                  Alert.alert('محتاج إذن', 'لازم تسمح للتطبيق يبعتلك إشعارات من إعدادات الموبايل.');
+                }
+              }}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13.5 }}>🔔 تفعيل الإشعارات</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.securityCard}>
+            <Text style={styles.securityStatus}>الإشعارات مفعّلة</Text>
+            <Text style={styles.hint}>هتوصلك تذكيرات قبل مواعيد الاشتراكات وأقساط الجمعية</Text>
+
+            <View style={[styles.row, { marginTop: 8 }]}>
+              <TouchableOpacity
+                onPress={() => notifs.setDailyEnabled(true)}
+                style={[styles.typeBtn, { borderColor: notifs.dailyEnabled ? colors.accent : colors.borderStrong }]}>
+                <Text style={{ color: colors.text, fontSize: 12.5 }}>تذكير يومي</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => notifs.setDailyEnabled(false)}
+                style={[styles.typeBtn, { borderColor: !notifs.dailyEnabled ? colors.accent : colors.borderStrong }]}>
+                <Text style={{ color: colors.text, fontSize: 12.5 }}>من غير تذكير يومي</Text>
+              </TouchableOpacity>
+            </View>
+
+            {notifs.dailyEnabled && (
+              <>
+                <Text style={[styles.hint, { marginTop: 12 }]}>التذكير اليومي الساعة كام؟</Text>
+                <View style={styles.row}>
+                  {[14, 18, 20, 22].map(h => (
+                    <TouchableOpacity
+                      key={h}
+                      onPress={() => notifs.setDailyHour(h)}
+                      style={[styles.graceBtn, { borderColor: notifs.dailyHour === h ? colors.accent : colors.borderStrong }]}>
+                      <Text style={{ color: colors.text, fontSize: 11.5 }}>{h > 12 ? h - 12 : h} {h >= 12 ? 'م' : 'ص'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </>
+            )}
+
+            <TouchableOpacity style={[styles.disableBtn, { marginTop: 14 }]} onPress={() => notifs.disableNotifications()}>
+              <Text style={{ color: colors.danger, fontSize: 12.5 }}>إيقاف الإشعارات</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>الأمان</Text>
         {!lockEnabled ? (
