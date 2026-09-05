@@ -1,6 +1,6 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, monthSpend, todayStr } from '@/lib/finance';
+import { categoryLabel, currentMonth, fmt, monthSpend } from '@/lib/finance';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -11,7 +11,7 @@ export default function BudgetView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, budgets, setBudget } = useData();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const nowMonth = todayStr().slice(0, 7);
+  const nowMonth = currentMonth();
 
   function handleChange(key: string, value: string) {
     setDrafts(d => ({ ...d, [key]: value }));
@@ -29,9 +29,15 @@ export default function BudgetView() {
   const totalBudget = budgets[TOTAL_KEY] || 0;
   const allocated = categories.reduce((s, c) => s + (budgets[c.id] || 0), 0);
   const remaining = totalBudget - allocated;
-  const totalMonthSpend = transactions
-    .filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth)
-    .reduce((s, t) => s + t.amount, 0);
+  const totalMonthSpend = useMemo(
+    () => transactions.filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth).reduce((s, t) => s + t.amount, 0),
+    [transactions, nowMonth]
+  );
+  const spendByCategory = useMemo(() => {
+    const map = new Map<string, number>();
+    categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth)));
+    return map;
+  }, [categories, transactions, nowMonth]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -71,7 +77,7 @@ export default function BudgetView() {
         <Text style={styles.sectionTitle}>توزيع الميزانية على الفئات</Text>
         {categories.map(c => {
           const limit = drafts[c.id] !== undefined ? Number(drafts[c.id]) || 0 : (budgets[c.id] || 0);
-          const spend = monthSpend(transactions, c.id, nowMonth);
+          const spend = spendByCategory.get(c.id) || 0;
           const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
           const color = pct >= 100 ? colors.danger : pct >= 80 ? colors.accent : colors.success;
 

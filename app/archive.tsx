@@ -1,7 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, formatTime, todayStr } from '@/lib/finance';
+import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr } from '@/lib/finance';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -10,22 +10,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacit
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
-function addDays(dateStr: string, days: number) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
-}
-function startOfMonth(dateStr: string) { return dateStr.slice(0, 7) + '-01'; }
-function endOfMonth(dateStr: string) {
-  const d = new Date(dateStr); const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return end.toISOString().slice(0, 10);
-}
-
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
-
-const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
-  expense: { label: 'مصروف', color: '#D97878', sign: '-' },
-  income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
-  withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
-};
 
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();

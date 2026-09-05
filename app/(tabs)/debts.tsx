@@ -4,17 +4,12 @@ import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, todayStr } from '@/lib/finance';
+import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function grandTotalOf(d: Debt) {
-  return d.totalAmount + (d.increases || []).reduce((s, e) => s + e.amount, 0);
-}
-function paidOf(d: Debt) {
-  return d.payments.reduce((s, p) => s + p.amount, 0);
-}
 function debtDate(d: Debt) {
   return d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '0000-00-00');
 }
@@ -22,7 +17,7 @@ function debtDate(d: Debt) {
 type Tab = 'debts' | 'subscriptions' | 'gamiya';
 
 export default function DebtsTabScreen() {
-  const insets = useSafeAreaInsetsFallback();
+  const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [tab, setTab] = useState<Tab>('debts');
@@ -51,12 +46,6 @@ export default function DebtsTabScreen() {
   );
 }
 
-// ملاحظة: بنستخدم useSafeAreaInsets من نفس المكتبة المستخدمة في باقي الشاشات
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-function useSafeAreaInsetsFallback() {
-  return useSafeAreaInsets();
-}
-
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -71,7 +60,7 @@ function DebtsContent() {
   const iOwe = debts.filter(d => d.direction === 'i_owe');
 
   function remainingOf(d: Debt) {
-    return grandTotalOf(d) - paidOf(d);
+    return debtGrandTotal(d) - debtPaid(d);
   }
 
   const totalOwedToMe = owedToMe.reduce((s, d) => s + Math.max(0, remainingOf(d)), 0);
@@ -106,8 +95,8 @@ function DebtsContent() {
   }
 
   function renderDebt(d: Debt) {
-    const grandTotal = grandTotalOf(d);
-    const paid = paidOf(d);
+    const grandTotal = debtGrandTotal(d);
+    const paid = debtPaid(d);
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
     const settled = remaining <= 0;
@@ -460,7 +449,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, addDebtPayment } = useData();
 
-  const remaining = grandTotalOf(debt) - paidOf(debt);
+  const remaining = debtGrandTotal(debt) - debtPaid(debt);
 
   const [amount, setAmount] = useState(String(remaining > 0 ? remaining : ''));
   const [walletId, setWalletId] = useState(wallets[0]?.id);

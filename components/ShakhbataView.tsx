@@ -1,6 +1,6 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { fmt, todayStr } from '@/lib/finance';
+import { currentMonth, fmt } from '@/lib/finance';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -15,7 +15,7 @@ export default function ShakhbataView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
 
-  const nowMonth = todayStr().slice(0, 7);
+  const nowMonth = currentMonth();
   const [incomeDraft, setIncomeDraft] = useState<string | null>(null);
   const [percentDrafts, setPercentDrafts] = useState<{ needs: string; wants: string; future: string } | null>(null);
 
@@ -52,12 +52,17 @@ export default function ShakhbataView() {
     setPercentDrafts(null);
   }
 
-  function spendFor(bucketKey: string) {
-    const ids = categories.filter(c => c.bucket === bucketKey).map(c => c.id);
-    return transactions
-      .filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth && ids.includes(t.categoryId || ''))
-      .reduce((s, t) => s + t.amount, 0);
-  }
+  const spendByBucket = useMemo(() => {
+    const map = new Map<string, number>();
+    BUCKET_META.forEach(b => {
+      const ids = categories.filter(c => c.bucket === b.key).map(c => c.id);
+      const total = transactions
+        .filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth && ids.includes(t.categoryId || ''))
+        .reduce((s, t) => s + t.amount, 0);
+      map.set(b.key, total);
+    });
+    return map;
+  }, [categories, transactions, nowMonth]);
 
   const unassigned = categories.filter(c => !c.bucket);
 
@@ -117,7 +122,7 @@ export default function ShakhbataView() {
           {BUCKET_META.map(b => {
             const pct = percents[b.key] / 100;
             const target = income * pct;
-            const spend = spendFor(b.key);
+            const spend = spendByBucket.get(b.key) || 0;
             const usagePct = target > 0 ? Math.min(100, (spend / target) * 100) : 0;
             const color = usagePct >= 100 ? colors.danger : usagePct >= 80 ? colors.accent : colors.success;
             return (

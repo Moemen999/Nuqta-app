@@ -2,29 +2,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, formatTime, monthSpend, todayStr, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, hashColor, monthSpend, todayStr, walletBalance } from '@/lib/finance';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const PALETTE = ['#7FA98F', '#C9A961', '#7C93C9', '#C97C9B', '#9B7CC9', '#C98F5A', '#6FB3B8', '#B08FC9'];
-function hashColor(str: string) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-function daysUntil(dateStr: string) {
-  const today = new Date(todayStr());
-  const target = new Date(dateStr);
-  return Math.round((target.getTime() - today.getTime()) / 86400000);
-}
-
-const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
-  expense: { label: 'مصروف', color: '#D97878', sign: '-' },
-  income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
-  withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
-};
 
 const TOTAL_BUDGET_KEY = 'total_budget';
 
@@ -36,14 +18,20 @@ export default function HomeScreen() {
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas } = useData();
   const [showBalance, setShowBalance] = useState(true);
 
+  const balances = useMemo(() => {
+    const map = new Map<string, number>();
+    wallets.forEach(w => map.set(w.id, walletBalance(transactions, w.id, w.openingBalance)));
+    return map;
+  }, [wallets, transactions]);
+
   const totalBalance = useMemo(
-    () => wallets.reduce((s, w) => s + walletBalance(transactions, w.id, w.openingBalance), 0),
-    [wallets, transactions]
+    () => wallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0),
+    [wallets, balances]
   );
 
-  const nowMonth = todayStr().slice(0, 7);
+  const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
-  const lowWallets = wallets.filter(w => walletBalance(transactions, w.id, w.openingBalance) < (w.lowAlert || 0));
+  const lowWallets = wallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
   const budgetAlerts = categories
     .filter(c => budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth), limit: budgets[c.id] }))
@@ -91,7 +79,7 @@ export default function HomeScreen() {
                 <View style={[styles.dot, { backgroundColor: hashColor(w.name) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>
                 <Text style={styles.walletChipVal}>
-                  {showBalance ? fmt(walletBalance(transactions, w.id, w.openingBalance)) : '••••'}
+                  {showBalance ? fmt(balances.get(w.id) || 0) : '••••'}
                 </Text>
               </View>
             ))}
@@ -106,7 +94,7 @@ export default function HomeScreen() {
         {lowWallets.map(w => (
           <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
             <Text style={[styles.bannerText, { color: colors.danger }]}>
-              رصيد {w.name} قرب يخلص ({fmt(walletBalance(transactions, w.id, w.openingBalance))} ج.م)
+              رصيد {w.name} قرب يخلص ({fmt(balances.get(w.id) || 0)} ج.م)
             </Text>
           </View>
         ))}

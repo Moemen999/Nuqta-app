@@ -1,27 +1,12 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, todayStr } from '@/lib/finance';
+import { addDays, categoryLabel, endOfMonth, fmt, hashColor, startOfMonth, todayStr } from '@/lib/finance';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { PieChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const PALETTE = ['#7FA98F', '#C9A961', '#7C93C9', '#C97C9B', '#9B7CC9', '#C98F5A', '#6FB3B8', '#B08FC9'];
-function hashColor(str: string) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-function addDays(dateStr: string, days: number) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10);
-}
-function startOfMonth(dateStr: string) { return dateStr.slice(0, 7) + '-01'; }
-function endOfMonth(dateStr: string) {
-  const d = new Date(dateStr); const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return end.toISOString().slice(0, 10);
-}
 
 const screenWidth = Dimensions.get('window').width;
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'custom';
@@ -52,28 +37,36 @@ export default function ReportsScreen() {
     return { from: startOfMonth(today), to: endOfMonth(today) };
   }, [preset, customFrom, customTo]);
 
-  const filtered = transactions.filter(t => t.date >= range.from && t.date <= range.to);
+  const filtered = useMemo(
+    () => transactions.filter(t => t.date >= range.from && t.date <= range.to),
+    [transactions, range]
+  );
   const visibleCats = catFilter.length > 0 ? categories.filter(c => catFilter.includes(c.id)) : categories;
 
-  const expenseByCat = visibleCats
-    .map(c => ({
-      id: c.id,
-      name: categoryLabel(c),
-      amount: filtered.filter(t => t.type === 'expense' && t.categoryId === c.id).reduce((s, t) => s + t.amount, 0),
-      color: hashColor(c.name),
-    }))
-    .filter(c => c.amount > 0);
+  const expenseByCat = useMemo(
+    () => visibleCats
+      .map(c => ({
+        id: c.id,
+        name: categoryLabel(c),
+        amount: filtered.filter(t => t.type === 'expense' && t.categoryId === c.id).reduce((s, t) => s + t.amount, 0),
+        color: hashColor(c.name),
+      }))
+      .filter(c => c.amount > 0),
+    [visibleCats, filtered]
+  );
 
-  const periodExpense = expenseByCat.reduce((s, c) => s + c.amount, 0);
+  const periodExpense = useMemo(() => expenseByCat.reduce((s, c) => s + c.amount, 0), [expenseByCat]);
 
-  const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
-  const prevFrom = addDays(range.from, -days);
-  const prevTo = addDays(range.from, -1);
-  const prevFilteredCats = catFilter.length > 0 ? catFilter : categories.map(c => c.id);
-  const prevExpense = transactions
-    .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo && prevFilteredCats.includes(t.categoryId || ''))
-    .reduce((s, t) => s + t.amount, 0);
-  const change = prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
+  const change = useMemo(() => {
+    const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
+    const prevFrom = addDays(range.from, -days);
+    const prevTo = addDays(range.from, -1);
+    const prevFilteredCats = catFilter.length > 0 ? catFilter : categories.map(c => c.id);
+    const prevExpense = transactions
+      .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo && prevFilteredCats.includes(t.categoryId || ''))
+      .reduce((s, t) => s + t.amount, 0);
+    return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
+  }, [range, catFilter, categories, transactions, periodExpense]);
 
   function toggleCat(id: string) {
     setCatFilter(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);

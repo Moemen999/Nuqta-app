@@ -1,5 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
+import { addDays } from '@/lib/finance';
 import {
   addDoc, collection, deleteDoc, doc, onSnapshot, runTransaction, setDoc, updateDoc,
 } from 'firebase/firestore';
@@ -141,10 +142,6 @@ const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 }
 function addMonths(dateStr: string, n: number) {
   const d = new Date(dateStr); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10);
 }
-function addDaysStr(dateStr: string, n: number) {
-  const d = new Date(dateStr); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10);
-}
-
 async function claimSeeding(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
   try {
@@ -315,9 +312,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     const debt = debts.find(d => d.id === id);
     if (debt) {
-      if (debt.initialTransactionId) await deleteTransaction(debt.initialTransactionId);
-      for (const p of debt.payments) if (p.transactionId) await deleteTransaction(p.transactionId);
-      for (const inc of debt.increases || []) if (inc.transactionId) await deleteTransaction(inc.transactionId);
+      const txIds = [
+        debt.initialTransactionId,
+        ...debt.payments.map(p => p.transactionId),
+        ...(debt.increases || []).map(inc => inc.transactionId),
+      ].filter((x): x is string => !!x);
+      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
     }
     await deleteDoc(doc(db, 'users', uid, 'debts', id));
   }
@@ -389,7 +389,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteSubscription(id: string) {
     if (!uid) return;
     const sub = subscriptions.find(s => s.id === id);
-    if (sub) for (const h of sub.history || []) if (h.transactionId) await deleteTransaction(h.transactionId);
+    if (sub) {
+      const txIds = (sub.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
+      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
+    }
     await deleteDoc(doc(db, 'users', uid, 'subscriptions', id));
   }
   async function markSubscriptionPaid(id: string, date: string) {
@@ -406,7 +409,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
     const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
       : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
-      : addDaysStr(sub.nextDueDate, sub.customDays || 30);
+      : addDays(sub.nextDueDate, sub.customDays || 30);
     await updateDoc(doc(db, 'users', uid, 'subscriptions', id), {
       history: [...(sub.history || []), payment],
       nextDueDate: nextDue,
@@ -440,7 +443,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteGamiya(id: string) {
     if (!uid) return;
     const g = gamiyas.find(x => x.id === id);
-    if (g) for (const m of g.months) if (m.transactionId) await deleteTransaction(m.transactionId);
+    if (g) {
+      const txIds = g.months.map(m => m.transactionId).filter((x): x is string => !!x);
+      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
+    }
     await deleteDoc(doc(db, 'users', uid, 'gamiyas', id));
   }
   async function markGamiyaMonthDone(gamiyaId: string, monthId: string) {

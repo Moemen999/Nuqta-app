@@ -1,15 +1,9 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, fmt, todayStr } from '@/lib/finance';
+import { categoryLabel, daysUntil, fmt, todayStr } from '@/lib/finance';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-function daysUntil(dateStr: string) {
-  const today = new Date(todayStr());
-  const target = new Date(dateStr);
-  return Math.round((target.getTime() - today.getTime()) / 86400000);
-}
 
 const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي', custom: 'مخصص' };
 
