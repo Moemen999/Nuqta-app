@@ -59,7 +59,9 @@ export default function PersonLedgerScreen() {
   const finalBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backText}>‹ رجوع</Text>

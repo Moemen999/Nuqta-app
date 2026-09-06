@@ -33,7 +33,11 @@ export default function GamiyaView() {
   }
 
   return (
-    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.scrollArea}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ جمعية جديدة</Text>
@@ -162,7 +166,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
@@ -300,7 +304,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تعديل جمعية</Text>
           <Text style={styles.hintNote}>
             المبالغ وعدد الشهور وشهر الاستلام مش بيتعدلوا هنا عشان الجدول اتبنى عليهم بالفعل

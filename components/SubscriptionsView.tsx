@@ -32,7 +32,11 @@ export default function SubscriptionsView() {
   }
 
   return (
-    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.scrollArea}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ اشتراك جديد</Text>
@@ -124,7 +128,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>اشتراك جديد</Text>
 
           <Text style={styles.label}>الاسم</Text>
@@ -285,7 +289,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تعديل اشتراك</Text>
 
           <Text style={styles.label}>الاسم</Text>

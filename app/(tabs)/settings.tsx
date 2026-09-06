@@ -86,7 +86,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>الإعدادات</Text>
         <Text style={styles.email}>{user?.email}</Text>
 

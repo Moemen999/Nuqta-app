@@ -174,7 +174,11 @@ function DebtsContent() {
   }
 
   return (
-    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.scrollArea}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دين جديد</Text>
@@ -302,7 +306,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>دين جديد</Text>
 
           <View style={styles.row}>
@@ -422,7 +426,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
                     return q ? `${n} نتيجة من ${contactList.length}` : `${contactList.length} جهة اتصال`;
                   })()}
                 </Text>
-                <ScrollView style={{ marginTop: 6 }} keyboardShouldPersistTaps="handled">
+                <ScrollView style={{ marginTop: 6 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
                   {contactList
                     .filter(ct => ct.name.toLocaleLowerCase('ar').includes(contactSearch.trim().toLocaleLowerCase('ar')))
                     .map(ct => (
@@ -487,7 +491,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
           <Text style={styles.hintText}>المتبقي: {fmt(remaining)} ج.م</Text>
 
@@ -575,7 +579,7 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>زيادة على دين — {debt.personName}</Text>
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>

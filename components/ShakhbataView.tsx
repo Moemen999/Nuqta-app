@@ -103,7 +103,7 @@ export default function ShakhbataView() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Text style={styles.title}>شخبطة</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها</Text>
 

@@ -110,7 +110,7 @@ export default function AddTransactionModal() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Text style={styles.title}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</Text>
 
       <View style={styles.row}>

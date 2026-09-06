@@ -109,7 +109,9 @@ export default function ReportsScreen() {
   }, [debts, range]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
+    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
 
       <View style={styles.presetRow}>

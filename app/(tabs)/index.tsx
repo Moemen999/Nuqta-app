@@ -134,7 +134,11 @@ export default function HomeScreen() {
         })}
       </View>
 
-      <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollArea}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && <Text style={styles.emptyState}>لسه معملتش أي عملية</Text>}
         {recent.map(t => {

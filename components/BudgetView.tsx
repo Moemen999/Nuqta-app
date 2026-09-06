@@ -71,7 +71,7 @@ export default function BudgetView() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>الميزانية الشهرية</Text>
 
         <View style={styles.totalCard}>
