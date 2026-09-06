@@ -1,7 +1,7 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, currentMonth, fmt, monthSpend } from '@/lib/finance';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 const TOTAL_KEY = 'total_budget';
@@ -13,15 +13,42 @@ export default function BudgetView() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const nowMonth = currentMonth();
 
+  // نفس مشكلة شخبطة: الحفظ كان في onBlur بس، والتبديل بين الميزانية وشخبطة
+  // بيشيل المكوّن من غير onBlur فالسقف اللي المستخدم كتبه كان بيضيع.
+  // بنحفظ بعد ثانية من آخر حرف، وأي مسوّدة فاضلة بتتحفظ وقت ما المكوّن يتشال.
+  const pendingDrafts = useRef<Record<string, string>>({});
+
+  function saveDraft(key: string, raw: string) {
+    delete pendingDrafts.current[key];
+    const num = Number(raw);
+    setBudget(key, isNaN(num) ? 0 : num);
+  }
   function handleChange(key: string, value: string) {
     setDrafts(d => ({ ...d, [key]: value }));
+    pendingDrafts.current[key] = value;
   }
   function handleBlur(key: string) {
     const raw = drafts[key];
     if (raw === undefined) return;
-    const num = Number(raw);
-    setBudget(key, isNaN(num) ? 0 : num);
+    saveDraft(key, raw);
   }
+
+  useEffect(() => {
+    const pending = Object.entries(pendingDrafts.current);
+    if (pending.length === 0) return;
+    const t = setTimeout(() => pending.forEach(([key, raw]) => saveDraft(key, raw)), 1000);
+    return () => clearTimeout(t);
+  }, [drafts]);
+
+  useEffect(() => {
+    const pending = pendingDrafts;
+    return () => {
+      Object.entries(pending.current).forEach(([key, raw]) => {
+        const num = Number(raw);
+        setBudget(key, isNaN(num) ? 0 : num);
+      });
+    };
+  }, []);
   function valueFor(key: string) {
     return drafts[key] !== undefined ? drafts[key] : (budgets[key] ? String(budgets[key]) : '');
   }

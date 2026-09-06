@@ -2,7 +2,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { currentMonth, fmt } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BUCKET_META = [
@@ -24,10 +24,40 @@ export default function ShakhbataView() {
 
   const income = incomeDraft !== null ? Number(incomeDraft) || 0 : (shakhbataIncome[nowMonth] || 0);
 
+  // الدخل كان بيتحفظ في onBlur بس. لكن التبديل بين "الميزانية" و"شخبطة" بيشيل
+  // المكوّن من الشاشة على طول من غير ما يشغّل onBlur، فالرقم كان بيضيع قبل ما
+  // يوصل لقاعدة البيانات. دلوقتي بنحفظ بعد ثانية من آخر حرف، وكمان بنحفظ أي
+  // مسوّدة لسه ما اتحفظتش وقت ما المكوّن يتشال.
+  const pendingIncome = useRef<{ month: string; value: number } | null>(null);
+
+  function saveIncome(raw: string) {
+    const value = Number(raw) || 0;
+    pendingIncome.current = null;
+    setMonthlyIncome(nowMonth, value);
+  }
+
+  function handleIncomeChange(raw: string) {
+    setIncomeDraft(raw);
+    pendingIncome.current = { month: nowMonth, value: Number(raw) || 0 };
+  }
+
   function handleIncomeBlur() {
     if (incomeDraft === null) return;
-    setMonthlyIncome(nowMonth, Number(incomeDraft) || 0);
+    saveIncome(incomeDraft);
   }
+
+  useEffect(() => {
+    if (incomeDraft === null) return;
+    const t = setTimeout(() => saveIncome(incomeDraft), 1000);
+    return () => clearTimeout(t);
+  }, [incomeDraft]);
+
+  useEffect(() => {
+    return () => {
+      const pending = pendingIncome.current;
+      if (pending) setMonthlyIncome(pending.month, pending.value);
+    };
+  }, []);
 
   const percents = percentDrafts
     ? {
@@ -84,7 +114,7 @@ export default function ShakhbataView() {
         placeholder="0"
         placeholderTextColor={colors.textSecondary}
         value={incomeDraft !== null ? incomeDraft : (shakhbataIncome[nowMonth] ? String(shakhbataIncome[nowMonth]) : '')}
-        onChangeText={setIncomeDraft}
+        onChangeText={handleIncomeChange}
         onBlur={handleIncomeBlur}
         textAlign="right"
       />
