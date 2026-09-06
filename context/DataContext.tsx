@@ -2,7 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import { addDays } from '@/lib/finance';
 import {
-  addDoc, collection, deleteDoc, doc, onSnapshot, runTransaction, setDoc, updateDoc,
+  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
@@ -101,6 +101,7 @@ type DataContextType = {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
+  transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
   setMonthlyIncome: (month: string, income: number) => Promise<void>;
   setShakhbataPercents: (p: ShakhbataPercents) => Promise<void>;
@@ -139,6 +140,8 @@ const DEFAULT_WALLETS = [
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
 
+// بنستخدمها في الجمع والطرح — الطرح لازم يكون معكوس مضبوط للجمع عشان نقدر نرجّع
+// موعد استحقاق الاشتراك لو دفعة اتحذفت
 function addMonths(dateStr: string, n: number) {
   const d = new Date(dateStr); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10);
 }
@@ -271,9 +274,113 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
     await updateDoc(doc(db, 'users', uid, 'transactions', id), clean);
   }
-  async function deleteTransaction(id: string) {
+  // حذف العملية من غير أي تنسيق — بتستخدمها بس المسارات اللي بتمسح السجل الأصلي
+  // بنفسها (حذف دين/اشتراك/جمعية)، عشان منلفش في دايرة حذف
+  async function deleteTransactionDoc(id: string) {
     if (!uid) return;
     await deleteDoc(doc(db, 'users', uid, 'transactions', id));
+  }
+
+  /**
+   * أي عملية بتتحذف من أي شاشة لازم السجل اللي ولّدها يتعدل معاها، وإلا بيفضل
+   * عندنا دين/اشتراك/جمعية متعلقين بعملية مش موجودة — والمستخدم بيشوف رصيد وهمي.
+   * - دفعة أو زيادة أو شهر جمعية: بنشيل الحركة من السجل بس (الشهر بيرجع "لسه ما اتسددش")
+   * - المبلغ الأساسي للدين: لو الدين لسه مافيهوش دفعات ولا زيادات بيتمسح كله
+   *   (مفيهوش غير القيد ده)، ولو فيه بيفضل موجود بس بيبقى "بالأجل" عشان منمسحش
+   *   حركات حقيقية المستخدم سجّلها بنفسه في أيام تانية
+   */
+  async function reconcileLinkedRecords(txId: string) {
+    if (!uid) return;
+
+    for (const d of debts) {
+      if (d.initialTransactionId === txId) {
+        const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
+        if (hasHistory) {
+          await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+            initialTransactionId: deleteField(),
+            initialWalletId: deleteField(),
+          });
+        } else {
+          await deleteDoc(doc(db, 'users', uid, 'debts', d.id));
+        }
+        return;
+      }
+      if ((d.payments || []).some(p => p.transactionId === txId)) {
+        await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+          payments: d.payments.filter(p => p.transactionId !== txId),
+        });
+        return;
+      }
+      if ((d.increases || []).some(e => e.transactionId === txId)) {
+        await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+          increases: (d.increases || []).filter(e => e.transactionId !== txId),
+        });
+        return;
+      }
+    }
+
+    for (const sub of subscriptions) {
+      const history = sub.history || [];
+      const idx = history.findIndex(h => h.transactionId === txId);
+      if (idx === -1) continue;
+      // لو دي آخر دفعة اتسجلت، بنرجّع موعد الاستحقاق خطوة ورا بعكس نفس المعادلة
+      // اللي قدّمته. لو دفعة قديمة، الموعد الحالي لسه صح فبنسيبه زي ما هو
+      const isLast = idx === history.length - 1;
+      const rolledBack = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, -1)
+        : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, -12)
+        : addDays(sub.nextDueDate, -(sub.customDays || 30));
+      await updateDoc(doc(db, 'users', uid, 'subscriptions', sub.id), {
+        history: history.filter(h => h.transactionId !== txId),
+        ...(isLast ? { nextDueDate: rolledBack } : {}),
+      });
+      return;
+    }
+
+    for (const g of gamiyas) {
+      if (!(g.months || []).some(m => m.transactionId === txId)) continue;
+      const months = g.months.map(m => {
+        if (m.transactionId !== txId) return m;
+        const { transactionId, ...rest } = m;
+        return { ...rest, status: 'pending' as const };
+      });
+      await updateDoc(doc(db, 'users', uid, 'gamiyas', g.id), { months });
+      return;
+    }
+  }
+
+  async function deleteTransaction(id: string) {
+    if (!uid) return;
+    await deleteTransactionDoc(id);
+    await reconcileLinkedRecords(id);
+  }
+
+  // بتقول للمستخدم قبل التأكيد إيه اللي هيحصل للسجل المرتبط بالعملية دي
+  function transactionLinkWarning(id: string): string | null {
+    for (const d of debts) {
+      if (d.initialTransactionId === id) {
+        const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
+        return hasHistory
+          ? `العملية دي هي أساس دين "${d.personName}" — الدين هيفضل موجود بس هيبقى بالأجل من غير أثر على أي محفظة.`
+          : `العملية دي هي أساس دين "${d.personName}" — الدين هيتمسح كمان.`;
+      }
+      if ((d.payments || []).some(p => p.transactionId === id)) {
+        return `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`;
+      }
+      if ((d.increases || []).some(e => e.transactionId === id)) {
+        return `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
+      }
+    }
+    for (const sub of subscriptions) {
+      if ((sub.history || []).some(h => h.transactionId === id)) {
+        return `دي دفعة اشتراك "${sub.name}" — هتتشال من سجل الاشتراك وموعد الاستحقاق هيترجع.`;
+      }
+    }
+    for (const g of gamiyas) {
+      if ((g.months || []).some(m => m.transactionId === id)) {
+        return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش".`;
+      }
+    }
+    return null;
   }
   async function setBudget(categoryId: string, limit: number) {
     if (!uid) return;
@@ -317,7 +424,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         ...debt.payments.map(p => p.transactionId),
         ...(debt.increases || []).map(inc => inc.transactionId),
       ].filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
+      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
     await deleteDoc(doc(db, 'users', uid, 'debts', id));
   }
@@ -343,7 +450,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const debt = debts.find(d => d.id === debtId);
     if (!debt) return;
     const payment = debt.payments.find(p => p.id === paymentId);
-    if (payment?.transactionId) await deleteTransaction(payment.transactionId);
+    if (payment?.transactionId) await deleteTransactionDoc(payment.transactionId);
     await updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) });
   }
   async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
@@ -370,7 +477,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const debt = debts.find(d => d.id === debtId);
     if (!debt) return;
     const entry = (debt.increases || []).find(e => e.id === entryId);
-    if (entry?.transactionId) await deleteTransaction(entry.transactionId);
+    if (entry?.transactionId) await deleteTransactionDoc(entry.transactionId);
     await updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) });
   }
 
@@ -393,7 +500,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const sub = subscriptions.find(s => s.id === id);
     if (sub) {
       const txIds = (sub.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
+      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
     await deleteDoc(doc(db, 'users', uid, 'subscriptions', id));
   }
@@ -447,7 +554,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const g = gamiyas.find(x => x.id === id);
     if (g) {
       const txIds = g.months.map(m => m.transactionId).filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransaction(txId)));
+      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
     await deleteDoc(doc(db, 'users', uid, 'gamiyas', id));
   }
@@ -473,7 +580,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas,
         addWallet, updateWallet, deleteWallet,
         addCategory, updateCategory, deleteCategory,
-        addTransaction, updateTransaction, deleteTransaction,
+        addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,

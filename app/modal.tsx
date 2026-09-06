@@ -22,7 +22,7 @@ export default function AddTransactionModal() {
   };
 
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { wallets, categories, transactions, addTransaction, updateTransaction, deleteTransaction } = useData();
+  const { wallets, categories, transactions, addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning } = useData();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
   const isEdit = !!existing;
 
@@ -86,7 +86,10 @@ export default function AddTransactionModal() {
 
   function handleDelete() {
     if (!existing) return;
-    Alert.alert('حذف العملية', 'متأكد إنك عايز تمسحها؟', [
+    // لو العملية مرتبطة بدين أو اشتراك أو جمعية، المستخدم لازم يعرف هيحصل إيه للسجل ده
+    const linkWarning = transactionLinkWarning(existing.id);
+    const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
+    Alert.alert('حذف العملية', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: async () => {
