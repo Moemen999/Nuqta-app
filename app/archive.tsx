@@ -1,7 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr } from '@/lib/finance';
+import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -161,10 +161,8 @@ export default function ArchiveScreen() {
       {filtered.length === 0 && <Text style={styles.emptyState}>مفيش عمليات في الفترة دي</Text>}
       {filtered.map(t => {
         const T = TYPE_LABELS[t.type];
-        const wallet = wallets.find(w => w.id === t.walletId);
-        const toWallet = t.type === 'withdraw' ? wallets.find(w => w.id === t.toWalletId) : undefined;
         const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
-        const walletLabel = t.type === 'withdraw' ? `${wallet?.name || ''} ← ${toWallet?.name || ''}` : (wallet?.name || '');
+        const walletLabel = transactionWalletLabel(t, wallets);
         return (
           <View key={t.id} style={styles.txRow}>
             <View style={styles.txMid}>

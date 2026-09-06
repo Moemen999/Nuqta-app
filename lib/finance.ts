@@ -88,6 +88,21 @@ export function formatTime(iso?: string) {
   return `${hours}:${mm} ${period}`;
 }
 
+/**
+ * وصف المحفظة (أو المحفظتين) بتاع العملية. عمليات السحب كانت بتتكتب بسهم بين
+ * الاسمين، والسهم مع اتجاه النص العربي كان بيظهر بالعكس فمحدش يعرف الفلوس راحت
+ * منين لفين. الصيغة الصريحة "من X إلى Y" مفيهاش لبس مهما كان اتجاه العرض.
+ */
+export function transactionWalletLabel(
+  t: { type: string; walletId: string; toWalletId?: string },
+  wallets: { id: string; name: string }[],
+) {
+  const from = wallets.find(w => w.id === t.walletId)?.name || '';
+  if (t.type !== 'withdraw') return from;
+  const to = wallets.find(w => w.id === t.toWalletId)?.name || '';
+  return `من ${from} إلى ${to}`;
+}
+
 export function categoryLabel(c?: { name: string; icon?: string }) {
   if (!c) return '';
   return c.icon ? `${c.icon} ${c.name}` : c.name;

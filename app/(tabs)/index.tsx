@@ -2,7 +2,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, hashColor, monthSpend, todayStr, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, hashColor, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -144,11 +144,7 @@ export default function HomeScreen() {
         {recent.map(t => {
           const T = TYPE_LABELS[t.type];
           const cat = categories.find(c => c.id === t.categoryId);
-          const wallet = wallets.find(w => w.id === t.walletId);
-          const toWallet = t.type === 'withdraw' ? wallets.find(w => w.id === t.toWalletId) : null;
-          const walletLabel = t.type === 'withdraw'
-            ? `${wallet?.name || ''} ← ${toWallet?.name || ''}`
-            : (wallet?.name || '');
+          const walletLabel = transactionWalletLabel(t, wallets);
           return (
             <TouchableOpacity
               key={t.id}
