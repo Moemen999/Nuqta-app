@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { hashColor } from '@/lib/finance';
+import { useBusy, useBusyKey } from '@/lib/useBusy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -30,17 +31,20 @@ export default function SettingsScreen() {
   const [openingDrafts, setOpeningDrafts] = useState<Record<string, string>>({});
   const [alertDrafts, setAlertDrafts] = useState<Record<string, string>>({});
   const [lockModalMode, setLockModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
+  const { busy: addingWallet, run: runAddWallet } = useBusy();
+  const { busy: addingCategory, run: runAddCategory } = useBusy();
+  const { busyKey: deletingKey, run: runDelete } = useBusyKey();
 
   function confirmDeleteWallet(id: string, name: string) {
     Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => deleteWallet(id) },
+      { text: 'حذف', style: 'destructive', onPress: () => runDelete(`w_${id}`, () => deleteWallet(id)) },
     ]);
   }
   function confirmDeleteCategory(id: string, name: string) {
     Alert.alert('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => deleteCategory(id) },
+      { text: 'حذف', style: 'destructive', onPress: () => runDelete(`c_${id}`, () => deleteCategory(id)) },
     ]);
   }
   function replayOnboarding() {
@@ -232,8 +236,8 @@ export default function SettingsScreen() {
                 onBlur={() => saveWalletName(w.id)}
                 textAlign="right"
               />
-              <TouchableOpacity onPress={() => confirmDeleteWallet(w.id, w.name)}>
-                <Text style={styles.deleteText}>حذف</Text>
+              <TouchableOpacity onPress={() => confirmDeleteWallet(w.id, w.name)} disabled={deletingKey === `w_${w.id}`}>
+                <Text style={[styles.deleteText, deletingKey === `w_${w.id}` && styles.btnBusy]}>{deletingKey === `w_${w.id}` ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.walletRow}>
@@ -265,8 +269,18 @@ export default function SettingsScreen() {
         <View style={styles.addRow}>
           <TextInput style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
             value={newWallet} onChangeText={setNewWallet} textAlign="right" />
-          <TouchableOpacity style={styles.addBtn} onPress={() => { if (newWallet.trim()) { addWallet(newWallet.trim()); setNewWallet(''); } }}>
-            <Text style={styles.addBtnText}>+</Text>
+          <TouchableOpacity
+            style={[styles.addBtn, addingWallet && styles.btnBusy]}
+            disabled={addingWallet}
+            onPress={() => {
+              const name = newWallet.trim();
+              if (!name) return;
+              runAddWallet(async () => {
+                await addWallet(name);
+                setNewWallet('');
+              });
+            }}>
+            <Text style={styles.addBtnText}>{addingWallet ? '...' : '+'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -282,16 +296,26 @@ export default function SettingsScreen() {
               onBlur={() => saveCatName(c.id)}
               textAlign="right"
             />
-            <TouchableOpacity onPress={() => confirmDeleteCategory(c.id, c.name)}>
-              <Text style={styles.deleteText}>حذف</Text>
+            <TouchableOpacity onPress={() => confirmDeleteCategory(c.id, c.name)} disabled={deletingKey === `c_${c.id}`}>
+              <Text style={[styles.deleteText, deletingKey === `c_${c.id}` && styles.btnBusy]}>{deletingKey === `c_${c.id}` ? '...' : 'حذف'}</Text>
             </TouchableOpacity>
           </View>
         ))}
         <View style={styles.addRow}>
           <TextInput style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
             value={newCategory} onChangeText={setNewCategory} textAlign="right" />
-          <TouchableOpacity style={styles.addBtn} onPress={() => { if (newCategory.trim()) { addCategory(newCategory.trim()); setNewCategory(''); } }}>
-            <Text style={styles.addBtnText}>+</Text>
+          <TouchableOpacity
+            style={[styles.addBtn, addingCategory && styles.btnBusy]}
+            disabled={addingCategory}
+            onPress={() => {
+              const name = newCategory.trim();
+              if (!name) return;
+              runAddCategory(async () => {
+                await addCategory(name);
+                setNewCategory('');
+              });
+            }}>
+            <Text style={styles.addBtnText}>{addingCategory ? '...' : '+'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -339,6 +363,7 @@ function makeStyles(c: ThemeColors) {
     addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13 },
     addBtn: { backgroundColor: c.accent, borderRadius: 10, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     addBtnText: { color: c.onAccent, fontSize: 20, fontWeight: '700' },
+    btnBusy: { opacity: 0.6 },
     logoutBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12, marginTop: 30 },
     logoutText: { color: c.danger, fontSize: 14, fontWeight: '600' },
   });

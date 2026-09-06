@@ -2,6 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { daysUntil, fmt, todayStr } from '@/lib/finance';
+import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -9,6 +10,7 @@ export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, deleteGamiya, markGamiyaMonthDone } = useData();
+  const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -16,7 +18,7 @@ export default function GamiyaView() {
   function confirmDelete(g: Gamiya) {
     Alert.alert('حذف الجمعية', `متأكد إنك عايز تمسح "${g.name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => deleteGamiya(g.id) },
+      { text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, () => deleteGamiya(g.id)) },
     ]);
   }
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {
@@ -25,7 +27,7 @@ export default function GamiyaView() {
       isPayout ? `هتستلم ${fmt(amount)} ج.م في محفظتك؟` : `هيتخصم ${fmt(amount)} ج.م من محفظتك؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'تأكيد', onPress: () => markGamiyaMonthDone(g.id, monthId) },
+        { text: 'تأكيد', onPress: () => runBusy(`month_${monthId}`, () => markGamiyaMonthDone(g.id, monthId)) },
       ]
     );
   }
@@ -76,8 +78,13 @@ export default function GamiyaView() {
                       شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · {fmt(m.amount)} ج.م
                     </Text>
                     {m.status === 'pending' ? (
-                      <TouchableOpacity onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)} style={styles.markBtn}>
-                        <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>{m.isPayoutMonth ? 'استلمت' : 'اتخصم'}</Text>
+                      <TouchableOpacity
+                        onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
+                        style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
+                        disabled={busyKey === `month_${m.id}`}>
+                        <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
+                          {busyKey === `month_${m.id}` ? '...' : m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
+                        </Text>
                       </TouchableOpacity>
                     ) : (
                       <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>
@@ -88,8 +95,8 @@ export default function GamiyaView() {
                   <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
                     <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteBtnFlex} onPress={() => confirmDelete(g)}>
-                    <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف الجمعية</Text>
+                  <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+                    <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -108,6 +115,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, addGamiya } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
   const [monthlyAmount, setMonthlyAmount] = useState('');
@@ -134,13 +142,20 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
       setError('راجع البيانات — تأكد إن شهر الاستلام رقم صحيح ضمن عدد الشهور');
       return;
     }
-    await addGamiya({
-      name: name.trim(), monthlyAmount: monthly, totalMonths: total,
-      payoutMonthIndex: payoutIdx, payoutAmount: payout, walletId, startDate,
-      reminderDaysBefore: Number(reminderDays) || 0,
+    await runBusy(async () => {
+      try {
+        await addGamiya({
+          name: name.trim(), monthlyAmount: monthly, totalMonths: total,
+          payoutMonthIndex: payoutIdx, payoutAmount: payout, walletId, startDate,
+          reminderDaysBefore: Number(reminderDays) || 0,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      reset();
+      onClose();
     });
-    reset();
-    onClose();
   }
 
   return (
@@ -195,8 +210,8 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -248,12 +263,14 @@ function makeStyles(c: ThemeColors) {
     actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 6 },
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    btnBusy: { opacity: 0.6 },
   });
 }
 function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, updateGamiya } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState(gamiya.name);
   const [walletId, setWalletId] = useState(gamiya.walletId);
@@ -264,12 +281,19 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
   async function handleSave() {
     if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
-    await updateGamiya(gamiya.id, {
-      name: name.trim(),
-      walletId,
-      reminderDaysBefore: Number(reminderDays) || 0,
+    await runBusy(async () => {
+      try {
+        await updateGamiya(gamiya.id, {
+          name: name.trim(),
+          walletId,
+          reminderDaysBefore: Number(reminderDays) || 0,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      onClose();
     });
-    onClose();
   }
 
   return (
@@ -307,8 +331,8 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ التعديل</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

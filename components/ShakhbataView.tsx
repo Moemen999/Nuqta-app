@@ -1,6 +1,7 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { currentMonth, fmt } from '@/lib/finance';
+import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -14,6 +15,8 @@ export default function ShakhbataView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
+
+  const { busy: savingPercents, run: runSavePercents } = useBusy();
 
   const nowMonth = currentMonth();
   const [incomeDraft, setIncomeDraft] = useState<string | null>(null);
@@ -44,12 +47,14 @@ export default function ShakhbataView() {
   }
   function savePercents() {
     if (!percentDrafts) return;
-    setShakhbataPercents({
-      needs: Number(percentDrafts.needs) || 0,
-      wants: Number(percentDrafts.wants) || 0,
-      future: Number(percentDrafts.future) || 0,
+    runSavePercents(async () => {
+      await setShakhbataPercents({
+        needs: Number(percentDrafts.needs) || 0,
+        wants: Number(percentDrafts.wants) || 0,
+        future: Number(percentDrafts.future) || 0,
+      });
+      setPercentDrafts(null);
     });
-    setPercentDrafts(null);
   }
 
   const spendByBucket = useMemo(() => {
@@ -86,8 +91,10 @@ export default function ShakhbataView() {
 
       <View style={styles.percentHead}>
         {percentDrafts ? (
-          <TouchableOpacity onPress={savePercents}>
-            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700' }}>حفظ النسب</Text>
+          <TouchableOpacity onPress={savePercents} disabled={savingPercents}>
+            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
+              {savingPercents ? '...' : 'حفظ النسب'}
+            </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={startEditingPercents}>

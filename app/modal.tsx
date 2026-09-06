@@ -90,8 +90,16 @@ export default function AddTransactionModal() {
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: async () => {
-          await deleteTransaction(existing.id);
-          router.back();
+          if (busy) return;
+          setBusy(true);
+          try {
+            await deleteTransaction(existing.id);
+            router.back();
+          } catch {
+            setError('حصل خطأ، جرب تاني');
+          } finally {
+            setBusy(false);
+          }
         }
       },
     ]);
@@ -166,14 +174,14 @@ export default function AddTransactionModal() {
 
       <View style={styles.actions}>
         {isEdit && (
-          <TouchableOpacity style={styles.deleteBtn} onPress={handleDelete}>
-            <Text style={{ color: colors.danger }}>حذف</Text>
+          <TouchableOpacity style={[styles.deleteBtn, busy && styles.btnBusy]} onPress={handleDelete} disabled={busy}>
+            <Text style={{ color: colors.danger }}>{busy ? '...' : 'حذف'}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
           <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={busy}>
+        <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
           <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
         </TouchableOpacity>
       </View>
@@ -208,5 +216,6 @@ function makeStyles(c: ThemeColors) {
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     deleteBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    btnBusy: { opacity: 0.6 },
   });
 }

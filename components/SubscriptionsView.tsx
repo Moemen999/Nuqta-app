@@ -2,6 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, daysUntil, fmt, todayStr } from '@/lib/finance';
+import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -11,6 +12,7 @@ export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, deleteSubscription, markSubscriptionPaid } = useData();
+  const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
 
@@ -19,13 +21,13 @@ export default function SubscriptionsView() {
   function confirmDelete(s: Subscription) {
     Alert.alert('حذف الاشتراك', `متأكد إنك عايز تمسح "${s.name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => deleteSubscription(s.id) },
+      { text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, () => deleteSubscription(s.id)) },
     ]);
   }
   function confirmPay(s: Subscription) {
     Alert.alert('تسجيل الدفع', `اتخصم ${fmt(s.amount)} ج.م من محفظتك دلوقتي؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'تأكيد', onPress: () => markSubscriptionPaid(s.id, todayStr()) },
+      { text: 'تأكيد', onPress: () => runBusy(`pay_${s.id}`, () => markSubscriptionPaid(s.id, todayStr())) },
     ]);
   }
 
@@ -57,14 +59,14 @@ export default function SubscriptionsView() {
               {days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${s.nextDueDate})`}
             </Text>
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.payBtn} onPress={() => confirmPay(s)}>
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
+              <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}>
+                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>{busyKey === `pay_${s.id}` ? '...' : 'اتخصم'}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(s)}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف</Text>
+              <TouchableOpacity style={[styles.deleteBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => confirmDelete(s)} disabled={busyKey === `del_${s.id}`}>
+                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -81,6 +83,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, addSubscription } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
@@ -101,13 +104,20 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   async function handleSave() {
     const amt = Number(amount);
     if (!name.trim() || !amt || amt <= 0 || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
-    await addSubscription({
-      name: name.trim(), amount: amt, walletId, categoryId,
-      frequency, customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
-      nextDueDate, reminderDaysBefore: Number(reminderDays) || 0,
+    await runBusy(async () => {
+      try {
+        await addSubscription({
+          name: name.trim(), amount: amt, walletId, categoryId,
+          frequency, customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
+          nextDueDate, reminderDaysBefore: Number(reminderDays) || 0,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      reset();
+      onClose();
     });
-    reset();
-    onClose();
   }
 
   return (
@@ -181,8 +191,8 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -228,12 +238,14 @@ function makeStyles(c: ThemeColors) {
     actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 6 },
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    btnBusy: { opacity: 0.6 },
   });
 }
 function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, updateSubscription } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState(sub.name);
   const [amount, setAmount] = useState(String(sub.amount));
@@ -249,17 +261,24 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   async function handleSave() {
     const amt = Number(amount);
     if (!name.trim() || !amt || amt <= 0 || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
-    await updateSubscription(sub.id, {
-      name: name.trim(),
-      amount: amt,
-      walletId,
-      categoryId: categoryId ?? undefined,
-      frequency,
-      customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
-      nextDueDate,
-      reminderDaysBefore: Number(reminderDays) || 0,
+    await runBusy(async () => {
+      try {
+        await updateSubscription(sub.id, {
+          name: name.trim(),
+          amount: amt,
+          walletId,
+          categoryId: categoryId ?? undefined,
+          frequency,
+          customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
+          nextDueDate,
+          reminderDaysBefore: Number(reminderDays) || 0,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      onClose();
     });
-    onClose();
   }
 
   return (
@@ -333,8 +352,8 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ التعديل</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
             </TouchableOpacity>
           </View>
 

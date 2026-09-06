@@ -5,6 +5,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
+import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -50,6 +51,7 @@ function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, deleteDebt } = useData();
+  const { busyKey, run: runBusy } = useBusyKey();
 
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [paymentForDebt, setPaymentForDebt] = useState<Debt | null>(null);
@@ -69,7 +71,7 @@ function DebtsContent() {
   function confirmDeleteDebt(d: Debt) {
     Alert.alert('حذف الدين', `متأكد إنك عايز تمسح دين "${d.personName}"؟ (كل العمليات المرتبطة بيه هتتمسح كمان)`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => deleteDebt(d.id) },
+      { text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, () => deleteDebt(d.id)) },
     ]);
   }
 
@@ -161,8 +163,8 @@ function DebtsContent() {
                   <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDeleteDebt(d)}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>حذف</Text>
+              <TouchableOpacity style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
+                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -210,6 +212,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { addDebt, wallets } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [direction, setDirection] = useState<'owed_to_me' | 'i_owe'>('owed_to_me');
   const [personName, setPersonName] = useState('');
@@ -276,16 +279,23 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
     const amt = Number(totalAmount);
     if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
-    await addDebt({
-      direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
-      isInstallment,
-      installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
-      note: note.trim() || undefined,
-      walletId: linkedToWallet ? walletId : undefined,
-      date,
+    await runBusy(async () => {
+      try {
+        await addDebt({
+          direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
+          isInstallment,
+          installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
+          note: note.trim() || undefined,
+          walletId: linkedToWallet ? walletId : undefined,
+          date,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      reset();
+      onClose();
     });
-    reset();
-    onClose();
   }
 
   return (
@@ -386,8 +396,8 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
             <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -448,6 +458,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, addDebtPayment } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const remaining = debtGrandTotal(debt) - debtPaid(debt);
 
@@ -461,8 +472,15 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
   async function handleSave() {
     const amt = Number(amount);
     if (!amt || amt <= 0 || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
-    await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
-    onClose();
+    await runBusy(async () => {
+      try {
+        await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      onClose();
+    });
   }
 
   return (
@@ -512,8 +530,8 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -529,6 +547,7 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, addDebtIncrease } = useData();
+  const { busy, run: runBusy } = useBusy();
 
   const [amount, setAmount] = useState('');
   const [linkedToWallet, setLinkedToWallet] = useState(true);
@@ -541,8 +560,15 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
     const amt = Number(amount);
     if (!amt || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
-    await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
-    onClose();
+    await runBusy(async () => {
+      try {
+        await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      onClose();
+    });
   }
 
   return (
@@ -593,8 +619,8 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
             <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
 
@@ -663,5 +689,6 @@ function makeStyles(c: ThemeColors) {
     actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 10 },
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    btnBusy: { opacity: 0.6 },
   });
 }
