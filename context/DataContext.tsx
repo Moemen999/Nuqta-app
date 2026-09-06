@@ -384,7 +384,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function updateSubscription(id: string, data: Partial<Subscription>) {
     if (!uid) return;
-    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), data);
+    // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean);
   }
   async function deleteSubscription(id: string) {
     if (!uid) return;
