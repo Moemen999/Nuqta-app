@@ -3,9 +3,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, hashColor, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -85,6 +86,8 @@ export default function HomeScreen() {
             ))}
           </View>
         </View>
+
+        <EmailVerificationBanner />
 
         {!hasTodayTx && (
           <View style={styles.banner}>
@@ -166,6 +169,75 @@ export default function HomeScreen() {
   );
 }
 
+/**
+ * بيظهر بس للمستخدم اللي داخل بإيميل وباسورد وإيميله لسه مش مأكّد. مستخدمين جوجل
+ * إيميلهم مأكّد تلقائيًا فمبيشوفوش البانر خالص.
+ * فايربيز بتخزّن حالة التأكيد في الكاش ومبتحدّثهاش لوحدها لما المستخدم يدوس اللينك
+ * في إيميله، عشان كده بنعمل reload أول ما الشاشة تفتح وكل ما يرجع للتطبيق —
+ * وده اللي بيخلي البانر يختفي بعد التأكيد من غير ما يخرج ويدخل تاني.
+ */
+function EmailVerificationBanner() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { user, resendVerificationEmail } = useAuth();
+  const { busy, run: runResend } = useBusy();
+  const [verified, setVerified] = useState(true);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const usesPassword = !!user?.providerData?.some(p => p.providerId === 'password');
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    try {
+      await user.reload();
+    } catch {
+      // لو مفيش نت، بنسيب الحالة اللي عندنا زي ما هي
+    }
+    setVerified(!!user.emailVerified);
+  }, [user]);
+
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, [refresh]);
+
+  if (!user || !usesPassword || verified) return null;
+
+  function handleResend() {
+    setError('');
+    runResend(async () => {
+      try {
+        await resendVerificationEmail();
+        setSent(true);
+      } catch {
+        setError('مقدرناش نبعت الرسالة دلوقتي، جرب كمان شوية');
+      }
+    });
+  }
+
+  return (
+    <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+      <Text style={[styles.bannerText, { color: colors.accent }]}>
+        إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
+      </Text>
+      {sent && !error ? (
+        <Text style={styles.bannerText}>بعتنالك رسالة تأكيد جديدة، شوف إيميلك</Text>
+      ) : (
+        <TouchableOpacity onPress={handleResend} disabled={busy} style={styles.bannerAction}>
+          <Text style={[styles.bannerActionText, busy && { opacity: 0.6 }]}>
+            {busy ? '...' : 'أعد إرسال رسالة التأكيد'}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {!!error && <Text style={[styles.bannerText, { color: colors.danger }]}>{error}</Text>}
+    </View>
+  );
+}
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
@@ -186,6 +258,8 @@ function makeStyles(c: ThemeColors) {
     dot: { width: 8, height: 8, borderRadius: 4 },
     banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
+    bannerActionText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 6, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
