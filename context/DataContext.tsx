@@ -499,24 +499,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     await deleteDoc(doc(db, 'users', uid, 'subscriptions', id));
   }
+  /**
+   * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
+   * قبل كده كان بيقرا الاشتراك من حالة الرياكت، فنداءين في نفس الوقت كانوا
+   * الاتنين بيشوفوا نفس الحالة القديمة وبيسجلوا دفعتين — يعني خصم مضاعف.
+   * بنقرا من السيرفر جوه العملية الذرية، فالنداء التاني بيلاقي الدفعة اتسجلت
+   * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
+   * غير تعديل قواعد Firestore في الكونسول).
+   */
   async function markSubscriptionPaid(id: string, date: string) {
     if (!uid) return;
-    const sub = subscriptions.find(s => s.id === id);
-    if (!sub) return;
-    const txId = await addTransaction({
-      type: 'expense', amount: sub.amount, walletId: sub.walletId, date,
-      categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
-    });
-    const payment: SubscriptionPayment = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      date, amount: sub.amount, transactionId: txId,
-    };
-    const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
-      : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
-      : addDays(sub.nextDueDate, sub.customDays || 30);
-    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), {
-      history: [...(sub.history || []), payment],
-      nextDueDate: nextDue,
+    const subRef = doc(db, 'users', uid, 'subscriptions', id);
+    const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    await runTransaction(db, async (t) => {
+      const snap = await t.get(subRef);
+      if (!snap.exists()) return;
+      const sub = { id, ...(snap.data() as any) } as Subscription;
+      const history = sub.history || [];
+      const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
+      if (alreadyPaid) return;
+
+      const txData = {
+        type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
+        categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+        createdAt: new Date().toISOString(),
+      };
+      t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+
+      const payment: SubscriptionPayment = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        date, amount: sub.amount, transactionId: txRef.id,
+      };
+      const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
+        : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
+        : addDays(sub.nextDueDate, sub.customDays || 30);
+      t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
     });
   }
 
@@ -553,19 +570,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     await deleteDoc(doc(db, 'users', uid, 'gamiyas', id));
   }
+  /**
+   * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
+   * الشهر لسه pending قبل ما تخصم. قبل كده كانت بتقرا من حالة الرياكت من غير ما
+   * تبص على حالة الشهر أصلاً، فنداءها مرتين على نفس الشهر كان بيعمل عمليتين خصم،
+   * والشهر بيتربط بالتانية فالأولى بتفضل عملية يتيمة في الأرشيف بتقلل الرصيد.
+   */
   async function markGamiyaMonthDone(gamiyaId: string, monthId: string) {
     if (!uid) return;
-    const g = gamiyas.find(x => x.id === gamiyaId);
-    if (!g) return;
-    const month = g.months.find(m => m.id === monthId);
-    if (!month) return;
-    const type = month.isPayoutMonth ? 'income' : 'expense';
-    const txId = await addTransaction({
-      type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
-      note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+    const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
+    const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    await runTransaction(db, async (t) => {
+      const snap = await t.get(gamiyaRef);
+      if (!snap.exists()) return;
+      const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
+      const month = (g.months || []).find(m => m.id === monthId);
+      if (!month || month.status === 'done') return;
+
+      const type = month.isPayoutMonth ? 'income' : 'expense';
+      t.set(txRef, {
+        type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
+        note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+        createdAt: new Date().toISOString(),
+      });
+      const updatedMonths = g.months.map(m =>
+        m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
+      );
+      t.update(gamiyaRef, { months: updatedMonths });
     });
-    const updatedMonths = g.months.map(m => m.id === monthId ? { ...m, status: 'done' as const, transactionId: txId } : m);
-    await updateDoc(doc(db, 'users', uid, 'gamiyas', gamiyaId), { months: updatedMonths });
   }
 
   return (

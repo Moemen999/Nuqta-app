@@ -46,15 +46,14 @@ describe('تكرار إنشاء الدين', () => {
 });
 
 /**
- * ⚠️ باج معروف ولسه ما اتصلحش (متسكّت لحد ما يتصلح):
- * markGamiyaMonthDone مبيتأكدش إن الشهر لسه pending قبل ما يخصم. فنداءه مرتين
- * على نفس الشهر بيعمل عمليتين خصم، والشهر بيتربط بالتانية فالأولى بتفضل عملية
- * يتيمة في الأرشيف بتقلل الرصيد من غير سبب ظاهر.
- * ده اتأكد بالاختبارين دول: الاتنين بيرجعوا عمليتين بدل واحدة.
- * قفل الزرار في الواجهة بيغطي الضغط السريع بس، ومش حماية على مستوى البيانات.
+ * الخصم المكرر كان باج حقيقي: markGamiyaMonthDone مكانش بيبص على حالة الشهر
+ * أصلاً، فنداءه مرتين كان بيعمل عمليتين خصم والشهر بيتربط بالتانية فالأولى
+ * بتفضل يتيمة في الأرشيف بتقلل الرصيد. بقى دلوقتي عملية ذرية بتقرا الجمعية من
+ * السيرفر وبتقف لو الشهر اتسدد خلاص — فالحماية بقت في البيانات نفسها مش في
+ * قفل الزرار بس.
  */
 describe('تكرار تسديد شهر الجمعية', () => {
-  it.skip('نداءين متتاليين على نفس الشهر مبيخصموش مرتين', async () => {
+  it('نداءين متتاليين على نفس الشهر مبيخصموش مرتين', async () => {
     harness = await renderDataProvider();
     await harness.waitForData(api => api.wallets.length >= 3);
     const w = harness.api().wallets[0];
@@ -73,7 +72,7 @@ describe('تكرار تسديد شهر الجمعية', () => {
 
     // تاني مرة على نفس الشهر — الشهر خلاص متسدد
     await harness.api().markGamiyaMonthDone(g.id, monthId);
-    await settle(1000);
+    await settle(1500);
 
     expect(harness.api().transactions).toHaveLength(1);
     expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-500);
@@ -82,7 +81,7 @@ describe('تكرار تسديد شهر الجمعية', () => {
     expect(harness.api().transactions[0].id).toBe(month.transactionId);
   });
 
-  it.skip('نداءين متوازيين على نفس الشهر مبيخصموش مرتين', async () => {
+  it('نداءين متوازيين على نفس الشهر مبيخصموش مرتين', async () => {
     harness = await renderDataProvider();
     await harness.waitForData(api => api.wallets.length >= 3);
     const w = harness.api().wallets[0];
@@ -100,10 +99,86 @@ describe('تكرار تسديد شهر الجمعية', () => {
       harness.api().markGamiyaMonthDone(g.id, monthId),
       harness.api().markGamiyaMonthDone(g.id, monthId),
     ]);
-    await settle(1000);
+    // لما يبقى فيه تزاحم، فايرستور بيعيد المحاولة بمهلة — فبنستنى الخصمة الأولى
+    // توصل الأول وبعدين نتأكد إن مفيش تانية بتيجي وراها
+    await harness.waitForData(api => api.transactions.length >= 1);
+    await settle(1500);
 
     expect(harness.api().transactions).toHaveLength(1);
     expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-500);
+  });
+});
+
+describe('تكرار تسديد الاشتراك', () => {
+  it('نداءين متتاليين بنفس التاريخ مبيسجلوش دفعتين', async () => {
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.wallets.length >= 3);
+    const w = harness.api().wallets[0];
+
+    await harness.api().addSubscription({
+      name: 'نتفليكس', amount: 200, walletId: w.id,
+      frequency: 'monthly', nextDueDate: '2026-03-10', reminderDaysBefore: 2,
+    });
+    await harness.waitForData(api => api.subscriptions.length === 1);
+
+    const subId = harness.api().subscriptions[0].id;
+    await harness.api().markSubscriptionPaid(subId, '2026-03-10');
+    await harness.waitForData(api => api.subscriptions[0].history.length === 1);
+
+    await harness.api().markSubscriptionPaid(subId, '2026-03-10');
+    await settle(1500);
+
+    expect(harness.api().subscriptions[0].history).toHaveLength(1);
+    expect(harness.api().transactions).toHaveLength(1);
+    // وموعد الاستحقاق ما اتقدّمش مرتين
+    expect(harness.api().subscriptions[0].nextDueDate).toBe('2026-04-10');
+    expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-200);
+  });
+
+  it('نداءين متوازيين بنفس التاريخ مبيسجلوش دفعتين', async () => {
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.wallets.length >= 3);
+    const w = harness.api().wallets[0];
+
+    await harness.api().addSubscription({
+      name: 'سبوتيفاي', amount: 150, walletId: w.id,
+      frequency: 'monthly', nextDueDate: '2026-03-10', reminderDaysBefore: 2,
+    });
+    await harness.waitForData(api => api.subscriptions.length === 1);
+
+    const subId = harness.api().subscriptions[0].id;
+    await Promise.all([
+      harness.api().markSubscriptionPaid(subId, '2026-03-10'),
+      harness.api().markSubscriptionPaid(subId, '2026-03-10'),
+    ]);
+    await harness.waitForData(api => api.subscriptions[0].history.length >= 1);
+    await settle(1500);
+
+    expect(harness.api().subscriptions[0].history).toHaveLength(1);
+    expect(harness.api().transactions).toHaveLength(1);
+    expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-150);
+  });
+
+  it('الدفع في تاريخ تاني بيتسجل عادي (المنع للتكرار بس)', async () => {
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.wallets.length >= 3);
+    const w = harness.api().wallets[0];
+
+    await harness.api().addSubscription({
+      name: 'جيم', amount: 300, walletId: w.id,
+      frequency: 'monthly', nextDueDate: '2026-03-10', reminderDaysBefore: 2,
+    });
+    await harness.waitForData(api => api.subscriptions.length === 1);
+
+    const subId = harness.api().subscriptions[0].id;
+    await harness.api().markSubscriptionPaid(subId, '2026-03-10');
+    await harness.waitForData(api => api.subscriptions[0].history.length === 1);
+    await harness.api().markSubscriptionPaid(subId, '2026-04-10');
+    await harness.waitForData(api => api.subscriptions[0].history.length === 2);
+
+    expect(harness.api().transactions).toHaveLength(2);
+    expect(harness.api().subscriptions[0].nextDueDate).toBe('2026-05-10');
+    expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-600);
   });
 });
 
