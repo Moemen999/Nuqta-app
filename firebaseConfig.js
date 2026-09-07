@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp } from 'firebase/app';
 import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAQnqfXUkV0KVSwPD31tX0SKCvHuh9km-I",
@@ -20,3 +20,11 @@ export const auth = initializeAuth(app, {
 });
 
 export const db = getFirestore(app);
+
+// في الاختبارات بس بنوصّل على محاكي Firestore المحلي بدل قاعدة البيانات الحقيقية.
+// المتغير ده مبيتحطش غير من جيست (شوف jest.setup.js)، فالتشغيل العادي للتطبيق
+// مبيمرش من هنا خالص.
+if (process.env.FIRESTORE_EMULATOR_HOST) {
+  const [emulatorHost, emulatorPort] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
+  connectFirestoreEmulator(db, emulatorHost, Number(emulatorPort));
+}

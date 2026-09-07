@@ -7,6 +7,7 @@
     "test": "jest && node scripts/test-timezones.js",
     "test:fast": "jest",
     "test:tz": "node scripts/test-timezones.js",
+    "test:db": "firebase emulators:exec --only firestore --project nuqta-711f2 \"jest --config jest.emulator.config.js\"",
     "test:watch": "jest --watch",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
@@ -60,9 +61,11 @@
     "@types/react": "~19.1.0",
     "eslint": "^9.25.0",
     "eslint-config-expo": "~10.0.0",
+    "firebase-tools": "^15.29.0",
     "jest": "^29.7.0",
     "jest-expo": "~54.0.9",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "xhr2": "^0.2.1"
   },
   "private": true,
   "jest": {
@@ -71,14 +74,19 @@
       "<rootDir>/jest.setup.js"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg))"
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|firebase|@firebase/.*))"
     ],
     "collectCoverageFrom": [
       "lib/**/*.{ts,tsx}",
       "context/**/*.{ts,tsx}"
     ],
     "moduleNameMapper": {
-      "^@/(.*)$": "<rootDir>/$1"
-    }
+      "^@/(.*)$": "<rootDir>/$1",
+      "postinstall\\.mjs$": "<rootDir>/node_modules/@firebase/util/dist/postinstall.js"
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "\\.emulator\\.test\\.tsx?$"
+    ]
   }
 }
