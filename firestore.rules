@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /wallets/{walletId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.openingBalance is number
+          && request.resource.data.lowAlert is number;
+      }
+
+      match /categories/{categoryId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0;
+      }
+
+      match /transactions/{txId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.type in ['expense', 'income', 'withdraw']
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.walletId is string
+          && request.resource.data.date is string;
+      }
+
+      match /budgets/{budgetId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.limit is number
+          && request.resource.data.limit >= 0;
+      }
+
+      match /shakhbata_income/{month} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.income is number
+          && request.resource.data.income >= 0;
+      }
+
+      match /debts/{debtId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.personName is string
+          && request.resource.data.totalAmount is number
+          && request.resource.data.totalAmount > 0
+          && request.resource.data.direction in ['owed_to_me', 'i_owe'];
+      }
+
+      match /subscriptions/{subId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.name is string
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0;
+      }
+
+      match /gamiyas/{gamiyaId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.name is string
+          && request.resource.data.monthlyAmount is number;
+      }
+      match /shakhbata_settings/{docId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.needs is number
+          && request.resource.data.wants is number
+          && request.resource.data.future is number;
+      }
+    }
+  }
+}
