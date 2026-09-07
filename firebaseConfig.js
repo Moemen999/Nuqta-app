@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp } from 'firebase/app';
-import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import { connectAuthEmulator, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -27,4 +27,11 @@ export const db = getFirestore(app);
 if (process.env.FIRESTORE_EMULATOR_HOST) {
   const [emulatorHost, emulatorPort] = process.env.FIRESTORE_EMULATOR_HOST.split(':');
   connectFirestoreEmulator(db, emulatorHost, Number(emulatorPort));
+}
+
+// نفس الفكرة لكن لمحاكي Auth — لازم عشان قواعد الإنتاج بتتأكد من request.auth
+// فعليًا، فاختبارات الكتابة محتاجة مستخدم حقيقي مسجّل دخول على المحاكي مش بس
+// uid مختلق (شوف test-utils/emulator.ts).
+if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+  connectAuthEmulator(auth, `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}`, { disableWarnings: true });
 }

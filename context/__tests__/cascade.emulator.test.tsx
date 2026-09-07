@@ -1,5 +1,5 @@
 import { walletBalance } from '@/lib/finance';
-import { clearFirestore, newUid, settle } from '@/test-utils/emulator';
+import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -17,7 +17,7 @@ let harness: Awaited<ReturnType<typeof renderDataProvider>>;
 
 beforeEach(async () => {
   await clearFirestore();
-  setMockUid(newUid());
+  setMockUid(await signInTestUser());
   harness = await renderDataProvider();
   await harness.waitForData(api => api.wallets.length >= 3);
 });

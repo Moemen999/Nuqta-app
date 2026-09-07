@@ -1,5 +1,5 @@
 import { walletBalance } from '@/lib/finance';
-import { clearFirestore, newUid } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -9,7 +9,7 @@ jest.mock('@/context/AuthContext', () => ({
 
 beforeEach(async () => {
   await clearFirestore();
-  setMockUid(newUid());
+  setMockUid(await signInTestUser());
 });
 
 describe('توصيلة المحاكي', () => {

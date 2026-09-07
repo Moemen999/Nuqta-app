@@ -1,5 +1,5 @@
 import { walletBalance } from '@/lib/finance';
-import { clearFirestore, newUid, settle } from '@/test-utils/emulator';
+import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -16,7 +16,7 @@ let harness: Awaited<ReturnType<typeof renderDataProvider>>;
 
 beforeEach(async () => {
   await clearFirestore();
-  setMockUid(newUid());
+  setMockUid(await signInTestUser());
 });
 
 afterEach(async () => {
@@ -202,7 +202,7 @@ describe('زرع المحافظ والفئات الافتراضية', () => {
   });
 
   it('نفس المستخدم لما يفتح تاني بعدين مبيتزرعلوش محافظ زيادة', async () => {
-    const uid = newUid();
+    const uid = await signInTestUser();
     setMockUid(uid);
 
     const first = await renderDataProvider();

@@ -1,8 +1,9 @@
 /**
  * أدوات مساعدة لاختبارات المحاكي.
- * الاختبارات دي بتشتغل على محاكي Firestore محلي بس — أبدًا على قاعدة البيانات
- * الحقيقية. `npm run test:db` بيقوم المحاكي وبيحط FIRESTORE_EMULATOR_HOST
- * تلقائيًا، وfirebaseConfig بيوصّل عليه بناءً على المتغير ده.
+ * الاختبارات دي بتشتغل على محاكي Firestore ومحاكي Auth محليين بس — أبدًا على
+ * قاعدة البيانات الحقيقية. `npm run test:db` بيقوم المحاكيين وبيحط
+ * FIRESTORE_EMULATOR_HOST وFIREBASE_AUTH_EMULATOR_HOST تلقائيًا، وfirebaseConfig
+ * بيوصّل عليهم بناءً على المتغيرين دول.
  */
 const PROJECT_ID = 'nuqta-711f2';
 
@@ -25,9 +26,22 @@ export async function clearFirestore() {
   if (!res.ok) throw new Error(`مقدرتش أمسح بيانات المحاكي: ${res.status}`);
 }
 
-/** معرّف مستخدم جديد لكل اختبار عشان الاختبارات ما تتلخبطش في بعض */
-export function newUid(prefix = 'user') {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+/**
+ * بتسجل دخول مستخدم جديد فعلي على محاكي Auth وبترجع الـ uid الحقيقي بتاعه.
+ * قواعد الإنتاج بتتحقق من request.auth.uid فعليًا (مش بس من مسار المستند)،
+ * فاختبارات الكتابة لازم تستخدم مستخدم حقيقي مسجّل دخول مش uid مختلق —
+ * وإلا كل كتابة هترجع permission-denied حتى لو المنطق صح.
+ */
+export async function signInTestUser(): Promise<string> {
+  const { auth } = require('@/firebaseConfig');
+  const { signInAnonymously, signOut } = require('firebase/auth');
+  try {
+    await signOut(auth);
+  } catch {
+    // مفيش مستخدم مسجل دخول أصلاً — عادي
+  }
+  const cred = await signInAnonymously(auth);
+  return cred.user.uid;
 }
 
 /** بيستنى شوية عشان نتأكد إن مفيش كتابات زيادة في السكة (للاختبارات اللي بتتأكد من عدم التكرار) */
