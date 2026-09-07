@@ -22,11 +22,17 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const initial = value ? new Date(value) : new Date();
-  const [viewYear, setViewYear] = useState(initial.getFullYear());
-  const [viewMonth, setViewMonth] = useState(initial.getMonth());
+  // بنقرا السنة والشهر من نص التاريخ مباشرةً. لو حوّلناه لـ Date الأول، التحويل
+  // بيتعمل على UTC والقراية بالتوقيت المحلي، فالتقويم كان ممكن يفتح على الشهر
+  // اللي قبله في أول يوم في الشهر.
+  const now = new Date();
+  const [initYear, initMonth] = value
+    ? [Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1]
+    : [now.getFullYear(), now.getMonth()];
+  const [viewYear, setViewYear] = useState(initYear);
+  const [viewMonth, setViewMonth] = useState(initMonth);
   const [level, setLevel] = useState<ViewLevel>('days');
-  const [yearsPageStart, setYearsPageStart] = useState(Math.floor(initial.getFullYear() / 12) * 12);
+  const [yearsPageStart, setYearsPageStart] = useState(Math.floor(initYear / 12) * 12);
 
   function goPrev() {
     if (level === 'days') {

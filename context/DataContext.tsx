@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
-import { addDays } from '@/lib/finance';
+import { addDays, addMonths } from '@/lib/finance';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
 } from 'firebase/firestore';
@@ -140,11 +140,6 @@ const DEFAULT_WALLETS = [
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
 
-// بنستخدمها في الجمع والطرح — الطرح لازم يكون معكوس مضبوط للجمع عشان نقدر نرجّع
-// موعد استحقاق الاشتراك لو دفعة اتحذفت
-function addMonths(dateStr: string, n: number) {
-  const d = new Date(dateStr); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10);
-}
 async function claimSeeding(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
   try {

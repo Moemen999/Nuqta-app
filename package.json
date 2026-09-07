@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "test": "jest",
+    "test": "jest && node scripts/test-timezones.js",
+    "test:fast": "jest",
+    "test:tz": "node scripts/test-timezones.js",
     "test:watch": "jest --watch",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",

@@ -23,8 +23,36 @@ export function fmt(n: number) {
   return (Math.round((n || 0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+/**
+ * التاريخ اللي المستخدم بيشوفه بيتاخد من ساعة جهازه المحلية، لأن ده اليوم اللي
+ * هو عايشه فعلاً. قبل كده كان بياخده من toISOString (UTC)، فاللي بيسجل عملية
+ * الساعة 1 بالليل بالقاهرة كانت بتتحفظ بتاريخ امبارح، وبانر "لسه ما سجلتش
+ * مصاريف النهاردة" كان بيفضل ظاهر.
+ */
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/**
+ * أي حساب على نص تاريخ ('YYYY-MM-DD') بيتعمل على UTC بالكامل — قراية وكتابة.
+ * الخلط اللي كان موجود (تاريخ متقري كـ UTC + getDate/setDate بالتوقيت المحلي)
+ * هو اللي كان بيخلي endOfMonth يرجع اليوم اللي قبل آخر يوم في الشهر، وaddDays
+ * يضيع يوم عند بداية التوقيت الصيفي — والاتنين مكانوش بيظهروا في UTC خالص.
+ * الحساب على UTC مفيهوش توقيت صيفي ولا انزياح، فنفس المدخل بيدي نفس المخرج في
+ * أي مكان في الدنيا.
+ */
+function parseDateStr(dateStr: string) {
+  const [y, m, d] = String(dateStr).split('-').map(Number);
+  return new Date(Date.UTC(y || 1970, (m || 1) - 1, d || 1));
+}
+
+function toDateStr(d: Date) {
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
 }
 
 export function currentMonth() {
@@ -32,15 +60,26 @@ export function currentMonth() {
 }
 
 export function daysUntil(dateStr: string) {
-  const today = new Date(todayStr());
-  const target = new Date(dateStr);
+  const today = parseDateStr(todayStr());
+  const target = parseDateStr(dateStr);
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
 export function addDays(dateStr: string, days: number) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  const d = parseDateStr(dateStr);
+  d.setUTCDate(d.getUTCDate() + days);
+  return toDateStr(d);
+}
+
+/**
+ * ملحوظة على الشهور اللي مالهاش نفس اليوم: 31 يناير + شهر بيدي 3 مارس (ده سلوك
+ * جافاسكريبت الطبيعي في تجاوز عدد أيام الشهر). ده سلوك مقصود سايبينه زي ما هو
+ * دلوقتي عشان الإصلاح ده يكون عن التوقيت بس، بس محتاج قرار منتج لوحده.
+ */
+export function addMonths(dateStr: string, n: number) {
+  const d = parseDateStr(dateStr);
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return toDateStr(d);
 }
 
 export function startOfMonth(dateStr: string) {
@@ -48,9 +87,9 @@ export function startOfMonth(dateStr: string) {
 }
 
 export function endOfMonth(dateStr: string) {
-  const d = new Date(dateStr);
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-  return end.toISOString().slice(0, 10);
+  const d = parseDateStr(dateStr);
+  // اليوم رقم 0 من الشهر اللي بعده = آخر يوم في الشهر ده
+  return toDateStr(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
 }
 
 export const PALETTE = ['#7FA98F', '#C9A961', '#7C93C9', '#C97C9B', '#9B7CC9', '#C98F5A', '#6FB3B8', '#B08FC9'];
@@ -72,9 +111,12 @@ export function debtGrandTotal(d: Debt) {
 }
 
 export function debtPaid(d: Debt) {
-  return d.payments.reduce((s, p) => s + p.amount, 0);
+  return (d.payments || []).reduce((s, p) => s + p.amount, 0);
 }
 
+/**
+ * هنا التوقيت المحلي مقصود: createdAt لحظة حقيقية، والمستخدم لازم يشوفها بساعته.
+ */
 export function formatTime(iso?: string) {
   if (!iso) return '';
   const d = new Date(iso);
