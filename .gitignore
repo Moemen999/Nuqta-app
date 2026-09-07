@@ -41,3 +41,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Firebase emulator
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+.firebase/

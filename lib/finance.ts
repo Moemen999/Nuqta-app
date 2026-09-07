@@ -72,14 +72,21 @@ export function addDays(dateStr: string, days: number) {
 }
 
 /**
- * ملحوظة على الشهور اللي مالهاش نفس اليوم: 31 يناير + شهر بيدي 3 مارس (ده سلوك
- * جافاسكريبت الطبيعي في تجاوز عدد أيام الشهر). ده سلوك مقصود سايبينه زي ما هو
- * دلوقتي عشان الإصلاح ده يكون عن التوقيت بس، بس محتاج قرار منتج لوحده.
+ * الشهور اللي مالهاش نفس اليوم بتتقصّ على آخر يوم في الشهر: 31 يناير + شهر =
+ * 28 فبراير (29 في السنة الكبيسة). لو سبناها لجافاسكريبت كانت هتدي 3 مارس، يعني
+ * اشتراك مستحق يوم 31 كان هيفوّت فبراير بالكامل.
+ * ملحوظة: التقصّ مش قابل للعكس بطبيعته — 31 يناير + شهر − شهر = 28 يناير، لأن
+ * اليوم الأصلي مش متخزّن في أي مكان.
  */
 export function addMonths(dateStr: string, n: number) {
   const d = parseDateStr(dateStr);
-  d.setUTCMonth(d.getUTCMonth() + n);
-  return toDateStr(d);
+  const day = d.getUTCDate();
+  const firstOfTarget = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+  const lastDayOfTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  firstOfTarget.setUTCDate(Math.min(day, lastDayOfTarget));
+  return toDateStr(firstOfTarget);
 }
 
 export function startOfMonth(dateStr: string) {
