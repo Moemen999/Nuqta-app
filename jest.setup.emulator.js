@@ -7,3 +7,12 @@
 if (typeof global.XMLHttpRequest === 'undefined') {
   global.XMLHttpRequest = require('xhr2');
 }
+
+// بنقفل اتصال Firestore بعد ما الملف يخلص. من غير كده بتفضل في الخلفية قنوات
+// بتحاول توصل وتكتب في الكونسول بعد ما جيست يقفل البيئة، وجيست بيعتبر ده فشل
+// ويخرج بكود 1 حتى لو كل الاختبارات عدّت.
+afterAll(async () => {
+  const { terminate } = require('firebase/firestore');
+  const { db } = require('@/firebaseConfig');
+  await terminate(db);
+});

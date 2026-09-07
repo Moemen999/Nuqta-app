@@ -7,7 +7,7 @@
     "test": "jest && node scripts/test-timezones.js",
     "test:fast": "jest",
     "test:tz": "node scripts/test-timezones.js",
-    "test:db": "firebase emulators:exec --only firestore --project nuqta-711f2 \"jest --config jest.emulator.config.js\"",
+    "test:db": "firebase emulators:exec --config firebase.emulator.json --only firestore --project nuqta-711f2 \"jest --config jest.emulator.config.js\"",
     "test:watch": "jest --watch",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo start --android",
