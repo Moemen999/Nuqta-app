@@ -22,25 +22,26 @@ export type Transaction = {
 };
 /**
  * نتيجة العمليات اللي **بتقرا من السيرفر** (تسديد اشتراك/شهر جمعية). دي العمليات
- * الوحيدة اللي محتاجة اتصال فعلي، فبترجع نتيجة الشاشة تعرضها بدل ما الزرار يفضل
- * مقفول على "...".
- * - `done`: خلصت (أو كانت متسجلة قبل كده)
- * - `no-connection`: مفيش اتصال بالسيرفر أصلاً، فمبدأناش حاجة
- * - `lost-connection`: الاتصال وقع وإحنا في النص. فايربيز بتعيد المحاولة 5 مرات
- *   (حوالي 10 ثواني) وبعدين بتستسلم — فلو النت رجع في الوقت ده هتلاقيها اتسجلت
- *   لوحدها، ولو لأ تنبيه الخطأ بتاع `track` هييجي. الزرار بيتفك في الحالتين
+ * الوحيدة اللي محتاجة اتصال فعلي، وبترجع إجابة **قاطعة** عشان المستخدم يعرف
+ * فورًا حصل إيه لفلوسه من غير ما يفضل يتفرج على الكارت ويستنى:
+ * - `done`: اتسجلت (أو كانت متسجلة قبل كده)
+ * - `no-connection`: مفيش اتصال، فمبدأناش أصلاً — **مفيش أي خصم اتسجل**
+ * - `failed`: بدأنا وفشلت. العملية الذرية إما تتم كلها أو مفيش —
+ *   يعني برضه **مفيش أي خصم اتسجل**، والمستخدم يقدر يعيد بأمان
+ * القرار المقصود هنا: نستنى فايربيز توصل لإجابة (أقصاها ~10 ثواني، مقيسة) بدل ما
+ * نفك الزرار بدري بكلام مطاطي. في فلوس، الغموض أغلى من الاستنى.
  */
-export type PayOutcome = 'done' | 'no-connection' | 'lost-connection';
+export type PayOutcome = 'done' | 'no-connection' | 'failed';
 
 /** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
 export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
   'no-connection': {
     title: 'مفيش نت دلوقتي',
-    body: 'العملية دي لازم تتأكد من السيرفر عشان الخصم ميتسجلش مرتين. جرب تاني أول ما النت يرجع.',
+    body: 'ما اتسجلش أي خصم. العملية دي لازم تتأكد من السيرفر عشان الخصم ميتسجلش مرتين — جرب تاني أول ما النت يرجع.',
   },
-  'lost-connection': {
-    title: 'النت راح في النص',
-    body: 'لسه بنحاول شوية كمان. لو اتسجلت هتلاقيها اتحدّثت لوحدها، ولو ما ظبطتش هيوصلك تنبيه.',
+  failed: {
+    title: 'ما اتسجلش',
+    body: 'العملية ما تمّتش ومفيش أي خصم اتسجل. اتأكد إن النت شغال وجرب تاني.',
   },
 };
 
@@ -170,6 +171,11 @@ const DEFAULT_WALLETS = [
 ];
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
+/**
+ * أقصى انتظار للكتابات اللي لسه بترفع قبل أي عملية بتقرا من السيرفر. فايربيز
+ * بتعلن انقطاع الاتصال خلال ~10 ثواني، فالسقف ده شبكة أمان لو الإشارة اتأخرت
+ */
+const PENDING_WAIT_TIMEOUT_MS = 15000;
 
 async function claimSeeding(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
@@ -256,9 +262,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * عشان يوصل للمستخدم بدل ما يضيع في اللوج كـ unhandled rejection.
    */
   function track<T>(p: Promise<T>): Promise<T | void> {
+    return countPending(p).catch(reportWriteError);
+  }
+
+  /**
+   * بيعد الكتابة في "لسه بترفع" بس بيسيب الخطأ يعدي لللي نداه. بيستخدمها الكود
+   * اللي هيتصرف في الخطأ بنفسه (العمليات الذرية بترجّع نتيجة قاطعة للشاشة)،
+   * عشان المستخدم ميشوفش تنبيهين على نفس الحاجة
+   */
+  function countPending<T>(p: Promise<T>): Promise<T> {
     pendingCount.current += 1;
     setPendingWrites(pendingCount.current);
-    return p.catch(reportWriteError).finally(() => {
+    return p.finally(() => {
       pendingCount.current -= 1;
       setPendingWrites(pendingCount.current);
     });
@@ -651,12 +666,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بما إننا مش بنستنى تأكيد السيرفر على الكتابات العادية، ممكن المستخدم يعمل
     // اشتراك ويدوس "سدّد" قبل ما الاشتراك نفسه يوصل. والعملية الذرية بتقرا من
     // السيرفر، فكانت هتلاقيه مش موجود وتخرج من غير ما تعمل حاجة — الزرار يشتغل
-    // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع.
-    // ملحوظة: `waitForPendingWrites` مبيتحلش خالص وإحنا أوفلاين، عشان كده
-    // raceWithConnection لافّة العملية كلها مش الجزء الذري بس
-    return raceWithConnection((async () => {
-      try { await waitForPendingWrites(db); } catch {}
-      await track(runTransaction(db, async (t) => {
+    // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
@@ -680,20 +693,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
           : addDays(sub.nextDueDate, sub.customDays || 30);
         t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
       }));
-    })());
+      return 'done';
+    } catch {
+      // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
+      // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
+      return 'failed';
+    }
   }
 
   /**
-   * بيلف أي عملية محتاجة سيرفر: بيسابقها مع "الاتصال وقع" عشان الزرار يتفك
-   * فورًا لو النت راح. العملية نفسها بتكمل ورا — فايربيز بتعيد المحاولة 5 مرات
-   * (حوالي 10 ثواني) وبعدين بترفض، وساعتها `track` بينبّه المستخدم
+   * بنستنى اللي كتبناه محليًا يوصل السيرفر قبل أي عملية بتقرا منه، وإلا ممكن
+   * تلاقي سجل لسه بيرفع فتفتكره مش موجود.
+   * `waitForPendingWrites` **مبيتحلش خالص** وإحنا أوفلاين (اتقاس)، فبنسابقه مع
+   * إشارة "الاتصال وقع" ومع سقف زمني — عشان الانتظار يفضل محدود دايمًا.
+   * بيرجّع false يعني ما وصلناش السيرفر، ومحصلش أي خصم لأننا مابدأناش أصلاً.
    */
-  async function raceWithConnection(work: Promise<void>): Promise<PayOutcome> {
+  async function waitForOurWritesToLand(): Promise<boolean> {
     const lost = whenConnectionLost();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cap = new Promise<'timeout'>(resolve => {
+      timer = setTimeout(() => resolve('timeout'), PENDING_WAIT_TIMEOUT_MS);
+    });
     try {
-      return await Promise.race([work.then(() => 'done' as const), lost.promise]);
+      const winner = await Promise.race([
+        waitForPendingWrites(db).then(() => 'landed' as const),
+        lost.promise,
+        cap,
+      ]);
+      return winner === 'landed';
+    } catch {
+      return false;
     } finally {
       lost.cancel();
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -743,9 +775,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!serverReachableRef.current) return 'no-connection';
     const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    return raceWithConnection((async () => {
-      try { await waitForPendingWrites(db); } catch {}
-      await track(runTransaction(db, async (t) => {
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(gamiyaRef);
         if (!snap.exists()) return;
         const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
@@ -763,7 +795,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         );
         t.update(gamiyaRef, { months: updatedMonths });
       }));
-    })());
+      return 'done';
+    } catch {
+      return 'failed';
+    }
   }
 
   return (
