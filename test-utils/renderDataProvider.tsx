@@ -43,5 +43,16 @@ export async function renderDataProvider() {
     );
   }
 
-  return { view, api, waitForData, unmount: () => view.unmount() };
+  /**
+   * بيستنى البروفايدر يبقى جاهز فعلاً: البيانات وصلت **و**إحنا شايفين السيرفر.
+   * الجزء التاني مهم عشان العمليات اللي بتقرا من السيرفر (تسديد اشتراك/شهر
+   * جمعية) بترفض على طول لو لسه ما وصلناش لأول snapshot متأكد من السيرفر —
+   * وده حصل فعلاً في الاختبارات: المحافظ الافتراضية بتظهر من الكاش المحلي قبل
+   * ما السيرفر يأكدها، فالاختبار كان بيكمل والتطبيق لسه بيعتبر نفسه أوفلاين
+   */
+  function waitForReady(minWallets = 3) {
+    return waitForData(api => api.wallets.length >= minWallets && api.serverReachable);
+  }
+
+  return { view, api, waitForData, waitForReady, unmount: () => view.unmount() };
 }

@@ -1,10 +1,10 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { useData, type Subscription } from '@/context/DataContext';
+import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, daysUntil, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي', custom: 'مخصص' };
 
@@ -27,7 +27,19 @@ export default function SubscriptionsView() {
   function confirmPay(s: Subscription) {
     Alert.alert('تسجيل الدفع', `اتخصم ${fmt(s.amount)} ج.م من محفظتك دلوقتي؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'تأكيد', onPress: () => runBusy(`pay_${s.id}`, () => markSubscriptionPaid(s.id, todayStr())) },
+      {
+        text: 'تأكيد',
+        onPress: () => runBusy(`pay_${s.id}`, async () => {
+          // العملية دي بتقرا من السيرفر، فبتاخد وقتها لحد ما تطلع بإجابة قاطعة
+          // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
+          // نفس الرسايل بالظبط في شاشة الجمعية
+          const outcome = await markSubscriptionPaid(s.id, todayStr());
+          if (outcome !== 'done') {
+            const m = PAY_OUTCOME_ALERT[outcome];
+            Alert.alert(m.title, m.body);
+          }
+        }),
+      },
     ]);
   }
 
@@ -64,7 +76,14 @@ export default function SubscriptionsView() {
             </Text>
             <View style={styles.actionsRow}>
               <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}>
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>{busyKey === `pay_${s.id}` ? '...' : 'اتخصم'}</Text>
+                {busyKey === `pay_${s.id}` ? (
+                  <View style={styles.btnLoading}>
+                    <ActivityIndicator size="small" color={colors.onAccent} />
+                    <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنسجّل</Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
+                )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
@@ -224,6 +243,7 @@ function makeStyles(c: ThemeColors) {
     due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
     actionsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
     editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },

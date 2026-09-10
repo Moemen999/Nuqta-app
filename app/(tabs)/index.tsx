@@ -1,3 +1,4 @@
+import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -16,7 +17,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
   const [showBalance, setShowBalance] = useState(true);
 
   const balances = useMemo(() => {
@@ -29,6 +30,18 @@ export default function HomeScreen() {
     () => wallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0),
     [wallets, balances]
   );
+
+  // فايربيز في الموبايل بتشتغل بكاش في الذاكرة بس، فلو فتحت التطبيق من غير نت
+  // مش هتلاقي ولا محفظة ولا عملية — والشاشة الفاضية دي بتترجم عند المستخدم
+  // "التطبيق ضيّع فلوسي". لازم نقول السبب بصراحة.
+  // بس مش في أول ثانيتين: ساعتها إحنا لسه بنحمّل، والبيانات في الغالب جاية —
+  // ومن غير المهلة دي البانر بيلمع غلط في كل مرة التطبيق يفتح
+  const [loadWindowPassed, setLoadWindowPassed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setLoadWindowPassed(true), 2500);
+    return () => clearTimeout(t);
+  }, []);
+  const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -89,7 +102,14 @@ export default function HomeScreen() {
 
         <EmailVerificationBanner />
 
-        {!hasTodayTx && (
+        {offlineEmpty && (
+          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}>
+              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
+            </Text>
+          </View>
+        )}
+        {!hasTodayTx && !offlineEmpty && (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
           </View>
@@ -143,7 +163,11 @@ export default function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
-        {recent.length === 0 && <Text style={styles.emptyState}>لسه معملتش أي عملية</Text>}
+        {recent.length === 0 && (
+          <Text style={styles.emptyState}>
+            {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
+          </Text>
+        )}
         {recent.map(t => {
           const T = TYPE_LABELS[t.type];
           const cat = categories.find(c => c.id === t.categoryId);
@@ -160,6 +184,7 @@ export default function HomeScreen() {
               <View style={styles.txRight}>
                 <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+                {pendingTxIds.has(t.id) && <PendingSyncMark />}
               </View>
             </TouchableOpacity>
           );

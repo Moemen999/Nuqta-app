@@ -1,4 +1,5 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
+import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
@@ -16,7 +17,7 @@ export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories } = useData();
+  const { transactions, wallets, categories, pendingTxIds, serverReachable } = useData();
 
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -158,7 +159,13 @@ export default function ArchiveScreen() {
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
-      {filtered.length === 0 && <Text style={styles.emptyState}>مفيش عمليات في الفترة دي</Text>}
+      {filtered.length === 0 && (
+        <Text style={styles.emptyState}>
+          {!serverReachable && transactions.length === 0
+            ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
+            : 'مفيش عمليات في الفترة دي'}
+        </Text>
+      )}
       {filtered.map(t => {
         const T = TYPE_LABELS[t.type];
         const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
@@ -172,6 +179,7 @@ export default function ArchiveScreen() {
             <View style={styles.txRight}>
               <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
               <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+              {pendingTxIds.has(t.id) && <PendingSyncMark />}
             </View>
           </View>
         );

@@ -2,9 +2,10 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import { addDays, addMonths } from '@/lib/finance';
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
+  collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc, waitForPendingWrites,
 } from 'firebase/firestore';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Alert } from 'react-native';
 
 export type Wallet = { id: string; name: string; openingBalance: number; lowAlert: number };
 export type Category = { id: string; name: string; bucket?: 'needs' | 'wants' | 'future' | ''; icon?: string };
@@ -19,6 +20,31 @@ export type Transaction = {
   date: string;
   createdAt?: string;
 };
+/**
+ * نتيجة العمليات اللي **بتقرا من السيرفر** (تسديد اشتراك/شهر جمعية). دي العمليات
+ * الوحيدة اللي محتاجة اتصال فعلي، وبترجع إجابة **قاطعة** عشان المستخدم يعرف
+ * فورًا حصل إيه لفلوسه من غير ما يفضل يتفرج على الكارت ويستنى:
+ * - `done`: اتسجلت (أو كانت متسجلة قبل كده)
+ * - `no-connection`: مفيش اتصال، فمبدأناش أصلاً — **مفيش أي خصم اتسجل**
+ * - `failed`: بدأنا وفشلت. العملية الذرية إما تتم كلها أو مفيش —
+ *   يعني برضه **مفيش أي خصم اتسجل**، والمستخدم يقدر يعيد بأمان
+ * القرار المقصود هنا: نستنى فايربيز توصل لإجابة (أقصاها ~10 ثواني، مقيسة) بدل ما
+ * نفك الزرار بدري بكلام مطاطي. في فلوس، الغموض أغلى من الاستنى.
+ */
+export type PayOutcome = 'done' | 'no-connection' | 'failed';
+
+/** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
+export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'ما اتسجلش أي خصم. العملية دي لازم تتأكد من السيرفر عشان الخصم ميتسجلش مرتين — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتسجلش',
+    body: 'العملية ما تمّتش ومفيش أي خصم اتسجل. اتأكد إن النت شغال وجرب تاني.',
+  },
+};
+
 export type Budgets = Record<string, number>;
 export type ShakhbataIncome = Record<string, number>;
 export type ShakhbataPercents = { needs: number; wants: number; future: number };
@@ -92,6 +118,12 @@ type DataContextType = {
   debts: Debt[];
   subscriptions: Subscription[];
   gamiyas: Gamiya[];
+  /** عدد الكتابات اللي اتبعتت ولسه ما جاش تأكيد من السيرفر بيها */
+  pendingWrites: number;
+  /** العمليات اللي اتحفظت على الموبايل ولسه بترفع (من metadata بتاعة فايربيز) */
+  pendingTxIds: Set<string>;
+  /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
+  serverReachable: boolean;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
@@ -120,14 +152,14 @@ type DataContextType = {
   }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<void>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
   }) => Promise<void>;
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
   deleteGamiya: (id: string) => Promise<void>;
-  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<void>;
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -139,6 +171,11 @@ const DEFAULT_WALLETS = [
 ];
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
+/**
+ * أقصى انتظار للكتابات اللي لسه بترفع قبل أي عملية بتقرا من السيرفر. فايربيز
+ * بتعلن انقطاع الاتصال خلال ~10 ثواني، فالسقف ده شبكة أمان لو الإشارة اتأخرت
+ */
+const PENDING_WAIT_TIMEOUT_MS = 15000;
 
 async function claimSeeding(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
@@ -155,6 +192,11 @@ async function claimSeeding(uid: string): Promise<boolean> {
   }
 }
 
+/** مقارنة رخيصة عشان منعملش Set جديدة (ورسمة جديدة) كل ما ييجي snapshot بنفس المحتوى */
+function sameIds(prev: Set<string>, next: string[]) {
+  return prev.size === next.length && next.every(id => prev.has(id));
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const uid = user?.uid;
@@ -168,31 +210,139 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [gamiyas, setGamiyas] = useState<Gamiya[]>([]);
+  const [pendingWrites, setPendingWrites] = useState(0);
+  const [pendingTxIds, setPendingTxIds] = useState<Set<string>>(new Set());
+  const pendingCount = useRef(0);
+  const errorShown = useRef(false);
+  // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
+  // التطبيق بنعتبر نفسنا مش متصلين. ده بيمنع إن حد يفتح التطبيق وهو من غير نت
+  // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
+  const [serverReachable, setServerReachable] = useState(false);
+  const serverReachableRef = useRef(false);
+  const offlineWaiters = useRef(new Set<() => void>());
+
+  /**
+   * fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة على
+   * سؤال "أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها.
+   * بنقراها من أكتر من listener عن قصد: الـ listener بتاع مجموعة **فاضية**
+   * مبيرميش أي snapshot أصلاً لحد ما يوصلها مستند، فلو اعتمدنا على العمليات
+   * لوحدها، المستخدم الجديد (اللي لسه مامعموش أي عملية) هيفضل "مش متصل" للأبد.
+   */
+  function noteConnection(fromCache: boolean) {
+    const reachable = !fromCache;
+    if (serverReachableRef.current === reachable) return;
+    serverReachableRef.current = reachable;
+    setServerReachable(reachable);
+    if (!reachable) {
+      offlineWaiters.current.forEach(notify => notify());
+      offlineWaiters.current.clear();
+    }
+  }
+
+  /**
+   * وعد بيتحل لما الاتصال يقع وإحنا في نص عملية محتاجة سيرفر — بنسابق بيه
+   * العملية عشان الزرار يتفك بدل ما يفضل "..." لحد ما فايربيز تستسلم
+   */
+  function whenConnectionLost() {
+    let notify: () => void = () => {};
+    const promise = new Promise<'lost-connection'>(resolve => {
+      notify = () => resolve('lost-connection');
+    });
+    offlineWaiters.current.add(notify);
+    return { promise, cancel: () => offlineWaiters.current.delete(notify) };
+  }
+
+  /**
+   * أي كتابة في فايربيز بترجع Promise مبيتحلش غير لما السيرفر يأكد استلامها.
+   * بس فايربيز بتطبّق الكتابة في الكاش المحلي على طول والـ onSnapshot بيرد بيها
+   * فورًا، يعني الواجهة عندها كل اللي محتاجاه من غير ما تستنى السيرفر. لو
+   * استنيناه: أول ما النت يبوظ المستخدم يفضل قاعد قدام "..." من غير نهاية،
+   * يفتكر إن الحفظ فشل، ويحفظ تاني — فتتسجل عمليتين على نفس الفلوس.
+   * فبدل ما ننتظر، بنسجّل الكتابة هنا: بنعدّها في "لسه بترفع"، وبنمسك أي خطأ
+   * عشان يوصل للمستخدم بدل ما يضيع في اللوج كـ unhandled rejection.
+   */
+  function track<T>(p: Promise<T>): Promise<T | void> {
+    return countPending(p).catch(reportWriteError);
+  }
+
+  /**
+   * بيعد الكتابة في "لسه بترفع" بس بيسيب الخطأ يعدي لللي نداه. بيستخدمها الكود
+   * اللي هيتصرف في الخطأ بنفسه (العمليات الذرية بترجّع نتيجة قاطعة للشاشة)،
+   * عشان المستخدم ميشوفش تنبيهين على نفس الحاجة
+   */
+  function countPending<T>(p: Promise<T>): Promise<T> {
+    pendingCount.current += 1;
+    setPendingWrites(pendingCount.current);
+    return p.finally(() => {
+      pendingCount.current -= 1;
+      setPendingWrites(pendingCount.current);
+    });
+  }
+
+  /**
+   * لما كتابة تترفض (قواعد الأمان مثلاً) فايربيز بتشيل الكتابة من الكاش المحلي،
+   * يعني العملية بتختفي من قدام المستخدم من غير أي سبب واضح — ودي فلوس، لازم
+   * يعرف. تنبيه واحد بس في المرة، عشان لو كتابات كتير فشلت مع بعض (زي حذف دين
+   * بكل عملياته) ميتقفلش عليه عشرين تنبيه ورا بعض.
+   */
+  function reportWriteError(e: any) {
+    console.warn('كتابة فشلت في فايربيز', e);
+    if (errorShown.current) return;
+    errorShown.current = true;
+    Alert.alert(
+      'فيه تعديل ما اتحفظش',
+      'التعديل ما وصلش للسيرفر واترجع تاني. راجع البيانات وجرب من الأول.',
+      [{ text: 'تمام', onPress: () => { errorShown.current = false; } }]
+    );
+  }
+
+  /**
+   * بنعمل id للمستند من عندنا بدل ما نستنى addDoc ترجع بيه من السيرفر، فالكود
+   * اللي محتاج الـ id (زي ربط عملية بدين) بياخده على طول والكتابة تكمل ورا.
+   */
+  function addDocNoWait(path: string, data: any): string {
+    const ref = doc(collection(db, 'users', uid!, path));
+    track(setDoc(ref, data));
+    return ref.id;
+  }
 
   useEffect(() => {
     if (!uid) {
       setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]);
+      setPendingTxIds(new Set());
+      setServerReachable(false);
+      serverReachableRef.current = false;
       return;
     }
 
     (async () => {
       const shouldSeed = await claimSeeding(uid);
       if (shouldSeed) {
-        DEFAULT_WALLETS.forEach(w => addDoc(collection(db, 'users', uid, 'wallets'), w));
-        DEFAULT_CATEGORIES.forEach(name => addDoc(collection(db, 'users', uid, 'categories'), { name }));
+        DEFAULT_WALLETS.forEach(w => addDocNoWait('wallets', w));
+        DEFAULT_CATEGORIES.forEach(name => addDocNoWait('categories', { name }));
       }
     })();
 
-    const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), (snap) => {
+    const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      noteConnection(snap.metadata.fromCache);
     });
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
     });
-    const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), (snap) => {
+    // includeMetadataChanges عشان نعرف مين لسه بيرفع ومين وصل: من غيرها فايربيز
+    // مبتبعتش snapshot تاني لما السيرفر يأكد كتابة محتواها ما اتغيرش، فالعلامة
+    // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
+    const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
       setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
+      setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
+
+      // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
+      // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
+      noteConnection(snap.metadata.fromCache);
     });
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       const b: Budgets = {};
@@ -234,46 +384,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   async function addWallet(name: string) {
     if (!uid) return;
-    await addDoc(collection(db, 'users', uid, 'wallets'), { name, openingBalance: 0, lowAlert: 0 });
+    addDocNoWait('wallets', { name, openingBalance: 0, lowAlert: 0 });
   }
   async function updateWallet(id: string, data: Partial<Wallet>) {
     if (!uid) return;
-    await updateDoc(doc(db, 'users', uid, 'wallets', id), data);
+    track(updateDoc(doc(db, 'users', uid, 'wallets', id), data));
   }
   async function deleteWallet(id: string) {
     if (!uid) return;
-    await deleteDoc(doc(db, 'users', uid, 'wallets', id));
+    track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
   }
   async function addCategory(name: string) {
     if (!uid) return;
-    await addDoc(collection(db, 'users', uid, 'categories'), { name });
+    addDocNoWait('categories', { name });
   }
   async function updateCategory(id: string, data: Partial<Category>) {
     if (!uid) return;
-    await updateDoc(doc(db, 'users', uid, 'categories', id), data);
+    track(updateDoc(doc(db, 'users', uid, 'categories', id), data));
   }
   async function deleteCategory(id: string) {
     if (!uid) return;
-    await deleteDoc(doc(db, 'users', uid, 'categories', id));
+    track(deleteDoc(doc(db, 'users', uid, 'categories', id)));
   }
   async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
     if (!uid) return '';
     // بنضمن وجود createdAt دايمًا عشان الوقت يظهر مع كل العمليات (حتى اللي بتتولد من الديون والاشتراكات والجمعية)
     const withTimestamp = { createdAt: new Date().toISOString(), ...tx };
     const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
-    const ref = await addDoc(collection(db, 'users', uid, 'transactions'), clean);
-    return ref.id;
+    return addDocNoWait('transactions', clean);
   }
   async function updateTransaction(id: string, tx: Partial<Transaction>) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
-    await updateDoc(doc(db, 'users', uid, 'transactions', id), clean);
+    track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean));
   }
   // حذف العملية من غير أي تنسيق — بتستخدمها بس المسارات اللي بتمسح السجل الأصلي
   // بنفسها (حذف دين/اشتراك/جمعية)، عشان منلفش في دايرة حذف
   async function deleteTransactionDoc(id: string) {
     if (!uid) return;
-    await deleteDoc(doc(db, 'users', uid, 'transactions', id));
+    track(deleteDoc(doc(db, 'users', uid, 'transactions', id)));
   }
 
   /**
@@ -291,25 +440,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (d.initialTransactionId === txId) {
         const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
         if (hasHistory) {
-          await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+          track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
             initialTransactionId: deleteField(),
             initialWalletId: deleteField(),
-          });
+          }));
         } else {
-          await deleteDoc(doc(db, 'users', uid, 'debts', d.id));
+          track(deleteDoc(doc(db, 'users', uid, 'debts', d.id)));
         }
         return;
       }
       if ((d.payments || []).some(p => p.transactionId === txId)) {
-        await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+        track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
           payments: d.payments.filter(p => p.transactionId !== txId),
-        });
+        }));
         return;
       }
       if ((d.increases || []).some(e => e.transactionId === txId)) {
-        await updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+        track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
           increases: (d.increases || []).filter(e => e.transactionId !== txId),
-        });
+        }));
         return;
       }
     }
@@ -324,10 +473,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const rolledBack = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, -1)
         : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, -12)
         : addDays(sub.nextDueDate, -(sub.customDays || 30));
-      await updateDoc(doc(db, 'users', uid, 'subscriptions', sub.id), {
+      track(updateDoc(doc(db, 'users', uid, 'subscriptions', sub.id), {
         history: history.filter(h => h.transactionId !== txId),
         ...(isLast ? { nextDueDate: rolledBack } : {}),
-      });
+      }));
       return;
     }
 
@@ -338,7 +487,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const { transactionId, ...rest } = m;
         return { ...rest, status: 'pending' as const };
       });
-      await updateDoc(doc(db, 'users', uid, 'gamiyas', g.id), { months });
+      track(updateDoc(doc(db, 'users', uid, 'gamiyas', g.id), { months }));
       return;
     }
   }
@@ -379,15 +528,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function setBudget(categoryId: string, limit: number) {
     if (!uid) return;
-    await setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit });
+    track(setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit }));
   }
   async function setMonthlyIncome(month: string, income: number) {
     if (!uid) return;
-    await setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income });
+    track(setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income }));
   }
   async function setShakhbataPercents(p: ShakhbataPercents) {
     if (!uid) return;
-    await setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p);
+    track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p));
   }
 
   async function addDebt(data: {
@@ -408,7 +557,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       isInstallment: data.isInstallment, installmentCount: data.installmentCount, note: data.note,
       initialWalletId: data.walletId, initialTransactionId,
     }).filter(([, v]) => v !== undefined));
-    await addDoc(collection(db, 'users', uid, 'debts'), { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
+    addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
   }
   async function deleteDebt(id: string) {
     if (!uid) return;
@@ -421,7 +570,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ].filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    await deleteDoc(doc(db, 'users', uid, 'debts', id));
+    track(deleteDoc(doc(db, 'users', uid, 'debts', id)));
   }
   async function addDebtPayment(debtId: string, amount: number, walletId: string, date: string, categoryId?: string) {
     if (!uid) return;
@@ -438,7 +587,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date, amount, walletId, transactionId: txId,
       ...(categoryId ? { categoryId } : {}),
     };
-    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: [...debt.payments, payment] });
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: [...debt.payments, payment] }));
   }
   async function deleteDebtPayment(debtId: string, paymentId: string) {
     if (!uid) return;
@@ -446,7 +595,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return;
     const payment = debt.payments.find(p => p.id === paymentId);
     if (payment?.transactionId) await deleteTransactionDoc(payment.transactionId);
-    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) });
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) }));
   }
   async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
     if (!uid) return;
@@ -465,7 +614,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date, amount,
       ...(walletId ? { walletId, transactionId } : {}),
     };
-    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] });
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] }));
   }
   async function deleteDebtIncrease(debtId: string, entryId: string) {
     if (!uid) return;
@@ -473,7 +622,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return;
     const entry = (debt.increases || []).find(e => e.id === entryId);
     if (entry?.transactionId) await deleteTransactionDoc(entry.transactionId);
-    await updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) });
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) }));
   }
 
   async function addSubscription(data: {
@@ -482,13 +631,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    await addDoc(collection(db, 'users', uid, 'subscriptions'), { ...clean, active: true, history: [], createdAt: new Date().toISOString() });
+    addDocNoWait('subscriptions', { ...clean, active: true, history: [], createdAt: new Date().toISOString() });
   }
   async function updateSubscription(id: string, data: Partial<Subscription>) {
     if (!uid) return;
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    await updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean);
+    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean));
   }
   async function deleteSubscription(id: string) {
     if (!uid) return;
@@ -497,7 +646,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const txIds = (sub.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    await deleteDoc(doc(db, 'users', uid, 'subscriptions', id));
+    track(deleteDoc(doc(db, 'users', uid, 'subscriptions', id)));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -507,34 +656,77 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string) {
-    if (!uid) return;
+  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
+    // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
+    if (!serverReachableRef.current) return 'no-connection';
     const subRef = doc(db, 'users', uid, 'subscriptions', id);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    await runTransaction(db, async (t) => {
-      const snap = await t.get(subRef);
-      if (!snap.exists()) return;
-      const sub = { id, ...(snap.data() as any) } as Subscription;
-      const history = sub.history || [];
-      const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
-      if (alreadyPaid) return;
+    // بما إننا مش بنستنى تأكيد السيرفر على الكتابات العادية، ممكن المستخدم يعمل
+    // اشتراك ويدوس "سدّد" قبل ما الاشتراك نفسه يوصل. والعملية الذرية بتقرا من
+    // السيرفر، فكانت هتلاقيه مش موجود وتخرج من غير ما تعمل حاجة — الزرار يشتغل
+    // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(subRef);
+        if (!snap.exists()) return;
+        const sub = { id, ...(snap.data() as any) } as Subscription;
+        const history = sub.history || [];
+        const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
+        if (alreadyPaid) return;
 
-      const txData = {
-        type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
-        categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
-        createdAt: new Date().toISOString(),
-      };
-      t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+        const txData = {
+          type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
+          categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+          createdAt: new Date().toISOString(),
+        };
+        t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
 
-      const payment: SubscriptionPayment = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        date, amount: sub.amount, transactionId: txRef.id,
-      };
-      const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
-        : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
-        : addDays(sub.nextDueDate, sub.customDays || 30);
-      t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
+        const payment: SubscriptionPayment = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date, amount: sub.amount, transactionId: txRef.id,
+        };
+        const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
+          : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
+          : addDays(sub.nextDueDate, sub.customDays || 30);
+        t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
+      }));
+      return 'done';
+    } catch {
+      // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
+      // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
+      return 'failed';
+    }
+  }
+
+  /**
+   * بنستنى اللي كتبناه محليًا يوصل السيرفر قبل أي عملية بتقرا منه، وإلا ممكن
+   * تلاقي سجل لسه بيرفع فتفتكره مش موجود.
+   * `waitForPendingWrites` **مبيتحلش خالص** وإحنا أوفلاين (اتقاس)، فبنسابقه مع
+   * إشارة "الاتصال وقع" ومع سقف زمني — عشان الانتظار يفضل محدود دايمًا.
+   * بيرجّع false يعني ما وصلناش السيرفر، ومحصلش أي خصم لأننا مابدأناش أصلاً.
+   */
+  async function waitForOurWritesToLand(): Promise<boolean> {
+    const lost = whenConnectionLost();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const cap = new Promise<'timeout'>(resolve => {
+      timer = setTimeout(() => resolve('timeout'), PENDING_WAIT_TIMEOUT_MS);
     });
+    try {
+      const winner = await Promise.race([
+        waitForPendingWrites(db).then(() => 'landed' as const),
+        lost.promise,
+        cap,
+      ]);
+      return winner === 'landed';
+    } catch {
+      return false;
+    } finally {
+      lost.cancel();
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function addGamiya(data: {
@@ -554,12 +746,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         status: 'pending',
       };
     });
-    await addDoc(collection(db, 'users', uid, 'gamiyas'), { ...data, months, createdAt: new Date().toISOString() });
+    addDocNoWait('gamiyas', { ...data, months, createdAt: new Date().toISOString() });
   }
   async function updateGamiya(id: string, data: Partial<Gamiya>) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    await updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean);
+    track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean));
   }
   async function deleteGamiya(id: string) {
     if (!uid) return;
@@ -568,7 +760,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const txIds = g.months.map(m => m.transactionId).filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    await deleteDoc(doc(db, 'users', uid, 'gamiyas', id));
+    track(deleteDoc(doc(db, 'users', uid, 'gamiyas', id)));
   }
   /**
    * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
@@ -576,35 +768,44 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * تبص على حالة الشهر أصلاً، فنداءها مرتين على نفس الشهر كان بيعمل عمليتين خصم،
    * والشهر بيتربط بالتانية فالأولى بتفضل عملية يتيمة في الأرشيف بتقلل الرصيد.
    */
-  async function markGamiyaMonthDone(gamiyaId: string, monthId: string) {
-    if (!uid) return;
+  async function markGamiyaMonthDone(gamiyaId: string, monthId: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    // زي markSubscriptionPaid بالظبط: رفض فوري من غير اتصال، وانتظار اللي لسه
+    // بيرفع قبل القراية من السيرفر، والكل متسابق مع "الاتصال وقع"
+    if (!serverReachableRef.current) return 'no-connection';
     const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    await runTransaction(db, async (t) => {
-      const snap = await t.get(gamiyaRef);
-      if (!snap.exists()) return;
-      const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
-      const month = (g.months || []).find(m => m.id === monthId);
-      if (!month || month.status === 'done') return;
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(gamiyaRef);
+        if (!snap.exists()) return;
+        const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
+        const month = (g.months || []).find(m => m.id === monthId);
+        if (!month || month.status === 'done') return;
 
-      const type = month.isPayoutMonth ? 'income' : 'expense';
-      t.set(txRef, {
-        type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
-        note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
-        createdAt: new Date().toISOString(),
-      });
-      const updatedMonths = g.months.map(m =>
-        m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
-      );
-      t.update(gamiyaRef, { months: updatedMonths });
-    });
+        const type = month.isPayoutMonth ? 'income' : 'expense';
+        t.set(txRef, {
+          type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
+          note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+          createdAt: new Date().toISOString(),
+        });
+        const updatedMonths = g.months.map(m =>
+          m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
+        );
+        t.update(gamiyaRef, { months: updatedMonths });
+      }));
+      return 'done';
+    } catch {
+      return 'failed';
+    }
   }
 
   return (
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas,
+        debts, subscriptions, gamiyas, pendingWrites, pendingTxIds, serverReachable,
         addWallet, updateWallet, deleteWallet,
         addCategory, updateCategory, deleteCategory,
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,

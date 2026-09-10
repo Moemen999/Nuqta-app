@@ -1,10 +1,10 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { useData, type Gamiya } from '@/context/DataContext';
+import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { daysUntil, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -27,7 +27,16 @@ export default function GamiyaView() {
       isPayout ? `هتستلم ${fmt(amount)} ج.م في محفظتك؟` : `هيتخصم ${fmt(amount)} ج.م من محفظتك؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'تأكيد', onPress: () => runBusy(`month_${monthId}`, () => markGamiyaMonthDone(g.id, monthId)) },
+        {
+          text: 'تأكيد',
+          onPress: () => runBusy(`month_${monthId}`, async () => {
+            const outcome = await markGamiyaMonthDone(g.id, monthId);
+            if (outcome !== 'done') {
+              const m = PAY_OUTCOME_ALERT[outcome];
+              Alert.alert(m.title, m.body);
+            }
+          }),
+        },
       ]
     );
   }
@@ -86,9 +95,14 @@ export default function GamiyaView() {
                         onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
                         style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                         disabled={busyKey === `month_${m.id}`}>
-                        <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
-                          {busyKey === `month_${m.id}` ? '...' : m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
-                        </Text>
+                        {busyKey === `month_${m.id}` ? (
+                          // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
+                          <ActivityIndicator size="small" color={colors.onAccent} />
+                        ) : (
+                          <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
+                            {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     ) : (
                       <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>

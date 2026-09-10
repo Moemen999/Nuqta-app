@@ -44,11 +44,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function signUp(email: string, password: string, displayName: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName });
-    await setDoc(doc(db, 'users', cred.user.uid), {
+    // مش بنستنى تأكيد السيرفر على الكتابة دي: الحساب اتعمل خلاص، وفايربيز بتكتب
+    // محليًا وبترفع لوحدها أول ما النت يسمح. لو استنيناها والنت واقف، المستخدم
+    // كان بيفضل قاعد قدام "بيحمّل" وإيميل التأكيد نفسه (اللي تحت) مكانش بيتبعت
+    // أصلاً لأننا واقفين مستنيين تأكيد مش جاي.
+    setDoc(doc(db, 'users', cred.user.uid), {
       displayName,
       email,
       createdAt: serverTimestamp(),
-    }, { merge: true });
+    }, { merge: true }).catch(() => {
+      // البيانات دي تكميلية — مش شرط لدخول المستخدم، وفايربيز بتعيد المحاولة لوحدها
+    });
     try {
       await sendEmailVerification(cred.user);
     } catch {
@@ -60,11 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const credential = GoogleAuthProvider.credential(idToken);
     const cred = await signInWithCredential(auth, credential);
     // أول مرة يسجل بيها بجوجل، نسجل بياناته في نفس مكان مستخدمين الإيميل/الباسورد (merge عشان منمسحش علامة seeded)
-    await setDoc(doc(db, 'users', cred.user.uid), {
+    // وزي التسجيل بالإيميل: من غير انتظار تأكيد السيرفر، تسجيل الدخول خلص خلاص
+    setDoc(doc(db, 'users', cred.user.uid), {
       displayName: cred.user.displayName || '',
       email: cred.user.email || '',
       createdAt: serverTimestamp(),
-    }, { merge: true });
+    }, { merge: true }).catch(() => {
+      // نفس الكلام: بيانات تكميلية بترفع لوحدها بعدين
+    });
   }
 
   async function logOut() {
