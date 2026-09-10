@@ -15,7 +15,7 @@ beforeEach(async () => {
 describe('توصيلة المحاكي', () => {
   it('العملية اللي بتتكتب بترجع من onSnapshot والرصيد بيتحسب منها', async () => {
     const t = await renderDataProvider();
-    await t.waitForData(api => api.wallets.length > 0);
+    await t.waitForReady(1);
 
     const wallet = t.api().wallets[0];
     await t.api().addTransaction({ type: 'expense', amount: 250, walletId: wallet.id, date: '2026-03-10' });

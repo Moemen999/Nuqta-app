@@ -26,7 +26,7 @@ afterEach(async () => {
 describe('تكرار إنشاء الدين', () => {
   it('نداءين متوازيين لـ addDebt بينشئوا سجلين — الحماية في الزرار مش في الداتا', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     const payload = {
@@ -55,7 +55,7 @@ describe('تكرار إنشاء الدين', () => {
 describe('تكرار تسديد شهر الجمعية', () => {
   it('نداءين متتاليين على نفس الشهر مبيخصموش مرتين', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     await harness.api().addGamiya({
@@ -83,7 +83,7 @@ describe('تكرار تسديد شهر الجمعية', () => {
 
   it('نداءين متوازيين على نفس الشهر مبيخصموش مرتين', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     await harness.api().addGamiya({
@@ -112,7 +112,7 @@ describe('تكرار تسديد شهر الجمعية', () => {
 describe('تكرار تسديد الاشتراك', () => {
   it('نداءين متتاليين بنفس التاريخ مبيسجلوش دفعتين', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     await harness.api().addSubscription({
@@ -137,7 +137,7 @@ describe('تكرار تسديد الاشتراك', () => {
 
   it('نداءين متوازيين بنفس التاريخ مبيسجلوش دفعتين', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     await harness.api().addSubscription({
@@ -161,7 +161,7 @@ describe('تكرار تسديد الاشتراك', () => {
 
   it('الدفع في تاريخ تاني بيتسجل عادي (المنع للتكرار بس)', async () => {
     harness = await renderDataProvider();
-    await harness.waitForData(api => api.wallets.length >= 3);
+    await harness.waitForReady();
     const w = harness.api().wallets[0];
 
     await harness.api().addSubscription({
@@ -190,8 +190,8 @@ describe('زرع المحافظ والفئات الافتراضية', () => {
     const second = await renderDataProvider();
     harness = first;
 
-    await first.waitForData(api => api.wallets.length >= 3);
-    await second.waitForData(api => api.wallets.length >= 3);
+    await first.waitForReady();
+    await second.waitForReady();
     await settle(2000);
 
     expect(first.api().wallets).toHaveLength(3);
@@ -206,14 +206,14 @@ describe('زرع المحافظ والفئات الافتراضية', () => {
     setMockUid(uid);
 
     const first = await renderDataProvider();
-    await first.waitForData(api => api.wallets.length >= 3);
+    await first.waitForReady();
     await settle(800);
     await first.unmount();
 
     // نفس المستخدم بيفتح التطبيق تاني
     const second = await renderDataProvider();
     harness = second;
-    await second.waitForData(api => api.wallets.length >= 3);
+    await second.waitForReady();
     await settle(1500);
 
     expect(second.api().wallets).toHaveLength(3);

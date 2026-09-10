@@ -23,10 +23,13 @@ beforeEach(async () => {
   await clearFirestore();
   setMockUid(await signInTestUser());
   harness = await renderDataProvider();
-  await harness.waitForData(api => api.wallets.length >= 3);
+  await harness.waitForReady();
   // الزرع الافتراضي بيتكتب هو كمان من غير انتظار، فبنستنى يخلص رفع عشان كل
   // اختبار يبدأ وعدّاد "لسه بترفع" على صفر
   await harness.waitForData(api => api.pendingWrites === 0);
+  // ولازم نتأكد إننا شايفين الاتصال فعلاً قبل ما نقفله، وإلا الاختبارات اللي
+  // بتتأكد من حالة "مفيش نت" هتعدي وهي مش مثبتة حاجة
+  await harness.waitForData(api => api.serverReachable === true);
 });
 
 afterEach(async () => {
@@ -61,6 +64,26 @@ describe('الحفظ من غير نت', () => {
     expect(txId).toBeTruthy();
     await harness.waitForData(api => api.transactions.length === 1);
     expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-250);
+  });
+
+  it('تسديد اشتراك من غير نت بيترفض على طول بدل ما الزرار يفضل مقفول', async () => {
+    const w = harness.api().wallets[0];
+    await harness.api().addSubscription({
+      name: 'نتفليكس', amount: 200, walletId: w.id,
+      frequency: 'monthly', nextDueDate: '2026-03-10', reminderDaysBefore: 2,
+    });
+    await harness.waitForData(api => api.subscriptions.length === 1 && api.pendingWrites === 0);
+    const subId = harness.api().subscriptions[0].id;
+
+    await disableNetwork(db);
+    await harness.waitForData(api => api.serverReachable === false);
+
+    const t0 = Date.now();
+    const outcome = await harness.api().markSubscriptionPaid(subId, '2026-03-10');
+    expect(outcome).toBe('no-connection');
+    // المهم مش النتيجة بس: إنها رجعت على طول ومستنتش فايربيز تستسلم بعد ~10 ثواني
+    expect(Date.now() - t0).toBeLessThan(2000);
+    expect(harness.api().transactions).toHaveLength(0);
   });
 
   it('العملية اللي لسه بترفع بتتعلّم، والعلامة بتختفي لوحدها لما النت يرجع', async () => {

@@ -1,5 +1,5 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { useData, type Gamiya } from '@/context/DataContext';
+import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { daysUntil, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -27,7 +27,16 @@ export default function GamiyaView() {
       isPayout ? `هتستلم ${fmt(amount)} ج.م في محفظتك؟` : `هيتخصم ${fmt(amount)} ج.م من محفظتك؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'تأكيد', onPress: () => runBusy(`month_${monthId}`, () => markGamiyaMonthDone(g.id, monthId)) },
+        {
+          text: 'تأكيد',
+          onPress: () => runBusy(`month_${monthId}`, async () => {
+            const outcome = await markGamiyaMonthDone(g.id, monthId);
+            if (outcome !== 'done') {
+              const m = PAY_OUTCOME_ALERT[outcome];
+              Alert.alert(m.title, m.body);
+            }
+          }),
+        },
       ]
     );
   }

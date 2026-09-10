@@ -20,6 +20,30 @@ export type Transaction = {
   date: string;
   createdAt?: string;
 };
+/**
+ * نتيجة العمليات اللي **بتقرا من السيرفر** (تسديد اشتراك/شهر جمعية). دي العمليات
+ * الوحيدة اللي محتاجة اتصال فعلي، فبترجع نتيجة الشاشة تعرضها بدل ما الزرار يفضل
+ * مقفول على "...".
+ * - `done`: خلصت (أو كانت متسجلة قبل كده)
+ * - `no-connection`: مفيش اتصال بالسيرفر أصلاً، فمبدأناش حاجة
+ * - `lost-connection`: الاتصال وقع وإحنا في النص. فايربيز بتعيد المحاولة 5 مرات
+ *   (حوالي 10 ثواني) وبعدين بتستسلم — فلو النت رجع في الوقت ده هتلاقيها اتسجلت
+ *   لوحدها، ولو لأ تنبيه الخطأ بتاع `track` هييجي. الزرار بيتفك في الحالتين
+ */
+export type PayOutcome = 'done' | 'no-connection' | 'lost-connection';
+
+/** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
+export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'العملية دي لازم تتأكد من السيرفر عشان الخصم ميتسجلش مرتين. جرب تاني أول ما النت يرجع.',
+  },
+  'lost-connection': {
+    title: 'النت راح في النص',
+    body: 'لسه بنحاول شوية كمان. لو اتسجلت هتلاقيها اتحدّثت لوحدها، ولو ما ظبطتش هيوصلك تنبيه.',
+  },
+};
+
 export type Budgets = Record<string, number>;
 export type ShakhbataIncome = Record<string, number>;
 export type ShakhbataPercents = { needs: number; wants: number; future: number };
@@ -97,6 +121,8 @@ type DataContextType = {
   pendingWrites: number;
   /** العمليات اللي اتحفظت على الموبايل ولسه بترفع (من metadata بتاعة فايربيز) */
   pendingTxIds: Set<string>;
+  /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
+  serverReachable: boolean;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
@@ -125,14 +151,14 @@ type DataContextType = {
   }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<void>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
   }) => Promise<void>;
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
   deleteGamiya: (id: string) => Promise<void>;
-  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<void>;
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -182,6 +208,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pendingTxIds, setPendingTxIds] = useState<Set<string>>(new Set());
   const pendingCount = useRef(0);
   const errorShown = useRef(false);
+  // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
+  // التطبيق بنعتبر نفسنا مش متصلين. ده بيمنع إن حد يفتح التطبيق وهو من غير نت
+  // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
+  const [serverReachable, setServerReachable] = useState(false);
+  const serverReachableRef = useRef(false);
+  const offlineWaiters = useRef(new Set<() => void>());
+
+  /**
+   * fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة على
+   * سؤال "أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها.
+   * بنقراها من أكتر من listener عن قصد: الـ listener بتاع مجموعة **فاضية**
+   * مبيرميش أي snapshot أصلاً لحد ما يوصلها مستند، فلو اعتمدنا على العمليات
+   * لوحدها، المستخدم الجديد (اللي لسه مامعموش أي عملية) هيفضل "مش متصل" للأبد.
+   */
+  function noteConnection(fromCache: boolean) {
+    const reachable = !fromCache;
+    if (serverReachableRef.current === reachable) return;
+    serverReachableRef.current = reachable;
+    setServerReachable(reachable);
+    if (!reachable) {
+      offlineWaiters.current.forEach(notify => notify());
+      offlineWaiters.current.clear();
+    }
+  }
+
+  /**
+   * وعد بيتحل لما الاتصال يقع وإحنا في نص عملية محتاجة سيرفر — بنسابق بيه
+   * العملية عشان الزرار يتفك بدل ما يفضل "..." لحد ما فايربيز تستسلم
+   */
+  function whenConnectionLost() {
+    let notify: () => void = () => {};
+    const promise = new Promise<'lost-connection'>(resolve => {
+      notify = () => resolve('lost-connection');
+    });
+    offlineWaiters.current.add(notify);
+    return { promise, cancel: () => offlineWaiters.current.delete(notify) };
+  }
 
   /**
    * أي كتابة في فايربيز بترجع Promise مبيتحلش غير لما السيرفر يأكد استلامها.
@@ -234,6 +297,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]);
       setPendingTxIds(new Set());
+      setServerReachable(false);
+      serverReachableRef.current = false;
       return;
     }
 
@@ -245,8 +310,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     })();
 
-    const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), (snap) => {
+    const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      noteConnection(snap.metadata.fromCache);
     });
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
@@ -258,6 +324,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
+
+      // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
+      // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
+      noteConnection(snap.metadata.fromCache);
     });
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       const b: Budgets = {};
@@ -571,41 +641,60 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string) {
-    if (!uid) return;
-    // بما إننا مش بنستنى تأكيد السيرفر على الكتابات العادية، ممكن المستخدم يعمل
-    // اشتراك ويدوس "سدّد" قبل ما الاشتراك نفسه يوصل السيرفر. والعملية الذرية تحت
-    // بتقرا من السيرفر، فكانت هتلاقي الاشتراك مش موجود وتخرج من غير ما تعمل حاجة
-    // — الزرار يشتغل ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع
-    await waitForPendingWrites(db);
+  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
+    // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
+    if (!serverReachableRef.current) return 'no-connection';
     const subRef = doc(db, 'users', uid, 'subscriptions', id);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    // العملية الذرية دي بتقرا من السيرفر، فهي الحالة الوحيدة اللي لازم فيها
-    // نستنى تأكيد السيرفر فعلاً — من غير كده مش هنعرف الدفعة اتسجلت قبل كده ولا لأ
-    await track(runTransaction(db, async (t) => {
-      const snap = await t.get(subRef);
-      if (!snap.exists()) return;
-      const sub = { id, ...(snap.data() as any) } as Subscription;
-      const history = sub.history || [];
-      const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
-      if (alreadyPaid) return;
+    // بما إننا مش بنستنى تأكيد السيرفر على الكتابات العادية، ممكن المستخدم يعمل
+    // اشتراك ويدوس "سدّد" قبل ما الاشتراك نفسه يوصل. والعملية الذرية بتقرا من
+    // السيرفر، فكانت هتلاقيه مش موجود وتخرج من غير ما تعمل حاجة — الزرار يشتغل
+    // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع.
+    // ملحوظة: `waitForPendingWrites` مبيتحلش خالص وإحنا أوفلاين، عشان كده
+    // raceWithConnection لافّة العملية كلها مش الجزء الذري بس
+    return raceWithConnection((async () => {
+      try { await waitForPendingWrites(db); } catch {}
+      await track(runTransaction(db, async (t) => {
+        const snap = await t.get(subRef);
+        if (!snap.exists()) return;
+        const sub = { id, ...(snap.data() as any) } as Subscription;
+        const history = sub.history || [];
+        const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
+        if (alreadyPaid) return;
 
-      const txData = {
-        type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
-        categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
-        createdAt: new Date().toISOString(),
-      };
-      t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+        const txData = {
+          type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
+          categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+          createdAt: new Date().toISOString(),
+        };
+        t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
 
-      const payment: SubscriptionPayment = {
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        date, amount: sub.amount, transactionId: txRef.id,
-      };
-      const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
-        : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
-        : addDays(sub.nextDueDate, sub.customDays || 30);
-      t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
-    }));
+        const payment: SubscriptionPayment = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date, amount: sub.amount, transactionId: txRef.id,
+        };
+        const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
+          : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
+          : addDays(sub.nextDueDate, sub.customDays || 30);
+        t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
+      }));
+    })());
+  }
+
+  /**
+   * بيلف أي عملية محتاجة سيرفر: بيسابقها مع "الاتصال وقع" عشان الزرار يتفك
+   * فورًا لو النت راح. العملية نفسها بتكمل ورا — فايربيز بتعيد المحاولة 5 مرات
+   * (حوالي 10 ثواني) وبعدين بترفض، وساعتها `track` بينبّه المستخدم
+   */
+  async function raceWithConnection(work: Promise<void>): Promise<PayOutcome> {
+    const lost = whenConnectionLost();
+    try {
+      return await Promise.race([work.then(() => 'done' as const), lost.promise]);
+    } finally {
+      lost.cancel();
+    }
   }
 
   async function addGamiya(data: {
@@ -647,39 +736,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * تبص على حالة الشهر أصلاً، فنداءها مرتين على نفس الشهر كان بيعمل عمليتين خصم،
    * والشهر بيتربط بالتانية فالأولى بتفضل عملية يتيمة في الأرشيف بتقلل الرصيد.
    */
-  async function markGamiyaMonthDone(gamiyaId: string, monthId: string) {
-    if (!uid) return;
-    // زي markSubscriptionPaid: القراية من السيرفر لازم تيجي بعد ما اللي كتبناه
-    // محليًا يوصل، وإلا الجمعية اللي لسه بترفع هتبان "مش موجودة" والقسط ميتسجلش
-    await waitForPendingWrites(db);
+  async function markGamiyaMonthDone(gamiyaId: string, monthId: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    // زي markSubscriptionPaid بالظبط: رفض فوري من غير اتصال، وانتظار اللي لسه
+    // بيرفع قبل القراية من السيرفر، والكل متسابق مع "الاتصال وقع"
+    if (!serverReachableRef.current) return 'no-connection';
     const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    // زي markSubscriptionPaid: قراية من السيرفر جوه عملية ذرية، فالانتظار هنا مقصود
-    await track(runTransaction(db, async (t) => {
-      const snap = await t.get(gamiyaRef);
-      if (!snap.exists()) return;
-      const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
-      const month = (g.months || []).find(m => m.id === monthId);
-      if (!month || month.status === 'done') return;
+    return raceWithConnection((async () => {
+      try { await waitForPendingWrites(db); } catch {}
+      await track(runTransaction(db, async (t) => {
+        const snap = await t.get(gamiyaRef);
+        if (!snap.exists()) return;
+        const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
+        const month = (g.months || []).find(m => m.id === monthId);
+        if (!month || month.status === 'done') return;
 
-      const type = month.isPayoutMonth ? 'income' : 'expense';
-      t.set(txRef, {
-        type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
-        note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
-        createdAt: new Date().toISOString(),
-      });
-      const updatedMonths = g.months.map(m =>
-        m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
-      );
-      t.update(gamiyaRef, { months: updatedMonths });
-    }));
+        const type = month.isPayoutMonth ? 'income' : 'expense';
+        t.set(txRef, {
+          type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
+          note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+          createdAt: new Date().toISOString(),
+        });
+        const updatedMonths = g.months.map(m =>
+          m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
+        );
+        t.update(gamiyaRef, { months: updatedMonths });
+      }));
+    })());
   }
 
   return (
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, pendingWrites, pendingTxIds,
+        debts, subscriptions, gamiyas, pendingWrites, pendingTxIds, serverReachable,
         addWallet, updateWallet, deleteWallet,
         addCategory, updateCategory, deleteCategory,
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,

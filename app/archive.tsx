@@ -17,7 +17,7 @@ export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, pendingTxIds } = useData();
+  const { transactions, wallets, categories, pendingTxIds, serverReachable } = useData();
 
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -159,7 +159,13 @@ export default function ArchiveScreen() {
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
-      {filtered.length === 0 && <Text style={styles.emptyState}>مفيش عمليات في الفترة دي</Text>}
+      {filtered.length === 0 && (
+        <Text style={styles.emptyState}>
+          {!serverReachable && transactions.length === 0
+            ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
+            : 'مفيش عمليات في الفترة دي'}
+        </Text>
+      )}
       {filtered.map(t => {
         const T = TYPE_LABELS[t.type];
         const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;

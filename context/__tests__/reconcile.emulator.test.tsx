@@ -19,7 +19,7 @@ beforeEach(async () => {
   await clearFirestore();
   setMockUid(await signInTestUser());
   harness = await renderDataProvider();
-  await harness.waitForData(api => api.wallets.length >= 3);
+  await harness.waitForReady();
 });
 
 afterEach(async () => {

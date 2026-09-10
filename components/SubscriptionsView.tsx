@@ -1,5 +1,5 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { useData, type Subscription } from '@/context/DataContext';
+import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, daysUntil, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -27,7 +27,18 @@ export default function SubscriptionsView() {
   function confirmPay(s: Subscription) {
     Alert.alert('تسجيل الدفع', `اتخصم ${fmt(s.amount)} ج.م من محفظتك دلوقتي؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'تأكيد', onPress: () => runBusy(`pay_${s.id}`, () => markSubscriptionPaid(s.id, todayStr())) },
+      {
+        text: 'تأكيد',
+        onPress: () => runBusy(`pay_${s.id}`, async () => {
+          // العملية دي بتقرا من السيرفر، فلو مفيش اتصال بترجع بسبب واضح بدل ما
+          // الزرار يفضل مقفول — والرسالة نفسها في شاشة الجمعية
+          const outcome = await markSubscriptionPaid(s.id, todayStr());
+          if (outcome !== 'done') {
+            const m = PAY_OUTCOME_ALERT[outcome];
+            Alert.alert(m.title, m.body);
+          }
+        }),
+      },
     ]);
   }
 
