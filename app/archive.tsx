@@ -1,4 +1,5 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
+import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
@@ -16,7 +17,7 @@ export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories } = useData();
+  const { transactions, wallets, categories, pendingTxIds } = useData();
 
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -172,6 +173,7 @@ export default function ArchiveScreen() {
             <View style={styles.txRight}>
               <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
               <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+              {pendingTxIds.has(t.id) && <PendingSyncMark />}
             </View>
           </View>
         );

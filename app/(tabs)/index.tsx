@@ -1,3 +1,4 @@
+import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -16,7 +17,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds } = useData();
   const [showBalance, setShowBalance] = useState(true);
 
   const balances = useMemo(() => {
@@ -160,6 +161,7 @@ export default function HomeScreen() {
               <View style={styles.txRight}>
                 <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+                {pendingTxIds.has(t.id) && <PendingSyncMark />}
               </View>
             </TouchableOpacity>
           );

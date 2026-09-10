@@ -13,6 +13,13 @@ import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/** عشان الجملة تطلع بلغة طبيعية مع كل عدد بدل "1 تعديلات" */
+function pendingSentence(n: number) {
+  if (n === 1) return 'فيه تعديل واحد لسه بيترفع';
+  if (n === 2) return 'فيه تعديلين لسه بيترفعوا';
+  return `فيه ${n} تعديلات لسه بترفع`;
+}
+
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { colors, theme, setTheme } = useTheme();
@@ -21,7 +28,7 @@ export default function SettingsScreen() {
   const { enabled: lockEnabled, lockType, frequency, setFrequency, graceMinutes, setGraceMinutes } = useAppLock();
   const notifs = useNotifications();
   const {
-    wallets, categories,
+    wallets, categories, pendingWrites,
     addWallet, updateWallet, deleteWallet,
     addCategory, updateCategory, deleteCategory,
   } = useData();
@@ -59,7 +66,23 @@ export default function SettingsScreen() {
     ]);
   }
 
+  /**
+   * التعديلات اللي لسه ما وصلتش للسيرفر بتضيع بعد تسجيل الخروج: فايربيز بتلغي
+   * طابور الكتابة لما المستخدم يتغير، والطابور نفسه في الذاكرة بس. فلازم
+   * المستخدم يعرف قبل ما يخرج، مش يكتشف إن عمليات ناقصة بعدين.
+   */
   function confirmLogout() {
+    if (pendingWrites > 0) {
+      Alert.alert(
+        'لسه فيه بيانات بترفع',
+        `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
+        [
+          { text: 'أستنى', style: 'cancel' },
+          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut() },
+        ]
+      );
+      return;
+    }
     Alert.alert('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'خروج', style: 'destructive', onPress: () => logOut() },
