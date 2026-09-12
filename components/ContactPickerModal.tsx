@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { filterContacts, type ContactEntry } from '@/lib/contacts';
+import { filterContacts, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -19,7 +19,7 @@ const ContactRow = memo(function ContactRow({
   return (
     <TouchableOpacity style={styles.contactRow} onPress={() => onPick(contact)}>
       <Text style={styles.contactName} numberOfLines={1}>{contact.name}</Text>
-      <Text style={styles.contactPhone} numberOfLines={1}>{contact.phone || 'مفيش رقم محفوظ'}</Text>
+      <Text style={styles.contactPhone} numberOfLines={1}>{contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}</Text>
     </TouchableOpacity>
   );
 });

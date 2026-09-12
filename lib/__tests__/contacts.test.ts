@@ -1,4 +1,4 @@
-import { filterContacts, makeContactEntry, normalizePhone } from '@/lib/contacts';
+import { filterContacts, makeContactEntry, normalizePhone, phoneForDisplay } from '@/lib/contacts';
 
 const LIST = [
   makeContactEntry('1', 'أحمد محمد', ['01001234567']),
@@ -107,5 +107,15 @@ describe('filterContacts — بحث بالرقم', () => {
 
   it('الأرقام العربية في البحث بتشتغل', () => {
     expect(names('٠١٠٠٩٨٧٦٥٤٣')).toEqual(['Ahmed Aly']);
+  });
+});
+
+describe('phoneForDisplay', () => {
+  it('بيحطّ علامة LTR قبل الرقم عشان ميتقلبش في واجهة عربية', () => {
+    expect(phoneForDisplay('+20 100 123 4567')).toBe('‎+20 100 123 4567');
+  });
+
+  it('الرقم الفاضي بيرجع فاضي من غير علامة', () => {
+    expect(phoneForDisplay('')).toBe('');
   });
 });

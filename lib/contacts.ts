@@ -85,3 +85,14 @@ export function filterContacts<T extends ContactEntry>(list: T[], query: string)
     c => c.searchName.includes(name) || c.searchPhones.some(p => phoneMatches(p, digits))
   );
 }
+
+/**
+ * بيحضّر الرقم للعرض جوه واجهة عربية.
+ *
+ * الواجهة كلها RTL، والرقم زي `+20 100 123 4567` فيه علامة + ومسافات —
+ * فمن غير علامة اتجاه بيتقلب ويظهر `4567 123 100 20+`. علامة LTR في
+ * الأول بتخلي الرقم يتعرض بترتيبه الصح.
+ */
+export function phoneForDisplay(phone: string): string {
+  return phone ? `\u200E${phone}` : '';
+}

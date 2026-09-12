@@ -5,7 +5,7 @@ import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { makeContactEntry, type ContactEntry } from '@/lib/contacts';
+import { makeContactEntry, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -133,13 +133,20 @@ function DebtsContent() {
       <View key={d.id} style={styles.debtCard}>
         <TouchableOpacity onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
-            {(d.personContactId || d.personPhone) ? (
-              <TouchableOpacity onPress={() => openContactCard(d)}>
-                <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.personName}>{d.personName}</Text>
-            )}
+            <View style={styles.personBlock}>
+              {(d.personContactId || d.personPhone) ? (
+                <TouchableOpacity onPress={() => openContactCard(d)}>
+                  <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.personName}>{d.personName}</Text>
+              )}
+              {/* الرقم كان بيبان في شاشة الاختيار وبس، وبعد الحفظ بيختفي.
+                  بقى سطر صغير تحت الاسم — موجود لما يكون محتاج ومش واخد مساحة */}
+              {!!d.personPhone && (
+                <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>
+              )}
+            </View>
             <Text style={[styles.remainingText, { color }]}>
               {settled ? 'اتسدد بالكامل' : `${fmt(remaining)} ج.م`}
             </Text>
@@ -646,8 +653,10 @@ function makeStyles(c: ThemeColors) {
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 8 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 14 },
     debtCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
-    debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
+    debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+    personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: 14.5, fontWeight: '700' },
+    personPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3 },
     personNameLink: { color: c.accent, textDecorationLine: 'underline' },
     remainingText: { fontSize: 14, fontWeight: '700' },
     noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
