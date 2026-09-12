@@ -358,13 +358,21 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           )}
 
           <View style={styles.labelRow}>
-            <TouchableOpacity onPress={pickContact} style={styles.contactBtn}>
-              <IconSymbol name="person.crop.circle" size={18} color={colors.accent} />
+            <Text style={styles.labelInRow}>اسم الشخص</Text>
+            {/* كان أيقونة 18 لوحدها بـ padding 4 — يعني هدف لمس ~26، أصغر من
+                الحد الأدنى المعقول (44)، ومكانش باين إنها زرار أصلاً */}
+            <TouchableOpacity
+              onPress={pickContact}
+              style={styles.contactBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="اختار من جهات الاتصال">
+              <IconSymbol name="person.crop.circle" size={20} color={colors.accent} />
+              <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
-            <Text style={styles.label}>اسم الشخص</Text>
           </View>
           <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
-            placeholder="مثلاً: أحمد (أو دوس أيقونة جهات الاتصال)" placeholderTextColor={colors.textSecondary} textAlign="right" />
+            placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
           <TextInput style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
@@ -660,8 +668,14 @@ function makeStyles(c: ThemeColors) {
     sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 4 },
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
-    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-    contactBtn: { padding: 4 },
+    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
+    labelInRow: { color: c.textSecondary, fontSize: 12, textAlign: 'right' },
+    contactBtn: {
+      flexDirection: 'row-reverse', alignItems: 'center', gap: 6, minHeight: 44,
+      paddingHorizontal: 12, paddingVertical: 8,
+      borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
+    },
+    contactBtnText: { color: c.accent, fontSize: 12.5, fontWeight: '700' },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
