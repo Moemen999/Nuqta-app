@@ -2,6 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { addDays, categoryLabel, endOfMonth, fmt, hashColor, startOfMonth, todayStr } from '@/lib/finance';
+import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -122,8 +123,8 @@ export default function ReportsScreen() {
           { key: 'custom', label: 'مخصص' },
         ].map(p => (
           <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
-            style={[styles.presetBtn, { backgroundColor: preset === p.key ? colors.accent : colors.surface2 }]}>
-            <Text style={{ color: preset === p.key ? colors.onAccent : colors.text, fontSize: 12.5 }}>{p.label}</Text>
+            style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
+            <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -159,7 +160,7 @@ export default function ReportsScreen() {
           const active = catFilter.includes(c.id);
           return (
             <TouchableOpacity key={c.id} onPress={() => toggleCat(c.id)}
-              style={[styles.chip, { borderColor: active ? hashColor(c.name) : colors.borderStrong }]}>
+              style={[styles.chip, selectionStyle(colors, active)]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
@@ -238,7 +239,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 14 },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },

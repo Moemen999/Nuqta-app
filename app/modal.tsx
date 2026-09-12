@@ -2,25 +2,22 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, todayStr } from '@/lib/finance';
+import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const TYPES = [
-  { key: 'expense', label: 'مصروف' },
-  { key: 'income', label: 'إيراد' },
-  { key: 'withdraw', label: 'سحب' },
-] as const;
+const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
+  { key: 'expense', label: 'مصروف', tone: 'danger' },
+  { key: 'income', label: 'إيراد', tone: 'success' },
+  { key: 'withdraw', label: 'سحب', tone: 'accent' },
+];
 
 export default function AddTransactionModal() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
-  const TYPE_COLORS: Record<string, string> = {
-    expense: colors.danger, income: colors.success, withdraw: colors.accent,
-  };
-
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { wallets, categories, transactions, addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning } = useData();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
@@ -116,8 +113,8 @@ export default function AddTransactionModal() {
       <View style={styles.row}>
         {TYPES.map(t => (
           <TouchableOpacity key={t.key} onPress={() => setType(t.key)}
-            style={[styles.typeBtn, { borderColor: type === t.key ? TYPE_COLORS[t.key] : colors.borderStrong }]}>
-            <Text style={{ color: type === t.key ? TYPE_COLORS[t.key] : colors.textSecondary, fontSize: 13 }}>{t.label}</Text>
+            style={[styles.typeBtn, selectionStyle(colors, type === t.key, t.tone)]}>
+            <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: 13 }}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -130,7 +127,7 @@ export default function AddTransactionModal() {
       <View style={styles.chipRow}>
         {wallets.map(w => (
           <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-            style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+            style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
           </TouchableOpacity>
         ))}
@@ -142,7 +139,7 @@ export default function AddTransactionModal() {
           <View style={styles.chipRow}>
             {wallets.filter(w => w.id !== walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setToWalletId(w.id)}
-                style={[styles.chip, { borderColor: toWalletId === w.id ? colors.accent : colors.borderStrong }]}>
+                style={[styles.chip, selectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
               </TouchableOpacity>
             ))}
@@ -156,7 +153,7 @@ export default function AddTransactionModal() {
           <View style={styles.chipRow}>
             {categories.map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(c.id)}
-                style={[styles.chip, { borderColor: categoryId === c.id ? colors.accent : colors.borderStrong }]}>
+                style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
             ))}

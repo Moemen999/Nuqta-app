@@ -2,6 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { daysUntil, fmt, todayStr } from '@/lib/finance';
+import { selectionStyle } from '@/lib/selection';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -207,7 +208,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <View style={styles.chipRow}>
             {wallets.map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
               </TouchableOpacity>
             ))}
@@ -333,7 +334,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           <View style={styles.chipRow}>
             {wallets.map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
               </TouchableOpacity>
             ))}

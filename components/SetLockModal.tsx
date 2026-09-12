@@ -1,5 +1,6 @@
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectionStyle } from '@/lib/selection';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -72,10 +73,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             <>
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
-                <TouchableOpacity onPress={() => setType('pin')} style={[styles.typeBtn, { borderColor: type === 'pin' ? colors.accent : colors.borderStrong }]}>
+                <TouchableOpacity onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setType('password')} style={[styles.typeBtn, { borderColor: type === 'password' ? colors.accent : colors.borderStrong }]}>
+                <TouchableOpacity onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>

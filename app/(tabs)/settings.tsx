@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { hashColor } from '@/lib/finance';
+import { selectionStyle } from '@/lib/selection';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -148,12 +149,12 @@ export default function SettingsScreen() {
             <View style={[styles.row, { marginTop: 8 }]}>
               <TouchableOpacity
                 onPress={() => notifs.setDailyEnabled(true)}
-                style={[styles.typeBtn, { borderColor: notifs.dailyEnabled ? colors.accent : colors.borderStrong }]}>
+                style={[styles.typeBtn, selectionStyle(colors, notifs.dailyEnabled)]}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تذكير يومي</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => notifs.setDailyEnabled(false)}
-                style={[styles.typeBtn, { borderColor: !notifs.dailyEnabled ? colors.accent : colors.borderStrong }]}>
+                style={[styles.typeBtn, selectionStyle(colors, !notifs.dailyEnabled)]}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>من غير تذكير يومي</Text>
               </TouchableOpacity>
             </View>
@@ -166,7 +167,7 @@ export default function SettingsScreen() {
                     <TouchableOpacity
                       key={h}
                       onPress={() => notifs.setDailyHour(h)}
-                      style={[styles.graceBtn, { borderColor: notifs.dailyHour === h ? colors.accent : colors.borderStrong }]}>
+                      style={[styles.graceBtn, selectionStyle(colors, notifs.dailyHour === h)]}>
                       <Text style={{ color: colors.text, fontSize: 11.5 }}>{h > 12 ? h - 12 : h} {h >= 12 ? 'م' : 'ص'}</Text>
                     </TouchableOpacity>
                   ))}
@@ -193,11 +194,11 @@ export default function SettingsScreen() {
             <Text style={styles.hint}>يطلب الباسورد إمتى؟</Text>
             <View style={styles.row}>
               <TouchableOpacity onPress={() => setFrequency('onOpen')}
-                style={[styles.typeBtn, { borderColor: frequency === 'onOpen' ? colors.accent : colors.borderStrong }]}>
+                style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>مرة واحدة (فتح التطبيق)</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={() => setFrequency('everyResume')}
-                style={[styles.typeBtn, { borderColor: frequency === 'everyResume' ? colors.accent : colors.borderStrong }]}>
+                style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>كل مرة ترجع للتطبيق</Text>
               </TouchableOpacity>
             </View>
@@ -213,7 +214,7 @@ export default function SettingsScreen() {
                     { m: 15, label: 'بعد 15 دقيقة' },
                   ].map(opt => (
                     <TouchableOpacity key={opt.m} onPress={() => setGraceMinutes(opt.m)}
-                      style={[styles.graceBtn, { borderColor: graceMinutes === opt.m ? colors.accent : colors.borderStrong }]}>
+                      style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                       <Text style={{ color: colors.text, fontSize: 11.5 }}>{opt.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -236,12 +237,12 @@ export default function SettingsScreen() {
         <View style={styles.themeRow}>
           <TouchableOpacity
             onPress={() => setTheme('dark')}
-            style={[styles.themeBtn, { borderColor: theme === 'dark' ? colors.accent : colors.borderStrong }]}>
+            style={[styles.themeBtn, selectionStyle(colors, theme === 'dark')]}>
             <Text style={{ color: theme === 'dark' ? colors.text : colors.textSecondary, fontSize: 13.5 }}>داكن</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={() => setTheme('light')}
-            style={[styles.themeBtn, { borderColor: theme === 'light' ? colors.accent : colors.borderStrong }]}>
+            style={[styles.themeBtn, selectionStyle(colors, theme === 'light')]}>
             <Text style={{ color: theme === 'light' ? colors.text : colors.textSecondary, fontSize: 13.5 }}>فاتح</Text>
           </TouchableOpacity>
         </View>

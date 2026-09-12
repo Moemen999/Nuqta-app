@@ -3,6 +3,7 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
+import { selectionStyle } from '@/lib/selection';
 import * as FileSystem from 'expo-file-system/legacy';
 import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
@@ -120,8 +121,8 @@ export default function ArchiveScreen() {
           { key: 'custom', label: 'مخصص' },
         ].map(p => (
           <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
-            style={[styles.presetBtn, { backgroundColor: preset === p.key ? colors.accent : colors.surface2 }]}>
-            <Text style={{ color: preset === p.key ? colors.onAccent : colors.text, fontSize: 12.5 }}>{p.label}</Text>
+            style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
+            <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -203,7 +204,7 @@ function makeStyles(c: ThemeColors) {
     backText: { color: c.accent, fontSize: 14 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },

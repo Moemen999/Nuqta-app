@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BudgetView from '@/components/BudgetView';
 import ShakhbataView from '@/components/ShakhbataView';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectionStyle } from '@/lib/selection';
 
 type Section = 'budget' | 'shakhbata';
 
@@ -18,14 +19,14 @@ export default function PlanningScreen() {
       <View style={styles.switcherRow}>
         <TouchableOpacity
           onPress={() => setSection('budget')}
-          style={[styles.switchBtn, { borderColor: section === 'budget' ? colors.accent : colors.borderStrong }]}>
+          style={[styles.switchBtn, selectionStyle(colors, section === 'budget')]}>
           <Text style={{ color: section === 'budget' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>
             الميزانية
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => setSection('shakhbata')}
-          style={[styles.switchBtn, { borderColor: section === 'shakhbata' ? colors.accent : colors.borderStrong }]}>
+          style={[styles.switchBtn, selectionStyle(colors, section === 'shakhbata')]}>
           <Text style={{ color: section === 'shakhbata' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>
             شخبطة (النِسب)
           </Text>

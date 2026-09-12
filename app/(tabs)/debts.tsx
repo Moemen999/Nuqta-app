@@ -7,6 +7,7 @@ import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { makeContactEntry, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
+import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
@@ -29,15 +30,15 @@ export default function DebtsTabScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.switcherRow}>
         <TouchableOpacity onPress={() => setTab('debts')}
-          style={[styles.switchBtn, { borderColor: tab === 'debts' ? colors.accent : colors.borderStrong }]}>
+          style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
           <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setTab('subscriptions')}
-          style={[styles.switchBtn, { borderColor: tab === 'subscriptions' ? colors.accent : colors.borderStrong }]}>
+          style={[styles.switchBtn, selectionStyle(colors, tab === 'subscriptions')]}>
           <Text style={{ color: tab === 'subscriptions' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الاشتراكات</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setTab('gamiya')}
-          style={[styles.switchBtn, { borderColor: tab === 'gamiya' ? colors.accent : colors.borderStrong }]}>
+          style={[styles.switchBtn, selectionStyle(colors, tab === 'gamiya')]}>
           <Text style={{ color: tab === 'gamiya' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الجمعية</Text>
         </TouchableOpacity>
       </View>
@@ -336,23 +337,23 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
 
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setDirection('owed_to_me')}
-              style={[styles.typeBtn, { borderColor: direction === 'owed_to_me' ? colors.success : colors.borderStrong }]}>
-              <Text style={{ color: direction === 'owed_to_me' ? colors.success : colors.textSecondary, fontSize: 13 }}>ليا (أنا قرضته)</Text>
+              style={[styles.typeBtn, selectionStyle(colors, direction === 'owed_to_me', 'success')]}>
+              <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: 13 }}>ليا (أنا قرضته)</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setDirection('i_owe')}
-              style={[styles.typeBtn, { borderColor: direction === 'i_owe' ? colors.danger : colors.borderStrong }]}>
-              <Text style={{ color: direction === 'i_owe' ? colors.danger : colors.textSecondary, fontSize: 13 }}>عليا (هو قرضني)</Text>
+              style={[styles.typeBtn, selectionStyle(colors, direction === 'i_owe', 'danger')]}>
+              <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: 13 }}>عليا (هو قرضني)</Text>
             </TouchableOpacity>
           </View>
 
           <Text style={styles.label}>الدين ده مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setLinkedToWallet(true)}
-              style={[styles.typeBtn, { borderColor: linkedToWallet ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة، فلوس حقيقية</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setLinkedToWallet(false)}
-              style={[styles.typeBtn, { borderColor: !linkedToWallet ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل مثلاً)</Text>
             </TouchableOpacity>
           </View>
@@ -391,7 +392,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
               <View style={styles.chipRow}>
                 {wallets.map(w => (
                   <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                    style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                    style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
                   </TouchableOpacity>
                 ))}
@@ -406,11 +407,11 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
 
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setIsInstallment(false)}
-              style={[styles.typeBtn, { borderColor: !isInstallment ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, !isInstallment)]}>
               <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>مبلغ واحد</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setIsInstallment(true)}
-              style={[styles.typeBtn, { borderColor: isInstallment ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, isInstallment)]}>
               <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>أقساط</Text>
             </TouchableOpacity>
           </View>
@@ -503,7 +504,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
           <View style={styles.chipRow}>
             {wallets.map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
               </TouchableOpacity>
             ))}
@@ -515,7 +516,7 @@ function AddPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void })
               <View style={styles.chipRow}>
                 {categories.map(c => (
                   <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
-                    style={[styles.chip, { borderColor: categoryId === c.id ? colors.accent : colors.borderStrong }]}>
+                    style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
                   </TouchableOpacity>
                 ))}
@@ -585,11 +586,11 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => setLinkedToWallet(true)}
-              style={[styles.typeBtn, { borderColor: linkedToWallet ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setLinkedToWallet(false)}
-              style={[styles.typeBtn, { borderColor: !linkedToWallet ? colors.accent : colors.borderStrong }]}>
+              style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل)</Text>
             </TouchableOpacity>
           </View>
@@ -604,7 +605,7 @@ function AddIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }
               <View style={styles.chipRow}>
                 {wallets.map(w => (
                   <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                    style={[styles.chip, { borderColor: walletId === w.id ? colors.accent : colors.borderStrong }]}>
+                    style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
                   </TouchableOpacity>
                 ))}

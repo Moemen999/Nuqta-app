@@ -1,5 +1,6 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectionStyle } from '@/lib/selection';
 import { currentMonth, fmt } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -192,10 +193,7 @@ export default function ShakhbataView() {
                 <TouchableOpacity
                   key={b.key}
                   onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
-                  style={[
-                    styles.catBtn,
-                    { borderColor: active ? colors.accent : colors.borderStrong, backgroundColor: active ? colors.accent + '22' : 'transparent' },
-                  ]}>
+                  style={[styles.catBtn, selectionStyle(colors, active)]}>
                   <Text style={{ color: active ? colors.text : colors.textSecondary, fontSize: 11 }}>{b.label}</Text>
                 </TouchableOpacity>
               );
