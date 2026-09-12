@@ -3,6 +3,7 @@ import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { daysUntil, fmt, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
+import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -267,9 +268,9 @@ function makeStyles(c: ThemeColors) {
     gamiyaActions: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     editBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
     deleteBtnFlex: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
-    sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
+    overlay: overlayStyle,
+    sheet: sheetStyle(c, { maxHeight: '90%' }),
+    sheetTitle: sheetTitleStyle(c, 10),
     hintNote: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', lineHeight: 17, marginBottom: 4 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },

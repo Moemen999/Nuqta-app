@@ -1,4 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { overlayStyle, sheetStyle } from '@/lib/tokens';
 import { filterContacts, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -116,8 +117,8 @@ export default function ContactPickerModal({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '80%' },
+    overlay: overlayStyle,
+    sheet: sheetStyle(c, { height: '80%' }),
     headerRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
     sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
     closeBtn: {

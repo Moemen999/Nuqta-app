@@ -1,6 +1,7 @@
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
+import { overlayStyle, sheetStyle } from '@/lib/tokens';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -114,8 +115,8 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+    overlay: overlayStyle,
+    sheet: sheetStyle(c),
     title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 12, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, padding: 12, fontSize: 15 },

@@ -1,4 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { overlayCenteredStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -152,7 +153,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
+    overlay: overlayCenteredStyle,
     card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: c.borderStrong },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },

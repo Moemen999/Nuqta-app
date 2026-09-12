@@ -8,6 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { makeContactEntry, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
+import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
@@ -673,9 +674,9 @@ function makeStyles(c: ThemeColors) {
     increaseBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
-    sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 4 },
+    overlay: overlayStyle,
+    sheet: sheetStyle(c, { maxHeight: '90%' }),
+    sheetTitle: sheetTitleStyle(c, 4),
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
