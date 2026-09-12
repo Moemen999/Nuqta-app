@@ -77,25 +77,41 @@ function DebtsContent() {
     ]);
   }
 
+  /**
+   * بيفتح كارت جهة الاتصال للعرض (مش للتعديل).
+   *
+   * كنا بننادي presentFormAsync لوحدها، ودي بتفتح شاشة "تعديل جهة الاتصال"
+   * — المستخدم بيلاقي نفسه في فورم تعديل وهو بس عايز يشوف الرقم:
+   * - على iOS: الدالة بتفتح CNContactViewController، وهو افتراضيًا بيسمح
+   *   بالتعديل. بنقفل allowsEditing فبيبقى كارت عرض عادي.
+   * - على أندرويد: الدالة بتبعت Intent ACTION_EDIT وبتتجاهل formOptions
+   *   خالص، فمفيش طريقة تخليها تعرض بس. بنفتح شاشة العرض بنفسنا بـ
+   *   ACTION_VIEW على لينك جهة الاتصال (الـ id اللي محفوظ عندنا هو نفسه
+   *   Contacts._ID بتاع النظام).
+   */
   async function openContactCard(d: Debt) {
-    try {
-      if (d.personContactId) {
-        // بيفتح كارت جهة الاتصال الكامل في تطبيق جهات الاتصال
-        await Contacts.presentFormAsync(d.personContactId);
+    if (d.personContactId) {
+      try {
+        if (Platform.OS === 'android') {
+          await Linking.openURL(`content://com.android.contacts/contacts/${d.personContactId}`);
+        } else {
+          await Contacts.presentFormAsync(d.personContactId, null, {
+            allowsEditing: false,
+            allowsActions: true,
+          });
+        }
         return;
-      }
-      if (d.personPhone) {
-        await Linking.openURL(`tel:${d.personPhone}`);
-      }
-    } catch {
-      if (d.personPhone) {
-        Linking.openURL(`tel:${d.personPhone}`).catch(() => {
-          Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
-        });
-      } else {
-        Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+      } catch {
+        // الكارت مفتحش (جهة اتصال اتمسحت مثلاً) — بنكمل على البديل تحت
       }
     }
+    if (d.personPhone) {
+      Linking.openURL(`tel:${d.personPhone}`).catch(() => {
+        Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+      });
+      return;
+    }
+    Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
   }
 
   function renderDebt(d: Debt) {
