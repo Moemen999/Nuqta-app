@@ -69,6 +69,22 @@ export type Debt = {
   initialTransactionId?: string;
 };
 
+/**
+ * الحقول اللي ينفع تتعدّل بعد ما الدين يتسجّل — بيانات الشخص والملاحظة بس.
+ *
+ * `totalAmount` مش هنا عن قصد: المبلغ الأساسي ولّد Transaction حقيقي
+ * (`initialTransactionId`) وعدّل رصيد محفظة. لو عدّلناه من غير ما نعدّل
+ * العملية اللي معاه، الرصيد بيبقى مش مطابق للعمليات — والمستخدم بيشوف
+ * فلوس مش موجودة. الزيادة بتتسجل بـ addDebtIncrease (وبتولّد عمليتها)،
+ * والتصحيح الكامل بيبقى مسح الدين وتسجيله تاني.
+ */
+export type DebtMetadata = {
+  personName?: string;
+  personPhone?: string;
+  personContactId?: string;
+  note?: string;
+};
+
 export type SubscriptionPayment = { id: string; date: string; amount: number; transactionId?: string };
 export type Subscription = {
   id: string;
@@ -141,6 +157,7 @@ type DataContextType = {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
   }) => Promise<void>;
+  updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
   deleteDebt: (id: string) => Promise<void>;
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<void>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<void>;
@@ -559,6 +576,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }).filter(([, v]) => v !== undefined));
     addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
   }
+  /**
+   * تعديل بيانات الشخص أو الملاحظة على دين موجود.
+   *
+   * الحقول اللي بتوصل فاضية بتتشال من السجل بـ deleteField بدل ما تتحفظ
+   * كنص فاضي — عشان `personPhone` الفاضي ميعملش سطر رقم فاضي على الكارت،
+   * و`personContactId` الفاضي ميخليش اسم الشخص لينك بيفتح كارت مش موجود.
+   */
+  async function updateDebt(id: string, data: DebtMetadata) {
+    if (!uid) return;
+    const patch: Record<string, unknown> = {};
+    (Object.keys(data) as (keyof DebtMetadata)[]).forEach(key => {
+      const value = data[key];
+      if (value === undefined) return;
+      const trimmed = value.trim();
+      // الاسم لازم يفضل موجود — قواعد فايرستور بترفض دين من غير personName
+      if (key === 'personName') {
+        if (trimmed) patch.personName = trimmed;
+        return;
+      }
+      patch[key] = trimmed || deleteField();
+    });
+    if (Object.keys(patch).length === 0) return;
+    track(updateDoc(doc(db, 'users', uid, 'debts', id), patch));
+  }
+
   async function deleteDebt(id: string) {
     if (!uid) return;
     const debt = debts.find(d => d.id === id);
@@ -810,7 +852,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addCategory, updateCategory, deleteCategory,
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
-        addDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
+        addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
       }}>

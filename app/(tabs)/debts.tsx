@@ -1,14 +1,15 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
+import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { makeContactEntry, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
+import { phoneForDisplay } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { useMemo, useState } from 'react';
@@ -60,6 +61,7 @@ function DebtsContent() {
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [paymentForDebt, setPaymentForDebt] = useState<Debt | null>(null);
   const [increaseForDebt, setIncreaseForDebt] = useState<Debt | null>(null);
+  const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [expandedDebt, setExpandedDebt] = useState<string | null>(null);
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
@@ -185,6 +187,9 @@ function DebtsContent() {
               <TouchableOpacity style={styles.increaseBtn} onPress={() => setIncreaseForDebt(d)}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة على الدين</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.increaseBtn} onPress={() => setEditDebt(d)}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>تعديل البيانات</Text>
+              </TouchableOpacity>
               {!settled && (
                 <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                   <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
@@ -235,6 +240,7 @@ function DebtsContent() {
       <AddDebtModal visible={showAddDebt} onClose={() => setShowAddDebt(false)} />
       {paymentForDebt && <AddPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
       {increaseForDebt && <AddIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {editDebt && <EditDebtModal debt={editDebt} onClose={() => setEditDebt(null)} />}
     </ScrollView>
   );
 }
@@ -256,8 +262,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
-  const [showContacts, setShowContacts] = useState(false);
-  const [contactList, setContactList] = useState<ContactEntry[]>([]);
+  const picker = useDeviceContacts();
   const [personPhone, setPersonPhone] = useState('');
   const [personContactId, setPersonContactId] = useState('');
 
@@ -265,45 +270,6 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
     setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
     setIsInstallment(false); setInstallmentCount(''); setNote('');
     setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone(''); setPersonContactId('');
-  }
-
-  async function pickContact() {
-    try {
-      // لازم نطلب الصلاحية صراحةً الأول — من غير كده النظام بيقفل التطبيق
-      const { status } = await Contacts.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('محتاج إذن', 'عشان تختار من جهات الاتصال، لازم تسمح للتطبيق يوصلها من إعدادات الموبايل.');
-        return;
-      }
-      const { data } = await Contacts.getContactsAsync({
-        fields: [
-          Contacts.Fields.Name,
-          Contacts.Fields.FirstName,
-          Contacts.Fields.LastName,
-          Contacts.Fields.PhoneNumbers,
-        ],
-      });
-      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل.
-      // وبناخد كل أرقام الشخص مش الأول بس، عشان البحث بالرقم يلاقيه برقم الشغل كمان.
-      const named = (data || [])
-        .map(x => {
-          const composed = [x.firstName, x.lastName].filter(Boolean).join(' ').trim();
-          const finalName = (x.name && x.name.trim()) || composed;
-          const phones = (x.phoneNumbers || []).map(p => p.number || '');
-          return makeContactEntry(x.id || String(Math.random()), finalName, phones);
-        })
-        .filter(x => x.name);
-      if (named.length === 0) {
-        Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
-        return;
-      }
-      // ترتيب أبجدي بيتعامل مع العربي والإنجليزي مع بعض
-      named.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-      setContactList(named);
-      setShowContacts(true);
-    } catch (e: any) {
-      Alert.alert('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
-    }
   }
 
   async function handleSave() {
@@ -371,7 +337,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
             {/* كان أيقونة 18 لوحدها بـ padding 4 — يعني هدف لمس ~26، أصغر من
                 الحد الأدنى المعقول (44)، ومكانش باين إنها زرار أصلاً */}
             <TouchableOpacity
-              onPress={pickContact}
+              onPress={picker.open}
               style={styles.contactBtn}
               hitSlop={8}
               accessibilityRole="button"
@@ -444,14 +410,123 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
         </ScrollView>
 
         <ContactPickerModal
-          visible={showContacts}
-          contacts={contactList}
-          onClose={() => setShowContacts(false)}
+          visible={picker.visible}
+          contacts={picker.contacts}
+          onClose={picker.close}
           onPick={ct => {
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
             setPersonContactId(ct.id);
-            setShowContacts(false);
+            picker.close();
+          }}
+        />
+      </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+/**
+ * تعديل بيانات الدين — اسم الشخص ورقمه والملاحظة بس.
+ *
+ * المبلغ مش هنا عن قصد: المبلغ الأساسي ولّد عملية حقيقية وعدّل رصيد محفظة،
+ * فتعديله من غير العملية معناه رصيد مش مطابق للعمليات. الشاشة بتقول ده
+ * للمستخدم صريح بدل ما يفضل يدوّر على حقل المبلغ.
+ */
+function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { updateDebt } = useData();
+  const { busy, run: runBusy } = useBusy();
+  const picker = useDeviceContacts();
+
+  const [personName, setPersonName] = useState(debt.personName);
+  const [personPhone, setPersonPhone] = useState(debt.personPhone || '');
+  const [personContactId, setPersonContactId] = useState(debt.personContactId || '');
+  const [note, setNote] = useState(debt.note || '');
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (!personName.trim()) { setError('لازم تسيب اسم للشخص'); return; }
+    await runBusy(async () => {
+      try {
+        await updateDebt(debt.id, {
+          personName,
+          personPhone,
+          personContactId,
+          note,
+        });
+      } catch {
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      onClose();
+    });
+  }
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
+      <View style={styles.overlay}>
+        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+          <Text style={styles.sheetTitle}>تعديل بيانات الدين</Text>
+          <Text style={styles.hintText}>
+            المبلغ مش بيتعدّل من هنا. لو عايز تزوّد الدين استخدم &quot;زيادة على الدين&quot;، ولو المبلغ الأساسي غلط امسح الدين وسجّله تاني.
+          </Text>
+
+          <View style={styles.labelRow}>
+            <Text style={styles.labelInRow}>اسم الشخص</Text>
+            <TouchableOpacity
+              onPress={picker.open}
+              style={styles.contactBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="اختار من جهات الاتصال">
+              <IconSymbol name="person.crop.circle" size={20} color={colors.accent} />
+              <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
+            </TouchableOpacity>
+          </View>
+          <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
+            placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          <Text style={styles.label}>رقم التليفون</Text>
+          <TextInput style={styles.input} value={personPhone} onChangeText={setPersonPhone}
+            placeholder="اختياري" placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" textAlign="right" />
+
+          {!!personContactId && (
+            <View style={styles.linkedRow}>
+              <TouchableOpacity onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
+                <Text style={styles.unlinkText}>إلغاء الربط</Text>
+              </TouchableOpacity>
+              <Text style={styles.linkedText}>مربوط بجهة اتصال على الموبايل</Text>
+            </View>
+          )}
+
+          <Text style={styles.label}>ملاحظة</Text>
+          <TextInput style={styles.input} value={note} onChangeText={setNote}
+            placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
+
+          {!!error && <Text style={styles.error}>{error}</Text>}
+
+          <View style={styles.actions}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        <ContactPickerModal
+          visible={picker.visible}
+          contacts={picker.contacts}
+          onClose={picker.close}
+          onPick={ct => {
+            setPersonName(ct.name);
+            setPersonPhone(ct.phone);
+            setPersonContactId(ct.id);
+            picker.close();
           }}
         />
       </View>
@@ -687,6 +762,10 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
     },
     contactBtnText: { color: c.accent, fontSize: 12.5, fontWeight: '700' },
+    linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+    linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
+    unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
+    unlinkText: { color: c.danger, fontSize: 12, fontWeight: '700' },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
