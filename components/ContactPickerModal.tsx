@@ -67,7 +67,19 @@ export default function ContactPickerModal({
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
+          {/* كان مفيش أي طريقة باينة للرجوع من غير زرار في آخر الليست —
+              زرار الرجوع الظاهر من فوق بقى موجود جنب العنوان */}
+          <View style={styles.headerRow}>
+            <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
+            <TouchableOpacity
+              onPress={close}
+              style={styles.closeBtn}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="إغلاق جهات الاتصال">
+              <Text style={styles.closeBtnText}>✕ إغلاق</Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             style={styles.input}
             value={search}
@@ -95,9 +107,6 @@ export default function ContactPickerModal({
             keyboardDismissMode="on-drag"
             ListEmptyComponent={<Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>}
           />
-          <TouchableOpacity style={styles.cancelBtn} onPress={close}>
-            <Text style={{ color: colors.textSecondary }}>إغلاق</Text>
-          </TouchableOpacity>
         </View>
       </View>
       </KeyboardAvoidingView>
@@ -109,7 +118,13 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
     sheet: { backgroundColor: c.nav, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: '80%' },
-    sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
+    headerRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
+    closeBtn: {
+      minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
+      borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, backgroundColor: c.surface2,
+    },
+    closeBtnText: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700' },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     contactCount: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginTop: 8 },
     list: { flex: 1, marginTop: 6 },
@@ -117,6 +132,5 @@ function makeStyles(c: ThemeColors) {
     contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
     contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 24 },
-    cancelBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12, marginTop: 10 },
   });
 }
