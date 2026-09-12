@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { filterContacts, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
-import { FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 /**
  * ارتفاع ثابت للصف عشان نقدر نستخدم getItemLayout — من غيره FlatList
@@ -62,6 +62,9 @@ export default function ContactPickerModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      {/* مودال جوه مودال — الكيبورد بتاعه مستقل، فمحتاج KeyboardAvoidingView
+          خاص بيه. من غيره الكيبورد كانت بتغطي نتايج البحث. */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
@@ -96,6 +99,7 @@ export default function ContactPickerModal({
           </TouchableOpacity>
         </View>
       </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
