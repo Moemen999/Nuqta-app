@@ -1,9 +1,11 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
+import ContactPickerModal from '@/components/ContactPickerModal';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { type ContactEntry } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -230,8 +232,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const [showContacts, setShowContacts] = useState(false);
-  const [contactList, setContactList] = useState<{ id: string; name: string; phone: string }[]>([]);
-  const [contactSearch, setContactSearch] = useState('');
+  const [contactList, setContactList] = useState<ContactEntry[]>([]);
   const [personPhone, setPersonPhone] = useState('');
   const [personContactId, setPersonContactId] = useState('');
 
@@ -406,52 +407,19 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           </View>
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
-
-          <Modal visible={showContacts} transparent animationType="slide" onRequestClose={() => setShowContacts(false)}>
-            <View style={styles.overlay}>
-              <View style={[styles.sheet, { maxHeight: '80%' }]}>
-                <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
-                <TextInput
-                  style={styles.input}
-                  value={contactSearch}
-                  onChangeText={setContactSearch}
-                  placeholder="دور بالاسم..."
-                  placeholderTextColor={colors.textSecondary}
-                  textAlign="right"
-                />
-                <Text style={styles.contactCount}>
-                  {(() => {
-                    const q = contactSearch.trim().toLocaleLowerCase('ar');
-                    const n = contactList.filter(ct => ct.name.toLocaleLowerCase('ar').includes(q)).length;
-                    return q ? `${n} نتيجة من ${contactList.length}` : `${contactList.length} جهة اتصال`;
-                  })()}
-                </Text>
-                <ScrollView style={{ marginTop: 6 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-                  {contactList
-                    .filter(ct => ct.name.toLocaleLowerCase('ar').includes(contactSearch.trim().toLocaleLowerCase('ar')))
-                    .map(ct => (
-                      <TouchableOpacity
-                        key={ct.id}
-                        style={styles.contactRow}
-                        onPress={() => {
-                          setPersonName(ct.name);
-                          setPersonPhone(ct.phone);
-                          setPersonContactId(ct.id);
-                          setShowContacts(false);
-                          setContactSearch('');
-                        }}>
-                        <Text style={styles.contactName}>{ct.name}</Text>
-                        {!!ct.phone && <Text style={styles.contactPhone}>{ct.phone}</Text>}
-                      </TouchableOpacity>
-                    ))}
-                </ScrollView>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowContacts(false); setContactSearch(''); }}>
-                  <Text style={{ color: colors.textSecondary }}>إغلاق</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
         </ScrollView>
+
+        <ContactPickerModal
+          visible={showContacts}
+          contacts={contactList}
+          onClose={() => setShowContacts(false)}
+          onPick={ct => {
+            setPersonName(ct.name);
+            setPersonPhone(ct.phone);
+            setPersonContactId(ct.id);
+            setShowContacts(false);
+          }}
+        />
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -677,10 +645,6 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
     contactBtn: { padding: 4 },
-    contactRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.border },
-    contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
-    contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
-    contactCount: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginTop: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
