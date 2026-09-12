@@ -121,6 +121,67 @@ export function debtPaid(d: Debt) {
   return (d.payments || []).reduce((s, p) => s + p.amount, 0);
 }
 
+/** تطبيع اسم الشخص قبل المقارنة: شيل المسافات الزايدة ووحّد المسافات الجوّا */
+function normalizePersonName(name: string) {
+  return (name || '').trim().replace(/\s+/g, ' ');
+}
+
+export type PersonGroup = {
+  /** مفتاح ثابت للشخص — بيتبعت في الراوت لكشف الحساب */
+  key: string;
+  /** الاسم اللي بيتعرض — بناخده من دين مربوط بجهة اتصال لو فيه */
+  displayName: string;
+  personContactId?: string;
+  debts: Debt[];
+};
+
+/**
+ * بتجمّع الديون على الشخص.
+ *
+ * كان التجميع بـ `d.personName === name` بالحرف، وده كان بيقسّم حساب الشخص
+ * الواحد في حالات حقيقية:
+ * - "أحمد" و"أحمد " (مسافة زايدة) بيبانوا شخصين، وحسابه بينقسم نصين
+ * - نفس جهة الاتصال بس الاسم اتعدّل في دين منهم → بيبانوا اتنين
+ * - دين مكتوب بالإيد "أحمد" ودين مختار من جهات الاتصال بنفس الاسم → اتنين
+ *
+ * فالتجميع بقى على رقم جهة الاتصال أول ما يكون موجود، وعلى الاسم المطبّع لما
+ * ميكونش. وبنعمل لفة أولى بنعرف منها اسم كل جهة اتصال، عشان الدين المكتوب
+ * بالإيد بنفس الاسم يلتحق بجهة الاتصال بدل ما يعمل مجموعة لوحده.
+ *
+ * اللي لسه مش بيتجمّع لوحده: اسمين مختلفين فعلاً لنفس الشخص ("أحمد" و
+ * "أحمد محمد") — ده محتاج المستخدم يعدّل الاسم بنفسه، ومفيش طريقة نحزره.
+ */
+export function groupDebtsByPerson(debts: Debt[]): PersonGroup[] {
+  const nameToContact = new Map<string, string>();
+  debts.forEach(d => {
+    if (!d.personContactId) return;
+    const n = normalizePersonName(d.personName);
+    if (n && !nameToContact.has(n)) nameToContact.set(n, d.personContactId);
+  });
+
+  const groups = new Map<string, PersonGroup>();
+  debts.forEach(d => {
+    const norm = normalizePersonName(d.personName);
+    const contactId = d.personContactId || nameToContact.get(norm);
+    const key = contactId ? `contact:${contactId}` : `name:${norm}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.debts.push(d);
+      // الاسم المربوط بجهة اتصال أوثق من اسم مكتوب بالإيد
+      if (d.personContactId && !existing.personContactId) existing.displayName = norm;
+      if (d.personContactId) existing.personContactId = d.personContactId;
+      return;
+    }
+    groups.set(key, { key, displayName: norm, personContactId: d.personContactId, debts: [d] });
+  });
+  return Array.from(groups.values());
+}
+
+/** بتلاقي مجموعة شخص بمفتاحه — بترجّع undefined لو خلصت ديونه واتمسحت */
+export function findPersonGroup(debts: Debt[], key: string): PersonGroup | undefined {
+  return groupDebtsByPerson(debts).find(g => g.key === key);
+}
+
 /**
  * هنا التوقيت المحلي مقصود: createdAt لحظة حقيقية، والمستخدم لازم يشوفها بساعته.
  */

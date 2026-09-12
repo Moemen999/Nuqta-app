@@ -1,6 +1,6 @@
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { fmt } from '@/lib/finance';
+import { findPersonGroup, fmt } from '@/lib/finance';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -16,15 +16,17 @@ export default function PersonLedgerScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { name } = useLocalSearchParams<{ name?: string }>();
+  // personKey جاي من groupDebtsByPerson — مش الاسم، عشان نفس الشخص ميتقسمش
+  // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
+  const { personKey } = useLocalSearchParams<{ personKey?: string }>();
   const { debts } = useData();
 
-  const personName = name || '';
-  const personDebts = debts.filter(d => d.personName === personName);
+  const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
+  const personName = group?.displayName || '';
 
   const rows: Row[] = useMemo(() => {
     const list: Row[] = [];
-    personDebts.forEach((d: Debt) => {
+    (group?.debts || []).forEach((d: Debt) => {
       const sign = d.direction === 'owed_to_me' ? 1 : -1;
       const initDate = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
       list.push({
@@ -48,7 +50,7 @@ export default function PersonLedgerScreen() {
       });
     });
     return list.sort((a, b) => a.date.localeCompare(b.date));
-  }, [personDebts]);
+  }, [group]);
 
   let running = 0;
   const rowsWithBalance = rows.map(r => {
@@ -66,9 +68,13 @@ export default function PersonLedgerScreen() {
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.backText}>‹ رجوع</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>كشف حساب — {personName}</Text>
+        <Text style={styles.title}>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</Text>
       </View>
 
+      {!group ? (
+        <Text style={styles.emptyState}>الشخص ده مبقى لوش ديون — يمكن اتمسحت.</Text>
+      ) : (
+      <>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>الرصيد الحالي</Text>
         <Text style={[styles.summaryValue, { color: finalBalance > 0 ? colors.success : finalBalance < 0 ? colors.danger : colors.textSecondary }]}>
@@ -99,6 +105,8 @@ export default function PersonLedgerScreen() {
       ))}
 
       <Text style={styles.footNote}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>
+      </>
+      )}
     </ScrollView>
   );
 }

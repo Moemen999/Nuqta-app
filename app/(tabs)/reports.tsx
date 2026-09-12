@@ -1,7 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { addDays, categoryLabel, endOfMonth, fmt, hashColor, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, hashColor, startOfMonth, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -78,35 +78,39 @@ export default function ReportsScreen() {
     legendFontColor: colors.textSecondary, legendFontSize: 12,
   }));
 
-  // كشف حساب موحّد لكل شخص — مجمّع بالاسم بس (مش بالاتجاه)، زي كشف حساب بنكي حقيقي
-  type PersonSummary = { personName: string; outFlow: number; inFlow: number; balance: number };
+  // كشف حساب موحّد لكل شخص — مجمّع على الشخص (مش على الاتجاه)، زي كشف حساب بنكي.
+  // التجميع بيمر من groupDebtsByPerson عشان جهة الاتصال هي اللي تحدد الشخص،
+  // مش تطابق الاسم بالحرف — قبل كده مسافة زايدة في الاسم كانت بتقسم الحساب نصين.
+  type PersonSummary = { key: string; personName: string; outFlow: number; inFlow: number; balance: number };
   const personSummaries = useMemo(() => {
-    const map = new Map<string, PersonSummary>();
-    debts.forEach(d => {
-      if (!map.has(d.personName)) map.set(d.personName, { personName: d.personName, outFlow: 0, inFlow: 0, balance: 0 });
-      const s = map.get(d.personName)!;
-      const initDate = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
-      const sign = d.direction === 'owed_to_me' ? 1 : -1;
+    return groupDebtsByPerson(debts)
+      .map(group => {
+        const s: PersonSummary = { key: group.key, personName: group.displayName, outFlow: 0, inFlow: 0, balance: 0 };
+        group.debts.forEach(d => {
+          const initDate = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
+          const sign = d.direction === 'owed_to_me' ? 1 : -1;
 
-      if (initDate >= range.from && initDate <= range.to) {
-        if (d.direction === 'owed_to_me') s.outFlow += d.totalAmount; else s.inFlow += d.totalAmount;
-      }
-      s.balance += sign * d.totalAmount;
+          if (initDate >= range.from && initDate <= range.to) {
+            if (d.direction === 'owed_to_me') s.outFlow += d.totalAmount; else s.inFlow += d.totalAmount;
+          }
+          s.balance += sign * d.totalAmount;
 
-      (d.increases || []).forEach(inc => {
-        if (inc.date >= range.from && inc.date <= range.to) {
-          if (d.direction === 'owed_to_me') s.outFlow += inc.amount; else s.inFlow += inc.amount;
-        }
-        s.balance += sign * inc.amount;
-      });
-      d.payments.forEach(p => {
-        if (p.date >= range.from && p.date <= range.to) {
-          if (d.direction === 'owed_to_me') s.inFlow += p.amount; else s.outFlow += p.amount;
-        }
-        s.balance -= sign * p.amount;
-      });
-    });
-    return Array.from(map.values()).filter(s => s.outFlow > 0 || s.inFlow > 0 || Math.abs(s.balance) > 0.001);
+          (d.increases || []).forEach(inc => {
+            if (inc.date >= range.from && inc.date <= range.to) {
+              if (d.direction === 'owed_to_me') s.outFlow += inc.amount; else s.inFlow += inc.amount;
+            }
+            s.balance += sign * inc.amount;
+          });
+          d.payments.forEach(p => {
+            if (p.date >= range.from && p.date <= range.to) {
+              if (d.direction === 'owed_to_me') s.inFlow += p.amount; else s.outFlow += p.amount;
+            }
+            s.balance -= sign * p.amount;
+          });
+        });
+        return s;
+      })
+      .filter(s => s.outFlow > 0 || s.inFlow > 0 || Math.abs(s.balance) > 0.001);
   }, [debts, range]);
 
   return (
@@ -206,9 +210,9 @@ export default function ReportsScreen() {
       ) : (
         personSummaries.map(s => (
           <TouchableOpacity
-            key={s.personName}
+            key={s.key}
             style={styles.personCard}
-            onPress={() => router.push({ pathname: '/person-ledger', params: { name: s.personName } })}>
+            onPress={() => router.push({ pathname: '/person-ledger', params: { personKey: s.key } })}>
             <View style={styles.personHead}>
               <Text style={styles.personName}>{s.personName}</Text>
               <Text style={[styles.personBadge, { color: s.balance > 0 ? colors.success : s.balance < 0 ? colors.danger : colors.textSecondary }]}>
