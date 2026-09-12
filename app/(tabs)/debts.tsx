@@ -5,7 +5,7 @@ import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { type ContactEntry } from '@/lib/contacts';
+import { makeContactEntry, type ContactEntry } from '@/lib/contacts';
 import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -274,13 +274,14 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           Contacts.Fields.PhoneNumbers,
         ],
       });
-      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل
+      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل.
+      // وبناخد كل أرقام الشخص مش الأول بس، عشان البحث بالرقم يلاقيه برقم الشغل كمان.
       const named = (data || [])
         .map(x => {
           const composed = [x.firstName, x.lastName].filter(Boolean).join(' ').trim();
           const finalName = (x.name && x.name.trim()) || composed;
-          const phone = x.phoneNumbers && x.phoneNumbers.length > 0 ? (x.phoneNumbers[0].number || '') : '';
-          return { id: x.id || String(Math.random()), name: finalName, phone };
+          const phones = (x.phoneNumbers || []).map(p => p.number || '');
+          return makeContactEntry(x.id || String(Math.random()), finalName, phones);
         })
         .filter(x => x.name);
       if (named.length === 0) {

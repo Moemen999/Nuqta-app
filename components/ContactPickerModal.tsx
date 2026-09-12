@@ -72,10 +72,11 @@ export default function ContactPickerModal({
             style={styles.input}
             value={search}
             onChangeText={setSearch}
-            placeholder="دور بالاسم..."
+            placeholder="دور بالاسم أو الرقم..."
             placeholderTextColor={colors.textSecondary}
             textAlign="right"
             autoCorrect={false}
+            autoCapitalize="none"
           />
           <Text style={styles.contactCount}>
             {searching ? `${results.length} نتيجة من ${contacts.length}` : `${contacts.length} جهة اتصال`}
@@ -92,7 +93,7 @@ export default function ContactPickerModal({
             removeClippedSubviews
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            ListEmptyComponent={<Text style={styles.emptyState}>مفيش جهة اتصال بالاسم ده</Text>}
+            ListEmptyComponent={<Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>}
           />
           <TouchableOpacity style={styles.cancelBtn} onPress={close}>
             <Text style={{ color: colors.textSecondary }}>إغلاق</Text>
