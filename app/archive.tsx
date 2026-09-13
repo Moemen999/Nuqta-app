@@ -1,3 +1,4 @@
+import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
@@ -5,7 +6,6 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import * as FileSystem from 'expo-file-system/legacy';
-import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -106,9 +106,7 @@ export default function ArchiveScreen() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ رجوع</Text>
-        </TouchableOpacity>
+        <BackButton />
         <Text style={styles.title}>أرشيف العمليات</Text>
       </View>
 
@@ -201,7 +199,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    backText: { color: c.accent, fontSize: 14 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
     presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },

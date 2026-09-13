@@ -1,9 +1,10 @@
+import BackButton from '@/components/BackButton';
 import { DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { debtGrandTotal, debtPaid, findPersonGroup, fmt } from '@/lib/finance';
 import { MIN_TOUCH } from '@/lib/tokens';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -97,9 +98,7 @@ export default function PersonLedgerScreen() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ رجوع</Text>
-        </TouchableOpacity>
+        <BackButton />
         <Text style={styles.title}>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</Text>
       </View>
 
@@ -200,7 +199,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    backText: { color: c.accent, fontSize: 14 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     summaryCard: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, alignItems: 'center', marginBottom: 20 },
     summaryLabel: { color: c.textSecondary, fontSize: 12 },

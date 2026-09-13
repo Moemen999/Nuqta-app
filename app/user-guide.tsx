@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import BackButton from '@/components/BackButton';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -108,9 +108,7 @@ export default function UserGuideScreen() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Text style={styles.backText}>‹ رجوع</Text>
-        </TouchableOpacity>
+        <BackButton />
         <Text style={styles.title}>دليل المستخدم</Text>
       </View>
 
@@ -148,7 +146,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    backText: { color: c.accent, fontSize: 14 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     intro: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginBottom: 16, lineHeight: 19 },
     card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10, overflow: 'hidden' },
