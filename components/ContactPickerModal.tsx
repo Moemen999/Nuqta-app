@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { overlayStyle, sheetStyle } from '@/lib/tokens';
-import { filterContacts, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
+import { MIN_TOUCH, overlayStyle, sheetStyle } from '@/lib/tokens';
+import { filterContacts, normalizePhone, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
@@ -34,12 +34,14 @@ const ContactRow = memo(function ContactRow({
  * لوحده عشان الكتابة فيه مترجّعش رسم فورم "دين جديد" كله من الأول.
  */
 export default function ContactPickerModal({
-  visible, contacts, onClose, onPick,
+  visible, contacts, onClose, onPick, onCreateContact,
 }: {
   visible: boolean;
   contacts: ContactEntry[];
   onClose: () => void;
   onPick: (c: ContactEntry) => void;
+  /** بيتنادى بس لما البحث ميجبش نتيجة — بيفتح شاشة النظام لإضافة جهة اتصال */
+  onCreateContact?: (prefill: { name: string; phone: string }) => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -60,6 +62,9 @@ export default function ContactPickerModal({
   }
 
   const searching = deferredSearch.trim().length > 0;
+  const query = deferredSearch.trim();
+  // اللي المستخدم كتبه ممكن يكون اسم وممكن يكون رقم — بنحط كل واحد في مكانه
+  const queryIsPhone = normalizePhone(query).length >= 6;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
@@ -106,7 +111,24 @@ export default function ContactPickerModal({
             removeClippedSubviews
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            ListEmptyComponent={<Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>}
+            ListEmptyComponent={
+              <View>
+                <Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>
+                {/* الإضافة بتتعرض هنا بس — عند اللحظة اللي المستخدم دوّر فيها وملقاش */}
+                {!!onCreateContact && !!query && (
+                  <TouchableOpacity
+                    style={styles.createBtn}
+                    onPress={() => onCreateContact(
+                      queryIsPhone ? { name: '', phone: query } : { name: query, phone: '' }
+                    )}>
+                    <Text style={styles.createBtnText}>
+                      {queryIsPhone ? `ضيف الرقم ده لجهات الاتصال` : `ضيف «${query}» لجهات الاتصال`}
+                    </Text>
+                    <Text style={styles.createBtnHint}>هتتفتح شاشة الموبايل وإنت اللي بتحفظ</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            }
           />
         </View>
       </View>
@@ -133,5 +155,12 @@ function makeStyles(c: ThemeColors) {
     contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
     contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 24 },
+    createBtn: {
+      minHeight: MIN_TOUCH, justifyContent: 'center', alignItems: 'center',
+      borderWidth: 1.5, borderColor: c.accent, borderRadius: 10,
+      backgroundColor: c.surface2, paddingHorizontal: 14, paddingVertical: 10,
+    },
+    createBtnText: { color: c.accent, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+    createBtnHint: { color: c.textMuted, fontSize: 11, textAlign: 'center', marginTop: 3 },
   });
 }

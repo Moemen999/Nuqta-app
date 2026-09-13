@@ -17,13 +17,14 @@ export function useDeviceContacts() {
   const [contacts, setContacts] = useState<ContactEntry[]>([]);
   const [visible, setVisible] = useState(false);
 
-  async function open() {
+  /** بيقرا جهات الاتصال ويرجّعها مرتبة — بيرجّع null لو مقدرش */
+  async function load(): Promise<ContactEntry[] | null> {
     try {
       // لازم نطلب الصلاحية صراحةً الأول — من غير كده النظام بيقفل التطبيق
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('محتاج إذن', 'عشان تختار من جهات الاتصال، لازم تسمح للتطبيق يوصلها من إعدادات الموبايل.');
-        return;
+        return null;
       }
       const { data } = await Contacts.getContactsAsync({
         fields: [
@@ -43,22 +44,61 @@ export function useDeviceContacts() {
           return makeContactEntry(x.id || String(Math.random()), finalName, phones);
         })
         .filter(x => x.name);
-      if (named.length === 0) {
-        Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
-        return;
-      }
       // ترتيب أبجدي بيتعامل مع العربي والإنجليزي مع بعض
       named.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
       setContacts(named);
-      setVisible(true);
+      return named;
     } catch (e: any) {
       Alert.alert('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
+      return null;
     }
+  }
+
+  async function open() {
+    const loaded = await load();
+    if (!loaded) return;
+    if (loaded.length === 0) {
+      Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
+      return;
+    }
+    setVisible(true);
+  }
+
+  /**
+   * إضافة رقم جديد لجهات اتصال الموبايل.
+   *
+   * إحنا **مش** اللي بنكتب في دفتر عناوين المستخدم: بنفتح شاشة "جهة اتصال
+   * جديدة" بتاعة النظام نفسها معبّاية بالاسم والرقم، وهو اللي بيراجع
+   * ويحفظ فيها. يعني:
+   * - مفيش أي صلاحية جديدة بتتطلب — الكتابة بتحصل في تطبيق جهات الاتصال
+   * - مفيش حاجة مش بترجع إحنا اللي عملناها في بيانات المستخدم
+   * - النظام هو اللي بيحذّر من التكرار لو الاسم موجود قبل كده
+   *
+   * الـ API مبترجعش رقم جهة الاتصال الجديدة، فبنعيد تحميل الليست بعد ما
+   * الشاشة تتقفل — فالمستخدم بيلاقيها في النتايج ويدوس عليها يربطها.
+   */
+  async function createContact(prefill: { name: string; phone: string }) {
+    try {
+      await Contacts.presentFormAsync(
+        null,
+        {
+          contactType: Contacts.ContactTypes.Person,
+          name: prefill.name,
+          firstName: prefill.name,
+          ...(prefill.phone ? { phoneNumbers: [{ number: prefill.phone, label: 'mobile' }] } : {}),
+        },
+        { isNew: true }
+      );
+    } catch (e: any) {
+      Alert.alert('مقدرتش أفتح', String(e?.message || 'مقدرتش أفتح شاشة إضافة جهة اتصال.'));
+      return;
+    }
+    await load();
   }
 
   function close() {
     setVisible(false);
   }
 
-  return { contacts, visible, open, close };
+  return { contacts, visible, open, close, createContact };
 }

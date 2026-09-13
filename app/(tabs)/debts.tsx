@@ -438,6 +438,7 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
             setPersonContactId(ct.id);
             picker.close();
           }}
+          onCreateContact={picker.createContact}
         />
       </View>
       </KeyboardAvoidingView>
@@ -561,6 +562,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
             setPersonContactId(ct.id);
             picker.close();
           }}
+          onCreateContact={picker.createContact}
         />
       </View>
       </KeyboardAvoidingView>

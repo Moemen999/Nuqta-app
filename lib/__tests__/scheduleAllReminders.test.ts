@@ -1,5 +1,7 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { addDays, todayStr } from '@/lib/finance';
+// jest.mock بيتنقل لفوق تلقائيًا، فالاستيراد ده بياخد النسخة المقلّدة
+import { REMINDER_LIMITS, scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
 const scheduled: { title: string; body: string; date: string }[] = [];
 let dailyCount = 0;
@@ -10,8 +12,6 @@ jest.mock('@/lib/notifications', () => ({
   scheduleReminder: jest.fn(async (o: any) => { scheduled.push(o); }),
   scheduleDailyReminder: jest.fn(async () => { dailyCount += 1; }),
 }));
-
-import { REMINDER_LIMITS, scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
 beforeEach(() => {
   scheduled.length = 0;
