@@ -252,7 +252,7 @@ export default function SettingsScreen() {
         {wallets.map(w => (
           <View key={w.id} style={styles.walletCard}>
             <View style={styles.walletHead}>
-              <View style={[styles.dot, { backgroundColor: hashColor(w.name) }]} />
+              <View style={[styles.dot, { backgroundColor: hashColor(w.name, colors.chartPalette) }]} />
               <TextInput
                 style={styles.nameInput}
                 value={walletNameValue(w.id, w.name)}
@@ -312,7 +312,7 @@ export default function SettingsScreen() {
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
         {categories.map(c => (
           <View key={c.id} style={styles.catRow}>
-            <View style={[styles.dot, { backgroundColor: hashColor(c.name) }]} />
+            <View style={[styles.dot, { backgroundColor: hashColor(c.name, colors.chartPalette) }]} />
             <TextInput
               style={styles.nameInput}
               value={catNameValue(c.id, c.name)}

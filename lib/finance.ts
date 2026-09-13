@@ -99,12 +99,19 @@ export function endOfMonth(dateStr: string) {
   return toDateStr(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
 }
 
-export const PALETTE = ['#7FA98F', '#C9A961', '#7C93C9', '#C97C9B', '#9B7CC9', '#C98F5A', '#6FB3B8', '#B08FC9'];
-
-export function hashColor(str: string) {
+/**
+ * بيختار لون ثابت لاسم معيّن من باليتة الثيم.
+ *
+ * الباليتة بقت جاية من `colors.chartPalette` مش مكتوبة هنا: الألوان لازم
+ * تتغيّر مع الثيم (شوف الشرح في ThemeContext)، وكمان ده بيمشي مع قاعدة
+ * المشروع إن كل الألوان تيجي من الثيم.
+ *
+ * نفس الاسم بيدّي نفس اللون دايمًا، فالفئة لونها ثابت في الرسم والنقطة.
+ */
+export function hashColor(str: string, palette: string[]) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-  return PALETTE[Math.abs(h) % PALETTE.length];
+  return palette[Math.abs(h) % palette.length];
 }
 
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {

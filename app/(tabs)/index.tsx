@@ -90,7 +90,7 @@ export default function HomeScreen() {
           <View style={styles.walletsRow}>
             {wallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
-                <View style={[styles.dot, { backgroundColor: hashColor(w.name) }]} />
+                <View style={[styles.dot, { backgroundColor: hashColor(w.name, colors.chartPalette) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>
                 <Text style={styles.walletChipVal}>
                   {showBalance ? fmt(balances.get(w.id) || 0) : '••••'}

@@ -50,7 +50,7 @@ export default function ReportsScreen() {
         id: c.id,
         name: categoryLabel(c),
         amount: filtered.filter(t => t.type === 'expense' && t.categoryId === c.id).reduce((s, t) => s + t.amount, 0),
-        color: hashColor(c.name),
+        color: hashColor(c.name, colors.chartPalette),
       }))
       .filter(c => c.amount > 0),
     [visibleCats, filtered]

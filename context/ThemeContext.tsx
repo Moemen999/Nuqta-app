@@ -34,6 +34,20 @@ export type ThemeColors = {
   selectedSuccessBorder: string;
   selectedDangerBg: string;
   selectedDangerBorder: string;
+  /**
+   * ألوان الرسوم (شرايح التقارير ونقط المحافظ والفئات).
+   *
+   * ليها نسخة لكل ثيم عن قصد: لون واحد ينفع على خلفية فاتحة وغامقة مع بعض
+   * شبه مستحيل، والقلب الآلي بيطلّع ألوان وحشة. فالنسختين متختارين ومتقاسين
+   * كل واحدة على خلفياتها.
+   *
+   * الباليتة القديمة كانت فاشلة في أربع فحوصات مش واحدة (شوف
+   * lib/__tests__/theme.chart.test.ts): ستة من تمن ألوان تحت حد التشبّع
+   * فبيتقروا رمادي، والتفريق عند عمى الألوان 4.2 (الحد 8)، وحتى بعين
+   * سليمة تمامًا أقرب لونين كان بينهم 10.3 (الحد 15) — يعني حد شايف كويس
+   * مكانش يعرف يفرّق بينهم.
+   */
+  chartPalette: string[];
 };
 
 // إلهام قناع توت عنخ آمون: الدهبي (المعدن)، الأزرق العميق (اللازورد في الخطوط واللحية)،
@@ -48,6 +62,7 @@ export const DARK: ThemeColors = {
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
   selectedDangerBg: '#3A1E1A', selectedDangerBorder: '#CC6055',
+  chartPalette: ['#3987E5', '#D95926', '#199E70', '#C98500', '#D55181', '#008300', '#9085E9', '#E66767'],
 };
 
 export const LIGHT: ThemeColors = {
@@ -60,6 +75,7 @@ export const LIGHT: ThemeColors = {
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',
   selectedDangerBg: '#F2C9C3', selectedDangerBorder: '#A8453B',
+  chartPalette: ['#2A78D6', '#C4501F', '#0F8F62', '#A87200', '#CC5A83', '#008300', '#4A3AA7', '#C2332F'],
 };
 
 type ThemeContextType = {
