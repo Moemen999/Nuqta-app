@@ -1,6 +1,6 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
-import { addDays, addMonths } from '@/lib/finance';
+import { addDays, addMonths, debtGrandTotal, debtPaid } from '@/lib/finance';
 import {
   collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc, waitForPendingWrites,
 } from 'firebase/firestore';
@@ -67,6 +67,14 @@ export type Debt = {
   increases: DebtEntry[];
   initialWalletId?: string;
   initialTransactionId?: string;
+  /**
+   * معاد استحقاق الدين (أو القسط الجاي منه). اختياري عن قصد: أغلب الديون بين
+   * الناس مالهاش معاد محدد، ولو خلّيناه مطلوب كنا هنكسر الديون الموجودة
+   * والحالة الطبيعية "بالأجل من غير معاد".
+   */
+  dueDate?: string;
+  /** التذكير قبل المعاد بكام يوم. غايب = مفيش تذكير على الدين ده */
+  reminderDaysBefore?: number;
 };
 
 /**
@@ -83,6 +91,10 @@ export type DebtMetadata = {
   personPhone?: string;
   personContactId?: string;
   note?: string;
+  /** نص فاضي = شيل المعاد (وبالتالي التذكير) */
+  dueDate?: string;
+  /** null = شيل التذكير وسيب المعاد */
+  reminderDaysBefore?: number | null;
 };
 
 export type SubscriptionPayment = { id: string; date: string; amount: number; transactionId?: string };
@@ -156,6 +168,7 @@ type DataContextType = {
   addDebt: (data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
+    dueDate?: string; reminderDaysBefore?: number;
   }) => Promise<void>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
   deleteDebt: (id: string) => Promise<void>;
@@ -559,6 +572,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function addDebt(data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
+    dueDate?: string; reminderDaysBefore?: number;
   }) {
     if (!uid) return;
     let initialTransactionId: string | undefined;
@@ -573,6 +587,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       direction: data.direction, personName: data.personName, personPhone: data.personPhone, personContactId: data.personContactId, totalAmount: data.totalAmount, date: data.date,
       isInstallment: data.isInstallment, installmentCount: data.installmentCount, note: data.note,
       initialWalletId: data.walletId, initialTransactionId,
+      dueDate: data.dueDate, reminderDaysBefore: data.reminderDaysBefore,
     }).filter(([, v]) => v !== undefined));
     addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
   }
@@ -589,7 +604,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     (Object.keys(data) as (keyof DebtMetadata)[]).forEach(key => {
       const value = data[key];
       if (value === undefined) return;
-      const trimmed = value.trim();
+      // التذكير رقم مش نص: null معناها شيله
+      if (key === 'reminderDaysBefore') {
+        patch.reminderDaysBefore = value === null ? deleteField() : value;
+        return;
+      }
+      const trimmed = String(value).trim();
       // الاسم لازم يفضل موجود — قواعد فايرستور بترفض دين من غير personName
       if (key === 'personName') {
         if (trimmed) patch.personName = trimmed;
@@ -629,7 +649,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date, amount, walletId, transactionId: txId,
       ...(categoryId ? { categoryId } : {}),
     };
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: [...debt.payments, payment] }));
+    const patch: Record<string, unknown> = { payments: [...debt.payments, payment] };
+
+    /**
+     * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
+     * دفعة — نفس فكرة nextDueDate في الاشتراكات، بدل ما نعمل جدول شهور كامل
+     * زي الجمعية.
+     *
+     * لو الدفعة خلّصت الدين، المعاد بيفضل زي ما هو ومبنمسحوش: التذكيرات
+     * أصلاً بتتخطى الديون المسددة، ولو المستخدم مسح الدفعة بعد كده الدين
+     * بيرجع مفتوح والتذكير بيرجع معاه.
+     */
+    if (debt.isInstallment && debt.dueDate) {
+      const remainingAfter = debtGrandTotal(debt) - (debtPaid(debt) + amount);
+      if (remainingAfter > 0.001) patch.dueDate = addMonths(debt.dueDate, 1);
+    }
+
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch));
   }
   async function deleteDebtPayment(debtId: string, paymentId: string) {
     if (!uid) return;

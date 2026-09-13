@@ -22,7 +22,7 @@ type NotificationsContextType = {
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { subscriptions, gamiyas } = useData();
+  const { subscriptions, gamiyas, debts } = useData();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
   const [dailyHour, setDailyHourState] = useState(20);
@@ -55,11 +55,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     scheduleAllReminders({
       subscriptions,
       gamiyas,
+      debts,
       dailyReminderEnabled: dailyEnabled,
       dailyHour,
       dailyMinute: 0,
     }).catch(() => {});
-  }, [loading, enabled, subscriptions, gamiyas, dailyEnabled, dailyHour]);
+  }, [loading, enabled, subscriptions, gamiyas, debts, dailyEnabled, dailyHour]);
 
   async function enableNotifications() {
     const granted = await requestNotificationPermission();

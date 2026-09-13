@@ -1,6 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
+import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
@@ -157,6 +158,11 @@ function DebtsContent() {
             </Text>
           </View>
           {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
+          {!!d.dueDate && !settled && (
+            <Text style={styles.dueText}>
+              معاده {d.dueDate}{d.reminderDaysBefore !== undefined ? ' · فيه تذكير 🔔' : ''}
+            </Text>
+          )}
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
@@ -266,11 +272,14 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
   const picker = useDeviceContacts();
   const [personPhone, setPersonPhone] = useState('');
   const [personContactId, setPersonContactId] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(null);
 
   function reset() {
     setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
     setIsInstallment(false); setInstallmentCount(''); setNote('');
     setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone(''); setPersonContactId('');
+    setDueDate(''); setReminderDaysBefore(null);
   }
 
   async function handleSave() {
@@ -286,6 +295,8 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
           note: note.trim() || undefined,
           walletId: linkedToWallet ? walletId : undefined,
           date,
+          dueDate: dueDate || undefined,
+          reminderDaysBefore: dueDate && reminderDaysBefore !== null ? reminderDaysBefore : undefined,
         });
       } catch {
         setError('حصل خطأ، جرب تاني');
@@ -392,6 +403,13 @@ function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => v
             </>
           )}
 
+          <DebtReminderFields
+            dueDate={dueDate}
+            reminderDaysBefore={reminderDaysBefore}
+            onChangeDueDate={setDueDate}
+            onChangeReminder={setReminderDaysBefore}
+          />
+
           <Text style={styles.label}>ملاحظة</Text>
           <TextInput style={styles.input} value={note} onChangeText={setNote}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
@@ -445,6 +463,10 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const [personPhone, setPersonPhone] = useState(debt.personPhone || '');
   const [personContactId, setPersonContactId] = useState(debt.personContactId || '');
   const [note, setNote] = useState(debt.note || '');
+  const [dueDate, setDueDate] = useState(debt.dueDate || '');
+  const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(
+    debt.reminderDaysBefore ?? null
+  );
   const [error, setError] = useState('');
 
   async function handleSave() {
@@ -456,6 +478,9 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           personPhone,
           personContactId,
           note,
+          dueDate,
+          // من غير معاد مفيش تذكير — مش منطقي نفكّر بحاجة مالهاش تاريخ
+          reminderDaysBefore: dueDate ? reminderDaysBefore : null,
         });
       } catch {
         setError('حصل خطأ، جرب تاني');
@@ -502,6 +527,13 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               <Text style={styles.linkedText}>مربوط بجهة اتصال على الموبايل</Text>
             </View>
           )}
+
+          <DebtReminderFields
+            dueDate={dueDate}
+            reminderDaysBefore={reminderDaysBefore}
+            onChangeDueDate={setDueDate}
+            onChangeReminder={setReminderDaysBefore}
+          />
 
           <Text style={styles.label}>ملاحظة</Text>
           <TextInput style={styles.input} value={note} onChangeText={setNote}
@@ -560,6 +592,7 @@ function makeStyles(c: ThemeColors) {
     personNameLink: { color: c.accent, textDecorationLine: 'underline' },
     remainingText: { fontSize: 14, fontWeight: '700' },
     noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
+    dueText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
     track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 3 },
     progressText: { color: c.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 6 },

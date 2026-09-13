@@ -1,50 +1,95 @@
-import type { Gamiya, Subscription } from '@/context/DataContext';
+import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
+import { addDays, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { cancelAllReminders, scheduleDailyReminder, scheduleReminder } from '@/lib/notifications';
-import { addDays, fmt } from '@/lib/finance';
 
 /**
- * بيعيد جدولة كل التذكيرات من الأول بناءً على البيانات الحالية.
- * بنمسح القديم الأول عشان منكررش نفس التذكير مع كل تحديث.
+ * أبعد مدى بنجدول له. أي تذكير أبعد من كده بيتأجل لحد ما الجدولة تتعاد —
+ * وده بيحصل مع كل فتح للتطبيق ومع كل تعديل على البيانات.
  */
+const HORIZON_DAYS = 120;
+
+/**
+ * أقصى عدد تذكيرات بتاريخ. iOS بيحتفظ بـ 64 إشعار مجدول للتطبيق كحد أقصى
+ * وبيرمي الزيادة **من غير أي رسالة خطأ**. فبنسيب فسحة للتذكير اليومي
+ * وللسقف نفسه، وبنجدول الأقرب في المعاد الأول — لأن الأبعد عنده وقت
+ * يتجدول في فتحة جاية.
+ *
+ * الحد ده كان خطر موجود قبل الديون (اشتراكات + شهور جمعية)، والديون بتقرّبنا
+ * منه أكتر، فبقى مقيّد صريح بدل ما يكون اعتماد على إن المستخدم مش هيكتّر.
+ */
+const MAX_DATED_REMINDERS = 60;
+
+type Candidate = { title: string; body: string; date: string };
+
 export async function scheduleAllReminders(opts: {
   subscriptions: Subscription[];
   gamiyas: Gamiya[];
+  debts: Debt[];
   dailyReminderEnabled: boolean;
   dailyHour: number;
   dailyMinute: number;
 }) {
   await cancelAllReminders();
 
+  const candidates: Candidate[] = [];
+
   // تذكيرات الاشتراكات
-  const subscriptionReminders = opts.subscriptions.map(s =>
-    scheduleReminder({
+  opts.subscriptions.forEach(s => {
+    candidates.push({
       title: `اشتراك ${s.name}`,
       body:
         s.reminderDaysBefore > 0
           ? `مستحق بعد ${s.reminderDaysBefore} يوم — ${fmt(s.amount)} ج.م`
           : `مستحق النهاردة — ${fmt(s.amount)} ج.م`,
       date: addDays(s.nextDueDate, -(s.reminderDaysBefore || 0)),
-    })
-  );
+    });
+  });
 
   // تذكيرات أقساط الجمعية (الشهور اللي لسه متسددتش)
-  const gamiyaReminders = opts.gamiyas.flatMap(g =>
+  opts.gamiyas.forEach(g => {
     g.months
       .filter(m => m.status !== 'done')
-      .map(m =>
-        scheduleReminder({
+      .forEach(m => {
+        candidates.push({
           title: `جمعية ${g.name}`,
           body: m.isPayoutMonth
             ? `شهر الاستلام قرب — ${fmt(m.amount)} ج.م`
             : `قسط الشهر قرب — ${fmt(m.amount)} ج.م`,
           date: addDays(m.dueDate, -(g.reminderDaysBefore || 0)),
-        })
-      )
-  );
+        });
+      });
+  });
+
+  /**
+   * تذكيرات الديون. التذكير للمستخدم نفسه — مش رسالة بتتبعت للشخص التاني.
+   * بنتخطى: اللي مالوش معاد، واللي التذكير مش مفعّل عليه، واللي اتسدد خلاص.
+   */
+  opts.debts.forEach(d => {
+    if (!d.dueDate || d.reminderDaysBefore === undefined || d.reminderDaysBefore === null) return;
+    const remaining = debtGrandTotal(d) - debtPaid(d);
+    if (remaining <= 0.001) return;
+    const mine = d.direction === 'owed_to_me';
+    candidates.push({
+      title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,
+      body: d.reminderDaysBefore > 0
+        ? `المعاد بعد ${d.reminderDaysBefore} يوم — متبقي ${fmt(remaining)} ج.م`
+        : `المعاد النهاردة — متبقي ${fmt(remaining)} ج.م`,
+      date: addDays(d.dueDate, -d.reminderDaysBefore),
+    });
+  });
+
+  const today = todayStr();
+  const horizon = addDays(today, HORIZON_DAYS);
+  const due = candidates
+    .filter(cd => cd.date >= today && cd.date <= horizon)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(0, MAX_DATED_REMINDERS);
 
   await Promise.all([
-    ...subscriptionReminders,
-    ...gamiyaReminders,
+    ...due.map(cd => scheduleReminder(cd)),
     opts.dailyReminderEnabled ? scheduleDailyReminder(opts.dailyHour, opts.dailyMinute) : Promise.resolve(),
   ]);
 }
+
+/** مكشوفة للاختبارات عشان الحدود تبقى متأكدة مش متوقعة */
+export const REMINDER_LIMITS = { HORIZON_DAYS, MAX_DATED_REMINDERS };

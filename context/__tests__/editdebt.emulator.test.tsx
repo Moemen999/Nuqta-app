@@ -104,3 +104,58 @@ describe('updateDebt', () => {
     expect(harness.api().debts[0].personName).toBe('كريم');
   });
 });
+
+describe('معاد الدين بيتقدّم مع أقساطه', () => {
+  it('دفعة على دين أقساط بتقدّم المعاد شهر', async () => {
+    const id = await makeDebt({ isInstallment: true, installmentCount: 3, dueDate: '2026-03-10', reminderDaysBefore: 2 });
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-03-10');
+
+    const w = harness.api().wallets[0];
+    await harness.api().addDebtPayment(id, 100, w.id, '2026-03-10');
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-04-10');
+    await settle();
+    expect(harness.api().debts[0].reminderDaysBefore).toBe(2);
+  });
+
+  it('دين مبلغ واحد معاده مبيتحركش مع الدفعة', async () => {
+    const id = await makeDebt({ dueDate: '2026-03-10', reminderDaysBefore: 1 });
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-03-10');
+
+    const w = harness.api().wallets[0];
+    await harness.api().addDebtPayment(id, 100, w.id, '2026-03-10');
+    await harness.waitForData(api => api.debts[0].payments.length === 1);
+    await settle();
+    expect(harness.api().debts[0].dueDate).toBe('2026-03-10');
+  });
+
+  it('الدفعة اللي بتخلّص الدين مبتحركش المعاد ومبتمسحوش', async () => {
+    // المعاد بيفضل موجود عشان لو المستخدم مسح الدفعة الدين يرجع بتذكيره
+    const id = await makeDebt({ isInstallment: true, installmentCount: 2, dueDate: '2026-03-10', reminderDaysBefore: 1 });
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-03-10');
+
+    const w = harness.api().wallets[0];
+    await harness.api().addDebtPayment(id, 1000, w.id, '2026-03-10');
+    await harness.waitForData(api => api.debts[0].payments.length === 1);
+    await settle();
+    expect(harness.api().debts[0].dueDate).toBe('2026-03-10');
+  });
+
+  it('المعاد والتذكير بيتشالوا من شاشة التعديل', async () => {
+    const id = await makeDebt({ dueDate: '2026-03-10', reminderDaysBefore: 3 });
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-03-10');
+
+    await harness.api().updateDebt(id, { dueDate: '', reminderDaysBefore: null });
+    await harness.waitForData(api => api.debts[0].dueDate === undefined);
+    await settle();
+    expect('dueDate' in harness.api().debts[0]).toBe(false);
+    expect('reminderDaysBefore' in harness.api().debts[0]).toBe(false);
+  });
+
+  it('قواعد فايرستور بتقبل حقول المعاد والتذكير', async () => {
+    const id = await makeDebt();
+    await harness.api().updateDebt(id, { dueDate: '2026-06-01', reminderDaysBefore: 7 });
+    await harness.waitForData(api => api.debts[0].dueDate === '2026-06-01');
+    await settle();
+    expect(harness.api().debts[0].reminderDaysBefore).toBe(7);
+  });
+});
