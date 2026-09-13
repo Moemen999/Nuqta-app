@@ -56,7 +56,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-      <TouchableOpacity style={styles.skipBtn} onPress={finish}>
+      <TouchableOpacity testID="onboarding_skip_button" style={styles.skipBtn} onPress={finish}>
         <Text style={styles.skipText}>تخطي</Text>
       </TouchableOpacity>
 
