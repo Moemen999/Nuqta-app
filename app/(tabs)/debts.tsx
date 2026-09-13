@@ -9,11 +9,12 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
-import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
+import { categoryLabel, debtGrandTotal, debtPaid, fmt, groupDebtsByPerson, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
+import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,6 +59,12 @@ function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, deleteDebt } = useData();
+  // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
+  const personKeyByDebt = useMemo(() => {
+    const map = new Map<string, string>();
+    groupDebtsByPerson(debts).forEach(g => g.debts.forEach(d => map.set(d.id, g.key)));
+    return map;
+  }, [debts]);
   const { busyKey, run: runBusy } = useBusyKey();
 
   const [showAddDebt, setShowAddDebt] = useState(false);
@@ -196,6 +203,16 @@ function DebtsContent() {
               </TouchableOpacity>
               <TouchableOpacity style={styles.increaseBtn} onPress={() => setEditDebt(d)}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>تعديل البيانات</Text>
+              </TouchableOpacity>
+              {/* كشف الحساب كان مدفون في التقارير بس — وهو المكان اللي بتشوف فيه
+                  كل حسابك مع الشخص ده مجمّع، فمكانه الطبيعي هنا كمان */}
+              <TouchableOpacity
+                style={styles.increaseBtn}
+                onPress={() => {
+                  const key = personKeyByDebt.get(d.id);
+                  if (key) router.push({ pathname: '/person-ledger', params: { personKey: key } });
+                }}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>كشف الحساب</Text>
               </TouchableOpacity>
               {!settled && (
                 <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
