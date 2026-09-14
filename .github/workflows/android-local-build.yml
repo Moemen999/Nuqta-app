@@ -1,0 +1,89 @@
+# بناء APK لأندرويد على رَنر جيتهب بدل سيرفرات EAS.
+#
+# ليه: حصة البناء في الخطة المجانية 15 بناء أندرويد في الشهر، وبتخلص. الأمر
+# `eas build --local` بيبني على الرَنر نفسه، فمبيستهلكش الحصة دي — وده اللي
+# بيخلي البناء متاح طول الشهر.
+#
+# المهم: `--local` لسه بيسحب المفاتيح المُدارة من EAS (التوثيق: "the only
+# communication with EAS servers is ... if you are using managed credentials
+# to download them"). يعني الـ APK بيتوقّع بنفس كيستور preview، وتسجيل الدخول
+# بجوجل بيفضل شغال — وده اللي بيكسر مع أي طريقة بناء محلي تانية.
+#
+# لينكس مدعوم رسميًا للبناء المحلي، ويندوز لأ — عشان كده ubuntu مش ويندوز.
+
+name: بناء APK على الرَنر
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'بروفايل البناء من eas.json'
+        type: choice
+        default: preview
+        options:
+          - preview
+          - development
+          - production
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # البناء بياخد ~20-30 دقيقة. الحد ده عشان لو علّق ميفضلش ياكل من الدقايق.
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # جافا 17 بالتحديد. الرَنر افتراضيًا 17 دلوقتي، بس لو الافتراضي اتغيّر
+      # البناء هيقع برسالة جرادل مش واضحة — فبنثبّتها بدل ما نتفاجأ.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # أكبر توفير وقت. المشروع managed يعني فولدر android بيتولّد من الأول كل
+      # مرة، فمن غير الكاش جرادل بيحمّل كل الديبندنسيز من الصفر كل بناء.
+      - name: كاش جرادل
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: تثبيت الحزم
+        run: npm ci
+
+      - name: بناء APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # الناتج بيتحط هنا بدل ما يترمي في جذر المشروع
+          EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+        run: eas build --platform android --profile ${{ inputs.profile }} --local --non-interactive
+
+      - name: الناتج
+        run: ls -lh artifacts/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nuqta-${{ inputs.profile }}-${{ github.run_number }}
+          path: artifacts/*.apk
+          if-no-files-found: error
+          # مساحة الأرتيفاكتس في الخطة المجانية 500 ميجا، والـ APK ~88 ميجا —
+          # يعني ~5 بناءات بس قبل ما المساحة تتسد وتمنع رفع بناء جديد.
+          # 7 أيام كفاية للتحميل والتجربة، وبتفضّي نفسها لوحدها.
+          retention-days: 7
+          # الـ APK متضغوط أصلاً، فضغطه تاني وقت ضايع
+          compression-level: 0
