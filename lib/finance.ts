@@ -128,6 +128,73 @@ export function debtPaid(d: Debt) {
   return (d.payments || []).reduce((s, p) => s + p.amount, 0);
 }
 
+/**
+ * فرق صغير جدًا بنتجاهله في مقارنات الفلوس.
+ *
+ * ده **مش** سماحية للزيادة: ده بس عشان جمع أرقام بكسور عشرية في JS ممكن
+ * يطلع 549.9999999999999 بدل 550، فمنحذّرش المستخدم من زيادة مش موجودة.
+ * أي زيادة حقيقية (ولو قرش) بتعدّي الرقم ده بكتير.
+ */
+const MONEY_EPS = 1e-9;
+
+/** المتبقي على الدين. بيطلع بالسالب لو اتدفع أكتر من الإجمالي. */
+export function debtRemaining(d: Debt) {
+  return debtGrandTotal(d) - debtPaid(d);
+}
+
+/** الزيادة اللي اتدفعت فوق إجمالي الدين — صفر لو مفيش زيادة. */
+export function debtExcess(d: Debt) {
+  const over = debtPaid(d) - debtGrandTotal(d);
+  return over > MONEY_EPS ? over : 0;
+}
+
+export type OverpayCheck = 'none' | 'exceeds' | 'settled';
+
+/**
+ * هل تسجيل دفعة بالمبلغ ده محتاج تأكيد من المستخدم؟
+ *
+ * روبو (اختبار Firebase Test Lab) سجّل دفعة 35,630 على دين 550، والرصيد اتحرك
+ * بالمبلغ كله والدين بان "اتسدد بالكامل" — رقم غلط بشكل واثق. التحقق الوحيد
+ * اللي كان موجود وقتها إن المبلغ أكبر من صفر.
+ *
+ * القرار: **تحذير مش منع**. دفع أكتر شوية شرعي (تقريب لفوق، "خلي الباقي")،
+ * فالمنع هيقف في وش استخدام عادي. ومفيش نسبة سماح كمان: النسبة بتكبر مع حجم
+ * الدين، يعني بتسيب أكبر فجوة بالظبط وقت ما الغلطة تكون أغلى.
+ *
+ * الدالة دي منفصلة عن الواجهة عشان تتختبر من غير ما نشغّل ديالوج.
+ */
+export function overpayCheck(amount: number, remaining: number): OverpayCheck {
+  if (remaining <= MONEY_EPS) return 'settled';
+  if (amount > remaining + MONEY_EPS) return 'exceeds';
+  return 'none';
+}
+
+/**
+ * سطر "اتسدد كذا من كذا".
+ *
+ * لو فيه زيادة، الكسر بيبقى كلام فارغ ("اتسدد 35,630 من 550")، فبنقول
+ * الحقيقة بدله: اتسدد بالكامل وفيه زيادة قدّها كذا.
+ */
+/**
+ * بيقرا سقف ميزانية من اللي المستخدم كتبه. `null` معناها "مترفض، متكتبش".
+ *
+ * السقف بالسالب مالوش معنى، وتحويله لصفر في السكوت كدبة صغيرة: المستخدم كتب
+ * -500 والتطبيق يوافق وبعدين يعرض 0. فبنرفضه، والخانة بترجع لآخر قيمة محفوظة.
+ *
+ * الفاضي لسه بيرجّع صفر عن قصد — ده الطريقة الطبيعية لمسح سقف فئة.
+ */
+export function parseBudgetInput(raw: string): number | null {
+  const num = Number(raw);
+  if (!isFinite(num) || num < 0) return null;
+  return num;
+}
+
+export function debtPaidLabel(d: Debt) {
+  const excess = debtExcess(d);
+  if (excess > 0) return `اتسدد بالكامل · زيادة ${fmt(excess)} ج.م`;
+  return `اتسدد ${fmt(debtPaid(d))} من ${fmt(debtGrandTotal(d))} ج.م`;
+}
+
 /** تطبيع اسم الشخص قبل المقارنة: شيل المسافات الزايدة ووحّد المسافات الجوّا */
 function normalizePersonName(name: string) {
   return (name || '').trim().replace(/\s+/g, ' ');

@@ -1,6 +1,6 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, currentMonth, fmt, monthSpend } from '@/lib/finance';
+import { categoryLabel, currentMonth, fmt, monthSpend, parseBudgetInput } from '@/lib/finance';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -20,8 +20,10 @@ export default function BudgetView() {
 
   function saveDraft(key: string, raw: string) {
     delete pendingDrafts.current[key];
-    const num = Number(raw);
-    setBudget(key, isNaN(num) ? 0 : num);
+    const num = parseBudgetInput(raw);
+    // مترفوض: نشيل المسوّدة فالخانة ترجع لآخر قيمة محفوظة، والمستخدم يشوف إنه مادخلش
+    if (num === null) { setDrafts(d => { const next = { ...d }; delete next[key]; return next; }); return; }
+    setBudget(key, num);
   }
   function handleChange(key: string, value: string) {
     setDrafts(d => ({ ...d, [key]: value }));
@@ -44,8 +46,8 @@ export default function BudgetView() {
     const pending = pendingDrafts;
     return () => {
       Object.entries(pending.current).forEach(([key, raw]) => {
-        const num = Number(raw);
-        setBudget(key, isNaN(num) ? 0 : num);
+        const num = parseBudgetInput(raw);
+        if (num !== null) setBudget(key, num);
       });
     };
   }, []);

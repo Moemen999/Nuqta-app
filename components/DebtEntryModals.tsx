@@ -1,12 +1,12 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
+import { categoryLabel, debtRemaining, fmt, overpayCheck, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 /**
  * مودالات تسجيل دفعة وزيادة على دين.
@@ -22,7 +22,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { wallets, categories, addDebtPayment } = useData();
   const { busy, run: runBusy } = useBusy();
 
-  const remaining = debtGrandTotal(debt) - debtPaid(debt);
+  const remaining = debtRemaining(debt);
 
   const [amount, setAmount] = useState(String(remaining > 0 ? remaining : ''));
   const [walletId, setWalletId] = useState(wallets[0]?.id);
@@ -31,9 +31,31 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
 
+  /**
+   * تأكيد قبل تسجيل دفعة أكبر من المتبقي.
+   *
+   * بيرجّع Promise عشان الديالوج يخلص **قبل** ما `runBusy` تشتغل — من غير كده
+   * الزرار هيفضل بيلف وإحنا لسه مستنيين المستخدم يرد.
+   */
+  function confirmOverpay(kind: 'exceeds' | 'settled', amt: number) {
+    const excess = amt - (remaining > 0 ? remaining : 0);
+    const title = kind === 'settled' ? 'الدين ده متسدد بالكامل' : 'المبلغ أكبر من المتبقي';
+    const body = kind === 'settled'
+      ? `مفيش متبقي على ${debt.personName}.\nاللي هيتسجّل: ${fmt(amt)} ج.م\nنسجّله؟`
+      : `المتبقي على ${debt.personName}: ${fmt(remaining)} ج.م\nاللي هيتسجّل: ${fmt(amt)} ج.م\nيعني زيادة ${fmt(excess)} ج.م — نسجّله؟`;
+    return new Promise<boolean>(resolve => {
+      Alert.alert(title, body, [
+        { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'أيوة، سجّل', onPress: () => resolve(true) },
+      ], { cancelable: true, onDismiss: () => resolve(false) });
+    });
+  }
+
   async function handleSave() {
     const amt = Number(amount);
     if (!amt || amt <= 0 || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
+    const check = overpayCheck(amt, remaining);
+    if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
       try {
         await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);

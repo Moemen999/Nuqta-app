@@ -9,7 +9,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
-import { categoryLabel, debtGrandTotal, debtPaid, fmt, groupDebtsByPerson, todayStr } from '@/lib/finance';
+import { categoryLabel, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -174,7 +174,7 @@ function DebtsContent() {
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
           <Text style={styles.progressText}>
-            اتسدد {fmt(paid)} من {fmt(grandTotal)} ج.م {d.isInstallment ? `· أقساط (${d.installmentCount || '-'})` : '· مبلغ واحد'}
+            {debtPaidLabel(d)} {d.isInstallment ? `· أقساط (${d.installmentCount || '-'})` : '· مبلغ واحد'}
           </Text>
         </TouchableOpacity>
 
