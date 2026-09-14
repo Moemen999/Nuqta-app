@@ -1,7 +1,8 @@
+import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, debtRemaining, fmt, overpayCheck, todayStr } from '@/lib/finance';
+import { categoryLabel, debtRemaining, fmt, overpayCheck, projectBalances, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
@@ -19,7 +20,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, T
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, addDebtPayment } = useData();
+  const { wallets, categories, transactions, addDebtPayment } = useData();
   const { busy, run: runBusy } = useBusy();
 
   const remaining = debtRemaining(debt);
@@ -30,6 +31,12 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+
+  // السداد بيولّد عملية فعلية: إيراد لو الدين ليك، مصروف لو عليك
+  const projections = useMemo(() => projectBalances({
+    transactions, wallets, amount: Number(amount), walletId,
+    type: debt.direction === 'owed_to_me' ? 'income' : 'expense',
+  }), [transactions, wallets, amount, walletId, debt.direction]);
 
   /**
    * تأكيد قبل تسجيل دفعة أكبر من المتبقي.
@@ -78,6 +85,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           <Text style={styles.label}>المبلغ</Text>
           <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
+          <AmountPreview amount={amount} projections={projections} />
 
           <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'المحفظة اللي هتستلم فيها' : 'المحفظة اللي هتدفع منها'}</Text>
           <View style={styles.chipRow}>
@@ -130,7 +138,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, addDebtIncrease } = useData();
+  const { wallets, transactions, addDebtIncrease } = useData();
   const { busy, run: runBusy } = useBusy();
 
   const [amount, setAmount] = useState('');
@@ -139,6 +147,13 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+
+  // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
+  const projections = useMemo(() => projectBalances({
+    transactions, wallets, amount: Number(amount),
+    walletId: linkedToWallet ? walletId : undefined,
+    type: debt.direction === 'owed_to_me' ? 'expense' : 'income',
+  }), [transactions, wallets, amount, walletId, linkedToWallet, debt.direction]);
 
   async function handleSave() {
     const amt = Number(amount);
@@ -177,6 +192,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           <Text style={styles.label}>المبلغ الإضافي</Text>
           <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
+          <AmountPreview amount={amount} projections={projections} />
 
           {linkedToWallet && (
             <>

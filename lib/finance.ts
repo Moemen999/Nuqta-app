@@ -1,4 +1,4 @@
-import type { Debt, Transaction } from '@/context/DataContext';
+import type { Debt, Transaction, Wallet } from '@/context/DataContext';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -183,6 +183,59 @@ export function overpayCheck(amount: number, remaining: number): OverpayCheck {
  *
  * الفاضي لسه بيرجّع صفر عن قصد — ده الطريقة الطبيعية لمسح سقف فئة.
  */
+export type BalanceProjection = { walletId: string; name: string; before: number; after: number };
+
+/**
+ * الرصيد قبل وبعد العملية اللي المستخدم بيكتبها دلوقتي.
+ *
+ * الفكرة مش إن التطبيق يحكم على المبلغ — هو مش عارف المستخدم بيصرف قد إيه.
+ * الفكرة إن الرقم يبقى **مقروء** قبل ما يتحفظ: حد كتب 50000 وهو قاصد 500
+ * هيشوف الرصيد بيتحوّل لرقم واضح إنه غلط، ويصلّح بنفسه.
+ *
+ * بترجّع لستة فاضية لو مفيش محفظة أو المبلغ مش رقم موجب — مفيش حاجة صح
+ * نقولها، فمبنقولش حاجة (مش صفر ومش شرطة).
+ *
+ * `excludeTransactionId` مهمة في التعديل: الرصيد الحالي فيه المبلغ القديم
+ * أصلاً، فمن غيرها تعديل مصروف من 500 لـ 600 هيتحسب كإن 1,100 خرجت من
+ * المحفظة — رقم شكله معقول وغلط، وده بالظبط اللي الميزة دي موجودة تمنعه.
+ */
+export function projectBalances(opts: {
+  transactions: Transaction[];
+  wallets: Wallet[];
+  type: 'expense' | 'income' | 'withdraw';
+  amount: number;
+  walletId?: string;
+  toWalletId?: string;
+  excludeTransactionId?: string;
+}): BalanceProjection[] {
+  const { transactions, wallets, type, amount, walletId, toWalletId, excludeTransactionId } = opts;
+  if (!isFinite(amount) || amount <= 0) return [];
+
+  const src = wallets.find(w => w.id === walletId);
+  if (!src) return [];
+
+  const txs = excludeTransactionId ? transactions.filter(t => t.id !== excludeTransactionId) : transactions;
+  const srcBefore = walletBalance(txs, src.id, src.openingBalance);
+  const out: BalanceProjection[] = [{
+    walletId: src.id,
+    name: src.name,
+    before: srcBefore,
+    after: type === 'income' ? srcBefore + amount : srcBefore - amount,
+  }];
+
+  // التحويل بيلمس محفظتين. عرض الطرف الواحد بس بيقرا إن فلوس خرجت، وإجمالي
+  // الفلوس مااتغيرش أصلاً — نص الحقيقة، ونفس نوع الكلام اللي شيلناه من
+  // سطر "اتسدد كذا من كذا".
+  if (type === 'withdraw') {
+    const dst = wallets.find(w => w.id === toWalletId);
+    if (dst && dst.id !== src.id) {
+      const dstBefore = walletBalance(txs, dst.id, dst.openingBalance);
+      out.push({ walletId: dst.id, name: dst.name, before: dstBefore, after: dstBefore + amount });
+    }
+  }
+  return out;
+}
+
 export function parseBudgetInput(raw: string): number | null {
   const num = Number(raw);
   if (!isFinite(num) || num < 0) return null;
