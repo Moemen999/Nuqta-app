@@ -1,7 +1,8 @@
+import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, todayStr } from '@/lib/finance';
+import { categoryLabel, projectBalances, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -51,6 +52,14 @@ export default function AddTransactionModal() {
       setCategoryId(categories[0]?.id);
     }
   }, [existing, wallets, categories]);
+
+  // الرصيد رايح فين لو حفظنا. لازم نستثني العملية اللي بنعدّلها: رصيدها
+  // القديم لسه محسوب، فمن غير الاستثناء التعديل بيتحسب مرتين.
+  const projections = useMemo(() => projectBalances({
+    transactions, wallets, type, amount: Number(amount), walletId,
+    toWalletId: type === 'withdraw' ? toWalletId : undefined,
+    excludeTransactionId: existing?.id,
+  }), [transactions, wallets, type, amount, walletId, toWalletId, existing]);
 
   async function handleSave() {
     const amt = Number(amount);
@@ -122,6 +131,7 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>المبلغ</Text>
       <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
+      <AmountPreview amount={amount} projections={projections} />
 
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
