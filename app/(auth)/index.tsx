@@ -105,17 +105,17 @@ export default function AuthScreen() {
       </View>
 
       {mode === 'signup' && (
-        <TextInput style={styles.input} placeholder="الاسم" placeholderTextColor={colors.textSecondary}
+        <TextInput testID="auth_name_input" style={styles.input} placeholder="الاسم" placeholderTextColor={colors.textSecondary}
           value={name} onChangeText={setName} textAlign="right" />
       )}
-      <TextInput style={styles.input} placeholder="الإيميل" placeholderTextColor={colors.textSecondary}
+      <TextInput testID="auth_email_input" style={styles.input} placeholder="الإيميل" placeholderTextColor={colors.textSecondary}
         value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textAlign="right" />
-      <TextInput style={styles.input} placeholder="الباسورد" placeholderTextColor={colors.textSecondary}
+      <TextInput testID="auth_password_input" style={styles.input} placeholder="الباسورد" placeholderTextColor={colors.textSecondary}
         value={password} onChangeText={setPassword} secureTextEntry textAlign="right" />
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <TouchableOpacity style={styles.button} onPress={handleSubmit} disabled={busy}>
+      <TouchableOpacity testID="auth_submit_button" style={styles.button} onPress={handleSubmit} disabled={busy}>
         {busy ? <ActivityIndicator color={colors.onAccent} /> : (
           <Text style={styles.buttonText}>{mode === 'login' ? 'دخول' : 'إنشاء حساب'}</Text>
         )}
