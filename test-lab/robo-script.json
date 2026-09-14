@@ -1,0 +1,69 @@
+[
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*onboarding_skip_button" }]
+  },
+  {
+    "eventType": "VIEW_TEXT_CHANGED",
+    "replacementText": "moemen0140@yahoo.com",
+    "elementDescriptors": [{ "resourceIdRegex": ".*auth_email_input" }]
+  },
+  {
+    "eventType": "VIEW_TEXT_CHANGED",
+    "replacementText": "Mo12345@",
+    "elementDescriptors": [{ "resourceIdRegex": ".*auth_password_input" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*auth_submit_button" }]
+  },
+
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_add_button" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_type_income" }]
+  },
+  {
+    "eventType": "VIEW_TEXT_CHANGED",
+    "replacementText": "250",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_amount_input" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_save_button" }]
+  },
+
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_add_button" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_type_withdraw" }]
+  },
+  {
+    "eventType": "VIEW_TEXT_CHANGED",
+    "replacementText": "100",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_amount_input" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*tx_save_button" }]
+  },
+
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "contentDescriptionRegex": ".*الديون.*" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*debts_tab_subscriptions" }]
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [{ "resourceIdRegex": ".*debts_tab_gamiya" }]
+  }
+]

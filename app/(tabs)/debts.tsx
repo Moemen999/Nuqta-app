@@ -38,11 +38,11 @@ export default function DebtsTabScreen() {
           style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
           <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab('subscriptions')}
+        <TouchableOpacity testID="debts_tab_subscriptions" onPress={() => setTab('subscriptions')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'subscriptions')]}>
           <Text style={{ color: tab === 'subscriptions' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الاشتراكات</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab('gamiya')}
+        <TouchableOpacity testID="debts_tab_gamiya" onPress={() => setTab('gamiya')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'gamiya')]}>
           <Text style={{ color: tab === 'gamiya' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الجمعية</Text>
         </TouchableOpacity>

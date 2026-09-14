@@ -57,7 +57,7 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+      <TouchableOpacity testID="tx_add_button" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
         <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
       </TouchableOpacity>
     </View>
