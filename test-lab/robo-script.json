@@ -56,7 +56,7 @@
 
   {
     "eventType": "VIEW_CLICKED",
-    "elementDescriptors": [{ "contentDescriptionRegex": ".*الديون.*" }]
+    "elementDescriptors": [{ "resourceIdRegex": ".*nav_tab_debts" }]
   },
   {
     "eventType": "VIEW_CLICKED",

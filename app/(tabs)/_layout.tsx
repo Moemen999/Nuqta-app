@@ -45,6 +45,9 @@ export default function TabLayout() {
           name="debts"
           options={{
             title: 'الديون',
+            // سكريبت روبو بيوصل لتاب الديون من هنا. من غير معرّف كان بيتطابق
+            // بنص عربي، وأي تغيير في الكلمة كان هيفشّل التشغيلة كلها.
+            tabBarButtonTestID: 'nav_tab_debts',
             tabBarIcon: ({ color }) => <IconSymbol size={22} name="person.2.fill" color={color} />,
           }}
         />
