@@ -175,6 +175,20 @@ export function overpayCheck(amount: number, remaining: number): OverpayCheck {
  * لو فيه زيادة، الكسر بيبقى كلام فارغ ("اتسدد 35,630 من 550")، فبنقول
  * الحقيقة بدله: اتسدد بالكامل وفيه زيادة قدّها كذا.
  */
+/**
+ * بيقرا سقف ميزانية من اللي المستخدم كتبه. `null` معناها "مترفض، متكتبش".
+ *
+ * السقف بالسالب مالوش معنى، وتحويله لصفر في السكوت كدبة صغيرة: المستخدم كتب
+ * -500 والتطبيق يوافق وبعدين يعرض 0. فبنرفضه، والخانة بترجع لآخر قيمة محفوظة.
+ *
+ * الفاضي لسه بيرجّع صفر عن قصد — ده الطريقة الطبيعية لمسح سقف فئة.
+ */
+export function parseBudgetInput(raw: string): number | null {
+  const num = Number(raw);
+  if (!isFinite(num) || num < 0) return null;
+  return num;
+}
+
 export function debtPaidLabel(d: Debt) {
   const excess = debtExcess(d);
   if (excess > 0) return `اتسدد بالكامل · زيادة ${fmt(excess)} ج.م`;
