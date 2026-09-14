@@ -121,7 +121,7 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity key={t.key} onPress={() => setType(t.key)}
+          <TouchableOpacity key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
             style={[styles.typeBtn, selectionStyle(colors, type === t.key, t.tone)]}>
             <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: 13 }}>{t.label}</Text>
           </TouchableOpacity>
@@ -129,7 +129,7 @@ export default function AddTransactionModal() {
       </View>
 
       <Text style={styles.label}>المبلغ</Text>
-      <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={setAmount}
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
       <AmountPreview amount={amount} projections={projections} />
 
@@ -191,7 +191,7 @@ export default function AddTransactionModal() {
         <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
           <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+        <TouchableOpacity testID="tx_save_button" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
           <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
         </TouchableOpacity>
       </View>

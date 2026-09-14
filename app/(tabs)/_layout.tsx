@@ -45,6 +45,9 @@ export default function TabLayout() {
           name="debts"
           options={{
             title: 'الديون',
+            // سكريبت روبو بيوصل لتاب الديون من هنا. من غير معرّف كان بيتطابق
+            // بنص عربي، وأي تغيير في الكلمة كان هيفشّل التشغيلة كلها.
+            tabBarButtonTestID: 'nav_tab_debts',
             tabBarIcon: ({ color }) => <IconSymbol size={22} name="person.2.fill" color={color} />,
           }}
         />
@@ -57,7 +60,7 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <TouchableOpacity style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+      <TouchableOpacity testID="tx_add_button" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
         <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
       </TouchableOpacity>
     </View>
