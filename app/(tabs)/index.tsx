@@ -238,7 +238,9 @@ function EmailVerificationBanner() {
       try {
         await resendVerificationEmail();
         setSent(true);
-      } catch {
+      } catch (err) {
+        // رسالة المستخدم فاضلة زي ما هي — التسجيل ده للتشخيص بس
+        console.error('[auth] resendVerificationEmail failed:', err);
         setError('مقدرناش نبعت الرسالة دلوقتي، جرب كمان شوية');
       }
     });

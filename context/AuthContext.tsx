@@ -57,8 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     try {
       await sendEmailVerification(cred.user);
-    } catch {
-      // لو إرسال إيميل التأكيد فشل لأي سبب، الحساب لسه اتعمل بنجاح، منمنعش المستخدم من الاستخدام
+    } catch (err) {
+      // لو إرسال إيميل التأكيد فشل لأي سبب، الحساب لسه اتعمل بنجاح، منمنعش المستخدم من الاستخدام.
+      // بنسجل السبب الحقيقي هنا بس (مش في واجهة المستخدم) عشان نقدر نشخّص أي فشل حقيقي
+      console.error('[auth] sendEmailVerification (signup) failed:', err);
     }
   }
 
