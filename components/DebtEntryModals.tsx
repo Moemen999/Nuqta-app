@@ -4,7 +4,7 @@ import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, debtRemaining, fmt, overpayCheck, projectBalances, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
-import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -78,7 +78,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <View style={styles.sheet}>
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
           <Text style={styles.hintText}>المتبقي: {fmt(remaining)} ج.م</Text>
 
@@ -118,17 +119,18 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-            </TouchableOpacity>
-          </View>
-
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -174,7 +176,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <View style={styles.sheet}>
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>زيادة على دين — {debt.personName}</Text>
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
@@ -215,17 +218,18 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-            </TouchableOpacity>
-          </View>
-
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -235,7 +239,9 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayStyle,
-    sheet: sheetStyle(c, { maxHeight: '90%' }),
+    sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
+    scrollArea: { flexShrink: 1 },
+    sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
@@ -247,7 +253,7 @@ function makeStyles(c: ThemeColors) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 10 },
+    footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     btnBusy: { opacity: 0.6 },

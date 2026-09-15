@@ -111,3 +111,22 @@ export function sheetTitleStyle(c: ThemeColors, marginBottom: number = space.md)
     marginBottom,
   };
 }
+
+/**
+ * فوتر لاصق تحت فورم قابل للتمرير — زرارات الحفظ/الإلغاء بتتحط برّه الـ
+ * ScrollView (مش آخر عنصر جواه)، فتفضل مثبتة فوق الكيبورد دايمًا مهما طال
+ * المحتوى، من غير ما المستخدم يلف يدوّر عليها. اتعمل بعد ما زرار الحفظ في
+ * مودال العملية وDebtPaymentModal وDebtIncreaseModal اختفى تحت الكيبورد لما
+ * AmountPreview زوّدت طول الفورم.
+ */
+export function stickyFooterStyle(c: ThemeColors, bg: string, extraBottom: number = 0): ViewStyle {
+  return {
+    flexDirection: 'row-reverse',
+    gap: space.md,
+    padding: space.xxxl,
+    paddingBottom: space.xxxl + extraBottom,
+    borderTopWidth: 1,
+    borderTopColor: c.borderStrong,
+    backgroundColor: bg,
+  };
+}

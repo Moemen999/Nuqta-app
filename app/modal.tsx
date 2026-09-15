@@ -4,6 +4,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, projectBalances, todayStr } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
+import { stickyFooterStyle } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -17,8 +18,8 @@ const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; t
 
 export default function AddTransactionModal() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  const styles = useMemo(() => makeStyles(colors, insets.bottom), [colors, insets.bottom]);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { wallets, categories, transactions, addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning } = useData();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
@@ -182,20 +183,6 @@ export default function AddTransactionModal() {
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.actions}>
-        {isEdit && (
-          <TouchableOpacity style={[styles.deleteBtn, busy && styles.btnBusy]} onPress={handleDelete} disabled={busy}>
-            <Text style={{ color: colors.danger }}>{busy ? '...' : 'حذف'}</Text>
-          </TouchableOpacity>
-        )}
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
-          <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-        </TouchableOpacity>
-        <TouchableOpacity testID="tx_save_button" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-        </TouchableOpacity>
-      </View>
-
       <CalendarPickerModal
         visible={showDatePicker}
         value={date}
@@ -203,14 +190,28 @@ export default function AddTransactionModal() {
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
+
+    <View style={styles.footer}>
+      {isEdit && (
+        <TouchableOpacity style={[styles.deleteBtn, busy && styles.btnBusy]} onPress={handleDelete} disabled={busy}>
+          <Text style={{ color: colors.danger }}>{busy ? '...' : 'حذف'}</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
+        <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+      </TouchableOpacity>
+      <TouchableOpacity testID="tx_save_button" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+        <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
+      </TouchableOpacity>
+    </View>
     </KeyboardAvoidingView>
   );
 }
 
-function makeStyles(c: ThemeColors) {
+function makeStyles(c: ThemeColors, insetBottom: number) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 20, paddingBottom: 60 },
+    content: { padding: 20, paddingBottom: 24 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 16 },
     row: { flexDirection: 'row-reverse', gap: 8, marginBottom: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
@@ -222,7 +223,7 @@ function makeStyles(c: ThemeColors) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 24 },
+    footer: stickyFooterStyle(c, c.bg, insetBottom),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     deleteBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
