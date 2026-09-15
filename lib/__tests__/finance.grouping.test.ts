@@ -1,5 +1,5 @@
 import type { Debt } from '@/context/DataContext';
-import { findPersonGroup, groupDebtsByPerson } from '@/lib/finance';
+import { findPersonGroup, groupDebtsByPerson, reverseDebtPrefill } from '@/lib/finance';
 
 function debt(p: Partial<Debt> & { personName: string }): Debt {
   return {
@@ -112,5 +112,41 @@ describe('findPersonGroup', () => {
   it('بيرجّع undefined لو الشخص مالوش ديون خلاص', () => {
     expect(findPersonGroup([], 'name:أحمد')).toBeUndefined();
     expect(findPersonGroup([debt({ personName: 'خالد' })], 'name:أحمد')).toBeUndefined();
+  });
+});
+
+describe('reverseDebtPrefill — دين بالاتجاه العكسي لازم يقع في نفس مجموعة الشخص', () => {
+  it('الاتجاه بيتقلب', () => {
+    expect(reverseDebtPrefill(debt({ personName: 'أحمد', direction: 'owed_to_me' })).direction).toBe('i_owe');
+    expect(reverseDebtPrefill(debt({ personName: 'أحمد', direction: 'i_owe' })).direction).toBe('owed_to_me');
+  });
+
+  it('لو الدين الأصلي مربوط بجهة اتصال، الـprefill بينسخ نفس personContactId — والدين الجديد بيقع في نفس المجموعة حتى لو اتكتب اسم مختلف شوية', () => {
+    const original = debt({ personName: 'أحمد', personContactId: 'c1', direction: 'owed_to_me' });
+    const prefill = reverseDebtPrefill(original);
+    expect(prefill.personContactId).toBe('c1');
+
+    const created = debt({
+      personName: prefill.personName, personContactId: prefill.personContactId, direction: prefill.direction,
+    });
+    const gs = groupDebtsByPerson([original, created]);
+    expect(gs).toHaveLength(1);
+    expect(gs[0].debts.map(d => d.id).sort()).toEqual([created.id, original.id].sort());
+  });
+
+  it('من غير جهة اتصال، الـprefill بينسخ نفس نص الاسم بالظبط — والدين الجديد بيقع في نفس المجموعة', () => {
+    const original = debt({ personName: 'سارة عبد الله', direction: 'i_owe' });
+    const prefill = reverseDebtPrefill(original);
+    expect(prefill.personContactId).toBeUndefined();
+    expect(prefill.personName).toBe('سارة عبد الله');
+
+    const created = debt({ personName: prefill.personName, direction: prefill.direction });
+    const gs = groupDebtsByPerson([original, created]);
+    expect(gs).toHaveLength(1);
+  });
+
+  it('رقم التليفون بينتقل كمان للعرض، حتى إنه مش جزء من مفتاح التجميع', () => {
+    const original = debt({ personName: 'خالد', personPhone: '01000000000' });
+    expect(reverseDebtPrefill(original).personPhone).toBe('01000000000');
   });
 });

@@ -1,6 +1,6 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
-import { DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
+import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
@@ -9,8 +9,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
-import { categoryLabel, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, todayStr } from '@/lib/finance';
-import { selectionStyle, selectionTextColor } from '@/lib/selection';
+import { categoryLabel, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, reverseDebtPrefill } from '@/lib/finance';
+import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -71,6 +71,7 @@ function DebtsContent() {
   const [paymentForDebt, setPaymentForDebt] = useState<Debt | null>(null);
   const [increaseForDebt, setIncreaseForDebt] = useState<Debt | null>(null);
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
+  const [reverseForDebt, setReverseForDebt] = useState<Debt | null>(null);
   const [expandedDebt, setExpandedDebt] = useState<string | null>(null);
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
@@ -214,6 +215,14 @@ function DebtsContent() {
                 }}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>كشف الحساب</Text>
               </TouchableOpacity>
+              {/* لو هو مديون ليا، ده بيسجل إني مديون ليه — والعكس. نفس الشخص، مودال
+                  الدين الجديد بس متعبّي مقدّمًا باسمه وجهة اتصاله عشان الدين الجديد
+                  يقع في نفس مجموعته في كشف الحساب (شوف reverseDebtPrefill) */}
+              <TouchableOpacity style={styles.increaseBtn} onPress={() => setReverseForDebt(d)}>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>
+                  {d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده'}
+                </Text>
+              </TouchableOpacity>
               {!settled && (
                 <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                   <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
@@ -261,205 +270,14 @@ function DebtsContent() {
       {iOwe.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
       {iOwe.map(renderDebt)}
 
-      <AddDebtModal visible={showAddDebt} onClose={() => setShowAddDebt(false)} />
+      {showAddDebt && <AddDebtModal onClose={() => setShowAddDebt(false)} />}
       {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
       {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
       {editDebt && <EditDebtModal debt={editDebt} onClose={() => setEditDebt(null)} />}
+      {reverseForDebt && (
+        <AddDebtModal onClose={() => setReverseForDebt(null)} prefill={reverseDebtPrefill(reverseForDebt)} />
+      )}
     </ScrollView>
-  );
-}
-
-function AddDebtModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { addDebt, wallets } = useData();
-  const { busy, run: runBusy } = useBusy();
-
-  const [direction, setDirection] = useState<'owed_to_me' | 'i_owe'>('owed_to_me');
-  const [personName, setPersonName] = useState('');
-  const [totalAmount, setTotalAmount] = useState('');
-  const [isInstallment, setIsInstallment] = useState(false);
-  const [installmentCount, setInstallmentCount] = useState('');
-  const [note, setNote] = useState('');
-  const [linkedToWallet, setLinkedToWallet] = useState(true);
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
-  const [date, setDate] = useState(todayStr());
-  const [showPicker, setShowPicker] = useState(false);
-  const [error, setError] = useState('');
-  const picker = useDeviceContacts();
-  const [personPhone, setPersonPhone] = useState('');
-  const [personContactId, setPersonContactId] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(null);
-
-  function reset() {
-    setDirection('owed_to_me'); setPersonName(''); setTotalAmount('');
-    setIsInstallment(false); setInstallmentCount(''); setNote('');
-    setLinkedToWallet(true); setDate(todayStr()); setError(''); setPersonPhone(''); setPersonContactId('');
-    setDueDate(''); setReminderDaysBefore(null);
-  }
-
-  async function handleSave() {
-    const amt = Number(totalAmount);
-    if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
-    if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
-    await runBusy(async () => {
-      try {
-        await addDebt({
-          direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
-          isInstallment,
-          installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
-          note: note.trim() || undefined,
-          walletId: linkedToWallet ? walletId : undefined,
-          date,
-          dueDate: dueDate || undefined,
-          reminderDaysBefore: dueDate && reminderDaysBefore !== null ? reminderDaysBefore : undefined,
-        });
-      } catch {
-        setError('حصل خطأ، جرب تاني');
-        return;
-      }
-      reset();
-      onClose();
-    });
-  }
-
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
-      <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>دين جديد</Text>
-
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setDirection('owed_to_me')}
-              style={[styles.typeBtn, selectionStyle(colors, direction === 'owed_to_me', 'success')]}>
-              <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: 13 }}>ليا (أنا قرضته)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setDirection('i_owe')}
-              style={[styles.typeBtn, selectionStyle(colors, direction === 'i_owe', 'danger')]}>
-              <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: 13 }}>عليا (هو قرضني)</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.label}>الدين ده مرتبط بمحفظة دلوقتي؟</Text>
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setLinkedToWallet(true)}
-              style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
-              <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة، فلوس حقيقية</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setLinkedToWallet(false)}
-              style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
-              <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل مثلاً)</Text>
-            </TouchableOpacity>
-          </View>
-          {linkedToWallet ? (
-            <Text style={styles.hintText}>
-              {direction === 'owed_to_me' ? 'الفلوس هتتخصم من المحفظة اللي هتختارها (لأنك بتديها له)' : 'الفلوس هتتضاف للمحفظة اللي هتختارها (لأنه بيديهالك)'}
-            </Text>
-          ) : (
-            <Text style={styles.hintText}>الدين هيتسجل بس من غير ما يأثر على أي رصيد دلوقتي — وقت السداد بس هيتسجل كعملية حقيقية</Text>
-          )}
-
-          <View style={styles.labelRow}>
-            <Text style={styles.labelInRow}>اسم الشخص</Text>
-            {/* كان أيقونة 18 لوحدها بـ padding 4 — يعني هدف لمس ~26، أصغر من
-                الحد الأدنى المعقول (44)، ومكانش باين إنها زرار أصلاً */}
-            <TouchableOpacity
-              onPress={picker.open}
-              style={styles.contactBtn}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel="اختار من جهات الاتصال">
-              <IconSymbol name="person.crop.circle" size={20} color={colors.accent} />
-              <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
-            </TouchableOpacity>
-          </View>
-          <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
-            placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
-
-          <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
-            placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
-
-          {linkedToWallet && (
-            <>
-              <Text style={styles.label}>{direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
-              <View style={styles.chipRow}>
-                {wallets.map(w => (
-                  <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                    style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                    <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
-
-          <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{date}</Text>
-          </TouchableOpacity>
-
-          <View style={styles.row}>
-            <TouchableOpacity onPress={() => setIsInstallment(false)}
-              style={[styles.typeBtn, selectionStyle(colors, !isInstallment)]}>
-              <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>مبلغ واحد</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setIsInstallment(true)}
-              style={[styles.typeBtn, selectionStyle(colors, isInstallment)]}>
-              <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>أقساط</Text>
-            </TouchableOpacity>
-          </View>
-
-          {isInstallment && (
-            <>
-              <Text style={styles.label}>عدد الأقساط</Text>
-              <TextInput style={styles.input} value={installmentCount} onChangeText={setInstallmentCount}
-                placeholder="مثلاً: 6" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
-            </>
-          )}
-
-          <DebtReminderFields
-            dueDate={dueDate}
-            reminderDaysBefore={reminderDaysBefore}
-            onChangeDueDate={setDueDate}
-            onChangeReminder={setReminderDaysBefore}
-          />
-
-          <Text style={styles.label}>ملاحظة</Text>
-          <TextInput style={styles.input} value={note} onChangeText={setNote}
-            placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
-
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
-        </ScrollView>
-
-        <ContactPickerModal
-          visible={picker.visible}
-          contacts={picker.contacts}
-          onClose={picker.close}
-          onPick={ct => {
-            setPersonName(ct.name);
-            setPersonPhone(ct.phone);
-            setPersonContactId(ct.id);
-            picker.close();
-          }}
-          onCreateContact={picker.createContact}
-        />
-      </View>
-      </KeyboardAvoidingView>
-    </Modal>
   );
 }
 
@@ -628,7 +446,6 @@ function makeStyles(c: ThemeColors) {
     sheet: sheetStyle(c, { maxHeight: '90%' }),
     sheetTitle: sheetTitleStyle(c, 4),
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
-    row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
     labelInRow: { color: c.textSecondary, fontSize: 12, textAlign: 'right' },
     contactBtn: {
@@ -641,14 +458,8 @@ function makeStyles(c: ThemeColors) {
     linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
     unlinkText: { color: c.danger, fontSize: 12, fontWeight: '700' },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
     actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 10 },
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

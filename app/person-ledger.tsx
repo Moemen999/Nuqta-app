@@ -1,5 +1,5 @@
 import BackButton from '@/components/BackButton';
-import { DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
+import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { debtGrandTotal, debtPaid, findPersonGroup, fmt } from '@/lib/finance';
@@ -38,6 +38,7 @@ export default function PersonLedgerScreen() {
 
   const [paymentForDebt, setPaymentForDebt] = useState<Debt | null>(null);
   const [increaseForDebt, setIncreaseForDebt] = useState<Debt | null>(null);
+  const [showAddDebt, setShowAddDebt] = useState(false);
 
   /**
    * الصفحة بتجمّع كذا دين لنفس الشخص، فسؤال "الدفعة دي على أنهي دين؟" مالوش
@@ -140,7 +141,14 @@ export default function PersonLedgerScreen() {
 
       <Text style={styles.footNote}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>
 
-      <Text style={styles.sectionTitle}>سجّل حركة</Text>
+      <View style={styles.sectionTitleRow}>
+        {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
+            الشخص، فمفيش اتجاه "عكسي" واحد نحدده تلقائي زي كارت الدين */}
+        <TouchableOpacity style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>+ دين جديد</Text>
+        </TouchableOpacity>
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>سجّل حركة</Text>
+      </View>
       {soleOpenDebt ? (
         <>
           <Text style={styles.hintText}>دين واحد مفتوح بس، فالحركة هتتسجل عليه</Text>
@@ -188,6 +196,12 @@ export default function PersonLedgerScreen() {
 
       {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
       {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {showAddDebt && (
+        <AddDebtModal
+          onClose={() => setShowAddDebt(false)}
+          prefill={{ personName, personContactId: group?.personContactId }}
+        />
+      )}
       </>
       )}
     </ScrollView>
@@ -211,6 +225,8 @@ function makeStyles(c: ThemeColors) {
     footNote: { color: c.textMuted, fontSize: 10.5, textAlign: 'center', marginTop: 14 },
     rowDebtLabel: { color: c.textMuted, fontSize: 10, textAlign: 'center', marginTop: 2 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
+    sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 6 },
+    addDebtBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
     debtBlock: { backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
     debtBlockHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },

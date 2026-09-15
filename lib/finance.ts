@@ -350,6 +350,32 @@ export function groupDebtsByPerson(debts: Debt[]): PersonGroup[] {
   return Array.from(groups.values());
 }
 
+export type DebtPrefill = {
+  personName: string;
+  personPhone?: string;
+  personContactId?: string;
+  /** لو من غير اتجاه محدد (زي كشف الحساب)، AddDebtModal بتسيبها للمستخدم يختار */
+  direction?: Debt['direction'];
+};
+
+/**
+ * بيبني قيم دين جديد بالاتجاه العكسي لنفس الشخص، بحيث الدين الجديد يقع في
+ * نفس مجموعة `groupDebtsByPerson` بتاعة الدين الأصلي.
+ *
+ * لازم `personContactId` تتنسخ زي ما هي (لو موجودة) — هي مفتاح التجميع
+ * الأقوى، وبتشتغل حتى لو المستخدم غيّر نص الاسم. من غيرها، التجميع بيرجع
+ * للاسم المطبّع (`normalizePersonName`)، فلازم نفس نص الاسم يتنسخ زي ما هو
+ * برضه من غير ما حد يعيد كتابته يدوي ويغيّر فيه بالغلط.
+ */
+export function reverseDebtPrefill(d: Debt): DebtPrefill {
+  return {
+    personName: d.personName,
+    personPhone: d.personPhone,
+    personContactId: d.personContactId,
+    direction: d.direction === 'owed_to_me' ? 'i_owe' : 'owed_to_me',
+  };
+}
+
 /** بتلاقي مجموعة شخص بمفتاحه — بترجّع undefined لو خلصت ديونه واتمسحت */
 export function findPersonGroup(debts: Debt[], key: string): PersonGroup | undefined {
   return groupDebtsByPerson(debts).find(g => g.key === key);
