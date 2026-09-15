@@ -195,9 +195,9 @@ type DataContextType = {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const DEFAULT_WALLETS = [
-  { name: 'CIB', openingBalance: 0, lowAlert: 100 },
-  { name: 'NBE', openingBalance: 0, lowAlert: 100 },
-  { name: 'CASH', openingBalance: 0, lowAlert: 50 },
+  { name: 'CIB', openingBalance: 0, lowAlert: 0 },
+  { name: 'NBE', openingBalance: 0, lowAlert: 0 },
+  { name: 'CASH', openingBalance: 0, lowAlert: 0 },
 ];
 const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
