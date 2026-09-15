@@ -31,7 +31,7 @@ export default function AmountPreview({ amount, projections }: { amount: string;
       {projections.map(p => (
         <View key={p.walletId} style={styles.row}>
           <Text style={styles.walletName}>{p.name}</Text>
-          <Text style={styles.balanceText}>{fmt(p.before)} ← {fmt(p.after)}</Text>
+          <Text style={styles.balanceText}>من {fmt(p.before)} إلى {fmt(p.after)}</Text>
         </View>
       ))}
     </View>
