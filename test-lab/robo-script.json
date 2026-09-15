@@ -5,12 +5,12 @@
   },
   {
     "eventType": "VIEW_TEXT_CHANGED",
-    "replacementText": "moemen0140@yahoo.com",
+    "replacementText": "",
     "elementDescriptors": [{ "resourceIdRegex": ".*auth_email_input" }]
   },
   {
     "eventType": "VIEW_TEXT_CHANGED",
-    "replacementText": "Mo12345@",
+    "replacementText": "@",
     "elementDescriptors": [{ "resourceIdRegex": ".*auth_password_input" }]
   },
   {
