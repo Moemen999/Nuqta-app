@@ -1,7 +1,8 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { addDays, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, hashColor, startOfMonth, todayStr } from '@/lib/finance';
+import { useChartColors } from '@/hooks/use-chart-colors';
+import { addDays, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, startOfMonth, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -17,6 +18,7 @@ export default function ReportsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, debts } = useData();
+  const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [catFilter, setCatFilter] = useState<string[]>([]);
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -50,13 +52,27 @@ export default function ReportsScreen() {
         id: c.id,
         name: categoryLabel(c),
         amount: filtered.filter(t => t.type === 'expense' && t.categoryId === c.id).reduce((s, t) => s + t.amount, 0),
-        color: hashColor(c.name, colors.chartPalette),
+        color: categoryColors.get(c.id) || colors.textMuted,
       }))
       .filter(c => c.amount > 0),
-    [visibleCats, filtered]
+    [visibleCats, filtered, categoryColors, colors.textMuted]
   );
 
   const periodExpense = useMemo(() => expenseByCat.reduce((s, c) => s + c.amount, 0), [expenseByCat]);
+
+  /**
+   * الرسم بياني معقول لغاية 7 شرايح — أكتر من كده والدائرة بتتقطّع لشرايح
+   * صغيرة مالهاش لون واضح يتفرّق عن جاره. الباقي بيتجمّع في "أخرى" بلون
+   * محايد برّه باليتة الفئات، عشان ميتلخبطش مع أي فئة حقيقية.
+   */
+  const PIE_TOP_N = 7;
+  const pieSlices = useMemo(() => {
+    const sorted = [...expenseByCat].sort((a, b) => b.amount - a.amount);
+    if (sorted.length <= PIE_TOP_N) return sorted;
+    const top = sorted.slice(0, PIE_TOP_N);
+    const otherTotal = sorted.slice(PIE_TOP_N).reduce((s, c) => s + c.amount, 0);
+    return [...top, { id: '__other__', name: 'أخرى', amount: otherTotal, color: colors.textMuted }];
+  }, [expenseByCat, colors.textMuted]);
 
   const change = useMemo(() => {
     const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
@@ -73,7 +89,7 @@ export default function ReportsScreen() {
     setCatFilter(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
   }
 
-  const pieData = expenseByCat.map(c => ({
+  const pieData = pieSlices.map(c => ({
     name: c.name, amount: c.amount, color: c.color,
     legendFontColor: colors.textSecondary, legendFontSize: 12,
   }));
@@ -191,7 +207,7 @@ export default function ReportsScreen() {
             chartConfig={{ color: () => colors.text }}
           />
           <View style={styles.legendWrap}>
-            {expenseByCat.map(c => (
+            {pieSlices.map(c => (
               <View key={c.id} style={styles.legendItem}>
                 <View style={[styles.dot, { backgroundColor: c.color }]} />
                 <Text style={styles.legendText}>

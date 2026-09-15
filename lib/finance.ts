@@ -99,6 +99,12 @@ export function endOfMonth(dateStr: string) {
   return toDateStr(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
 }
 
+function hashIndex(str: string, length: number) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+  return Math.abs(h) % length;
+}
+
 /**
  * بيختار لون ثابت لاسم معيّن من باليتة الثيم.
  *
@@ -107,11 +113,51 @@ export function endOfMonth(dateStr: string) {
  * المشروع إن كل الألوان تيجي من الثيم.
  *
  * نفس الاسم بيدّي نفس اللون دايمًا، فالفئة لونها ثابت في الرسم والنقطة.
+ *
+ * **ملحوظة:** الدالة دي بترجع لون لاسم واحد لوحده — لو عندك أكتر من اسم في
+ * نفس الوقت (فئات التقارير، محافظ الرئيسية) استخدم `assignChartColors` بدل
+ * كده، لأن الهاش المستقل ده ممكن يدّي اتنين نفس اللون (شوف الشرح تحت).
  */
 export function hashColor(str: string, palette: string[]) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
-  return palette[Math.abs(h) % palette.length];
+  return palette[hashIndex(str, palette.length)];
+}
+
+/**
+ * لون ثابت لكل عنصر (فئة أو محفظة) بضمان عدم التكرار طالما العدد ≤ حجم
+ * الباليتة — مش زي `hashColor` اللي بيحسب كل اسم لوحده وممكن يصادف نفس
+ * الخانة لاسم تاني (اتنين فئة بلون واحد في نفس الرسم البياني).
+ *
+ * الحل: كل عنصر بياخد خانة الهاش بتاعته لو فاضية، ولو مشغولة بيدوّر للخانة
+ * اللي بعدها (probing خطي بيلف على الباليتة). عشان النتيجة تفضل ثابتة مهما
+ * كان ترتيب العرض في الشاشة (فلتر تقرير مختلف، ترتيب مختلف من فايربيز)،
+ * الحل بيرتب العناصر بمعرّفها (`id`) قبل ما يوزّع الألوان — الـid مش بيتغيّر
+ * زي الاسم (المستخدم بيقدر يغيّر اسم الفئة/المحفظة) ولا زي ترتيب العرض.
+ *
+ * لو العناصر أكتر من حجم الباليتة، التكرار بقى حتمي رياضيًا (pigeonhole) —
+ * مفيش خوارزمية توزيع تقدر تمنعه من غير ما تكبّر الباليتة نفسها، فالعناصر
+ * الزيادة بتاخد خانة الهاش المباشرة من غير probing.
+ */
+export function assignChartColors<T extends { id: string; name: string }>(
+  items: T[],
+  palette: string[],
+): Map<string, string> {
+  const sorted = [...items].sort((a, b) => a.id.localeCompare(b.id));
+  const used = new Set<number>();
+  const result = new Map<string, string>();
+
+  for (const item of sorted) {
+    let idx = hashIndex(item.name, palette.length);
+    if (used.size < palette.length) {
+      let attempts = 0;
+      while (used.has(idx) && attempts < palette.length) {
+        idx = (idx + 1) % palette.length;
+        attempts++;
+      }
+    }
+    used.add(idx);
+    result.set(item.id, palette[idx]);
+  }
+  return result;
 }
 
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {

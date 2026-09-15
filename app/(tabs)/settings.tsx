@@ -5,7 +5,7 @@ import { useNotifications } from '@/context/NotificationsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { hashColor } from '@/lib/finance';
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { selectionStyle } from '@/lib/selection';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -33,6 +33,7 @@ export default function SettingsScreen() {
     addWallet, updateWallet, deleteWallet,
     addCategory, updateCategory, deleteCategory,
   } = useData();
+  const { walletColors, categoryColors } = useChartColors();
   const [newWallet, setNewWallet] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
@@ -252,7 +253,7 @@ export default function SettingsScreen() {
         {wallets.map(w => (
           <View key={w.id} style={styles.walletCard}>
             <View style={styles.walletHead}>
-              <View style={[styles.dot, { backgroundColor: hashColor(w.name, colors.chartPalette) }]} />
+              <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
               <TextInput
                 style={styles.nameInput}
                 value={walletNameValue(w.id, w.name)}
@@ -312,7 +313,7 @@ export default function SettingsScreen() {
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
         {categories.map(c => (
           <View key={c.id} style={styles.catRow}>
-            <View style={[styles.dot, { backgroundColor: hashColor(c.name, colors.chartPalette) }]} />
+            <View style={[styles.dot, { backgroundColor: categoryColors.get(c.id) }]} />
             <TextInput
               style={styles.nameInput}
               value={catNameValue(c.id, c.name)}

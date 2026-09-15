@@ -3,7 +3,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, hashColor, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { useChartColors } from '@/hooks/use-chart-colors';
+import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -18,6 +19,7 @@ export default function HomeScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user } = useAuth();
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
+  const { walletColors } = useChartColors();
   const [showBalance, setShowBalance] = useState(true);
 
   const balances = useMemo(() => {
@@ -90,7 +92,7 @@ export default function HomeScreen() {
           <View style={styles.walletsRow}>
             {wallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
-                <View style={[styles.dot, { backgroundColor: hashColor(w.name, colors.chartPalette) }]} />
+                <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>
                 <Text style={styles.walletChipVal}>
                   {showBalance ? fmt(balances.get(w.id) || 0) : '••••'}
