@@ -73,7 +73,7 @@
 - `constants/theme.ts` — ثوابت ثيم من قالب Expo الافتراضي (مش المصدر الأساسي للألوان — المصدر الحقيقي `ThemeContext`)
 
 ### `firebaseConfig.js`
-إعداد Firebase (apiKey, projectId, إلخ) وتصدير `auth` و`db`. **قواعد أمان Firestore بتتحقق من شكل البيانات وبتتدار من كونسول Firebase مباشرة (مش موجودة كملف في الريبو)** — فأي حقل جديد بتضيفه لأي نوع بيانات (Transaction, Debt, Subscription, Gamiya...) لازم تتأكد إنه مسموح بيه في الـ rules، وإلا الكتابة هترجع `permission-denied`.
+إعداد Firebase (apiKey, projectId, إلخ) وتصدير `auth` و`db`. **قواعد أمان Firestore بتتحقق من شكل البيانات، وموجودة في `firestore.rules` بجذر الريبو** (اتضافت 2026-09-07 — قبل كده كانت متدارة من كونسول Firebase بس ومش موجودة كملف) — فأي حقل جديد بتضيفه لأي نوع بيانات (Transaction, Debt, Subscription, Gamiya...) لازم تتأكد إنه مسموح بيه هناك، وإلا الكتابة هترجع `permission-denied`. اختبارات `context/__tests__/*.emulator.test.tsx` (شوف `npm run test:db`) بتشغّل نفس الملف ده على محاكي Firestore الحقيقي.
 
 ## المميزات الأساسية
 

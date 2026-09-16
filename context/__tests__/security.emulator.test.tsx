@@ -100,4 +100,31 @@ describe('التحقق من شكل البيانات وقت الكتابة', () =
       })
     ).resolves.toBeDefined();
   });
+
+  /**
+   * دين بالاتجاه العكسي لنفس الشخص (زرار "سجّل فلوس ليا عنده"/"سجّل فلوس
+   * ليه عندي" في كارت الدين، و"دين جديد" في كشف الحساب) بيبعت شخص بنفس
+   * personContactId ودايركشن مختلف عن دين موجود. القاعدة مش بتفرّق أصلاً
+   * بين المستندات (مفيش تحقق cross-document على personName/personContactId)،
+   * بس ده افتراض ضمني — الاختبار ده بيتأكد منه صراحة عشان محدش يضيف قيد
+   * زي "دين واحد بس لكل شخص" من غير ما يلاحظ إنه بيكسر الميزة دي.
+   */
+  it('دين بالاتجاه العكسي لنفس الشخص (نفس personContactId) بيتقبل عادي', async () => {
+    const uid = await signInTestUser();
+    const base = {
+      personName: 'أحمد', personContactId: 'contact-1', totalAmount: 100, date: '2026-03-10',
+      isInstallment: false, payments: [], increases: [], createdAt: new Date().toISOString(),
+    };
+    await expect(
+      addDoc(collection(db, 'users', uid, 'debts'), { ...base, direction: 'owed_to_me' })
+    ).resolves.toBeDefined();
+    await expect(
+      addDoc(collection(db, 'users', uid, 'debts'), { ...base, direction: 'i_owe', totalAmount: 50 })
+    ).resolves.toBeDefined();
+
+    const snap = await getDocs(collection(db, 'users', uid, 'debts'));
+    const directions = snap.docs.map(d => d.data().direction).sort();
+    expect(directions).toEqual(['i_owe', 'owed_to_me']);
+    expect(snap.docs.every(d => d.data().personContactId === 'contact-1')).toBe(true);
+  });
 });
