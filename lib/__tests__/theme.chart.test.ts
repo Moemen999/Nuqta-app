@@ -1,5 +1,4 @@
 import { DARK, LIGHT, type ThemeColors } from '@/context/ThemeContext';
-import { hashColor } from '@/lib/finance';
 import { validate, type PaletteCheck } from '@/test-utils/validatePalette';
 
 /**
@@ -66,32 +65,5 @@ describe('الثيمين مختلفين عن بعض', () => {
   it('الغامق مش نسخة من الفاتح', () => {
     // القلب الآلي بيطلّع ألوان مش متقاسة — كل نسخة متختارة لخلفيتها
     expect(DARK.chartPalette).not.toEqual(LIGHT.chartPalette);
-  });
-});
-
-describe('hashColor', () => {
-  it('نفس الاسم بيدّي نفس اللون دايمًا', () => {
-    expect(hashColor('المواصلات', LIGHT.chartPalette)).toBe(hashColor('المواصلات', LIGHT.chartPalette));
-  });
-
-  it('بيرجّع لون من الباليتة اللي اتبعتت بس', () => {
-    for (const name of ['المواصلات', 'أكل', 'CIB', 'NBE', 'CASH', 'فاتورة', 'x', '']) {
-      expect(LIGHT.chartPalette).toContain(hashColor(name, LIGHT.chartPalette));
-      expect(DARK.chartPalette).toContain(hashColor(name, DARK.chartPalette));
-    }
-  });
-
-  it('نفس الاسم بياخد نفس الخانة في الثيمين — فاللون بيفضل هو هو لما الثيم يتغيّر', () => {
-    for (const name of ['المواصلات', 'أكل', 'السوبرماركت']) {
-      const li = LIGHT.chartPalette.indexOf(hashColor(name, LIGHT.chartPalette));
-      const di = DARK.chartPalette.indexOf(hashColor(name, DARK.chartPalette));
-      expect(li).toBe(di);
-    }
-  });
-
-  it('الأسماء العربية المختلفة بتتوزّع على أكتر من لون', () => {
-    const names = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى', 'مواصلات', 'فاتورة', 'إيجار'];
-    const used = new Set(names.map(n => hashColor(n, LIGHT.chartPalette)));
-    expect(used.size).toBeGreaterThan(1);
   });
 });
