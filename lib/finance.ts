@@ -331,6 +331,62 @@ export function parseBudgetInput(raw: string): number | null {
   return num;
 }
 
+/**
+ * بيقرا رقم فلوس من خانة محفظة (الرصيد الابتدائي أو حد التنبيه).
+ * `null` معناها "الكلام ده مش رقم — متكتبش، ورجّع المحفوظ".
+ *
+ * الفرق عن `parseBudgetInput`: **السالب مسموح**. محفظة كارت ائتمان رصيدها
+ * سالب فعلاً، ورفضه كان هيمنع استخدام حقيقي.
+ *
+ * الفاضي بيرجّع صفر عن قصد — ده الطريقة الطبيعية لمسح الخانة، وده كمان
+ * قاعدة المنتج (خانة فاضية = صفر).
+ *
+ * الأهم إن `null` هنا **مش** صفر. الكود القديم كان `Number(x) || 0`، وده
+ * كان بيحوّل "أي حاجة مش رقم" لصفر: "abc" تبقى صفر، و`undefined` (يعني
+ * المستخدم مادخلش الخانة أصلاً) تبقى صفر كمان — فمجرد ما يلمس الخانة
+ * ويطلع منها كان رصيد المحفظة كله بيروح. التفريق ده هو كل الحكاية.
+ */
+export function parseWalletAmountInput(raw: string): number | null {
+  const num = Number(String(raw ?? '').trim());
+  if (!isFinite(num)) return null;
+  return num;
+}
+
+export type WalletAmountPlan =
+  /** مفيش حاجة تتعمل: مفيش مسوّدة أصلاً، أو الرقم زي المحفوظ بالظبط */
+  | { action: 'none' }
+  /** كلام مش رقم — الخانة ترجع لآخر قيمة محفوظة ومفيش كتابة */
+  | { action: 'reject' }
+  /** اكتب على طول */
+  | { action: 'write'; value: number }
+  /** اسأل المستخدم الأول — **ومفيش أي كتابة قبل ما يرد** */
+  | { action: 'confirm'; value: number };
+
+/**
+ * بيقرر الخانة تعمل إيه لما المستخدم يخرج منها.
+ *
+ * منفصلة عن الواجهة عشان تتختبر من غير ما نشغّل ديالوج ولا نعمل render.
+ *
+ * `draft === undefined` معناها المستخدم مادخلش الخانة ولا كتب فيها حاجة —
+ * ودي لازم تبقى "متعملش حاجة" مش "اكتب صفر". دي كانت باگ فلوس حقيقي:
+ * تدوس على خانة الرصيد وتطلع منها من غير ما تكتب، والرصيد يتصفّر.
+ *
+ * والتأكيد بيطلع **بس** لما الرقم يعدّي من موجب (أو صفر) لسالب. من سالب
+ * لسالب مفيش سؤال: المستخدم عارف أصلاً إن المحفظة دي بالسالب، والسؤال في
+ * كل تعديل بيبقى إزعاج مش حماية.
+ */
+export function planWalletAmountCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  if (draft === undefined) return { action: 'none' };
+
+  const value = parseWalletAmountInput(draft);
+  if (value === null) return { action: 'reject' };
+
+  const current = isFinite(stored) ? stored : 0;
+  if (value === current) return { action: 'none' };
+  if (value < 0 && current >= 0) return { action: 'confirm', value };
+  return { action: 'write', value };
+}
+
 export function debtPaidLabel(d: Debt) {
   const excess = debtExcess(d);
   if (excess > 0) return `اتسدد بالكامل · زيادة ${fmt(excess)} ج.م`;

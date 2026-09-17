@@ -7,6 +7,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { selectionStyle } from '@/lib/selection';
+import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
@@ -37,9 +38,19 @@ export default function SettingsScreen() {
   const [newWallet, setNewWallet] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
-  const [openingDrafts, setOpeningDrafts] = useState<Record<string, string>>({});
-  const [alertDrafts, setAlertDrafts] = useState<Record<string, string>>({});
   const [lockModalMode, setLockModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
+
+  // خانتين الأرقام في المحفظة. كل منطق الحفظ (متكتبش من غير تغيير، ارفض
+  // الكلام اللي مش رقم، اسأل قبل السالب، احفظ لوحدك قبل ما الشاشة تتشال)
+  // في `useAmountDrafts` — الشاشة بتوصّل بس القراية والكتابة.
+  const opening = useAmountDrafts(
+    id => wallets.find(w => w.id === id)?.openingBalance ?? 0,
+    (id, value) => updateWallet(id, { openingBalance: value }),
+  );
+  const lowAlert = useAmountDrafts(
+    id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
+    (id, value) => updateWallet(id, { lowAlert: value }),
+  );
   const { busy: addingWallet, run: runAddWallet } = useBusy();
   const { busy: addingCategory, run: runAddCategory } = useBusy();
   const { busyKey: deletingKey, run: runDelete } = useBusyKey();
@@ -91,19 +102,39 @@ export default function SettingsScreen() {
     ]);
   }
 
+  function clearNameDraft(key: string) {
+    setNameDrafts(d => {
+      if (d[key] === undefined) return d;
+      const next = { ...d };
+      delete next[key];
+      return next;
+    });
+  }
+
+  /**
+   * نفس قاعدة خانات الأرقام: الخروج من الخانة مبيكتبش لو مفيش تغيير. الاسم
+   * الفاضي مترفوض (قواعد Firestore بترفضه أصلاً) والخانة بترجع للمحفوظ.
+   */
+  function saveEditedName(key: string, current: string, write: (name: string) => void) {
+    const val = nameDrafts[key];
+    if (val === undefined) return;
+    const name = val.trim();
+    if (!name || name === current) { clearNameDraft(key); return; }
+    clearNameDraft(key);
+    write(name);
+  }
+
   function walletNameValue(id: string, current: string) {
     return nameDrafts[`w_${id}`] !== undefined ? nameDrafts[`w_${id}`] : current;
   }
-  function saveWalletName(id: string) {
-    const val = nameDrafts[`w_${id}`];
-    if (val !== undefined && val.trim()) updateWallet(id, { name: val.trim() });
+  function saveWalletName(id: string, current: string) {
+    saveEditedName(`w_${id}`, current, name => updateWallet(id, { name }));
   }
   function catNameValue(id: string, current: string) {
     return nameDrafts[`c_${id}`] !== undefined ? nameDrafts[`c_${id}`] : current;
   }
-  function saveCatName(id: string) {
-    const val = nameDrafts[`c_${id}`];
-    if (val !== undefined && val.trim()) updateCategory(id, { name: val.trim() });
+  function saveCatName(id: string, current: string) {
+    saveEditedName(`c_${id}`, current, name => updateCategory(id, { name }));
   }
 
   return (
@@ -258,7 +289,7 @@ export default function SettingsScreen() {
                 style={styles.nameInput}
                 value={walletNameValue(w.id, w.name)}
                 onChangeText={v => setNameDrafts(d => ({ ...d, [`w_${w.id}`]: v }))}
-                onBlur={() => saveWalletName(w.id)}
+                onBlur={() => saveWalletName(w.id, w.name)}
                 textAlign="right"
               />
               <TouchableOpacity onPress={() => confirmDeleteWallet(w.id, w.name)} disabled={deletingKey === `w_${w.id}`}>
@@ -271,9 +302,9 @@ export default function SettingsScreen() {
                 <TextInput
                   style={styles.smallInput}
                   keyboardType="numeric"
-                  value={openingDrafts[w.id] !== undefined ? openingDrafts[w.id] : String(w.openingBalance || '')}
-                  onChangeText={v => setOpeningDrafts(d => ({ ...d, [w.id]: v }))}
-                  onBlur={() => updateWallet(w.id, { openingBalance: Number(openingDrafts[w.id]) || 0 })}
+                  value={opening.valueFor(w.id, w.openingBalance)}
+                  onChangeText={v => opening.onChange(w.id, v)}
+                  onBlur={() => opening.onBlur(w.id)}
                   textAlign="right"
                 />
               </View>
@@ -282,9 +313,9 @@ export default function SettingsScreen() {
                 <TextInput
                   style={styles.smallInput}
                   keyboardType="numeric"
-                  value={alertDrafts[w.id] !== undefined ? alertDrafts[w.id] : String(w.lowAlert || '')}
-                  onChangeText={v => setAlertDrafts(d => ({ ...d, [w.id]: v }))}
-                  onBlur={() => updateWallet(w.id, { lowAlert: Number(alertDrafts[w.id]) || 0 })}
+                  value={lowAlert.valueFor(w.id, w.lowAlert)}
+                  onChangeText={v => lowAlert.onChange(w.id, v)}
+                  onBlur={() => lowAlert.onBlur(w.id)}
                   textAlign="right"
                 />
               </View>
@@ -318,7 +349,7 @@ export default function SettingsScreen() {
               style={styles.nameInput}
               value={catNameValue(c.id, c.name)}
               onChangeText={v => setNameDrafts(d => ({ ...d, [`c_${c.id}`]: v }))}
-              onBlur={() => saveCatName(c.id)}
+              onBlur={() => saveCatName(c.id, c.name)}
               textAlign="right"
             />
             <TouchableOpacity onPress={() => confirmDeleteCategory(c.id, c.name)} disabled={deletingKey === `c_${c.id}`}>
