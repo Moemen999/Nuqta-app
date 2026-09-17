@@ -187,6 +187,14 @@ export function gamiyasPhrase(n: number) {
   return countPhrase(n, 'جمعية واحدة', 'جمعيتين', 'جمعيات', 'جمعية');
 }
 
+export function walletsPhrase(n: number) {
+  return countPhrase(n, 'محفظة واحدة', 'محفظتين', 'محافظ', 'محفظة');
+}
+
+export function categoriesPhrase(n: number) {
+  return countPhrase(n, 'فئة واحدة', 'فئتين', 'فئات', 'فئة');
+}
+
 /** بيوصّل الأجزاء الموجودة بس بـ"و" */
 export function joinParts(parts: string[]) {
   return parts.filter(Boolean).join(' و');

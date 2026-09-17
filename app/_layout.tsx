@@ -63,6 +63,17 @@ function RootNavigator() {
           <Stack.Screen name="person-ledger" options={{ headerShown: false }} />
           <Stack.Screen name="archive" options={{ headerShown: false }} />
           <Stack.Screen name="user-guide" options={{ headerShown: false }} />
+          {/*
+            الشاشات الداخلية للإعدادات في فولدر `settings-screens` مش `settings`:
+            تاب الإعدادات نفسه مساره `/settings` (من `app/(tabs)/settings.tsx` بعد
+            ما المجموعة تتشال)، وفولدر اسمه `settings` كان هيحط عقدة تانية على
+            نفس المقطع في جذر الـStack. مكناش نقدر نتأكد من سلوك ده من غير ما
+            نشغّل التطبيق، والاسم المختلف بيقفل الاحتمال من أصله.
+          */}
+          <Stack.Screen name="settings-screens/wallets" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-screens/categories" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-screens/notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-screens/about" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
