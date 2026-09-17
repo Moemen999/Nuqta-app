@@ -9,7 +9,10 @@ const TOTAL_KEY = 'total_budget';
 export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, budgets, setBudget } = useData();
+  const { categories: allCategories, transactions, budgets, setBudget } = useData();
+  // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
+  // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
+  const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const nowMonth = currentMonth();
 

@@ -1,6 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectableOptions } from '@/lib/archiving';
 import { daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
@@ -142,7 +143,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   const [totalMonths, setTotalMonths] = useState('12');
   const [payoutMonthIndex, setPayoutMonthIndex] = useState('1');
   const [payoutAmount, setPayoutAmount] = useState('');
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
+  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [startDate, setStartDate] = useState(todayStr());
   const [reminderDays, setReminderDays] = useState('3');
   const [showPicker, setShowPicker] = useState(false);
@@ -207,10 +208,10 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
-            {wallets.map(w => (
+            {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -333,10 +334,10 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
-            {wallets.map(w => (
+            {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>

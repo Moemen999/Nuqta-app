@@ -2,7 +2,8 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import { addDays, addMonths, debtGrandTotal, debtPaid } from '@/lib/finance';
 import {
-  collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc, waitForPendingWrites,
+  collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
+  waitForPendingWrites, writeBatch,
   type DocumentReference, type Transaction as FirestoreTransaction,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -193,9 +194,13 @@ type DataContextType = {
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
+  archiveWallet: (id: string, reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string> }) => Promise<void>;
+  restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
+  archiveCategory: (id: string, reassign: Record<string, string>) => Promise<void>;
+  restoreCategory: (id: string) => Promise<void>;
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
@@ -462,6 +467,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
   }
+
+  /**
+   * الأرشفة والنقل في دفعة واحدة (`writeBatch`) عن قصد: فايرستور بتطبّق
+   * الدفعة كلها أو مفيش. لو أرشفنا المحفظة الأول وبعدين النقل فشل، كان
+   * هيبقى عندنا اشتراك شغّال مربوط بمحفظة مؤرشفة — يعني تسديد بيترفض كل
+   * شهر والمستخدم مش عارف ليه.
+   *
+   * ومفيش `await` على `commit()` زي كل الكتابات: الدفعة بتتطبّق محليًا على
+   * طول والـsnapshot بيرد فورًا، فالشاشة تتقفل من غير انتظار السيرفر.
+   * الذرية بتفضل مضمونة من فايرستور نفسها لما الدفعة توصل.
+   *
+   * العمليات القديمة ودفعات الماضي **مش بتتلمس خالص** — هي بتحمل المحفظة
+   * اللي خرجت منها فعلاً، وتغييرها كان هيبقى إعادة كتابة للتاريخ.
+   */
+  async function archiveWallet(
+    id: string,
+    reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string> },
+  ) {
+    if (!uid) return;
+    const batch = writeBatch(db);
+    Object.entries(reassign.subscriptions || {}).forEach(([subId, walletId]) => {
+      batch.update(doc(db, 'users', uid, 'subscriptions', subId), { walletId });
+    });
+    Object.entries(reassign.gamiyas || {}).forEach(([gamiyaId, walletId]) => {
+      batch.update(doc(db, 'users', uid, 'gamiyas', gamiyaId), { walletId });
+    });
+    batch.update(doc(db, 'users', uid, 'wallets', id), {
+      archived: true, archivedAt: new Date().toISOString(),
+    });
+    track(batch.commit());
+  }
+
+  async function restoreWallet(id: string) {
+    if (!uid) return;
+    // بنشيل الحقلين خالص بدل `archived: false` — المحفظة ترجع لنفس شكل
+    // المحافظ اللي ما اتأرشفتش أصلاً، فمفيش حالتين لنفس المعنى
+    track(updateDoc(doc(db, 'users', uid, 'wallets', id), {
+      archived: deleteField(), archivedAt: deleteField(),
+    }));
+  }
   async function addCategory(name: string) {
     if (!uid) return;
     addDocNoWait('categories', { name });
@@ -470,9 +515,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     track(updateDoc(doc(db, 'users', uid, 'categories', id), data));
   }
+  /**
+   * الميزانية بتتمسح مع الفئة. مستند الميزانية مفتاحه هو معرّف الفئة، فلو
+   * سبناه بيفضل سقف يتيم في فايرستور بيدخل في حسبة "المتبقي للتوزيع" من
+   * غير أي صف يفسّره — المستخدم بيشوف فلوس موزّعة على فئة مش موجودة.
+   */
   async function deleteCategory(id: string) {
     if (!uid) return;
-    track(deleteDoc(doc(db, 'users', uid, 'categories', id)));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users', uid, 'categories', id));
+    if (budgets[id] != null) batch.delete(doc(db, 'users', uid, 'budgets', id));
+    track(batch.commit());
+  }
+
+  /** نفس منطق `archiveWallet` — والميزانية بتتمسح هنا كمان لنفس السبب */
+  async function archiveCategory(id: string, reassign: Record<string, string>) {
+    if (!uid) return;
+    const batch = writeBatch(db);
+    Object.entries(reassign).forEach(([subId, categoryId]) => {
+      batch.update(doc(db, 'users', uid, 'subscriptions', subId), { categoryId });
+    });
+    if (budgets[id] != null) batch.delete(doc(db, 'users', uid, 'budgets', id));
+    batch.update(doc(db, 'users', uid, 'categories', id), {
+      archived: true, archivedAt: new Date().toISOString(),
+    });
+    track(batch.commit());
+  }
+
+  async function restoreCategory(id: string) {
+    if (!uid) return;
+    track(updateDoc(doc(db, 'users', uid, 'categories', id), {
+      archived: deleteField(), archivedAt: deleteField(),
+    }));
   }
   async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
     if (!uid) return '';
@@ -929,8 +1003,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, pendingWrites, pendingTxIds, serverReachable,
-        addWallet, updateWallet, deleteWallet,
-        addCategory, updateCategory, deleteCategory,
+        addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
+        addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,

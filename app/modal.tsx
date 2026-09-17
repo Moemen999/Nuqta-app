@@ -2,7 +2,8 @@ import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, projectBalances, todayStr } from '@/lib/finance';
+import { selectableOptions } from '@/lib/archiving';
+import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -48,9 +49,13 @@ export default function AddTransactionModal() {
       setDate(existing.date);
       setLoaded(true);
     } else if (!id && walletId === undefined && wallets.length > 0) {
-      setWalletId(wallets[0]?.id);
-      setToWalletId(wallets[1]?.id ?? wallets[0]?.id);
-      setCategoryId(categories[0]?.id);
+      // عملية جديدة مبتبدأش على محفظة أو فئة مؤرشفة — دي اتأرشفت عشان
+      // تختفي من الاختيارات، وتيجي مختارة افتراضيًا بيلغي معنى الأرشفة
+      const active = wallets.filter(w => !w.archived);
+      const activeCats = categories.filter(c => !c.archived);
+      setWalletId(active[0]?.id);
+      setToWalletId(active[1]?.id ?? active[0]?.id);
+      setCategoryId(activeCats[0]?.id);
     }
   }, [existing, wallets, categories]);
 
@@ -136,10 +141,10 @@ export default function AddTransactionModal() {
 
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
-        {wallets.map(w => (
+        {selectableOptions(wallets, walletId).map(w => (
           <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
             style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-            <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+            <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -148,10 +153,10 @@ export default function AddTransactionModal() {
         <>
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
-            {wallets.filter(w => w.id !== walletId).map(w => (
+            {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setToWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, toWalletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -162,7 +167,7 @@ export default function AddTransactionModal() {
         <>
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
-            {categories.map(c => (
+            {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>

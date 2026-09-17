@@ -15,7 +15,9 @@ const BUCKET_META = [
 export default function ShakhbataView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
+  const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
+  // المؤرشفة مش بتتوزّع على الدلاء — هي مش جزء من خطة الشهر الجاي
+  const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
 
   const { busy: savingPercents, run: runSavePercents } = useBusy();
 

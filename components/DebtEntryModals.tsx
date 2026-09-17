@@ -6,6 +6,7 @@ import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectableOptions } from '@/lib/archiving';
 import { categoryLabel, debtRemaining, fmt, overpayCheck, projectBalances, todayStr, type DebtPrefill } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -31,7 +32,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const remaining = debtRemaining(debt);
 
   const [amount, setAmount] = useState(String(remaining > 0 ? remaining : ''));
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
+  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
@@ -95,7 +96,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
           <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'المحفظة اللي هتستلم فيها' : 'المحفظة اللي هتدفع منها'}</Text>
           <View style={styles.chipRow}>
-            {wallets.map(w => (
+            {selectableOptions(wallets).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
@@ -107,7 +108,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
             <>
               <Text style={styles.label}>الفئة (اختياري)</Text>
               <View style={styles.chipRow}>
-                {categories.map(c => (
+                {selectableOptions(categories).map(c => (
                   <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
@@ -150,7 +151,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   const [amount, setAmount] = useState('');
   const [linkedToWallet, setLinkedToWallet] = useState(true);
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
+  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
@@ -206,7 +207,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
             <>
               <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
-                {wallets.map(w => (
+                {selectableOptions(wallets).map(w => (
                   <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
@@ -265,7 +266,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const [installmentCount, setInstallmentCount] = useState('');
   const [note, setNote] = useState('');
   const [linkedToWallet, setLinkedToWallet] = useState(true);
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
+  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
@@ -357,7 +358,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
             <>
               <Text style={styles.label}>{direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
-                {wallets.map(w => (
+                {selectableOptions(wallets).map(w => (
                   <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>

@@ -22,15 +22,21 @@ export default function HomeScreen() {
   const { walletColors } = useChartColors();
   const [showBalance, setShowBalance] = useState(true);
 
+  // المؤرشفة بتختفي من الرئيسية بالكامل: الشرايح والإجمالي والتنبيهات.
+  // شرط الأرشفة إن رصيدها صفر، فشيلها من الإجمالي مبيغيّرش رقم — والتنبيه
+  // على محفظة المستخدم أرشفها خلاص هو بالظبط الإزعاج اللي أرشفها عشانه.
+  const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
+  const activeCategories = useMemo(() => categories.filter(c => !c.archived), [categories]);
+
   const balances = useMemo(() => {
     const map = new Map<string, number>();
-    wallets.forEach(w => map.set(w.id, walletBalance(transactions, w.id, w.openingBalance)));
+    activeWallets.forEach(w => map.set(w.id, walletBalance(transactions, w.id, w.openingBalance)));
     return map;
-  }, [wallets, transactions]);
+  }, [activeWallets, transactions]);
 
   const totalBalance = useMemo(
-    () => wallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0),
-    [wallets, balances]
+    () => activeWallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0),
+    [activeWallets, balances]
   );
 
   // فايربيز في الموبايل بتشتغل بكاش في الذاكرة بس، فلو فتحت التطبيق من غير نت
@@ -47,8 +53,8 @@ export default function HomeScreen() {
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
-  const lowWallets = wallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
-  const budgetAlerts = categories
+  const lowWallets = activeWallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
+  const budgetAlerts = activeCategories
     .filter(c => budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth), limit: budgets[c.id] }))
     .filter(b => b.spend / b.limit >= 0.8);
@@ -90,7 +96,7 @@ export default function HomeScreen() {
             {showBalance ? fmt(totalBalance) : '••••'} <Text style={styles.currency}>ج.م</Text>
           </Text>
           <View style={styles.walletsRow}>
-            {wallets.map(w => (
+            {activeWallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
                 <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>

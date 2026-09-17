@@ -1,3 +1,4 @@
+import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import SetLockModal from '@/components/SetLockModal';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
@@ -6,6 +7,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
+import {
+  categoryArchiveBlock, categoryDeleteConsequences, categoryHasHistory, categoryLinkSummary,
+  categoryReferences, roundedWalletBalance, walletArchiveBlock, walletDeleteConsequences,
+  walletHasHistory, walletLinkSummary, walletReferences, type ArchiveBlock,
+} from '@/lib/archiving';
+import { fmt } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -30,15 +37,23 @@ export default function SettingsScreen() {
   const { enabled: lockEnabled, lockType, frequency, setFrequency, graceMinutes, setGraceMinutes } = useAppLock();
   const notifs = useNotifications();
   const {
-    wallets, categories, pendingWrites,
-    addWallet, updateWallet, deleteWallet,
-    addCategory, updateCategory, deleteCategory,
+    wallets, categories, transactions, debts, subscriptions, gamiyas, budgets, pendingWrites,
+    addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
+    addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
   } = useData();
   const { walletColors, categoryColors } = useChartColors();
   const [newWallet, setNewWallet] = useState('');
   const [newCategory, setNewCategory] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [lockModalMode, setLockModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
+  const [sheet, setSheet] = useState<{
+    kind: 'wallet' | 'category';
+    id: string;
+    name: string;
+    items: ReassignItem[];
+    targets: ReassignTarget[];
+    note?: string;
+  } | null>(null);
 
   // خانتين الأرقام في المحفظة. كل منطق الحفظ (متكتبش من غير تغيير، ارفض
   // الكلام اللي مش رقم، اسأل قبل السالب، احفظ لوحدك قبل ما الشاشة تتشال)
@@ -55,17 +70,204 @@ export default function SettingsScreen() {
   const { busy: addingCategory, run: runAddCategory } = useBusy();
   const { busyKey: deletingKey, run: runDelete } = useBusyKey();
 
+  const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
+  const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
+  const activeCategories = useMemo(() => categories.filter(c => !c.archived), [categories]);
+  const archivedCategories = useMemo(() => categories.filter(c => c.archived), [categories]);
+
+  function walletRefsFor(id: string) {
+    return walletReferences(id, { transactions, debts, subscriptions, gamiyas });
+  }
+  function categoryRefsFor(id: string) {
+    return categoryReferences(id, { transactions, subscriptions, debts, budgets });
+  }
+
+  /** رسالة المانع — نفس الكلام للمحفظة والفئة بصياغة كل واحدة */
+  function showArchiveBlock(block: ArchiveBlock, name: string, isWallet: boolean) {
+    if (block.kind === 'last-active') {
+      Alert.alert(
+        isWallet ? 'دي آخر محفظة شغالة' : 'دي آخر فئة شغالة',
+        isWallet
+          ? 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.'
+          : 'لازم تفضل عندك فئة واحدة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية الأول.',
+        [{ text: 'تمام' }]
+      );
+      return;
+    }
+    if (block.kind === 'balance') {
+      Alert.alert(
+        'رصيدها لسه مش صفر',
+        `رصيد "${name}" ${fmt(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`,
+        [{ text: 'تمام' }]
+      );
+      return;
+    }
+    Alert.alert(
+      isWallet ? 'مفيش محفظة تانية' : 'مفيش فئة تانية',
+      isWallet
+        ? 'الاشتراكات والجمعيات الشغالة محتاجة محفظة تتنقل لها. اعمل محفظة تانية الأول.'
+        : 'الاشتراكات الشغالة محتاجة فئة تتنقل لها. اعمل فئة تانية الأول.',
+      [{ text: 'تمام' }]
+    );
+  }
+
+  /* ───────────────  المحافظ: حذف / أرشفة / رجوع  ─────────────── */
+
   function confirmDeleteWallet(id: string, name: string) {
-    Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟`, [
-      { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => runDelete(`w_${id}`, () => deleteWallet(id)) },
+    const refs = walletRefsFor(id);
+    if (!walletHasHistory(refs)) {
+      Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'حذف', style: 'destructive', onPress: () => runDelete(`w_${id}`, () => deleteWallet(id)) },
+      ]);
+      return;
+    }
+    // ليها تاريخ: الأرشفة هي الطريق الطبيعي، والمسح النهائي فاضل آخر خيار
+    // وبلون التحذير — بس مبيمسحش على طول، بيوري الأرقام الأول
+    Alert.alert(
+      'المحفظة دي ليها تاريخ',
+      `"${name}" مربوط بيها ${walletLinkSummary(refs)}. لو مسحتها التاريخ هيفضل من غير اسم محفظة. تقدر تأرشفها بدل كده — هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'أرشفها', onPress: () => startArchiveWallet(id, name) },
+        { text: 'امسحها برضه', style: 'destructive', onPress: () => confirmHardDeleteWallet(id, name) },
+      ]
+    );
+  }
+
+  /**
+   * التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي. المستخدم بياخد
+   * القرار وهو شايف التمن، مش بعد ما يدفعه.
+   */
+  function confirmHardDeleteWallet(id: string, name: string) {
+    const w = wallets.find(x => x.id === id);
+    if (!w) return;
+    const balance = roundedWalletBalance(transactions, id, w.openingBalance);
+    const lines = walletDeleteConsequences({ balance, refs: walletRefsFor(id) });
+    Alert.alert('مسح نهائي', lines.join('\n'), [
+      { text: 'ارجع', style: 'cancel' },
+      { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(`w_${id}`, () => deleteWallet(id)) },
     ]);
   }
-  function confirmDeleteCategory(id: string, name: string) {
-    Alert.alert('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟`, [
+
+  function startArchiveWallet(id: string, name: string) {
+    const w = wallets.find(x => x.id === id);
+    if (!w) return;
+    const refs = walletRefsFor(id);
+    const others = activeWallets.filter(x => x.id !== id);
+    const block = walletArchiveBlock({
+      walletId: id,
+      balance: roundedWalletBalance(transactions, id, w.openingBalance),
+      refs,
+      activeWalletCount: activeWallets.length,
+      otherActiveWalletCount: others.length,
+    });
+    if (block) { showArchiveBlock(block, name, true); return; }
+
+    const items: ReassignItem[] = [
+      ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
+      ...refs.activeGamiyas.map(x => ({ ...x, kind: 'جمعية' })),
+    ];
+    if (items.length === 0) {
+      Alert.alert('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'أرشفها', onPress: () => archiveWallet(id, {}) },
+      ]);
+      return;
+    }
+    setSheet({
+      kind: 'wallet', id, name, items,
+      targets: others.map(x => ({ id: x.id, name: x.name })),
+    });
+  }
+
+  function confirmRestoreWallet(id: string, name: string) {
+    Alert.alert('رجّع المحفظة', `"${name}" هترجع تظهر في الاختيارات تاني.`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => runDelete(`c_${id}`, () => deleteCategory(id)) },
+      { text: 'رجّعها', onPress: () => restoreWallet(id) },
     ]);
+  }
+
+  /* ───────────────  الفئات: حذف / أرشفة / رجوع  ─────────────── */
+
+  function confirmDeleteCategory(id: string, name: string) {
+    const refs = categoryRefsFor(id);
+    if (!categoryHasHistory(refs)) {
+      const budgetNote = refs.hasBudget ? ' وميزانيتها هتتمسح معاها.' : '';
+      Alert.alert('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية عليها.${budgetNote}`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'حذف', style: 'destructive', onPress: () => runDelete(`c_${id}`, () => deleteCategory(id)) },
+      ]);
+      return;
+    }
+    Alert.alert(
+      'الفئة دي عليها عمليات',
+      `"${name}" عليها ${categoryLinkSummary(refs)}. لو مسحتها العمليات هتفضل من غير فئة. تقدر تأرشفها بدل كده.`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'أرشفها', onPress: () => startArchiveCategory(id, name) },
+        { text: 'امسحها برضه', style: 'destructive', onPress: () => confirmHardDeleteCategory(id, name) },
+      ]
+    );
+  }
+
+  function confirmHardDeleteCategory(id: string, name: string) {
+    const lines = categoryDeleteConsequences(categoryRefsFor(id));
+    Alert.alert('مسح نهائي', lines.join('\n'), [
+      { text: 'ارجع', style: 'cancel' },
+      { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(`c_${id}`, () => deleteCategory(id)) },
+    ]);
+  }
+
+  function startArchiveCategory(id: string, name: string) {
+    const refs = categoryRefsFor(id);
+    const others = activeCategories.filter(x => x.id !== id);
+    const block = categoryArchiveBlock({
+      refs,
+      activeCategoryCount: activeCategories.length,
+      otherActiveCategoryCount: others.length,
+    });
+    if (block) { showArchiveBlock(block, name, false); return; }
+
+    const budgetNote = refs.hasBudget ? ' ونمسح ميزانيتها الشهرية' : '';
+    if (refs.activeSubscriptions.length === 0) {
+      Alert.alert('أرشفة فئة', `هنأرشف "${name}"${budgetNote}. العمليات القديمة هتفضل زي ما هي.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'أرشفها', onPress: () => archiveCategory(id, {}) },
+      ]);
+      return;
+    }
+    setSheet({
+      kind: 'category', id, name,
+      items: refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
+      targets: others.map(x => ({ id: x.id, name: x.name })),
+      note: refs.hasBudget ? 'وهنمسح كمان ميزانيتها الشهرية.' : undefined,
+    });
+  }
+
+  function confirmRestoreCategory(id: string, name: string) {
+    Alert.alert('رجّع الفئة', `"${name}" هترجع من غير ميزانية، تقدر تحددلها ميزانية من جديد.`, [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'رجّعها', onPress: () => restoreCategory(id) },
+    ]);
+  }
+
+  /** بينقل الاشتراكات/الجمعيات ويأرشف في دفعة واحدة ذرية */
+  function confirmSheet(assignments: Record<string, string>) {
+    if (!sheet) return;
+    if (sheet.kind === 'wallet') {
+      const subIds = new Set(sheet.items.filter(i => i.kind === 'اشتراك').map(i => i.id));
+      const subscriptionsMap: Record<string, string> = {};
+      const gamiyasMap: Record<string, string> = {};
+      Object.entries(assignments).forEach(([itemId, target]) => {
+        if (subIds.has(itemId)) subscriptionsMap[itemId] = target;
+        else gamiyasMap[itemId] = target;
+      });
+      archiveWallet(sheet.id, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap });
+    } else {
+      archiveCategory(sheet.id, assignments);
+    }
+    setSheet(null);
   }
   function replayOnboarding() {
     Alert.alert('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
@@ -281,7 +483,7 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionTitle}>المحافظ</Text>
         <Text style={styles.hint}>تقدر تدوس على اسم المحفظة تعدله مباشرة</Text>
-        {wallets.map(w => (
+        {activeWallets.map(w => (
           <View key={w.id} style={styles.walletCard}>
             <View style={styles.walletHead}>
               <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
@@ -340,9 +542,17 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        <ArchivedSection
+          title="المحافظ المؤرشفة"
+          items={archivedWallets}
+          styles={styles}
+          colors={colors}
+          onRestore={confirmRestoreWallet}
+        />
+
         <Text style={styles.sectionTitle}>الفئات</Text>
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
-        {categories.map(c => (
+        {activeCategories.map(c => (
           <View key={c.id} style={styles.catRow}>
             <View style={[styles.dot, { backgroundColor: categoryColors.get(c.id) }]} />
             <TextInput
@@ -375,6 +585,14 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        <ArchivedSection
+          title="الفئات المؤرشفة"
+          items={archivedCategories}
+          styles={styles}
+          colors={colors}
+          onRestore={confirmRestoreCategory}
+        />
+
         <TouchableOpacity style={styles.logoutBtn} onPress={confirmLogout}>
           <Text style={styles.logoutText}>تسجيل الخروج</Text>
         </TouchableOpacity>
@@ -382,8 +600,57 @@ export default function SettingsScreen() {
         {lockModalMode && (
           <SetLockModal visible={!!lockModalMode} mode={lockModalMode} onClose={() => setLockModalMode(null)} />
         )}
+
+        {sheet && (
+          <ArchiveSheet
+            title={sheet.kind === 'wallet' ? 'أرشفة محفظة' : 'أرشفة فئة'}
+            intro={sheet.kind === 'wallet'
+              ? `قبل ما نأرشف "${sheet.name}" لازم الحاجات الشغالة دي تلاقي محفظة تانية.`
+              : `قبل ما نأرشف "${sheet.name}" لازم الاشتراكات الشغالة دي تلاقي فئة تانية.`}
+            items={sheet.items}
+            targets={sheet.targets}
+            targetLabel={sheet.kind === 'wallet' ? 'المحفظة الجديدة' : 'الفئة الجديدة'}
+            note={sheet.note}
+            confirmText="أرشفها"
+            onConfirm={confirmSheet}
+            onClose={() => setSheet(null)}
+          />
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * قسم المؤرشف — مطوي افتراضيًا. المستخدم أرشفها عشان تختفي، فلو فتحناها
+ * على طول كنا رجّعنا نفس الزحمة اللي هرب منها. العنوان بيقول العدد عشان
+ * يعرف إن فيه حاجة هناك أصلاً من غير ما يفتح.
+ */
+function ArchivedSection({ title, items, styles, colors, onRestore }: {
+  title: string;
+  items: { id: string; name: string }[];
+  styles: ReturnType<typeof makeStyles>;
+  colors: ThemeColors;
+  onRestore: (id: string, name: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.archivedWrap}>
+      <TouchableOpacity style={styles.archivedHead} onPress={() => setOpen(o => !o)}>
+        <Text style={styles.archivedTitle}>{title} ({items.length})</Text>
+        <Text style={styles.archivedChevron}>{open ? '▾' : '▸'}</Text>
+      </TouchableOpacity>
+      {open && items.map(item => (
+        <View key={item.id} style={styles.archivedRow}>
+          <Text style={styles.archivedName}>{item.name}</Text>
+          <TouchableOpacity onPress={() => onRestore(item.id, item.name)}>
+            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700' }}>رجّعها</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -422,6 +689,12 @@ function makeStyles(c: ThemeColors) {
     addBtn: { backgroundColor: c.accent, borderRadius: 10, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
     addBtnText: { color: c.onAccent, fontSize: 20, fontWeight: '700' },
     btnBusy: { opacity: 0.6 },
+    archivedWrap: { marginTop: 14, borderWidth: 1, borderColor: c.border, borderRadius: 12, overflow: 'hidden' },
+    archivedHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.surface2, paddingHorizontal: 12, paddingVertical: 11 },
+    archivedTitle: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700', textAlign: 'right' },
+    archivedChevron: { color: c.textMuted, fontSize: 12 },
+    archivedRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
+    archivedName: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
     logoutBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12, marginTop: 30 },
     logoutText: { color: c.danger, fontSize: 14, fontWeight: '600' },
   });

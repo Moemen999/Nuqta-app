@@ -1,6 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectableOptions } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
@@ -112,7 +113,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [walletId, setWalletId] = useState(wallets[0]?.id);
+  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'custom'>('monthly');
   const [customDays, setCustomDays] = useState('30');
@@ -162,17 +163,17 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
-            {wallets.map(w => (
+            {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
-            {categories.map(c => (
+            {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
@@ -324,17 +325,17 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
-            {wallets.map(w => (
+            {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
-            {categories.map(c => (
+            {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>

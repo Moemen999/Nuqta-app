@@ -179,6 +179,14 @@ export function debtsPhrase(n: number) {
   return countPhrase(n, 'دين واحد', 'دينين', 'ديون', 'دين');
 }
 
+export function subscriptionsPhrase(n: number) {
+  return countPhrase(n, 'اشتراك واحد', 'اشتراكين', 'اشتراكات', 'اشتراك');
+}
+
+export function gamiyasPhrase(n: number) {
+  return countPhrase(n, 'جمعية واحدة', 'جمعيتين', 'جمعيات', 'جمعية');
+}
+
 /** بيوصّل الأجزاء الموجودة بس بـ"و" */
 export function joinParts(parts: string[]) {
   return parts.filter(Boolean).join(' و');
@@ -189,6 +197,31 @@ export function walletHistoryPhrase(refs: WalletRefs) {
     refs.transactions > 0 ? transactionsPhrase(refs.transactions) : '',
     refs.debts > 0 ? debtsPhrase(refs.debts) : '',
   ]);
+}
+
+/**
+ * جملة "مربوط بيها ..." في تنبيه الحذف.
+ *
+ * العمليات والديون هما اللي بيهموا المستخدم الأول، فلو فيه منهم بنقولهم
+ * وبس. لو مفيش خالص لكن فيه اشتراك أو جمعية، بنقع عليهم — الجملة لازم
+ * تقول حاجة، مش تسيب فراغ بعد "مربوط بيها".
+ */
+export function walletLinkSummary(refs: WalletRefs) {
+  const history = walletHistoryPhrase(refs);
+  if (history) return history;
+  const subs = refs.activeSubscriptions.length + refs.inactiveSubscriptions;
+  const gams = refs.activeGamiyas.length + refs.inactiveGamiyas;
+  return joinParts([
+    subs > 0 ? subscriptionsPhrase(subs) : '',
+    gams > 0 ? gamiyasPhrase(gams) : '',
+  ]);
+}
+
+export function categoryLinkSummary(refs: CategoryRefs) {
+  const txs = refs.transactions + refs.debtPayments;
+  if (txs > 0) return transactionsPhrase(txs);
+  const subs = refs.activeSubscriptions.length + refs.inactiveSubscriptions;
+  return subs > 0 ? subscriptionsPhrase(subs) : '';
 }
 
 export function namesList(items: NamedRef[]) {
@@ -235,4 +268,19 @@ export function categoryDeleteConsequences(refs: CategoryRefs): string[] {
     lines.push('ميزانيتها الشهرية هتتمسح.');
   }
   return lines;
+}
+
+/**
+ * الاختيارات اللي تظهر في قايمة (محفظة أو فئة) وقت إنشاء أو تعديل سجل.
+ *
+ * المؤرشف بيختفي من الاختيارات — ده كل معنى الأرشفة. بس `selectedId` بيفضل
+ * ظاهر لو كان مختار خلاص: المستخدم بيعدّل اشتراك قديم مربوط بمحفظة اتأرشفت،
+ * ولو شيلناها من القايمة كان هيلاقي المودال فاتح من غير أي اختيار — يعني
+ * تعديل الاسم بس كان هيغيّر المحفظة من تحته من غير ما ينتبه.
+ */
+export function selectableOptions<T extends { id: string; archived?: boolean }>(
+  items: T[],
+  selectedId?: string,
+): T[] {
+  return items.filter(i => !i.archived || i.id === selectedId);
 }
