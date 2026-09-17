@@ -41,7 +41,11 @@ service cloud.firestore {
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.walletId is string
-          && request.resource.data.date is string;
+          && request.resource.data.date is string
+          // تحويل التسوية: بيرجّع رصيد محفظة مؤرشفة لصفر. الحقلين اختياريين
+          // زي حقول الأرشفة — كل العمليات الموجودة من قبل مالهاش الحقلين دول
+          && (!('isSettlement' in request.resource.data) || request.resource.data.isSettlement is bool)
+          && (!('archivedWalletId' in request.resource.data) || request.resource.data.archivedWalletId is string);
       }
 
       match /budgets/{budgetId} {

@@ -284,3 +284,68 @@ export function selectableOptions<T extends { id: string; archived?: boolean }>(
 ): T[] {
   return items.filter(i => !i.archived || i.id === selectedId);
 }
+
+/* ───────────────  تسوية رصيد المحفظة المؤرشفة  ─────────────── */
+
+/**
+ * المحفظة المؤرشفة رصيدها صفر بشرط الأرشفة — بس تعديل أو حذف عملية قديمة
+ * عليها بيحرّك الرصيد ده، وهي مخفية من الإجمالي. يعني فلوس بتتحرك في السكوت:
+ * تعدّل مصروف قديم من 500 لـ400 على محفظة مؤرشفة، فـ100 جنيه "بتظهر" في
+ * محفظة محدش شايفها، والإجمالي بتاعك ما اتغيرش.
+ *
+ * القاعدة: رصيد المحفظة المؤرشفة لازم يفضل صفر دايمًا. الفرق بيروح لمحفظة
+ * شغالة المستخدم بيختارها — فالفلوس بتفضل في مكان هو شايفه.
+ */
+
+type TxLike = { type: string; amount: number; walletId: string; toWalletId?: string };
+
+/**
+ * أثر عملية واحدة على رصيد محفظة معيّنة. نفس قواعد `walletBalance` بالظبط —
+ * لو اتغيّرت هناك لازم تتغيّر هنا، وإلا التسوية هتحسب رقم غير اللي المستخدم
+ * شايفه.
+ */
+export function walletContribution(t: TxLike | undefined, walletId: string): number {
+  if (!t) return 0;
+  if (t.type === 'income') return t.walletId === walletId ? t.amount : 0;
+  if (t.type === 'withdraw') {
+    let r = 0;
+    if (t.walletId === walletId) r -= t.amount;
+    if (t.toWalletId === walletId) r += t.amount;
+    return r;
+  }
+  return t.walletId === walletId ? -t.amount : 0;
+}
+
+/** تغيير مقترح على عملية: `after` غايبة = حذف، `before` غايبة = إضافة */
+export type TxChange = { before?: TxLike; after?: TxLike };
+
+export type ArchivedDelta = { walletId: string; name: string; delta: number };
+
+/**
+ * الفرق اللي التغييرات دي هتعمله في رصيد كل محفظة مؤرشفة.
+ *
+ * موجب = المحفظة المؤرشفة هتزيد، فالزيادة لازم تخرج منها لمحفظة شغالة.
+ * سالب = هتنقص، فالنقص لازم يتغطى من محفظة شغالة.
+ *
+ * بيتحسب من الداتا المحمّلة، ومقرّب لخانتين عشان مقارنة الصفر متتكسرش من
+ * جمع كسور.
+ */
+export function archivedWalletDeltas(
+  changes: TxChange[],
+  archivedWallets: { id: string; name: string }[],
+): ArchivedDelta[] {
+  return archivedWallets
+    .map(w => {
+      const raw = changes.reduce(
+        (s, c) => s + walletContribution(c.after, w.id) - walletContribution(c.before, w.id),
+        0
+      );
+      return { walletId: w.id, name: w.name, delta: Math.round(raw * 100) / 100 };
+    })
+    .filter(d => Math.abs(d.delta) >= BALANCE_EPS);
+}
+
+/** ملاحظة عملية التسوية في التاريخ */
+export function settlementNote(archivedWalletName: string) {
+  return `تسوية رصيد ${archivedWalletName} (مؤرشفة)`;
+}

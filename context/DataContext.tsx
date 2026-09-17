@@ -1,10 +1,11 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
-import { addDays, addMonths, debtGrandTotal, debtPaid } from '@/lib/finance';
+import { settlementNote } from '@/lib/archiving';
+import { addDays, addMonths, debtGrandTotal, debtPaid, todayStr } from '@/lib/finance';
 import {
   collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
   waitForPendingWrites, writeBatch,
-  type DocumentReference, type Transaction as FirestoreTransaction,
+  type DocumentReference, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
@@ -33,6 +34,22 @@ export type Transaction = {
   note?: string;
   date: string;
   createdAt?: string;
+  /**
+   * تحويل تسوية: بيرجّع رصيد محفظة مؤرشفة لصفر بعد تعديل أو حذف عملية قديمة
+   * عليها. عملية سحب عادية في كل حاجة تانية — بتظهر في التاريخ، وبتتحسب في
+   * الأرصدة، ومش داخلة في أي إجمالي مصروف أو إيراد (التحويلات كلها كده).
+   */
+  isSettlement?: boolean;
+  archivedWalletId?: string;
+};
+
+/** تسوية واحدة: الفرق ده يروح/ييجي من المحفظة الشغالة دي */
+export type Settlement = {
+  archivedWalletId: string;
+  archivedWalletName: string;
+  targetWalletId: string;
+  /** موجب = المؤرشفة هتزيد فالزيادة تخرج منها. سالب = العكس */
+  delta: number;
 };
 /**
  * نتيجة العمليات اللي **بتقرا من السيرفر** (تسديد اشتراك/شهر جمعية). دي العمليات
@@ -202,8 +219,8 @@ type DataContextType = {
   archiveCategory: (id: string, reassign: Record<string, string>) => Promise<void>;
   restoreCategory: (id: string) => Promise<void>;
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
-  updateTransaction: (id: string, tx: Partial<Transaction>) => Promise<void>;
-  deleteTransaction: (id: string) => Promise<void>;
+  updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
+  deleteTransaction: (id: string, settlements?: Settlement[]) => Promise<void>;
   transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
   setMonthlyIncome: (month: string, income: number) => Promise<void>;
@@ -555,10 +572,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
     return addDocNoWait('transactions', clean);
   }
-  async function updateTransaction(id: string, tx: Partial<Transaction>) {
+  async function updateTransaction(id: string, tx: Partial<Transaction>, settlements: Settlement[] = []) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
-    track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean));
+    if (settlements.length === 0) {
+      track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean));
+      return;
+    }
+    // التعديل والتسوية مع بعض أو مفيش — تعديل من غير تسويته معناه فلوس اتحركت
+    // في محفظة مخفية والإجمالي ما اتغيرش
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'users', uid, 'transactions', id), clean);
+    stageSettlements(batch, settlements);
+    track(batch.commit());
   }
   // حذف العملية من غير أي تنسيق — بتستخدمها بس المسارات اللي بتمسح السجل الأصلي
   // بنفسها (حذف دين/اشتراك/جمعية)، عشان منلفش في دايرة حذف
@@ -575,32 +601,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
    *   (مفيهوش غير القيد ده)، ولو فيه بيفضل موجود بس بيبقى "بالأجل" عشان منمسحش
    *   حركات حقيقية المستخدم سجّلها بنفسه في أيام تانية
    */
-  async function reconcileLinkedRecords(txId: string) {
+  /**
+   * بتحط تعديل السجل المرتبط في **نفس** الدفعة بتاعة حذف العملية.
+   *
+   * قبل كده كانت كتابات منفصلة: العملية تتمسح، وبعدين تحديث الدين/الاشتراك
+   * يتبعت لوحده. لو التاني فشل كان بيفضل عندنا دين مربوط بعملية مش موجودة —
+   * وده بالظبط اللي الدالة دي موجودة تمنعه. الدفعة الواحدة بتضمن الاتنين
+   * مع بعض أو مفيش.
+   */
+  function stageReconcile(batch: WriteBatch, txId: string) {
     if (!uid) return;
 
     for (const d of debts) {
       if (d.initialTransactionId === txId) {
         const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
         if (hasHistory) {
-          track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+          batch.update(doc(db, 'users', uid, 'debts', d.id), {
             initialTransactionId: deleteField(),
             initialWalletId: deleteField(),
-          }));
+          });
         } else {
-          track(deleteDoc(doc(db, 'users', uid, 'debts', d.id)));
+          batch.delete(doc(db, 'users', uid, 'debts', d.id));
         }
         return;
       }
       if ((d.payments || []).some(p => p.transactionId === txId)) {
-        track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+        batch.update(doc(db, 'users', uid, 'debts', d.id), {
           payments: d.payments.filter(p => p.transactionId !== txId),
-        }));
+        });
         return;
       }
       if ((d.increases || []).some(e => e.transactionId === txId)) {
-        track(updateDoc(doc(db, 'users', uid, 'debts', d.id), {
+        batch.update(doc(db, 'users', uid, 'debts', d.id), {
           increases: (d.increases || []).filter(e => e.transactionId !== txId),
-        }));
+        });
         return;
       }
     }
@@ -615,10 +649,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const rolledBack = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, -1)
         : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, -12)
         : addDays(sub.nextDueDate, -(sub.customDays || 30));
-      track(updateDoc(doc(db, 'users', uid, 'subscriptions', sub.id), {
+      batch.update(doc(db, 'users', uid, 'subscriptions', sub.id), {
         history: history.filter(h => h.transactionId !== txId),
         ...(isLast ? { nextDueDate: rolledBack } : {}),
-      }));
+      });
       return;
     }
 
@@ -629,15 +663,52 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const { transactionId, ...rest } = m;
         return { ...rest, status: 'pending' as const };
       });
-      track(updateDoc(doc(db, 'users', uid, 'gamiyas', g.id), { months }));
+      batch.update(doc(db, 'users', uid, 'gamiyas', g.id), { months });
       return;
     }
   }
 
-  async function deleteTransaction(id: string) {
+  /**
+   * بتحط تحويلات التسوية في الدفعة: المحفظة المؤرشفة بترجع صفر، والفرق بيروح
+   * (أو ييجي من) المحفظة الشغالة اللي المستخدم اختارها.
+   *
+   * التحويل عملية سحب عادية، وده مقصود: السحب مش داخل في أي إجمالي مصروف ولا
+   * إيراد في التطبيق كله (اتفحص: التقارير بفترتيها، الميزانيات، مصروف الشهر
+   * في الرئيسية، شخبطة، وإجماليات الأرشيف — كلهم بيفلتروا على النوع صراحةً).
+   * يعني التسوية بتصحّح الأرصدة من غير ما تلوّث ولا تقرير.
+   */
+  function stageSettlements(batch: WriteBatch, settlements: Settlement[]) {
     if (!uid) return;
-    await deleteTransactionDoc(id);
-    await reconcileLinkedRecords(id);
+    settlements.forEach(st => {
+      const amount = Math.abs(st.delta);
+      if (amount === 0) return;
+      const ref = doc(collection(db, 'users', uid, 'transactions'));
+      batch.set(ref, {
+        type: 'withdraw',
+        amount,
+        // موجب = المؤرشفة زادت، فالزيادة تخرج منها للمحفظة الشغالة
+        walletId: st.delta > 0 ? st.archivedWalletId : st.targetWalletId,
+        toWalletId: st.delta > 0 ? st.targetWalletId : st.archivedWalletId,
+        date: todayStr(),
+        note: settlementNote(st.archivedWalletName),
+        isSettlement: true,
+        archivedWalletId: st.archivedWalletId,
+        createdAt: new Date().toISOString(),
+      });
+    });
+  }
+
+  /**
+   * الحذف + تعديل السجل المرتبط + تسوية المحافظ المؤرشفة، كلهم في دفعة واحدة.
+   * لو أي حتة فشلت، مفيش أي حاجة اتكتبت.
+   */
+  async function deleteTransaction(id: string, settlements: Settlement[] = []) {
+    if (!uid) return;
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users', uid, 'transactions', id));
+    stageReconcile(batch, id);
+    stageSettlements(batch, settlements);
+    track(batch.commit());
   }
 
   // بتقول للمستخدم قبل التأكيد إيه اللي هيحصل للسجل المرتبط بالعملية دي

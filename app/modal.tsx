@@ -1,8 +1,9 @@
 import AmountPreview from '@/components/AmountPreview';
+import { useArchivedSettlement } from '@/components/ArchivedSettlement';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions } from '@/lib/archiving';
+import { selectableOptions, type TxChange } from '@/lib/archiving';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { stickyFooterStyle } from '@/lib/tokens';
@@ -37,6 +38,9 @@ export default function AddTransactionModal() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // رصيد المحفظة المؤرشفة لازم يفضل صفر. لو التعديل أو الحذف هيحرّكه، الشيت
+  // بتسأل الفرق يروح فين — ولو مفيش محفظة مؤرشفة متأثرة بتعدّي من غير ما تبان
+  const settle = useArchivedSettlement();
 
   useEffect(() => {
     if (existing && !loaded) {
@@ -84,11 +88,18 @@ export default function AddTransactionModal() {
         ...(isEdit ? {} : { createdAt: new Date().toISOString() }),
       };
       if (isEdit && existing) {
-        await updateTransaction(existing.id, payload);
+        const changes: TxChange[] = [{
+          before: existing,
+          after: { type, amount: amt, walletId, toWalletId: type === 'withdraw' ? toWalletId : undefined },
+        }];
+        settle.request(changes, settlements => {
+          updateTransaction(existing.id, payload, settlements);
+          router.back();
+        });
       } else {
         await addTransaction(payload);
+        router.back();
       }
-      router.back();
     } catch {
       setError('حصل خطأ، جرب تاني');
     } finally {
@@ -108,8 +119,10 @@ export default function AddTransactionModal() {
           if (busy) return;
           setBusy(true);
           try {
-            await deleteTransaction(existing.id);
-            router.back();
+            settle.request([{ before: existing }], settlements => {
+              deleteTransaction(existing.id, settlements);
+              router.back();
+            });
           } catch {
             setError('حصل خطأ، جرب تاني');
           } finally {
@@ -209,6 +222,8 @@ export default function AddTransactionModal() {
         <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
       </TouchableOpacity>
     </View>
+
+    {settle.sheet}
     </KeyboardAvoidingView>
   );
 }
