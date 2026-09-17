@@ -1,4 +1,5 @@
 import type { Transaction } from '@/context/DataContext';
+import { settleBody } from '@/components/ArchivedSettlement';
 import { archivedWalletDeltas, settlementNote, walletContribution } from '@/lib/archiving';
 import { walletBalance } from '@/lib/finance';
 
@@ -213,5 +214,31 @@ describe('الرصيد بيرجع صفر بعد التسوية', () => {
 describe('settlementNote', () => {
   it('بتقول اسم المحفظة وإنها مؤرشفة', () => {
     expect(settlementNote('توفير')).toBe('تسوية رصيد توفير (مؤرشفة)');
+  });
+});
+
+describe('نص شيت التسوية — الاتجاه بالكلام مش بعلامة', () => {
+  it('الزيادة: فعل "يزوّد" ورقم مطلق، والسؤال عن الوجهة', () => {
+    expect(settleBody('توفير', 100))
+      .toBe('التعديل ده هيزوّد رصيد "توفير" المؤرشفة 100 ج.م. الفرق يروح لأنهي محفظة؟');
+  });
+
+  it('النقص: فعل "ينقّص" ورقم مطلق، والسؤال عن المصدر', () => {
+    expect(settleBody('توفير', -100))
+      .toBe('التعديل ده هينقّص رصيد "توفير" المؤرشفة 100 ج.م. الفرق هيتاخد من أنهي محفظة؟');
+  });
+
+  it('مفيش علامة سالب في النص خالص — دي اللي بتتقري غلط في الفلوس', () => {
+    expect(settleBody('توفير', -2500)).not.toContain('-');
+    expect(settleBody('توفير', -2500)).not.toContain('−');
+  });
+
+  it('الرقم مطلق في الاتجاهين', () => {
+    expect(settleBody('كاش', 2500)).toContain('2,500 ج.م');
+    expect(settleBody('كاش', -2500)).toContain('2,500 ج.م');
+  });
+
+  it('اسم المحفظة بيظهر بين علامتين تنصيص', () => {
+    expect(settleBody('بنك مصر', 50)).toContain('"بنك مصر"');
   });
 });

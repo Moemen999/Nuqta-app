@@ -1,4 +1,5 @@
 import { APP_VERSION } from '@/lib/appInfo';
+import { lettersPhrase } from '@/lib/archiving';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
@@ -29,6 +30,11 @@ export function feedbackTextValid(raw: string) {
 /** العداد بيعدّ المكتوب زي ما هو — المستخدم بيشوف اللي كتبه مش اللي هيتبعت */
 export function feedbackRemaining(raw: string) {
   return FEEDBACK_MAX_LENGTH - raw.length;
+}
+
+/** "فاضل حرف واحد" مش "فاضل 1 حرف" — نفس قاعدة باقي الأعداد في التطبيق */
+export function feedbackRemainingLabel(raw: string) {
+  return `فاضل ${lettersPhrase(feedbackRemaining(raw))}`;
 }
 
 /** لما الجهاز مش راضي يقول موديله — بنقول كده صريح مش بنسيب الخانة فاضية */

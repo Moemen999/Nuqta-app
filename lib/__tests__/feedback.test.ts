@@ -1,7 +1,8 @@
 import * as Device from 'expo-device';
 import {
   FEEDBACK_MAX_LENGTH, FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL, UNKNOWN_DEVICE,
-  buildFeedbackDoc, deviceInfo, feedbackRemaining, feedbackTextValid, formatDeviceModel,
+  buildFeedbackDoc, deviceInfo, feedbackRemaining, feedbackRemainingLabel, feedbackTextValid,
+  formatDeviceModel,
 } from '@/lib/feedback';
 
 /** expo-device بيقرا من الناتيف، وفي jest القيم بتبقى null — فبنزرعها بنفسنا */
@@ -144,5 +145,22 @@ describe('أنواع الرأي', () => {
   it('تلات أنواع، كل واحد ليه اسم عربي', () => {
     expect(FEEDBACK_TYPES).toEqual(['bug', 'idea', 'praise']);
     expect(FEEDBACK_TYPES.map(t => FEEDBACK_TYPE_LABEL[t])).toEqual(['مشكلة', 'اقتراح', 'رأي']);
+  });
+});
+
+describe('عداد الحروف بصيغة عربية', () => {
+  it('بيتصرّف مع العدد', () => {
+    expect(feedbackRemainingLabel('ا'.repeat(999))).toBe('فاضل حرف واحد');
+    expect(feedbackRemainingLabel('ا'.repeat(998))).toBe('فاضل حرفين');
+    expect(feedbackRemainingLabel('ا'.repeat(995))).toBe('فاضل 5 حروف');
+    expect(feedbackRemainingLabel('ا'.repeat(989))).toBe('فاضل 11 حرف');
+  });
+
+  it('الخانة الفاضية: الحد كله', () => {
+    expect(feedbackRemainingLabel('')).toBe('فاضل 1000 حرف');
+  });
+
+  it('عند الحد الأقصى: صفر', () => {
+    expect(feedbackRemainingLabel('ا'.repeat(1000))).toBe('فاضل 0 حروف');
   });
 });

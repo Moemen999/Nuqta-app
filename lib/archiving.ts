@@ -195,6 +195,10 @@ export function categoriesPhrase(n: number) {
   return countPhrase(n, 'فئة واحدة', 'فئتين', 'فئات', 'فئة');
 }
 
+export function lettersPhrase(n: number) {
+  return countPhrase(n, 'حرف واحد', 'حرفين', 'حروف', 'حرف');
+}
+
 /** بيوصّل الأجزاء الموجودة بس بـ"و" */
 export function joinParts(parts: string[]) {
   return parts.filter(Boolean).join(' و');

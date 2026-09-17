@@ -8,8 +8,19 @@ import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
+
+/**
+ * الجملة بتقول الاتجاه بالكلام مش بعلامة على الرقم.
+ *
+ * "هيغيّر الرصيد بـ -100" بتطلب من المستخدم إنه يترجم علامة السالب بنفسه،
+ * وده بالظبط النوع اللي بيتقري غلط في الفلوس. "هينقّص ... 100" مفيهاش
+ * ترجمة: الفعل بيقول الاتجاه، والرقم بيبقى مطلق دايمًا.
+ */
 export function settleBody(name: string, delta: number) {
-  return `التعديل ده هيغيّر رصيد "${name}" المؤرشفة بـ ${fmt(delta)} ج.م. الفرق يروح لأنهي محفظة؟`;
+  const amount = fmt(Math.abs(delta));
+  return delta > 0
+    ? `التعديل ده هيزوّد رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق يروح لأنهي محفظة؟`
+    : `التعديل ده هينقّص رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق هيتاخد من أنهي محفظة؟`;
 }
 
 /**

@@ -3,7 +3,8 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import {
   FEEDBACK_FAILED, FEEDBACK_MAX_LENGTH, FEEDBACK_PENDING, FEEDBACK_PRIVACY_NOTE, FEEDBACK_SENT,
-  FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL, feedbackRemaining, feedbackTextValid, type FeedbackType,
+  FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL, feedbackRemaining, feedbackRemainingLabel,
+  feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
 import { selectionStyle } from '@/lib/selection';
 import { stickyFooterStyle } from '@/lib/tokens';
@@ -91,7 +92,7 @@ export default function FeedbackScreen() {
           textAlign="right"
         />
         <Text style={[styles.counter, remaining === 0 && { color: colors.danger }]}>
-          فاضل {remaining} حرف
+          {feedbackRemainingLabel(text)}
         </Text>
 
         <Text style={styles.note}>{FEEDBACK_PRIVACY_NOTE}</Text>
