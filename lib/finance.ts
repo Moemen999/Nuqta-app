@@ -145,6 +145,73 @@ export function assignChartColors<T extends { id: string; name: string }>(
 
 export type PieSlice = { id: string; name: string; amount: number; color: string };
 
+/** معرّف شريحة الفئات الممسوحة — ثابت زي شريحة التجميع */
+export const DELETED_SLICE_ID = '__deleted__';
+export const DELETED_SLICE_NAME = 'فئات ممسوحة';
+
+type SpendRow = { categoryId?: string; amount: number };
+
+/**
+ * مصروف كل فئة في الفترة.
+ *
+ * الحتة المهمة: المصروف اللي فئته اتمسحت **مبيتشالش**. قبل كده الرسم كان
+ * بيلف على الفئات الموجودة بس، فالفلوس اللي فئتها اتمسحت كانت بتختفي من
+ * الرسم ومن "مصروفات الفترة" — يعني المستخدم يشوف رقم أقل من اللي صرفه
+ * فعلاً، من غير أي سطر يقول ليه. دلوقتي بتتلمّ في شريحة "فئات ممسوحة"
+ * واحدة، فمجموع الشرايح = مصروفات الفترة = إجمالي الشهر.
+ *
+ * `visibleIds` بتيجي من فلتر الفئات في الشاشة. لما يبقى فيه فلتر، المستخدم
+ * اختار فئات بعينها فالشريحة الممسوحة مالهاش لازمة (مفيش شريحة ليها أصلاً
+ * يختارها) — والرقم اللي جنبها بيتحسب بنفس القيد، فالاتنين بيفضلوا متطابقين.
+ */
+export function buildCategorySpend(
+  expenses: SpendRow[],
+  categories: { id: string; name: string; icon?: string; archived?: boolean }[],
+  opts: { colorFor: (id: string) => string; deletedColor: string; visibleIds?: string[] },
+): PieSlice[] {
+  const { colorFor, deletedColor, visibleIds } = opts;
+  const allowed = visibleIds ? new Set(visibleIds) : null;
+
+  const known = new Map(categories.map(c => [c.id, c]));
+  const totals = new Map<string, number>();
+  let deleted = 0;
+
+  for (const row of expenses) {
+    const id = row.categoryId;
+    if (id && known.has(id)) {
+      if (allowed && !allowed.has(id)) continue;
+      totals.set(id, (totals.get(id) || 0) + row.amount);
+      continue;
+    }
+    // فئة ممسوحة (أو عملية من غير فئة خالص) — بتتلمّ مع بعض
+    if (!allowed) deleted += row.amount;
+  }
+
+  const slices: PieSlice[] = [];
+  for (const c of categories) {
+    const amount = totals.get(c.id) || 0;
+    if (amount > 0) slices.push({ id: c.id, name: categoryLabel(c), amount, color: colorFor(c.id) });
+  }
+  if (deleted > 0) {
+    slices.push({ id: DELETED_SLICE_ID, name: DELETED_SLICE_NAME, amount: deleted, color: deletedColor });
+  }
+  return slices;
+}
+
+/**
+ * إجمالي المصروف في فترة، بنفس قيد الفلتر بتاع `buildCategorySpend`.
+ *
+ * موجودة عشان المقارنة بالفترة السابقة تتحسب بنفس القاعدة بالظبط. قبل كده
+ * كانت بتفلتر على `categories.map(c => c.id)` حتى وإحنا مش فالتين حاجة،
+ * فكانت بتشيل المصروف اللي فئته اتمسحت من الفترة السابقة بس — ومقارنة بين
+ * فترتين محسوبين بقاعدتين مختلفتين بتدي نسبة غلط.
+ */
+export function periodExpenseTotal(expenses: SpendRow[], visibleIds?: string[]): number {
+  if (!visibleIds) return expenses.reduce((s, r) => s + r.amount, 0);
+  const allowed = new Set(visibleIds);
+  return expenses.reduce((s, r) => (r.categoryId && allowed.has(r.categoryId) ? s + r.amount : s), 0);
+}
+
 /**
  * الرسم بياني معقول لغاية 7 شرايح — أكتر من كده والدائرة بتتقطّع لشرايح صغيرة
  * مالهاش لون واضح يتفرّق عن جاره.
@@ -190,17 +257,23 @@ export function buildPieSlices(
   groupedColor: string,
   topN: number = PIE_TOP_N,
 ): PieSlice[] {
-  const sorted = [...byCategory].sort((a, b) => b.amount - a.amount);
-  if (sorted.length <= topN) return sorted;
+  // شريحة "فئات ممسوحة" بتفضل لوحدها دايمًا ومبتدخلش في التجميع. لو اتلمّت
+  // جوه "فئات تانية (N)" كان المستخدم هيبص على رقم مالوش تفسير خالص: لا هو
+  // فئة يعرفها، ولا هو مكتوب إن فيه فلوس فئتها اتمسحت. وبتتحط آخر حاجة عشان
+  // تفضل في نفس المكان مهما اتغيّرت المصاريف.
+  const deleted = byCategory.filter(c => c.id === DELETED_SLICE_ID);
+  const sorted = byCategory.filter(c => c.id !== DELETED_SLICE_ID).sort((a, b) => b.amount - a.amount);
+  if (sorted.length <= topN) return [...sorted, ...deleted];
 
   const top = sorted.slice(0, topN);
   const rest = sorted.slice(topN);
+  const taken = [...top, ...deleted].map(c => c.name);
   return [...top, {
     id: GROUPED_SLICE_ID,
-    name: groupedSliceName(rest.length, top.map(c => c.name)),
+    name: groupedSliceName(rest.length, taken),
     amount: rest.reduce((s, c) => s + c.amount, 0),
     color: groupedColor,
-  }];
+  }, ...deleted];
 }
 
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
@@ -496,6 +569,37 @@ export function formatTime(iso?: string) {
   return `${hours}:${mm} ${period}`;
 }
 
+export const DELETED_WALLET_LABEL = 'محفظة ممسوحة';
+export const DELETED_CATEGORY_LABEL = 'فئة ممسوحة';
+export const ARCHIVED_SUFFIX = 'مؤرشفة';
+
+export type NamedRecord = { id: string; name: string; archived?: boolean };
+
+/**
+ * اسم محفظة من معرّفها — للتاريخ، مش للاختيار.
+ *
+ * كل الشاشات كانت بتعمل `wallets.find(...)?.name || ''`، يعني المحفظة اللي
+ * اتمسحت بتسيب **خانة فاضية** في مكان الاسم. المستخدم بيبص على عملية بـ800
+ * جنيه من غير أي محفظة ومش عارف دي إيه — والأسوأ في السحب: "من  إلى "
+ * بالحرف. اسم صريح أحسن من فراغ: على الأقل بيقول إيه اللي حصل.
+ *
+ * والمؤرشفة اسمها بيفضل زي ما هو مع "(مؤرشفة)" — هي مش ممسوحة، بس المستخدم
+ * لازم يعرف ليه مش لاقيها في قايمة الاختيار.
+ */
+export function historyName(items: NamedRecord[], id: string | undefined, deletedLabel: string): string {
+  const found = items.find(w => w.id === id);
+  if (!found) return deletedLabel;
+  return found.archived ? `${found.name} (${ARCHIVED_SUFFIX})` : found.name;
+}
+
+export function walletHistoryName(wallets: NamedRecord[], id?: string) {
+  return historyName(wallets, id, DELETED_WALLET_LABEL);
+}
+
+export function categoryHistoryName(categories: NamedRecord[], id?: string) {
+  return historyName(categories, id, DELETED_CATEGORY_LABEL);
+}
+
 /**
  * وصف المحفظة (أو المحفظتين) بتاع العملية. عمليات السحب كانت بتتكتب بسهم بين
  * الاسمين، والسهم مع اتجاه النص العربي كان بيظهر بالعكس فمحدش يعرف الفلوس راحت
@@ -503,17 +607,31 @@ export function formatTime(iso?: string) {
  */
 export function transactionWalletLabel(
   t: { type: string; walletId: string; toWalletId?: string },
-  wallets: { id: string; name: string }[],
+  wallets: NamedRecord[],
 ) {
-  const from = wallets.find(w => w.id === t.walletId)?.name || '';
+  const from = walletHistoryName(wallets, t.walletId);
   if (t.type !== 'withdraw') return from;
-  const to = wallets.find(w => w.id === t.toWalletId)?.name || '';
-  return `من ${from} إلى ${to}`;
+  return `من ${from} إلى ${walletHistoryName(wallets, t.toWalletId)}`;
 }
 
-export function categoryLabel(c?: { name: string; icon?: string }) {
+export function categoryLabel(c?: { name: string; icon?: string; archived?: boolean }) {
   if (!c) return '';
-  return c.icon ? `${c.icon} ${c.name}` : c.name;
+  const name = c.archived ? `${c.name} (${ARCHIVED_SUFFIX})` : c.name;
+  return c.icon ? `${c.icon} ${name}` : name;
+}
+
+/**
+ * زي `categoryLabel` بس بتبدأ من المعرّف، فبتغطي حالة الفئة الممسوحة كمان.
+ * بترجّع `''` لو مفيش معرّف أصلاً (عملية من غير فئة مش نفس العملية اللي
+ * فئتها اتمسحت — الأولى عادية والتانية ناقصة معلومة).
+ */
+export function categoryLabelById(
+  categories: { id: string; name: string; icon?: string; archived?: boolean }[],
+  id?: string,
+) {
+  if (!id) return '';
+  const found = categories.find(c => c.id === id);
+  return found ? categoryLabel(found) : DELETED_CATEGORY_LABEL;
 }
 
 export const CATEGORY_ICONS = [

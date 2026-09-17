@@ -9,7 +9,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
-import { categoryLabel, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, reverseDebtPrefill } from '@/lib/finance';
+import { categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, reverseDebtPrefill, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -183,15 +183,17 @@ function DebtsContent() {
           <View style={styles.expandedArea}>
             <View style={styles.paymentsList}>
               {timeline.map((t, i) => {
-                const w = 'walletId' in t && t.walletId ? wallets.find(x => x.id === t.walletId) : undefined;
-                const c = 'categoryId' in t && t.categoryId ? categories.find(x => x.id === t.categoryId) : undefined;
+                // المحفظة/الفئة الممسوحة بتطلع باسم صريح بدل ما الشريحة تختفي
+                // خالص — الدفعة خرجت من مكان ما، وإخفاء المكان بيخلي السطر ناقص
+                const wLabel = 'walletId' in t && t.walletId ? walletHistoryName(wallets, t.walletId) : '';
+                const cLabel = 'categoryId' in t && t.categoryId ? categoryLabelById(categories, t.categoryId) : '';
                 const label = t.kind === 'initial' ? 'المبلغ الأساسي' : t.kind === 'increase' ? 'زيادة' : 'دفعة';
                 const sign = t.kind === 'payment' ? '−' : '+';
                 const lineColor = t.kind === 'payment' ? colors.success : colors.textSecondary;
                 return (
                   <View key={i} style={styles.paymentRow}>
                     <Text style={[styles.paymentText, { color: lineColor }]}>
-                      {label} {sign}{fmt(t.amount)} ج.م{w ? ' · ' + w.name : ''}{c ? ' · ' + categoryLabel(c) : ''}
+                      {label} {sign}{fmt(t.amount)} ج.م{wLabel ? ' · ' + wLabel : ''}{cLabel ? ' · ' + cLabel : ''}
                     </Text>
                     <Text style={styles.paymentDate}>{t.date}</Text>
                   </View>

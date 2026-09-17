@@ -1,7 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, daysUntil, fmt, todayStr } from '@/lib/finance';
+import { categoryLabel, categoryLabelById, daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -60,8 +60,8 @@ export default function SubscriptionsView() {
 
       {active.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات مسجلة</Text>}
       {active.map(s => {
-        const wallet = wallets.find(w => w.id === s.walletId);
-        const cat = s.categoryId ? categories.find(c => c.id === s.categoryId) : undefined;
+        const walletLabel = walletHistoryName(wallets, s.walletId);
+        const catLabel = categoryLabelById(categories, s.categoryId);
         const days = daysUntil(s.nextDueDate);
         const soon = days <= s.reminderDaysBefore;
         return (
@@ -71,7 +71,7 @@ export default function SubscriptionsView() {
               <Text style={styles.amount}>{fmt(s.amount)} ج.م</Text>
             </View>
             <Text style={styles.sub}>
-              {wallet?.name || ''}{cat ? ' · ' + categoryLabel(cat) : ''} · {FREQ_LABEL[s.frequency]}
+              {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {FREQ_LABEL[s.frequency]}
             </Text>
             <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
               {days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${s.nextDueDate})`}

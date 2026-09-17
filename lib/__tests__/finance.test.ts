@@ -1,7 +1,7 @@
 import type { Debt, Transaction } from '@/context/DataContext';
 import {
-  addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid, endOfMonth, fmt,
-  formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
+  DELETED_WALLET_LABEL, addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid,
+  endOfMonth, fmt, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
 } from '@/lib/finance';
 
 // مصنع عمليات مختصر — بنحدد اللي يهم الاختبار بس
@@ -418,9 +418,13 @@ describe('transactionWalletLabel — وصف محافظ العملية', () => {
       .toBe('من CIB إلى CASH');
   });
 
-  it('محفظة اتمسحت بترجع نص فاضي مكانها من غير كراش', () => {
-    expect(transactionWalletLabel({ type: 'expense', walletId: 'محذوفة' }, wallets)).toBe('');
+  // الاختبار ده كان بيثبّت النص الفاضي كسلوك مقصود. النص الفاضي مش سلوك —
+  // هو غياب سلوك: المستخدم بيبص على عملية بفلوس من غير أي محفظة، والسحب كان
+  // بيطلع "من  إلى " بالحرف. الاسم الصريح على الأقل بيقول إيه اللي حصل.
+  it('محفظة اتمسحت بيبان مكانها اسم صريح مش فراغ', () => {
+    expect(transactionWalletLabel({ type: 'expense', walletId: 'محذوفة' }, wallets))
+      .toBe(DELETED_WALLET_LABEL);
     expect(transactionWalletLabel({ type: 'withdraw', walletId: 'w1', toWalletId: 'محذوفة' }, wallets))
-      .toBe('من CASH إلى ');
+      .toBe(`من CASH إلى ${DELETED_WALLET_LABEL}`);
   });
 });

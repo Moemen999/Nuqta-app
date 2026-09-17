@@ -3,12 +3,25 @@ import { db } from '@/firebaseConfig';
 import { addDays, addMonths, debtGrandTotal, debtPaid } from '@/lib/finance';
 import {
   collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc, waitForPendingWrites,
+  type DocumentReference, type Transaction as FirestoreTransaction,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
 
-export type Wallet = { id: string; name: string; openingBalance: number; lowAlert: number };
-export type Category = { id: string; name: string; bucket?: 'needs' | 'wants' | 'future' | ''; icon?: string };
+/**
+ * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
+ * مالهاش الحقلين دول خالص، وقواعد Firestore بتتحقق من المستند بعد الدمج —
+ * فلو خليناهم إجباريين كل محفظة قديمة كانت هتبقى غير قابلة للتعديل.
+ * `archivedAt` نص ISO زي `createdAt` في كل حتة تانية في التطبيق.
+ */
+export type Wallet = {
+  id: string; name: string; openingBalance: number; lowAlert: number;
+  archived?: boolean; archivedAt?: string;
+};
+export type Category = {
+  id: string; name: string; bucket?: 'needs' | 'wants' | 'future' | ''; icon?: string;
+  archived?: boolean; archivedAt?: string;
+};
 export type Transaction = {
   id: string;
   type: 'expense' | 'income' | 'withdraw';
@@ -31,7 +44,28 @@ export type Transaction = {
  * القرار المقصود هنا: نستنى فايربيز توصل لإجابة (أقصاها ~10 ثواني، مقيسة) بدل ما
  * نفك الزرار بدري بكلام مطاطي. في فلوس، الغموض أغلى من الاستنى.
  */
-export type PayOutcome = 'done' | 'no-connection' | 'failed';
+/**
+ * بتتترمي من جوه العملية الذرية عشان تلغيها كلها لما المحفظة مابقتش صالحة.
+ * الرمي هو الطريقة الوحيدة لإلغاء `runTransaction` — والنتيجة إن مفيش أي
+ * كتابة بتحصل، لا العملية ولا تحديث السجل.
+ */
+class WalletMissingError extends Error {}
+
+/**
+ * هل المحفظة دي لسه تنفع نخصم منها؟
+ *
+ * بتتقري من **جوه** العملية الذرية مش من حالة الرياكت: الاشتراك ممكن يكون
+ * مربوط بمحفظة اتمسحت أو اتأرشفت من جهاز تاني، والنسخة اللي عندنا لسه ما
+ * عرفتش. تمن الفحص قراية واحدة زيادة لكل تسديد، ومقابلها إننا مننشئش عملية
+ * مربوطة بمحفظة مش موجودة — عملية زي دي بتختفي من كل رصيد ومحدش بيلاحظها.
+ */
+async function walletUsable(t: FirestoreTransaction, walletRef: DocumentReference) {
+  const snap = await t.get(walletRef);
+  if (!snap.exists()) return false;
+  return (snap.data() as any)?.archived !== true;
+}
+
+export type PayOutcome = 'done' | 'no-connection' | 'failed' | 'wallet-missing';
 
 /** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
 export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
@@ -42,6 +76,10 @@ export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: str
   failed: {
     title: 'ما اتسجلش',
     body: 'العملية ما تمّتش ومفيش أي خصم اتسجل. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'wallet-missing': {
+    title: 'محتاج محفظة تانية',
+    body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل واختار محفظة شغالة وجرب تاني.',
   },
 };
 
@@ -755,6 +793,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
         if (alreadyPaid) return;
 
+        // المحفظة بتتقري من جوه العملية الذرية عشان الإجابة تبقى عن الحالة
+        // اللي هتتكتب عليها فعلاً، مش عن نسخة في ذاكرة الرياكت ممكن تكون
+        // قديمة. كل القرايات لازم تسبق كل الكتابات في العملية الذرية.
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', sub.walletId)))) throw new WalletMissingError();
+
         const txData = {
           type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
           categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
@@ -772,10 +815,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
       }));
       return 'done';
-    } catch {
+    } catch (e) {
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
-      return 'failed';
+      return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
     }
   }
 
@@ -862,6 +905,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const month = (g.months || []).find(m => m.id === monthId);
         if (!month || month.status === 'done') return;
 
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
+
         const type = month.isPayoutMonth ? 'income' : 'expense';
         t.set(txRef, {
           type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
@@ -874,8 +919,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         t.update(gamiyaRef, { months: updatedMonths });
       }));
       return 'done';
-    } catch {
-      return 'failed';
+    } catch (e) {
+      return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
     }
   }
 

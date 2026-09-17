@@ -2,7 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { addDays, buildPieSlices, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -44,21 +44,28 @@ export default function ReportsScreen() {
     () => transactions.filter(t => t.date >= range.from && t.date <= range.to),
     [transactions, range]
   );
-  const visibleCats = catFilter.length > 0 ? categories.filter(c => catFilter.includes(c.id)) : categories;
+  // `undefined` معناها مفيش فلتر — وساعتها بس الشريحة الممسوحة بتظهر،
+  // عشان الرسم والرقم اللي جنبه يفضلوا محسوبين بنفس القاعدة
+  const visibleIds = catFilter.length > 0 ? catFilter : undefined;
 
-  const expenseByCat = useMemo(
-    () => visibleCats
-      .map(c => ({
-        id: c.id,
-        name: categoryLabel(c),
-        amount: filtered.filter(t => t.type === 'expense' && t.categoryId === c.id).reduce((s, t) => s + t.amount, 0),
-        color: categoryColors.get(c.id) || colors.textMuted,
-      }))
-      .filter(c => c.amount > 0),
-    [visibleCats, filtered, categoryColors, colors.textMuted]
+  const periodExpenses = useMemo(
+    () => filtered.filter(t => t.type === 'expense'),
+    [filtered]
   );
 
-  const periodExpense = useMemo(() => expenseByCat.reduce((s, c) => s + c.amount, 0), [expenseByCat]);
+  const expenseByCat = useMemo(
+    () => buildCategorySpend(periodExpenses, categories, {
+      colorFor: id => categoryColors.get(id) || colors.textMuted,
+      deletedColor: colors.textMuted,
+      visibleIds,
+    }),
+    [periodExpenses, categories, categoryColors, colors.textMuted, visibleIds]
+  );
+
+  const periodExpense = useMemo(
+    () => periodExpenseTotal(periodExpenses, visibleIds),
+    [periodExpenses, visibleIds]
+  );
 
   // الشرايح الزيادة بتتلمّ في شريحة واحدة بلون محايد برّه باليتة الفئات.
   // التفاصيل (وليه اسمها بالعدد) في `buildPieSlices`.
@@ -71,12 +78,24 @@ export default function ReportsScreen() {
     const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
     const prevFrom = addDays(range.from, -days);
     const prevTo = addDays(range.from, -1);
-    const prevFilteredCats = catFilter.length > 0 ? catFilter : categories.map(c => c.id);
-    const prevExpense = transactions
-      .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo && prevFilteredCats.includes(t.categoryId || ''))
-      .reduce((s, t) => s + t.amount, 0);
+    // نفس قاعدة الفترة الحالية بالظبط. قبل كده الفترة السابقة كانت بتتفلتر
+    // على الفئات الموجودة حتى وإحنا مش فالتين حاجة، فالمصروف اللي فئته
+    // اتمسحت كان بيتشال من فترة واحدة بس — ومقارنة بقاعدتين بتدي نسبة غلط
+    const prevExpenses = transactions
+      .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo);
+    const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
     return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
-  }, [range, catFilter, categories, transactions, periodExpense]);
+  }, [range, visibleIds, transactions, periodExpense]);
+
+  /**
+   * الفئة المؤرشفة مالهاش لازمة في الفلتر إلا لو ليها مصروف في الفترة دي
+   * فعلاً — وإلا القايمة بتطول بفئات المستخدم أرشفها خلاص. بنسيبها كمان لو
+   * هي مختارة دلوقتي، عشان يقدر يشيلها من الفلتر.
+   */
+  const chipCategories = useMemo(() => {
+    const spent = new Set(periodExpenses.map(t => t.categoryId).filter(Boolean) as string[]);
+    return categories.filter(c => !c.archived || spent.has(c.id) || catFilter.includes(c.id));
+  }, [categories, periodExpenses, catFilter]);
 
   function toggleCat(id: string) {
     setCatFilter(f => f.includes(id) ? f.filter(x => x !== id) : [...f, id]);
@@ -169,7 +188,7 @@ export default function ReportsScreen() {
 
       <Text style={styles.sectionTitle}>توزيع المصاريف حسب الفئة</Text>
       <View style={styles.chipRow}>
-        {categories.map(c => {
+        {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
           return (
             <TouchableOpacity key={c.id} onPress={() => toggleCat(c.id)}

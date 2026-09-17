@@ -3,7 +3,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, addDays, categoryLabel, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
+import { TYPE_LABELS, addDays, categoryLabelById, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -60,16 +60,13 @@ export default function ArchiveScreen() {
     setExporting(true);
     try {
       const rows = filtered.map(t => {
-        const wallet = wallets.find(w => w.id === t.walletId);
-        const toWallet = t.type === 'withdraw' ? wallets.find(w => w.id === t.toWalletId) : undefined;
-        const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
         return {
           Date: t.date,
           Time: formatTime(t.createdAt) || '',
           Type: TYPE_LABELS[t.type]?.label || t.type,
-          Wallet: wallet?.name || '',
-          ToWallet: toWallet?.name || '',
-          Category: cat ? categoryLabel(cat) : '',
+          Wallet: walletHistoryName(wallets, t.walletId),
+          ToWallet: t.type === 'withdraw' ? walletHistoryName(wallets, t.toWalletId) : '',
+          Category: categoryLabelById(categories, t.categoryId),
           Amount: t.amount,
           Note: t.note || '',
         };
@@ -167,12 +164,12 @@ export default function ArchiveScreen() {
       )}
       {filtered.map(t => {
         const T = TYPE_LABELS[t.type];
-        const cat = t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
+        const catLabel = categoryLabelById(categories, t.categoryId);
         const walletLabel = transactionWalletLabel(t, wallets);
         return (
           <View key={t.id} style={styles.txRow}>
             <View style={styles.txMid}>
-              <Text style={styles.txTitle}>{t.type === 'expense' ? (cat ? categoryLabel(cat) : 'مصروف') : T.label}</Text>
+              <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
               <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
             </View>
             <View style={styles.txRight}>

@@ -1,7 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { daysUntil, fmt, todayStr } from '@/lib/finance';
+import { daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -58,7 +58,7 @@ export default function GamiyaView() {
 
       {gamiyas.length === 0 && <Text style={styles.emptyState}>مفيش جمعية مسجلة</Text>}
       {gamiyas.map(g => {
-        const wallet = wallets.find(w => w.id === g.walletId);
+        const walletLabel = walletHistoryName(wallets, g.walletId);
         const doneCount = g.months.filter(m => m.status === 'done').length;
         const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
         const nextPending = g.months.find(m => m.status === 'pending');
@@ -69,7 +69,7 @@ export default function GamiyaView() {
             <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
               <View style={styles.cardHead}>
                 <Text style={styles.name}>{g.name}</Text>
-                <Text style={styles.sub2}>{wallet?.name || ''}</Text>
+                <Text style={styles.sub2}>{walletLabel}</Text>
               </View>
               <Text style={styles.sub}>
                 {fmt(g.monthlyAmount)} ج.م/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} ({fmt(g.payoutAmount)} ج.م)

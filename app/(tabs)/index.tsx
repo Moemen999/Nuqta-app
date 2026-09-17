@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { TYPE_LABELS, categoryLabel, currentMonth, daysUntil, fmt, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, fmt, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -172,7 +172,9 @@ export default function HomeScreen() {
         )}
         {recent.map(t => {
           const T = TYPE_LABELS[t.type];
-          const cat = categories.find(c => c.id === t.categoryId);
+          // الفئة الممسوحة بتطلع باسمها الصريح، مش بتترجع لـ"مصروف" العامة —
+          // "مصروف" بتقول إن العملية مالهاش فئة، والحقيقة إن فئتها اتمسحت
+          const catLabel = categoryLabelById(categories, t.categoryId);
           const walletLabel = transactionWalletLabel(t, wallets);
           return (
             <TouchableOpacity
@@ -180,7 +182,7 @@ export default function HomeScreen() {
               style={styles.txRow}
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>
-                <Text style={styles.txTitle}>{t.type === 'expense' ? (cat ? categoryLabel(cat) : 'مصروف') : T.label}</Text>
+                <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
