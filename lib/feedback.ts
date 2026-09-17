@@ -1,5 +1,5 @@
 import { APP_VERSION } from '@/lib/appInfo';
-import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 
 /** أنواع الرأي — مفاتيح إنجليزية ثابتة عشان القواعد ماتتعلقش بنص العرض */
@@ -31,22 +31,40 @@ export function feedbackRemaining(raw: string) {
   return FEEDBACK_MAX_LENGTH - raw.length;
 }
 
+/** لما الجهاز مش راضي يقول موديله — بنقول كده صريح مش بنسيب الخانة فاضية */
+export const UNKNOWN_DEVICE = 'غير معروف';
+
 /**
- * معلومات الجهاز اللي بتتبعت مع الرأي.
+ * "Samsung SM-A546B" من الشركة + الموديل.
  *
- * كلها من مكتبات موجودة أصلاً — من غير أي موديول أصلي جديد. `deviceModel`
- * هنا **نسخة نظام التشغيل** مش موديل الهاردوير: الموديل الحقيقي محتاج
- * `expo-device` وده موديول أصلي جديد.
+ * لو الموديل بادئ بنفس اسم الشركة (زي manufacturer: "Google" و
+ * modelName: "Google Pixel") مبنكررش الاسم.
+ */
+export function formatDeviceModel(manufacturer: string | null, modelName: string | null) {
+  const make = (manufacturer || '').trim();
+  const model = (modelName || '').trim();
+  if (make && model) {
+    return model.toLowerCase().startsWith(make.toLowerCase()) ? model : `${make} ${model}`;
+  }
+  return make || model || UNKNOWN_DEVICE;
+}
+
+/**
+ * معلومات الجهاز اللي بتتبعت مع الرأي: نوع الموبايل ونظامه ورقم إصدار
+ * التطبيق. مفيش أي حاجة تانية.
  *
- * ومقصود إننا **مش** بناخد `Constants.deviceName`: على آيفون بيبقى الاسم
- * اللي المستخدم سمّى بيه جهازه، وده غالبًا فيه اسمه الشخصي — وإحنا قايلين
- * له إننا بنبعت نوع الموبايل بس.
+ * **ممنوع نقرا `Device.deviceName` ولا `Constants.deviceName` هنا ولا في أي
+ * مكان.** ده الاسم اللي المستخدم سمّى بيه جهازه، والمثال في توثيق expo-device
+ * نفسه هو "Vivian's iPhone XS" — يعني اسم شخص. وإحنا قايلين للمستخدم إننا
+ * بنبعت نوع الموبايل بس، فقراية الحقل ده تخلي الجملة دي كدب. فيه اختبار
+ * بيتأكد إن الاسم مش بيوصل للمستند حتى لو الجهاز راجعه.
  */
 export function deviceInfo() {
   return {
     appVersion: APP_VERSION,
     platform: String(Platform.OS),
-    deviceModel: String(Platform.Version ?? ''),
+    deviceModel: formatDeviceModel(Device.manufacturer, Device.modelName),
+    osVersion: (Device.osVersion || '').trim() || UNKNOWN_DEVICE,
   };
 }
 

@@ -23,7 +23,7 @@ async function expectDenied(p: Promise<unknown>) {
 function validDoc(uid: string, over: Record<string, unknown> = {}) {
   return {
     uid, type: 'bug', text: 'فيه مشكلة في الشاشة دي',
-    appVersion: '1.0.0', platform: 'android', deviceModel: '34',
+    appVersion: '1.0.0', platform: 'android', deviceModel: 'samsung SM-A546B', osVersion: '14',
     createdAt: serverTimestamp(),
     ...over,
   };
@@ -93,12 +93,30 @@ describe('قواعد مجموعة الآراء', () => {
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { appVersion: 1 })));
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { platform: 'x'.repeat(33) })));
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { deviceModel: 'x'.repeat(65) })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { osVersion: 'x'.repeat(33) })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { osVersion: 14 })));
+  });
+
+  it('موديل حقيقي طويل شوية بيعدّي — 64 حرف مساحة كفاية', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'feedback'), validDoc(uid, { deviceModel: 'Xiaomi Redmi Note 13 Pro Plus 5G' }))
+    ).resolves.toBeDefined();
+  });
+
+  it('"غير معروف" مقبولة — الجهاز اللي مش راضي يقول موديله', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'feedback'), validDoc(uid, { deviceModel: 'غير معروف', osVersion: 'غير معروف' }))
+    ).resolves.toBeDefined();
   });
 
   it('حقل ناقص مرفوض', async () => {
     const uid = await signInTestUser();
     const { platform, ...withoutPlatform } = validDoc(uid);
     await expectDenied(addDoc(collection(db, 'feedback'), withoutPlatform));
+    const { osVersion, ...withoutOs } = validDoc(uid);
+    await expectDenied(addDoc(collection(db, 'feedback'), withoutOs));
   });
 
   it('مستخدم مش مسجّل دخول مبيقدرش يكتب', async () => {

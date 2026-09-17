@@ -37,7 +37,9 @@ service cloud.firestore {
         && request.resource.data.platform is string
         && request.resource.data.platform.size() <= 32
         && request.resource.data.deviceModel is string
-        && request.resource.data.deviceModel.size() <= 64;
+        && request.resource.data.deviceModel.size() <= 64
+        && request.resource.data.osVersion is string
+        && request.resource.data.osVersion.size() <= 32;
     }
 
     match /users/{userId} {

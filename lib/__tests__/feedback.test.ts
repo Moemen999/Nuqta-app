@@ -1,7 +1,15 @@
+import * as Device from 'expo-device';
 import {
-  FEEDBACK_MAX_LENGTH, FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL,
-  buildFeedbackDoc, deviceInfo, feedbackRemaining, feedbackTextValid,
+  FEEDBACK_MAX_LENGTH, FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL, UNKNOWN_DEVICE,
+  buildFeedbackDoc, deviceInfo, feedbackRemaining, feedbackTextValid, formatDeviceModel,
 } from '@/lib/feedback';
+
+/** expo-device بيقرا من الناتيف، وفي jest القيم بتبقى null — فبنزرعها بنفسنا */
+function stubDevice(values: Partial<Record<'manufacturer' | 'modelName' | 'osVersion' | 'deviceName', string | null>>) {
+  Object.entries(values).forEach(([k, v]) => {
+    Object.defineProperty(Device, k, { value: v, configurable: true });
+  });
+}
 
 describe('feedbackTextValid', () => {
   it('نص عادي ماشي', () => {
@@ -60,21 +68,75 @@ describe('buildFeedbackDoc', () => {
   it('مفيش أي بيانات مالية في المستند — ده اللي بنقوله للمستخدم', () => {
     const doc = buildFeedbackDoc('u1', 'bug', 'نص') as Record<string, unknown>;
     expect(Object.keys(doc).sort()).toEqual(
-      ['appVersion', 'deviceModel', 'platform', 'text', 'type', 'uid']
+      ['appVersion', 'deviceModel', 'osVersion', 'platform', 'text', 'type', 'uid']
     );
+  });
+
+  /**
+   * أهم اختبار في الملف ده. `Device.deviceName` بيرجّع الاسم اللي المستخدم
+   * سمّى بيه جهازه، والمثال في توثيق expo-device نفسه "Vivian's iPhone XS".
+   * لو تسرّب للمستند، الجملة اللي بنقولها للمستخدم ("نوع الموبايل بس")
+   * بتبقى كدب.
+   */
+  it('اسم الجهاز مبيوصلش للمستند حتى لو الجهاز راجعه', () => {
+    stubDevice({
+      deviceName: 'موبايل أحمد محمد',
+      manufacturer: 'samsung',
+      modelName: 'SM-A546B',
+      osVersion: '14',
+    });
+    const doc = buildFeedbackDoc('u1', 'bug', 'نص');
+    const serialized = JSON.stringify(doc);
+
+    expect(serialized).not.toContain('موبايل أحمد محمد');
+    expect(serialized).not.toContain('أحمد');
+    expect(Object.keys(doc)).not.toContain('deviceName');
+    // وبنتأكد إن الاسم كان متاح فعلاً — وإلا الاختبار بيعدّي من غير ما يختبر حاجة
+    expect(Device.deviceName).toBe('موبايل أحمد محمد');
+  });
+});
+
+describe('formatDeviceModel', () => {
+  it('الشركة + الموديل', () => {
+    expect(formatDeviceModel('samsung', 'SM-A546B')).toBe('samsung SM-A546B');
+  });
+
+  it('مبيكررش اسم الشركة لو الموديل بادئ بيه', () => {
+    expect(formatDeviceModel('Google', 'Google Pixel 7')).toBe('Google Pixel 7');
+    expect(formatDeviceModel('google', 'Google Pixel 7')).toBe('Google Pixel 7');
+  });
+
+  it('واحد ناقص: بنستخدم الموجود', () => {
+    expect(formatDeviceModel(null, 'iPhone 15')).toBe('iPhone 15');
+    expect(formatDeviceModel('Apple', null)).toBe('Apple');
+  });
+
+  it('الاتنين ناقصين: "غير معروف" مش خانة فاضية', () => {
+    expect(formatDeviceModel(null, null)).toBe(UNKNOWN_DEVICE);
+    expect(formatDeviceModel('  ', '  ')).toBe(UNKNOWN_DEVICE);
   });
 });
 
 describe('deviceInfo', () => {
   it('كل الحقول نصوص — القواعد بتشترط كده', () => {
+    stubDevice({ manufacturer: 'samsung', modelName: 'SM-A546B', osVersion: '14' });
     const info = deviceInfo();
     expect(typeof info.appVersion).toBe('string');
     expect(typeof info.platform).toBe('string');
     expect(typeof info.deviceModel).toBe('string');
+    expect(typeof info.osVersion).toBe('string');
   });
 
-  it('مفيش اسم الجهاز — على آيفون بيبقى فيه اسم المستخدم الشخصي', () => {
-    expect(JSON.stringify(deviceInfo())).not.toContain('deviceName');
+  it('بياخد الموديل الحقيقي من expo-device', () => {
+    stubDevice({ manufacturer: 'samsung', modelName: 'SM-A546B', osVersion: '14' });
+    expect(deviceInfo().deviceModel).toBe('samsung SM-A546B');
+    expect(deviceInfo().osVersion).toBe('14');
+  });
+
+  it('الجهاز اللي مش راضي يقول موديله بيبقى "غير معروف" مش فاضي', () => {
+    stubDevice({ manufacturer: null, modelName: null, osVersion: null });
+    expect(deviceInfo().deviceModel).toBe(UNKNOWN_DEVICE);
+    expect(deviceInfo().osVersion).toBe(UNKNOWN_DEVICE);
   });
 });
 
