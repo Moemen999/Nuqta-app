@@ -359,7 +359,9 @@ export default function SettingsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 60 },
+    // 60 كانت عشان الزرار العايم اللي كان بيغطي آخر الشاشة. الزرار مابقاش
+    // بيظهر في الإعدادات، فرجّعنا نفس الهامش العادي بتاع باقي الشاشات (40)
+    content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     email: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginBottom: 18 },
     archiveBtn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 13, marginBottom: 10 },

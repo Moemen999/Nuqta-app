@@ -1,4 +1,4 @@
-import { router, Tabs } from 'expo-router';
+import { router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
@@ -6,8 +6,27 @@ import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
 
+/**
+ * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
+ * والديون ليها زراير إضافة بتاعتها جوه كل تحت-تاب (دين/اشتراك/جمعية) — فزرار
+ * "+" عام فوقيهم بيزوّد لبس أكتر ما بيفيد.
+ *
+ * قايمة سماح مش قايمة منع عن قصد: التابات دي أساسها ثابت، والقايمة بالشكل ده
+ * بتغطي كمان الشاشات اللي بتتفتح فوق التابات (الأرشيف، دليل المستخدم، مودال
+ * العملية) — الشاشة الجديدة بتدخل بحركة انزلاق، ومن غير كده الزرار كان ممكن
+ * يلمع تحتها لحظة وهي داخلة وهو مكانش ظاهر قبلها.
+ * `usePathname` بيشيل أقواس المجموعات وبيقصّ `index`، يعني التابات بتطلع
+ * '/' و'/reports' و'/planning' و'/debts' و'/settings'.
+ *
+ * الإخفاء بالشرط مش بإزاحة: الزرار `position: 'absolute'` فمش داخل في حساب
+ * التخطيط أصلاً، يعني ظهوره واختفاؤه مش بيحرّك ولا عنصر في أي شاشة.
+ */
+const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
+
 export default function TabLayout() {
   const { colors } = useTheme();
+  const pathname = usePathname();
+  const showFab = FAB_TAB_PATHS.includes(pathname);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -60,9 +79,11 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <TouchableOpacity testID="tx_add_button" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
-        <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
-      </TouchableOpacity>
+      {showFab && (
+        <TouchableOpacity testID="tx_add_button" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+          <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
