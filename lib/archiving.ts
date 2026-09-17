@@ -239,7 +239,7 @@ export function walletDeleteConsequences(opts: { balance: number; refs: WalletRe
     lines.push(`رصيدها ${fmt(balance)} ج.م هيختفي من الإجمالي.`);
   }
   if (refs.transactions > 0) {
-    lines.push(`${transactionsPhrase(refs.transactions)} هتفضل من غير محفظة.`);
+    lines.push(`${transactionsPhrase(refs.transactions)} هتظهر باسم محفظة ممسوحة.`);
   }
   if (refs.debts > 0) {
     lines.push(`${debtsPhrase(refs.debts)} مربوط بيها.`);
@@ -256,10 +256,10 @@ export function walletDeleteConsequences(opts: { balance: number; refs: WalletRe
 export function categoryDeleteConsequences(refs: CategoryRefs): string[] {
   const lines: string[] = [];
   if (refs.transactions > 0) {
-    lines.push(`${transactionsPhrase(refs.transactions)} هتفضل من غير فئة.`);
+    lines.push(`${transactionsPhrase(refs.transactions)} هتظهر باسم فئة ممسوحة.`);
   }
   if (refs.debtPayments > 0) {
-    lines.push(`${transactionsPhrase(refs.debtPayments)} في الديون هتفضل من غير فئة.`);
+    lines.push(`${transactionsPhrase(refs.debtPayments)} في الديون هتظهر باسم فئة ممسوحة.`);
   }
   if (refs.activeSubscriptions.length > 0) {
     lines.push(`الاشتراكات دي هتقف لحد ما تختارلها فئة: ${namesList(refs.activeSubscriptions)}.`);

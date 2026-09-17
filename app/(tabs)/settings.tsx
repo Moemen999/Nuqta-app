@@ -126,7 +126,7 @@ export default function SettingsScreen() {
     // وبلون التحذير — بس مبيمسحش على طول، بيوري الأرقام الأول
     Alert.alert(
       'المحفظة دي ليها تاريخ',
-      `"${name}" مربوط بيها ${walletLinkSummary(refs)}. لو مسحتها التاريخ هيفضل من غير اسم محفظة. تقدر تأرشفها بدل كده — هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`,
+      `"${name}" مربوط بيها ${walletLinkSummary(refs)}. لو مسحتها التاريخ هيظهر باسم محفظة ممسوحة. تقدر تأرشفها بدل كده — هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`,
       [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'أرشفها', onPress: () => startArchiveWallet(id, name) },
@@ -202,7 +202,7 @@ export default function SettingsScreen() {
     }
     Alert.alert(
       'الفئة دي عليها عمليات',
-      `"${name}" عليها ${categoryLinkSummary(refs)}. لو مسحتها العمليات هتفضل من غير فئة. تقدر تأرشفها بدل كده.`,
+      `"${name}" عليها ${categoryLinkSummary(refs)}. لو مسحتها العمليات هتظهر باسم فئة ممسوحة. تقدر تأرشفها بدل كده.`,
       [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'أرشفها', onPress: () => startArchiveCategory(id, name) },
