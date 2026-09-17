@@ -143,6 +143,66 @@ export function assignChartColors<T extends { id: string; name: string }>(
   return result;
 }
 
+export type PieSlice = { id: string; name: string; amount: number; color: string };
+
+/**
+ * الرسم بياني معقول لغاية 7 شرايح — أكتر من كده والدائرة بتتقطّع لشرايح صغيرة
+ * مالهاش لون واضح يتفرّق عن جاره.
+ */
+export const PIE_TOP_N = 7;
+
+/** معرّف الشريحة المجمّعة — ثابت عشان الرسم واللستة يستخدموه كـkey */
+export const GROUPED_SLICE_ID = '__other__';
+
+const GROUPED_SLICE_BASE = 'فئات تانية';
+
+/**
+ * اسم الشريحة اللي بتلمّ الفئات الصغيرة.
+ *
+ * كانت اسمها "أخرى"، وده اسم فئة **حقيقية** بيتزرع لكل مستخدم جديد
+ * (`DEFAULT_CATEGORIES` في DataContext) — يعني شريحتين بنفس الاسم في نفس
+ * الرسم، واحدة فئة المستخدم والتانية مجموعة فئات تانية خالص. اللون المحايد
+ * لوحده مش كفاية: الليجيندة بتتقري بالاسم.
+ *
+ * العدد مش زينة — هو اللي بيقول للمستخدم إن دي مجموعة مش فئة، وبيفرّقها عن
+ * أي اسم مكتوب بالإيد. ولو حصل والاسم بالعدد نفسه اتكرر مع فئة حقيقية،
+ * بنزوّد علامة لحد ما يبقى فريد: شريحتين بنفس الاسم بالظبط معناهم حاجتين
+ * مختلفتين، وده أسوأ من اسم شكله غريب شوية.
+ *
+ * أسماء فئات المستخدم نفسها مبنلمسهاش خالص.
+ */
+export function groupedSliceName(count: number, takenNames: Iterable<string> = []): string {
+  const taken = new Set(takenNames);
+  const base = `${GROUPED_SLICE_BASE} (${count})`;
+  if (!taken.has(base)) return base;
+  let marks = 1;
+  while (taken.has(`${base} ${'*'.repeat(marks)}`)) marks++;
+  return `${base} ${'*'.repeat(marks)}`;
+}
+
+/**
+ * بترتب الفئات بالمصروف وبتلمّ اللي بعد أول `topN` في شريحة واحدة بلون محايد
+ * برّه باليتة الفئات. الليجيندة في الشاشة بتتبني من نفس المصفوفة دي، فالاسم
+ * والعدد بيتطابقوا في الاتنين بالضرورة.
+ */
+export function buildPieSlices(
+  byCategory: PieSlice[],
+  groupedColor: string,
+  topN: number = PIE_TOP_N,
+): PieSlice[] {
+  const sorted = [...byCategory].sort((a, b) => b.amount - a.amount);
+  if (sorted.length <= topN) return sorted;
+
+  const top = sorted.slice(0, topN);
+  const rest = sorted.slice(topN);
+  return [...top, {
+    id: GROUPED_SLICE_ID,
+    name: groupedSliceName(rest.length, top.map(c => c.name)),
+    amount: rest.reduce((s, c) => s + c.amount, 0),
+    color: groupedColor,
+  }];
+}
+
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   expense: { label: 'مصروف', color: '#D97878', sign: '-' },
   income: { label: 'إيراد', color: '#7FA98F', sign: '+' },

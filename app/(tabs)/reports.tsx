@@ -2,7 +2,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { addDays, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, buildPieSlices, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, startOfMonth, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -60,19 +60,12 @@ export default function ReportsScreen() {
 
   const periodExpense = useMemo(() => expenseByCat.reduce((s, c) => s + c.amount, 0), [expenseByCat]);
 
-  /**
-   * الرسم بياني معقول لغاية 7 شرايح — أكتر من كده والدائرة بتتقطّع لشرايح
-   * صغيرة مالهاش لون واضح يتفرّق عن جاره. الباقي بيتجمّع في "أخرى" بلون
-   * محايد برّه باليتة الفئات، عشان ميتلخبطش مع أي فئة حقيقية.
-   */
-  const PIE_TOP_N = 7;
-  const pieSlices = useMemo(() => {
-    const sorted = [...expenseByCat].sort((a, b) => b.amount - a.amount);
-    if (sorted.length <= PIE_TOP_N) return sorted;
-    const top = sorted.slice(0, PIE_TOP_N);
-    const otherTotal = sorted.slice(PIE_TOP_N).reduce((s, c) => s + c.amount, 0);
-    return [...top, { id: '__other__', name: 'أخرى', amount: otherTotal, color: colors.textMuted }];
-  }, [expenseByCat, colors.textMuted]);
+  // الشرايح الزيادة بتتلمّ في شريحة واحدة بلون محايد برّه باليتة الفئات.
+  // التفاصيل (وليه اسمها بالعدد) في `buildPieSlices`.
+  const pieSlices = useMemo(
+    () => buildPieSlices(expenseByCat, colors.textMuted),
+    [expenseByCat, colors.textMuted]
+  );
 
   const change = useMemo(() => {
     const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
