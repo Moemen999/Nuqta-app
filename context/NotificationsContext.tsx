@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useData } from '@/context/DataContext';
 import { hasNotificationPermission, requestNotificationPermission, setupNotifications } from '@/lib/notifications';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
@@ -17,6 +18,8 @@ type NotificationsContextType = {
   disableNotifications: () => Promise<void>;
   setDailyEnabled: (v: boolean) => Promise<void>;
   setDailyHour: (h: number) => Promise<void>;
+  /** بيعيد قراية الإذن الحقيقي من النظام — بيتنادى لوحده كل رجوع للتطبيق */
+  refreshPermission: () => Promise<void>;
 };
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -48,6 +51,36 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       }
     })();
   }, []);
+
+  /**
+   * بيعيد قراية الإذن الحقيقي من النظام.
+   *
+   * المستخدم بيقدر يقفل الإشعارات من إعدادات الموبايل ويرجع للتطبيق،
+   * والتطبيق مش بيتبلّغ. من غير ده المفتاح بيفضل شغّال وسطر الحالة بيقول
+   * "تذكير يومي 8 م" وإحنا عارفين إن مفيش إشعار هيوصل — كدبة على شاشة
+   * المستخدم نفسها.
+   *
+   * والعكس صحيح: لو سمح من الإعدادات وكان مفعّلها عندنا قبل كده، بترجع
+   * تشتغل من غير ما يدوس تاني.
+   */
+  const refreshPermission = useCallback(async () => {
+    try {
+      const granted = await hasNotificationPermission();
+      const stored = await AsyncStorage.getItem(K_ENABLED);
+      setEnabled(stored === '1' && granted);
+    } catch {
+      // مفيش تغيير — أحسن من إننا نطفيها غلط
+    }
+  }, []);
+
+  // كل رجوع للتطبيق بيعيد الفحص: ده الوقت الوحيد اللي المستخدم ممكن يكون
+  // غيّر الإذن من برّه فيه
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshPermission();
+    });
+    return () => sub.remove();
+  }, [refreshPermission]);
 
   // بنعيد جدولة التذكيرات كل ما البيانات أو الإعدادات تتغير
   useEffect(() => {
@@ -89,7 +122,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotificationsContext.Provider
-      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour }}>
+      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour, refreshPermission }}>
       {children}
     </NotificationsContext.Provider>
   );

@@ -5,12 +5,12 @@ import { hourLabel } from '@/lib/notificationStatus';
 import { selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
-export const PERMISSION_DENIED_BODY =
-  'التطبيق مش مسموح له يبعت إشعارات. افتح إعدادات الموبايل ← التطبيقات ← نقطة ← الإشعارات، وفعّلها من هناك.';
+export const PERMISSION_DENIED_BODY = 'التطبيق مش مسموح له يبعت إشعارات. فعّلها من إعدادات الموبايل.';
+export const OPEN_SETTINGS_LABEL = 'افتح الإعدادات';
 
 /**
  * إعدادات الإشعارات.
@@ -34,8 +34,16 @@ export default function NotificationsScreen() {
     run(async () => {
       if (!next) { await notifs.disableNotifications(); return; }
       const ok = await notifs.enableNotifications();
-      // الإذن اترفض: المفتاح بيفضل مقفول لأن `enabled` ما اتغيرتش أصلاً
-      if (!ok) Alert.alert(PERMISSION_DENIED_TITLE, PERMISSION_DENIED_BODY, [{ text: 'تمام' }]);
+      // الإذن اترفض: المفتاح بيفضل مقفول لأن `enabled` ما اتغيرتش أصلاً.
+      // وبدل ما نكتب له الطريق في الإعدادات (اللي بيختلف من موبايل للتاني)،
+      // بنفتحهاله. وأول ما يرجع، `refreshPermission` في الكونتكست بتعيد
+      // الفحص لوحدها فالمفتاح وسطر الحالة بيتحدّثوا من غير ما يعمل حاجة.
+      if (!ok) {
+        Alert.alert(PERMISSION_DENIED_TITLE, PERMISSION_DENIED_BODY, [
+          { text: 'إلغاء', style: 'cancel' },
+          { text: OPEN_SETTINGS_LABEL, onPress: () => { Linking.openSettings().catch(() => {}); } },
+        ]);
+      }
     });
   }
 
