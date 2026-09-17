@@ -13,6 +13,33 @@ service cloud.firestore {
         && (!('archivedAt' in data) || data.archivedAt is string);
     }
 
+    /**
+     * "شاركنا رأيك". المستخدم بيكتب بس — مبيقراش ومبيعدّلش ومبيمسحش، لا بتاعه
+     * ولا بتاع غيره. القراية من الكونسول.
+     *
+     * `createdAt == request.time` معناها الوقت بييجي من السيرفر
+     * (`serverTimestamp()`)، فمحدش يقدر يزوّر تاريخ.
+     *
+     * الطول بيتقاس هنا على النص بعد ما العميل يقلّمه — القواعد مفيهاش `trim`،
+     * فالعميل بيقلّم و`size() > 0` بترفض الفاضي والمسافات لوحدها.
+     */
+    match /feedback/{feedbackId} {
+      allow read, update, delete: if false;
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.type in ['bug', 'idea', 'praise']
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.appVersion is string
+        && request.resource.data.appVersion.size() <= 32
+        && request.resource.data.platform is string
+        && request.resource.data.platform.size() <= 32
+        && request.resource.data.deviceModel is string
+        && request.resource.data.deviceModel.size() <= 64;
+    }
+
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
 

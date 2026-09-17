@@ -1,10 +1,11 @@
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import { settlementNote } from '@/lib/archiving';
+import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import { addDays, addMonths, debtGrandTotal, debtPaid, todayStr } from '@/lib/finance';
 import {
-  collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, setDoc, updateDoc,
-  waitForPendingWrites, writeBatch,
+  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, serverTimestamp,
+  setDoc, updateDoc, waitForPendingWrites, writeBatch,
   type DocumentReference, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -83,6 +84,9 @@ async function walletUsable(t: FirestoreTransaction, walletRef: DocumentReferenc
   return (snap.data() as any)?.archived !== true;
 }
 
+/** نتيجة إرسال الرأي — الفرق بين "وصل" و"في الطابور" مهم للمستخدم */
+export type FeedbackOutcome = 'sent' | 'pending' | 'failed';
+
 export type PayOutcome = 'done' | 'no-connection' | 'failed' | 'wallet-missing';
 
 /** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
@@ -112,6 +116,9 @@ export const PAY_OUTCOME_ALERT_GAMIYA: typeof PAY_OUTCOME_ALERT = {
     body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل الجمعية واختار محفظة شغالة وجرب تاني.',
   },
 };
+
+/** أقصى انتظار لتأكيد السيرفر على الرأي قبل ما نقول إنه في الطابور */
+const FEEDBACK_ACK_MS = 8000;
 
 export type Budgets = Record<string, number>;
 export type ShakhbataIncome = Record<string, number>;
@@ -229,6 +236,7 @@ type DataContextType = {
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
   archiveCategory: (id: string, reassign: Record<string, string>) => Promise<void>;
+  submitFeedback: (type: FeedbackType, text: string) => Promise<FeedbackOutcome>;
   restoreCategory: (id: string) => Promise<void>;
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
@@ -569,6 +577,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
       archived: true, archivedAt: new Date().toISOString(),
     });
     track(batch.commit());
+  }
+
+  /**
+   * بيبعت الرأي لمجموعة `feedback` العامة.
+   *
+   * القراية ممنوعة من العميل (القواعد)، فمش هنعرف حال المستند من
+   * `onSnapshot` زي أي حاجة تانية في التطبيق — الطريق الوحيد هو وعد
+   * الكتابة نفسه. والوعد ده **مبيتحلش خالص** وإحنا أوفلاين، فبنسابقه
+   * بمهلة وبنقول الحقيقة: "هيتبعت أول ما النت يرجع" مش "اتبعت".
+   */
+  async function submitFeedback(type: FeedbackType, text: string): Promise<FeedbackOutcome> {
+    if (!uid) return 'failed';
+    const payload = { ...buildFeedbackDoc(uid, type, text), createdAt: serverTimestamp() };
+    const write = countPending(addDoc(collection(db, 'feedback'), payload));
+    // الأخطاء بتتلقط هنا مش في track: الشاشة بتعرض النتيجة بنفسها
+    write.catch(() => {});
+
+    if (!serverReachableRef.current) return 'pending';
+    const timeout = new Promise<'pending'>(r => setTimeout(() => r('pending'), FEEDBACK_ACK_MS));
+    try {
+      return await Promise.race([write.then(() => 'sent' as const), timeout]);
+    } catch {
+      return 'failed';
+    }
   }
 
   async function restoreCategory(id: string) {
@@ -1088,6 +1120,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, pendingWrites, pendingTxIds, serverReachable,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
+        submitFeedback,
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,

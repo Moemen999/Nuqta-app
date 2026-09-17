@@ -148,6 +148,7 @@ export default function SettingsScreen() {
       rows: [
         { key: 'guide', title: 'دليل المستخدم', onPress: () => router.push('/user-guide') },
         { key: 'onboarding', title: 'إعادة عرض شاشة الترحيب', onPress: replayOnboarding },
+        { key: 'feedback', title: 'شاركنا رأيك', onPress: () => router.push('/settings-screens/feedback') },
         {
           key: 'about',
           title: 'عن التطبيق',
