@@ -1,6 +1,6 @@
 import { db } from '@/firebaseConfig';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
-import { addDoc, collection, deleteDoc, doc, getDocs, setDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
  * اختبارات مباشرة على قواعد Firestore نفسها (من غير ما تمر بـ DataProvider)،
@@ -126,5 +126,116 @@ describe('التحقق من شكل البيانات وقت الكتابة', () =
     const directions = snap.docs.map(d => d.data().direction).sort();
     expect(directions).toEqual(['i_owe', 'owed_to_me']);
     expect(snap.docs.every(d => d.data().personContactId === 'contact-1')).toBe(true);
+  });
+});
+
+/**
+ * حقول الأرشفة. أهم حاجة هنا مش إن الشكل الغلط يترفض — دي المعتاد — لكن إن
+ * **المستند القديم يفضل شغّال**: القواعد بتتحقق من المستند بعد الدمج، فلو
+ * الحقلين اتكتبوا إجباريين كل محفظة وفئة موجودة من قبل التحديث كانت هتبقى
+ * غير قابلة للتعديل، والمستخدم يلاقي نفسه مش قادر يغيّر اسم محفظته.
+ */
+describe('حقول الأرشفة في المحافظ والفئات', () => {
+  it('محفظة من غير حقول أرشفة خالص بتتقبل — ده وضع كل المحافظ القديمة', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'users', uid, 'wallets'), { name: 'CIB', openingBalance: 0, lowAlert: 0 })
+    ).resolves.toBeDefined();
+  });
+
+  it('تعديل محفظة قديمة (من غير حقول أرشفة) لسه بيعدّي', async () => {
+    const uid = await signInTestUser();
+    const ref = await addDoc(collection(db, 'users', uid, 'wallets'), {
+      name: 'CIB', openingBalance: 0, lowAlert: 0,
+    });
+    await expect(updateDoc(ref, { name: 'CIB الجديد' })).resolves.toBeUndefined();
+  });
+
+  it('archived منطقي و archivedAt نص بيتقبلوا', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'users', uid, 'wallets'), {
+        name: 'توفير', openingBalance: 0, lowAlert: 0,
+        archived: true, archivedAt: '2026-09-17T10:00:00.000Z',
+      })
+    ).resolves.toBeDefined();
+  });
+
+  it('أرشفة محفظة موجودة بالتعديل بتعدّي', async () => {
+    const uid = await signInTestUser();
+    const ref = await addDoc(collection(db, 'users', uid, 'wallets'), {
+      name: 'توفير', openingBalance: 0, lowAlert: 0,
+    });
+    await expect(
+      updateDoc(ref, { archived: true, archivedAt: new Date().toISOString() })
+    ).resolves.toBeUndefined();
+  });
+
+  it('archived بنص بدل منطقي بيترفض', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'wallets'), {
+        name: 'توفير', openingBalance: 0, lowAlert: 0, archived: 'true',
+      })
+    );
+  });
+
+  it('archived برقم بيترفض', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'wallets'), {
+        name: 'توفير', openingBalance: 0, lowAlert: 0, archived: 1,
+      })
+    );
+  });
+
+  it('archivedAt برقم بدل نص بيترفض', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'wallets'), {
+        name: 'توفير', openingBalance: 0, lowAlert: 0, archivedAt: 1758100000000,
+      })
+    );
+  });
+
+  it('حقول الأرشفة مبتلغيش باقي التحقق — محفظة من غير اسم لسه بترفض', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'wallets'), {
+        openingBalance: 0, lowAlert: 0, archived: true,
+      })
+    );
+  });
+
+  it('حقول الأرشفة مبتلغيش التحقق من الأرقام — محفظة من غير openingBalance بترفض', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'wallets'), { name: 'توفير', lowAlert: 0, archived: false })
+    );
+  });
+
+  it('نفس القواعد بالظبط على الفئات', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'users', uid, 'categories'), { name: 'أكل' })
+    ).resolves.toBeDefined();
+    await expect(
+      addDoc(collection(db, 'users', uid, 'categories'), {
+        name: 'ترفيه', archived: true, archivedAt: '2026-09-17T10:00:00.000Z',
+      })
+    ).resolves.toBeDefined();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'categories'), { name: 'ترفيه', archived: 'yes' })
+    );
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'categories'), { name: 'ترفيه', archivedAt: 5 })
+    );
+  });
+
+  it('فئة مؤرشفة لسه بترفض الاسم الفاضي', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(
+      addDoc(collection(db, 'users', uid, 'categories'), { name: '', archived: true })
+    );
   });
 });
