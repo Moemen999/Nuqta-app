@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useAppLock } from '@/context/AppLockContext';
+import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+
+export const FORGOT_LABEL = 'نسيت الكود؟';
+export const FORGOT_TITLE = 'نسيت كود القفل؟';
+export const FORGOT_BODY =
+  'هنشيل القفل ونخرجك من حسابك. ترجع تدخل بإيميلك وباسوردك، وبياناتك كلها زي ما هي. '
+  + 'وبعدين تقدر تفعّل القفل من جديد بكود تفتكره.';
+export const FORGOT_CONFIRM = 'شيل القفل واخرج';
 
 const KEY_ROWS = [
   ['1', '2', '3'],
@@ -12,10 +20,33 @@ const KEY_ROWS = [
 
 export default function LockScreen() {
   const { colors } = useTheme();
-  const { lockType, verify, unlock } = useAppLock();
+  const { lockType, verify, unlock, clearLock } = useAppLock();
+  const { logOut } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const styles = makeStyles(colors);
+
+  /**
+   * القفل بيتحط قدام التطبيق كله قبل حتى شاشة الدخول، فاللي بينسى كوده مكانش
+   * قدامه أي طريق غير إنه يمسح التطبيق — ودي حبسة مش حماية.
+   *
+   * الخروج منها مربوط بباسورد الحساب: بنشيل القفل وبنسجّل خروج، فالمستخدم
+   * لازم يعرف بيانات حسابه عشان يرجع لبياناته. يعني الاسترجاع محمي بحاجة
+   * أقوى من الكود المحلي، مش أضعف منه.
+   */
+  function handleForgot() {
+    Alert.alert(FORGOT_TITLE, FORGOT_BODY, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: FORGOT_CONFIRM,
+        style: 'destructive',
+        onPress: async () => {
+          await clearLock();
+          await logOut();
+        },
+      },
+    ]);
+  }
 
   async function handleSubmit(value?: string) {
     const toCheck = value ?? code;
@@ -90,6 +121,10 @@ export default function LockScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      <TouchableOpacity testID="lock_forgot_button" style={styles.forgotBtn} onPress={handleForgot}>
+        <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -110,5 +145,7 @@ function makeStyles(c: ThemeColors) {
     passwordArea: { width: '100%', maxWidth: 320 },
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
     submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
+    forgotBtn: { marginTop: 28, padding: 8 },
+    forgotText: { color: c.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   });
 }

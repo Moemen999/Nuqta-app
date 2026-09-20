@@ -14,6 +14,19 @@ type AppLockContextType = {
   loading: boolean;
   setupLock: (type: LockType, code: string) => Promise<void>;
   disableLock: (code: string) => Promise<boolean>;
+  /**
+   * بيشيل القفل **من غير** الكود — لمسار "نسيت الكود؟" بس.
+   *
+   * القفل بيتحط قدام التطبيق كله قبل حتى شاشة الدخول، فالمستخدم اللي بينسى
+   * كوده مكانش قدامه أي طريق غير إنه يمسح التطبيق. ودي مش حماية، دي حبسة:
+   * بياناته في فايرستور ورا حساب فايربيز، والقفل ده طبقة راحة فوقيها مش
+   * هو اللي حاميها.
+   *
+   * عشان كده الخروج من الحبسة بيمشي مع تسجيل الخروج: المستخدم بيرجع يدخل
+   * بباسورد حسابه. يعني الاسترجاع مربوط بكلمة سر الحساب، وهي أقوى من الكود
+   * المحلي — مش أضعف منه.
+   */
+  clearLock: () => Promise<void>;
   changeCode: (oldCode: string, newCode: string, newType: LockType) => Promise<boolean>;
   setFrequency: (f: LockFrequency) => void;
   graceMinutes: number;
@@ -94,16 +107,25 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setLockType(type);
   }
 
-  async function disableLock(code: string) {
-    const ok = await verify(code);
-    if (!ok) return false;
+  /** بيمسح كل أثر للقفل من التخزين الآمن ومن الحالة */
+  async function wipeLock() {
     await SecureStore.deleteItemAsync(K_ENABLED);
     await SecureStore.deleteItemAsync(K_TYPE);
     await SecureStore.deleteItemAsync(K_HASH);
     await SecureStore.deleteItemAsync(K_FREQ);
     setEnabled(false);
     setIsLocked(false);
+  }
+
+  async function disableLock(code: string) {
+    const ok = await verify(code);
+    if (!ok) return false;
+    await wipeLock();
     return true;
+  }
+
+  async function clearLock() {
+    await wipeLock();
   }
 
   async function changeCode(oldCode: string, newCode: string, newType: LockType) {
@@ -142,7 +164,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
+    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, clearLock, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
       {children}
     </AppLockContext.Provider>
   );

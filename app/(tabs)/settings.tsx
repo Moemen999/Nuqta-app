@@ -1,4 +1,3 @@
-import SetLockModal from '@/components/SetLockModal';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
 import { useNotifications } from '@/context/NotificationsContext';
@@ -10,7 +9,7 @@ import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -50,7 +49,6 @@ export default function SettingsScreen() {
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
   const { wallets, categories, pendingWrites } = useData();
-  const [lockModalMode, setLockModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived).length, [categories]);
@@ -130,9 +128,12 @@ export default function SettingsScreen() {
         },
         {
           key: 'lock',
+          // الصف ده كان بيفتح مودال "تغيير الباسورد" على طول، فإلغاء القفل
+          // ووقت الطلب ومهلة السماح بقوا مش موجودين في أي مكان. بقى بيروح
+          // لشاشة فيها القسم كامل زي ما كان قبل إعادة التنظيم.
           title: 'قفل التطبيق',
           status: lockEnabled ? 'مفعّل' : 'مش مفعّل',
-          onPress: () => setLockModalMode(lockEnabled ? 'change' : 'enable'),
+          onPress: () => router.push('/settings-screens/lock'),
         },
         {
           key: 'theme',
@@ -198,10 +199,6 @@ export default function SettingsScreen() {
           </View>
         </View>
       ))}
-
-      {lockModalMode && (
-        <SetLockModal visible={!!lockModalMode} mode={lockModalMode} onClose={() => setLockModalMode(null)} />
-      )}
     </ScrollView>
   );
 }

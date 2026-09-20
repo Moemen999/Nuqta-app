@@ -73,6 +73,7 @@ function RootNavigator() {
           <Stack.Screen name="settings-screens/wallets" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/categories" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/notifications" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-screens/lock" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/about" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/feedback" options={{ headerShown: false }} />
         </Stack.Protected>
