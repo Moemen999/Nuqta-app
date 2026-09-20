@@ -155,6 +155,7 @@ export default function ReportsScreen() {
           { key: 'custom', label: 'مخصص' },
         ].map(p => (
           <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
+            testID={`reports_preset_${p.key}`}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
             <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>

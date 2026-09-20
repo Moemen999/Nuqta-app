@@ -86,14 +86,14 @@ describe('القفل مفعّل: كل زرار ضاع في إعادة التنظ
 
   it('اختيار وقت الطلب موجود بالخيارين', async () => {
     await renderScreen();
-    expect(screen.getByTestId('lock_freq_onOpen')).toBeTruthy();
-    expect(screen.getByTestId('lock_freq_everyResume')).toBeTruthy();
+    expect(screen.getByTestId('lock_freq_on_open')).toBeTruthy();
+    expect(screen.getByTestId('lock_freq_every_resume')).toBeTruthy();
     expect(screen.getByText('يطلب الباسورد إمتى؟')).toBeTruthy();
   });
 
   it('اختيار وقت الطلب بيتحفظ فعلاً', async () => {
     await renderScreen();
-    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_everyResume')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_every_resume')); });
     expect(mockLock.setFrequency).toHaveBeenCalledWith('everyResume');
   });
 });

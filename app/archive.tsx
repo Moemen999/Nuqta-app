@@ -115,7 +115,7 @@ export default function ArchiveScreen() {
           { key: 'all', label: 'كل الوقت' },
           { key: 'custom', label: 'مخصص' },
         ].map(p => (
-          <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
+          <TouchableOpacity key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
             <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
@@ -124,11 +124,11 @@ export default function ArchiveScreen() {
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('from')}>
+          <TouchableOpacity testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
           <Text style={{ color: colors.textSecondary }}>إلى</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('to')}>
+          <TouchableOpacity testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
             <Text style={styles.dateBtnText}>إلى: {customTo}</Text>
           </TouchableOpacity>
         </View>
@@ -146,6 +146,7 @@ export default function ArchiveScreen() {
       </View>
 
       <TouchableOpacity
+        testID="archive_export_button"
         style={[styles.exportBtn, { opacity: filtered.length === 0 || exporting ? 0.5 : 1 }]}
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>

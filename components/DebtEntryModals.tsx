@@ -94,7 +94,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           <Text style={styles.hintText}>المتبقي: {fmt(remaining)} ج.م</Text>
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -133,10 +133,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity testID="debt_payment_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -207,7 +207,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           </View>
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
-          <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -236,10 +236,10 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity testID="debt_increase_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -421,10 +421,10 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity testID="debt_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>

@@ -73,13 +73,13 @@ export default function LockScreen_Settings() {
           <Text style={styles.hint}>يطلب الباسورد إمتى؟</Text>
           <View style={styles.row}>
             <TouchableOpacity
-              testID="lock_freq_onOpen"
+              testID="lock_freq_on_open"
               onPress={() => setFrequency('onOpen')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              testID="lock_freq_everyResume"
+              testID="lock_freq_every_resume"
               onPress={() => setFrequency('everyResume')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>

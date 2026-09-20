@@ -18,6 +18,7 @@ export default function PlanningScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.switcherRow}>
         <TouchableOpacity
+          testID="planning_tab_budget"
           onPress={() => setSection('budget')}
           style={[styles.switchBtn, selectionStyle(colors, section === 'budget')]}>
           <Text style={{ color: section === 'budget' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>
@@ -25,6 +26,7 @@ export default function PlanningScreen() {
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
+          testID="planning_tab_shakhbata"
           onPress={() => setSection('shakhbata')}
           style={[styles.switchBtn, selectionStyle(colors, section === 'shakhbata')]}>
           <Text style={{ color: section === 'shakhbata' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>

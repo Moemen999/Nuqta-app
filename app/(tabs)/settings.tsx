@@ -178,13 +178,14 @@ export default function SettingsScreen() {
       <Text style={styles.title}>الإعدادات</Text>
 
       {sections.map(section => (
-        <View key={section.key} style={styles.section}>
+        <View key={section.key} testID={`settings_section_${section.key}`} style={styles.section}>
           <Text style={styles.sectionTitle}>{section.title}</Text>
           {!!section.subtitle && <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>}
           <View style={styles.card}>
             {section.rows.map((row, i) => (
               <TouchableOpacity
                 key={row.key}
+                testID={`settings_row_${row.key}`}
                 style={[styles.row, i > 0 && styles.rowDivider]}
                 onPress={row.onPress}>
                 <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.danger }]}>

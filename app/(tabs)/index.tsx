@@ -185,6 +185,7 @@ export default function HomeScreen() {
           return (
             <TouchableOpacity
               key={t.id}
+              testID={`home_tx_${t.id}`}
               style={styles.txRow}
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>

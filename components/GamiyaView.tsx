@@ -51,7 +51,7 @@ export default function GamiyaView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity testID="gamiya_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ جمعية جديدة</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الجمعية</Text>
@@ -232,10 +232,10 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+            <TouchableOpacity testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <TouchableOpacity testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
               <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
@@ -357,10 +357,10 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <TouchableOpacity testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
               <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
             </TouchableOpacity>
           </View>

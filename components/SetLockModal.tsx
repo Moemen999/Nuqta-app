@@ -64,7 +64,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           {mode !== 'enable' && (
             <>
               <Text style={styles.label}>{currentType === 'pin' ? 'الرقم السري الحالي' : 'الباسورد الحالي'}</Text>
-              <TextInput style={styles.input} value={oldCode} onChangeText={setOldCode}
+              <TextInput testID="setlock_old_code" style={styles.input} value={oldCode} onChangeText={setOldCode}
                 secureTextEntry keyboardType={currentType === 'pin' ? 'numeric' : 'default'}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
@@ -74,22 +74,22 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             <>
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
-                <TouchableOpacity onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
+                <TouchableOpacity testID="setlock_type_pin" onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
+                <TouchableOpacity testID="setlock_type_password" onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>
 
               <Text style={styles.label}>{type === 'pin' ? 'الرقم السري الجديد' : 'الباسورد الجديد'}</Text>
-              <TextInput style={styles.input} value={code1} onChangeText={setCode1}
+              <TextInput testID="setlock_code1" style={styles.input} value={code1} onChangeText={setCode1}
                 secureTextEntry keyboardType={type === 'pin' ? 'numeric' : 'default'}
                 maxLength={type === 'pin' ? 4 : undefined}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
 
               <Text style={styles.label}>تأكيد {type === 'pin' ? 'الرقم' : 'الباسورد'}</Text>
-              <TextInput style={styles.input} value={code2} onChangeText={setCode2}
+              <TextInput testID="setlock_code2" style={styles.input} value={code2} onChangeText={setCode2}
                 secureTextEntry keyboardType={type === 'pin' ? 'numeric' : 'default'}
                 maxLength={type === 'pin' ? 4 : undefined}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
@@ -99,10 +99,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+            <TouchableOpacity testID="setlock_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
+            <TouchableOpacity testID="setlock_submit" style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
               <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
             </TouchableOpacity>
           </View>

@@ -246,7 +246,7 @@ function DebtsContent() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
+        <TouchableOpacity testID="debt_add_button" style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دين جديد</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الديون والأقساط</Text>
@@ -383,10 +383,10 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           {!!error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
+            <TouchableOpacity testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <TouchableOpacity testID="debt_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
               <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
             </TouchableOpacity>
           </View>
