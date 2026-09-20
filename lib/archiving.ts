@@ -164,7 +164,10 @@ export function roundedWalletBalance(transactions: Transaction[], walletId: stri
  * "مربوط بيها 12 عملية و3 ديون" — الأجزاء الصفر بتتشال خالص بدل ما نقول
  * "و0 دين"، والصيغة بتتغيّر مع العدد عشان الجملة تطلع عربي طبيعي.
  */
-function countPhrase(n: number, one: string, two: string, many: string, plural: string) {
+function countPhrase(n: number, zero: string, one: string, two: string, many: string, plural: string) {
+  // الصفر كان بيطلع "0 محافظ" — ده رقم مرمي في جملة، مش عربي. وبيبان فعلاً
+  // في صف الإعدادات أول ما تفتح التطبيق من غير نت قبل ما البيانات توصل.
+  if (n <= 0) return zero;
   if (n === 1) return one;
   if (n === 2) return two;
   if (n <= 10) return `${n} ${many}`;
@@ -172,31 +175,31 @@ function countPhrase(n: number, one: string, two: string, many: string, plural: 
 }
 
 export function transactionsPhrase(n: number) {
-  return countPhrase(n, 'عملية واحدة', 'عمليتين', 'عمليات', 'عملية');
+  return countPhrase(n, 'مفيش عمليات', 'عملية واحدة', 'عمليتين', 'عمليات', 'عملية');
 }
 
 export function debtsPhrase(n: number) {
-  return countPhrase(n, 'دين واحد', 'دينين', 'ديون', 'دين');
+  return countPhrase(n, 'مفيش ديون', 'دين واحد', 'دينين', 'ديون', 'دين');
 }
 
 export function subscriptionsPhrase(n: number) {
-  return countPhrase(n, 'اشتراك واحد', 'اشتراكين', 'اشتراكات', 'اشتراك');
+  return countPhrase(n, 'مفيش اشتراكات', 'اشتراك واحد', 'اشتراكين', 'اشتراكات', 'اشتراك');
 }
 
 export function gamiyasPhrase(n: number) {
-  return countPhrase(n, 'جمعية واحدة', 'جمعيتين', 'جمعيات', 'جمعية');
+  return countPhrase(n, 'مفيش جمعيات', 'جمعية واحدة', 'جمعيتين', 'جمعيات', 'جمعية');
 }
 
 export function walletsPhrase(n: number) {
-  return countPhrase(n, 'محفظة واحدة', 'محفظتين', 'محافظ', 'محفظة');
+  return countPhrase(n, 'مفيش محافظ', 'محفظة واحدة', 'محفظتين', 'محافظ', 'محفظة');
 }
 
 export function categoriesPhrase(n: number) {
-  return countPhrase(n, 'فئة واحدة', 'فئتين', 'فئات', 'فئة');
+  return countPhrase(n, 'مفيش فئات', 'فئة واحدة', 'فئتين', 'فئات', 'فئة');
 }
 
 export function lettersPhrase(n: number) {
-  return countPhrase(n, 'حرف واحد', 'حرفين', 'حروف', 'حرف');
+  return countPhrase(n, 'مفيش حروف', 'حرف واحد', 'حرفين', 'حروف', 'حرف');
 }
 
 /** بيوصّل الأجزاء الموجودة بس بـ"و" */

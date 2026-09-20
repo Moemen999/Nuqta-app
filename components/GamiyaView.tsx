@@ -171,6 +171,10 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           reminderDaysBefore: Number(reminderDays) || 0,
         });
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }
@@ -310,6 +314,10 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           reminderDaysBefore: Number(reminderDays) || 0,
         });
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }

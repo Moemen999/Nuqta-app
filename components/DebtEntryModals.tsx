@@ -73,6 +73,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       try {
         await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }
@@ -171,6 +175,10 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
       try {
         await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }
@@ -290,6 +298,10 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           reminderDaysBefore: dueDate && reminderDaysBefore !== null ? reminderDaysBefore : undefined,
         });
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }

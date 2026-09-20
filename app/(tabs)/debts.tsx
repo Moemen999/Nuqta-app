@@ -1,4 +1,3 @@
-import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import DebtReminderFields from '@/components/DebtReminderFields';
@@ -321,6 +320,10 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           reminderDaysBefore: dueDate ? reminderDaysBefore : null,
         });
       } catch {
+        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
+        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
+        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
+        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
         return;
       }

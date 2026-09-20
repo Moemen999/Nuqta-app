@@ -167,7 +167,8 @@ describe('عداد الحروف بصيغة عربية', () => {
     expect(feedbackRemainingLabel('')).toBe('فاضل 1000 حرف');
   });
 
-  it('عند الحد الأقصى: صفر', () => {
-    expect(feedbackRemainingLabel('ا'.repeat(1000))).toBe('فاضل 0 حروف');
+  it('عند الحد الأقصى بيقول الحقيقة بجملة مش "فاضل 0 حروف"', () => {
+    expect(feedbackRemainingLabel('ا'.repeat(1000))).toBe('وصلت للحد الأقصى');
+    expect(feedbackRemainingLabel('ا'.repeat(1200))).toBe('وصلت للحد الأقصى');
   });
 });

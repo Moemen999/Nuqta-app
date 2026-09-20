@@ -33,8 +33,13 @@ export function feedbackRemaining(raw: string) {
 }
 
 /** "فاضل حرف واحد" مش "فاضل 1 حرف" — نفس قاعدة باقي الأعداد في التطبيق */
+export const FEEDBACK_FULL_LABEL = 'وصلت للحد الأقصى';
+
 export function feedbackRemainingLabel(raw: string) {
-  return `فاضل ${lettersPhrase(feedbackRemaining(raw))}`;
+  const left = feedbackRemaining(raw);
+  // "فاضل مفيش حروف" كلام مكسور. عند الحد بنقول الحقيقة بجملة عادية.
+  if (left <= 0) return FEEDBACK_FULL_LABEL;
+  return `فاضل ${lettersPhrase(left)}`;
 }
 
 /** لما الجهاز مش راضي يقول موديله — بنقول كده صريح مش بنسيب الخانة فاضية */

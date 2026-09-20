@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
+import { WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -371,8 +372,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * فبدل ما ننتظر، بنسجّل الكتابة هنا: بنعدّها في "لسه بترفع"، وبنمسك أي خطأ
    * عشان يوصل للمستخدم بدل ما يضيع في اللوج كـ unhandled rejection.
    */
-  function track<T>(p: Promise<T>): Promise<T | void> {
-    return countPending(p).catch(reportWriteError);
+  function track<T>(p: Promise<T>, label?: string): Promise<T | void> {
+    return countPending(p).catch(e => reportWriteError(e, label));
   }
 
   /**
@@ -395,13 +396,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * يعرف. تنبيه واحد بس في المرة، عشان لو كتابات كتير فشلت مع بعض (زي حذف دين
    * بكل عملياته) ميتقفلش عليه عشرين تنبيه ورا بعض.
    */
-  function reportWriteError(e: any) {
-    console.warn('كتابة فشلت في فايربيز', e);
+  function reportWriteError(e: any, label?: string) {
+    console.warn('كتابة فشلت في فايربيز', label ?? '', e);
     if (errorShown.current) return;
     errorShown.current = true;
     Alert.alert(
-      'فيه تعديل ما اتحفظش',
-      'التعديل ما وصلش للسيرفر واترجع تاني. راجع البيانات وجرب من الأول.',
+      WRITE_ERROR_TITLE,
+      writeErrorBody(label),
       [{ text: 'تمام', onPress: () => { errorShown.current = false; } }]
     );
   }
@@ -410,9 +411,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بنعمل id للمستند من عندنا بدل ما نستنى addDoc ترجع بيه من السيرفر، فالكود
    * اللي محتاج الـ id (زي ربط عملية بدين) بياخده على طول والكتابة تكمل ورا.
    */
-  function addDocNoWait(path: string, data: any): string {
+  function addDocNoWait(path: string, data: any, label?: string): string {
     const ref = doc(collection(db, 'users', uid!, path));
-    track(setDoc(ref, data));
+    track(setDoc(ref, data), label);
     return ref.id;
   }
 
@@ -494,7 +495,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   async function addWallet(name: string) {
     if (!uid) return;
-    addDocNoWait('wallets', { name, openingBalance: 0, lowAlert: 0 });
+    addDocNoWait('wallets', { name, openingBalance: 0, lowAlert: 0 }, namedLabel('المحفظة', name));
   }
   async function updateWallet(id: string, data: Partial<Wallet>) {
     if (!uid) return;
@@ -546,7 +547,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function addCategory(name: string) {
     if (!uid) return;
-    addDocNoWait('categories', { name });
+    addDocNoWait('categories', { name }, namedLabel('الفئة', name));
   }
   async function updateCategory(id: string, data: Partial<Category>) {
     if (!uid) return;
@@ -614,13 +615,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بنضمن وجود createdAt دايمًا عشان الوقت يظهر مع كل العمليات (حتى اللي بتتولد من الديون والاشتراكات والجمعية)
     const withTimestamp = { createdAt: new Date().toISOString(), ...tx };
     const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
-    return addDocNoWait('transactions', clean);
+    return addDocNoWait('transactions', clean, 'العملية');
   }
   async function updateTransaction(id: string, tx: Partial<Transaction>, settlements: Settlement[] = []) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
     if (settlements.length === 0) {
-      track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean));
+      track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean), 'تعديل العملية');
       return;
     }
     // التعديل والتسوية مع بعض أو مفيش — تعديل من غير تسويته معناه فلوس اتحركت
@@ -634,7 +635,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // بنفسها (حذف دين/اشتراك/جمعية)، عشان منلفش في دايرة حذف
   async function deleteTransactionDoc(id: string) {
     if (!uid) return;
-    track(deleteDoc(doc(db, 'users', uid, 'transactions', id)));
+    track(deleteDoc(doc(db, 'users', uid, 'transactions', id)), 'حذف العملية');
   }
 
   /**
@@ -785,15 +786,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function setBudget(categoryId: string, limit: number) {
     if (!uid) return;
-    track(setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit }));
+    track(setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit }), 'سقف الميزانية');
   }
   async function setMonthlyIncome(month: string, income: number) {
     if (!uid) return;
-    track(setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income }));
+    track(setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income }), 'دخل الشهر');
   }
   async function setShakhbataPercents(p: ShakhbataPercents) {
     if (!uid) return;
-    track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p));
+    track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب شخبطة');
   }
 
   async function addDebt(data: {
@@ -816,7 +817,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       initialWalletId: data.walletId, initialTransactionId,
       dueDate: data.dueDate, reminderDaysBefore: data.reminderDaysBefore,
     }).filter(([, v]) => v !== undefined));
-    addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
+    addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() }, namedLabel('الدين', data.personName));
   }
   /**
    * تعديل بيانات الشخص أو الملاحظة على دين موجود.
@@ -845,7 +846,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       patch[key] = trimmed || deleteField();
     });
     if (Object.keys(patch).length === 0) return;
-    track(updateDoc(doc(db, 'users', uid, 'debts', id), patch));
+    track(updateDoc(doc(db, 'users', uid, 'debts', id), patch), namedLabel('تعديل الدين', data.personName ?? debts.find(d => d.id === id)?.personName));
   }
 
   async function deleteDebt(id: string) {
@@ -859,7 +860,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ].filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    track(deleteDoc(doc(db, 'users', uid, 'debts', id)));
+    track(deleteDoc(doc(db, 'users', uid, 'debts', id)), namedLabel('حذف الدين', debt?.personName));
   }
   async function addDebtPayment(debtId: string, amount: number, walletId: string, date: string, categoryId?: string) {
     if (!uid) return;
@@ -892,7 +893,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (remainingAfter > 0.001) patch.dueDate = addMonths(debt.dueDate, 1);
     }
 
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch));
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch), namedLabel('دفعة الدين', debt.personName));
   }
   async function deleteDebtPayment(debtId: string, paymentId: string) {
     if (!uid) return;
@@ -900,7 +901,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return;
     const payment = debt.payments.find(p => p.id === paymentId);
     if (payment?.transactionId) await deleteTransactionDoc(payment.transactionId);
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) }));
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) }), namedLabel('حذف دفعة الدين', debt.personName));
   }
   async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
     if (!uid) return;
@@ -919,7 +920,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       date, amount,
       ...(walletId ? { walletId, transactionId } : {}),
     };
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] }));
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] }), namedLabel('زيادة الدين', debt.personName));
   }
   async function deleteDebtIncrease(debtId: string, entryId: string) {
     if (!uid) return;
@@ -927,7 +928,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return;
     const entry = (debt.increases || []).find(e => e.id === entryId);
     if (entry?.transactionId) await deleteTransactionDoc(entry.transactionId);
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) }));
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) }), namedLabel('حذف زيادة الدين', debt.personName));
   }
 
   async function addSubscription(data: {
@@ -936,13 +937,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    addDocNoWait('subscriptions', { ...clean, active: true, history: [], createdAt: new Date().toISOString() });
+    addDocNoWait('subscriptions', { ...clean, active: true, history: [], createdAt: new Date().toISOString() }, namedLabel('الاشتراك', data.name));
   }
   async function updateSubscription(id: string, data: Partial<Subscription>) {
     if (!uid) return;
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean));
+    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', subscriptions.find(s => s.id === id)?.name));
   }
   async function deleteSubscription(id: string) {
     if (!uid) return;
@@ -951,7 +952,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const txIds = (sub.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    track(deleteDoc(doc(db, 'users', uid, 'subscriptions', id)));
+    track(deleteDoc(doc(db, 'users', uid, 'subscriptions', id)), namedLabel('حذف الاشتراك', sub?.name));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -1056,12 +1057,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         status: 'pending',
       };
     });
-    addDocNoWait('gamiyas', { ...data, months, createdAt: new Date().toISOString() });
+    addDocNoWait('gamiyas', { ...data, months, createdAt: new Date().toISOString() }, namedLabel('الجمعية', data.name));
   }
   async function updateGamiya(id: string, data: Partial<Gamiya>) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean));
+    track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', gamiyas.find(x => x.id === id)?.name));
   }
   async function deleteGamiya(id: string) {
     if (!uid) return;
@@ -1070,7 +1071,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const txIds = g.months.map(m => m.transactionId).filter((x): x is string => !!x);
       await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
     }
-    track(deleteDoc(doc(db, 'users', uid, 'gamiyas', id)));
+    track(deleteDoc(doc(db, 'users', uid, 'gamiyas', id)), namedLabel('حذف الجمعية', g?.name));
   }
   /**
    * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
