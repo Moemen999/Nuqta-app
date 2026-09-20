@@ -13,6 +13,20 @@ export const PERMISSION_DENIED_BODY = 'التطبيق مش مسموح له يب�
 export const OPEN_SETTINGS_LABEL = 'افتح الإعدادات';
 
 /**
+ * السطر ده اترجّع من النسخة القديمة.
+ *
+ * لما القسم اتنقل لشاشة لوحده، سطر "الإشعارات مفعّلة" اتشال ومحلوش بديل —
+ * فبقى مفيش حاجة **جوه الشاشة** بتأكد إن الحالة شغالة. سطر الحالة على صف
+ * الإعدادات بيقولها، بس المستخدم اللي جوه الشاشة مش شايفه.
+ *
+ * (اللي ما اتـرجّعش عن قصد: زرار "🔔 تفعيل الإشعارات" وزرار "إيقاف
+ * الإشعارات" الأحمر — الاتنين بقوا مفتاح واحد، والمفتاح أوضح من زرار أحمر
+ * شكله حذف لحاجة بترجع بضغطة. و"من غير تذكير يومي" بقت وضع المفتاح.)
+ */
+export const STATUS_ON = 'الإشعارات مفعّلة';
+export const STATUS_OFF = 'الإشعارات مقفولة';
+
+/**
  * إعدادات الإشعارات.
  *
  * المفتاح بيعكس الحالة الحقيقية مش نية المستخدم: التفعيل بيطلب إذن النظام،
@@ -59,6 +73,7 @@ export default function NotificationsScreen() {
 
       <View style={styles.switchRow}>
         <Switch
+          testID="notifications_switch"
           value={notifs.enabled}
           onValueChange={toggle}
           disabled={busy}
@@ -67,6 +82,9 @@ export default function NotificationsScreen() {
         />
         <View style={{ flex: 1 }}>
           <Text style={styles.switchLabel}>الإشعارات</Text>
+          <Text testID="notifications_status" style={styles.status}>
+            {notifs.enabled ? STATUS_ON : STATUS_OFF}
+          </Text>
           <Text style={styles.hint}>
             {notifs.enabled
               ? 'هتوصلك تذكيرات قبل مواعيد الاشتراكات وأقساط الجمعية'
@@ -79,6 +97,7 @@ export default function NotificationsScreen() {
         <View style={styles.card}>
           <View style={styles.switchRow}>
             <Switch
+              testID="notifications_daily_switch"
               value={notifs.dailyEnabled}
               onValueChange={v => notifs.setDailyEnabled(v)}
               trackColor={{ false: colors.borderStrong, true: colors.accent }}
@@ -86,7 +105,13 @@ export default function NotificationsScreen() {
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.switchLabel}>تذكير يومي</Text>
-              <Text style={styles.hint}>تذكير كل يوم تسجّل مصاريفك</Text>
+              {/* النص بيتغيّر مع الحالة: قبل كده كان بيقول "تذكير كل يوم"
+                  حتى والتذكير مقفول، فوضع المفتاح كان الإشارة الوحيدة */}
+              <Text style={styles.hint}>
+                {notifs.dailyEnabled
+                  ? 'تذكير كل يوم تسجّل مصاريفك'
+                  : 'من غير تذكير يومي — فعّله لو عايز واحد'}
+              </Text>
             </View>
           </View>
 
@@ -97,6 +122,7 @@ export default function NotificationsScreen() {
                 {[14, 18, 20, 22].map(h => (
                   <TouchableOpacity
                     key={h}
+                    testID={`notifications_hour_${h}`}
                     onPress={() => notifs.setDailyHour(h)}
                     style={[styles.graceBtn, selectionStyle(colors, notifs.dailyHour === h)]}>
                     <Text style={{ color: colors.text, fontSize: 11.5 }}>{hourLabel(h)}</Text>
@@ -119,6 +145,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
     switchLabel: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
+    status: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 2 },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3, lineHeight: 17 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 18, borderWidth: 1, borderColor: c.border },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },

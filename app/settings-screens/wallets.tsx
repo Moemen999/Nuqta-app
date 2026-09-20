@@ -1,5 +1,6 @@
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
+import ListEmptyState from '@/components/ListEmptyState';
 import BackButton from '@/components/BackButton';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -185,18 +186,23 @@ export default function WalletsScreen() {
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم المحفظة تعدله مباشرة</Text>
 
+        {activeWallets.length === 0 && (
+          <ListEmptyState testID="wallets_empty" message="لسه مفيش محافظ شغالة. اعمل واحدة من تحت." />
+        )}
+
         {activeWallets.map(w => (
-          <View key={w.id} style={styles.walletCard}>
+          <View key={w.id} testID={`wallet_row_${w.id}`} style={styles.walletCard}>
             <View style={styles.walletHead}>
               <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
               <TextInput
+                testID={`wallet_name_input_${w.id}`}
                 style={styles.nameInput}
                 value={nameDrafts[w.id] !== undefined ? nameDrafts[w.id] : w.name}
                 onChangeText={v => setNameDrafts(d => ({ ...d, [w.id]: v }))}
                 onBlur={() => saveName(w.id, w.name)}
                 textAlign="right"
               />
-              <TouchableOpacity onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
+              <TouchableOpacity testID={`wallet_delete_${w.id}`} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
                   {deletingKey === w.id ? '...' : 'حذف'}
                 </Text>
@@ -206,6 +212,7 @@ export default function WalletsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.microLabel}>الرصيد الابتدائي</Text>
                 <TextInput
+                  testID={`wallet_opening_input_${w.id}`}
                   style={styles.smallInput}
                   keyboardType="numeric"
                   value={opening.valueFor(w.id, w.openingBalance)}
@@ -217,6 +224,7 @@ export default function WalletsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.microLabel}>حد التنبيه</Text>
                 <TextInput
+                  testID={`wallet_alert_input_${w.id}`}
                   style={styles.smallInput}
                   keyboardType="numeric"
                   value={lowAlert.valueFor(w.id, w.lowAlert)}
@@ -230,9 +238,10 @@ export default function WalletsScreen() {
         ))}
 
         <View style={styles.addRow}>
-          <TextInput style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
+          <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
             value={newWallet} onChangeText={setNewWallet} textAlign="right" />
           <TouchableOpacity
+            testID="wallet_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}
             onPress={() => {

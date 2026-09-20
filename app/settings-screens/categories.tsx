@@ -1,5 +1,6 @@
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
+import ListEmptyState from '@/components/ListEmptyState';
 import BackButton from '@/components/BackButton';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -141,17 +142,22 @@ export default function CategoriesScreen() {
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
 
+        {activeCategories.length === 0 && (
+          <ListEmptyState testID="categories_empty" message="لسه مفيش فئات شغالة. اعمل واحدة من تحت." />
+        )}
+
         {activeCategories.map(c => (
-          <View key={c.id} style={styles.catRow}>
+          <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
             <View style={[styles.dot, { backgroundColor: categoryColors.get(c.id) }]} />
             <TextInput
+              testID={`category_name_input_${c.id}`}
               style={styles.nameInput}
               value={nameDrafts[c.id] !== undefined ? nameDrafts[c.id] : c.name}
               onChangeText={v => setNameDrafts(d => ({ ...d, [c.id]: v }))}
               onBlur={() => saveName(c.id, c.name)}
               textAlign="right"
             />
-            <TouchableOpacity onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
+            <TouchableOpacity testID={`category_delete_${c.id}`} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
               <Text style={[styles.deleteText, deletingKey === c.id && styles.btnBusy]}>
                 {deletingKey === c.id ? '...' : 'حذف'}
               </Text>
@@ -160,9 +166,10 @@ export default function CategoriesScreen() {
         ))}
 
         <View style={styles.addRow}>
-          <TextInput style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
+          <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
             value={newCategory} onChangeText={setNewCategory} textAlign="right" />
           <TouchableOpacity
+            testID="category_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}
             onPress={() => {
