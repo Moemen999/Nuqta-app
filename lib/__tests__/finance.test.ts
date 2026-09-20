@@ -1,6 +1,6 @@
 import type { Debt, Transaction } from '@/context/DataContext';
 import {
-  DELETED_WALLET_LABEL, addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid,
+  DEFAULT_CATEGORY_ICON, DELETED_WALLET_LABEL, addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid,
   endOfMonth, fmt, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
 } from '@/lib/finance';
 
@@ -392,8 +392,19 @@ describe('categoryLabel — اسم الفئة مع الأيقونة', () => {
     expect(categoryLabel({ name: 'مواصلات', icon: '🚗' })).toBe('🚗 مواصلات');
   });
 
-  it('الفئة من غير أيقونة بتظهر بالاسم بس', () => {
-    expect(categoryLabel({ name: 'مواصلات' })).toBe('مواصلات');
+  /**
+   * اتغيّر: الفئة من غير أيقونة بقت تاخد الافتراضية.
+   *
+   * قبل كده كانت بتطلع بالاسم لوحده، فالقايمة اللي فيها فئة بأيقونة وفئة
+   * من غيرها كان نص صفوفها مزّحزح عن التاني. والافتراضية بتخلي الشكل واحد
+   * لحد ما المستخدم يختار — ومفيش فئة مستحيل تختارلها دلوقتي.
+   */
+  it('الفئة من غير أيقونة بتاخد الافتراضية', () => {
+    expect(categoryLabel({ name: 'مواصلات' })).toBe(`${DEFAULT_CATEGORY_ICON} مواصلات`);
+  });
+
+  it('واللي عايز الاسم نضيف (زي عمود الإكسيل) بيطلبه صريح', () => {
+    expect(categoryLabel({ name: 'مواصلات' }, { icon: false })).toBe('مواصلات');
   });
 
   it('فئة محذوفة (undefined) بترجع نص فاضي من غير كراش', () => {

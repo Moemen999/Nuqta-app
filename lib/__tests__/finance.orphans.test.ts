@@ -1,5 +1,6 @@
 import {
   ARCHIVED_SUFFIX,
+  DEFAULT_CATEGORY_ICON,
   DELETED_CATEGORY_LABEL,
   DELETED_SLICE_ID,
   DELETED_SLICE_NAME,
@@ -60,7 +61,7 @@ describe('أسماء التاريخ', () => {
 
   it('الأيقونة بتفضل مع الاسم، والمؤرشفة بتاخد اللاحقة', () => {
     expect(categoryLabelById(CATS, 'c1')).toBe('🍔 أكل');
-    expect(categoryLabel(CATS[2])).toBe(`ترفيه (${ARCHIVED_SUFFIX})`);
+    expect(categoryLabel(CATS[2])).toBe(`${DEFAULT_CATEGORY_ICON} ترفيه (${ARCHIVED_SUFFIX})`);
   });
 });
 
@@ -163,7 +164,7 @@ describe('buildCategorySpend — الفلوس مبتختفيش', () => {
     const out = buildCategorySpend([{ categoryId: 'c3', amount: 80 }], CATS, opts);
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe('c3');
-    expect(out[0].name).toBe(`ترفيه (${ARCHIVED_SUFFIX})`);
+    expect(out[0].name).toBe(`${DEFAULT_CATEGORY_ICON} ترفيه (${ARCHIVED_SUFFIX})`);
   });
 });
 

@@ -3,7 +3,7 @@ import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 import {
-  addDoc, collection, deleteDoc, doc, getDocs, serverTimestamp, setDoc, updateDoc,
+  addDoc, collection, deleteDoc, doc, getDocs, getDocsFromServer, serverTimestamp, setDoc, updateDoc,
 } from 'firebase/firestore';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -153,10 +153,17 @@ describe('قواعد مجموعة الآراء', () => {
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid)));
   });
 
+  /**
+   * **من السيرفر مش من الكاش.** `getDocs` العادية ممكن ترد من الكاش المحلي
+   * لو الكلاينت كتب في المجموعة دي قبل كده في نفس الجلسة — وساعتها
+   * الاختبار "بينجح" في قراية محدش رفضها أصلاً، وبيرمش لما التوقيت يتغيّر.
+   * `getDocsFromServer` بتجبره يسأل السيرفر فعلاً، وهي دي القاعدة اللي
+   * بنختبرها.
+   */
   it('القراية ممنوعة — حتى على رأيك انت', async () => {
     const uid = await signInTestUser();
     await addDoc(collection(db, 'feedback'), validDoc(uid));
-    await expectDenied(getDocs(collection(db, 'feedback')));
+    await expectDenied(getDocsFromServer(collection(db, 'feedback')));
   });
 
   it('التعديل والحذف ممنوعين', async () => {

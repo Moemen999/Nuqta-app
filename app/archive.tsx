@@ -66,7 +66,8 @@ export default function ArchiveScreen() {
           Type: TYPE_LABELS[t.type]?.label || t.type,
           Wallet: walletHistoryName(wallets, t.walletId),
           ToWallet: t.type === 'withdraw' ? walletHistoryName(wallets, t.toWalletId) : '',
-          Category: categoryLabelById(categories, t.categoryId),
+          // من غير أيقونة: عمود الإكسيل المفروض يتفرز ويتفلتر، والإيموجي بيلخبط ده
+          Category: categoryLabelById(categories, t.categoryId, { icon: false }),
           Amount: t.amount,
           Note: t.note || '',
         };

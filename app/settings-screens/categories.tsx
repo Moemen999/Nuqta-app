@@ -1,5 +1,6 @@
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
+import CategoryIconPicker from '@/components/CategoryIconPicker';
 import ListEmptyState from '@/components/ListEmptyState';
 import BackButton from '@/components/BackButton';
 import { useData } from '@/context/DataContext';
@@ -9,6 +10,7 @@ import {
   categoryArchiveBlock, categoryDeleteConsequences, categoryHasHistory, categoryLinkSummary,
   categoryReferences, type ArchiveBlock,
 } from '@/lib/archiving';
+import { categoryIcon } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -26,6 +28,7 @@ export default function CategoriesScreen() {
   const { categoryColors } = useChartColors();
 
   const [newCategory, setNewCategory] = useState('');
+  const [iconFor, setIconFor] = useState<string | null>(null);
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<{
     id: string; name: string; items: ReassignItem[]; targets: ReassignTarget[]; note?: string;
@@ -148,7 +151,14 @@ export default function CategoriesScreen() {
 
         {activeCategories.map(c => (
           <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
-            <View style={[styles.dot, { backgroundColor: categoryColors.get(c.id) }]} />
+            {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
+                بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
+            <TouchableOpacity
+              testID={`category_icon_${c.id}`}
+              onPress={() => setIconFor(c.id)}
+              style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
+              <Text style={styles.iconText}>{categoryIcon(c)}</Text>
+            </TouchableOpacity>
             <TextInput
               testID={`category_name_input_${c.id}`}
               style={styles.nameInput}
@@ -183,6 +193,16 @@ export default function CategoriesScreen() {
 
         <ArchivedList title="الفئات المؤرشفة" items={archivedCategories} onRestore={confirmRestore} />
 
+        <CategoryIconPicker
+          visible={iconFor !== null}
+          current={activeCategories.find(c => c.id === iconFor)?.icon}
+          onPick={icon => {
+            if (iconFor) updateCategory(iconFor, { icon: icon ?? '' });
+            setIconFor(null);
+          }}
+          onClose={() => setIconFor(null)}
+        />
+
         {sheet && (
           <ArchiveSheet
             title="أرشفة فئة"
@@ -208,7 +228,8 @@ function makeStyles(c: ThemeColors) {
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
+    iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+    iconText: { fontSize: 17 },
     catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },
     nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     deleteText: { color: c.danger, fontSize: 12.5 },

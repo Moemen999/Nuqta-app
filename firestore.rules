@@ -64,6 +64,12 @@ service cloud.firestore {
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
+          // الأيقونة اختيارية: الفئات القديمة (وكل الافتراضية) مالهاش الحقل،
+          // والقاعدة بتتحقق من المستند بعد الدمج — فلو خليناه مطلوب كان أي
+          // تعديل على فئة قديمة هيترفض. والفاضي مسموح لأنه معناه "شيل الأيقونة".
+          && (!('icon' in request.resource.data)
+              || (request.resource.data.icon is string
+                  && request.resource.data.icon.size() <= 8))
           && archiveFieldsValid(request.resource.data);
       }
 

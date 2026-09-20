@@ -830,10 +830,29 @@ export function transactionWalletLabel(
   return `من ${from} إلى ${walletHistoryName(wallets, t.toWalletId)}`;
 }
 
-export function categoryLabel(c?: { name: string; icon?: string; archived?: boolean }) {
+/**
+ * أيقونة الفئة اللي لسه المستخدم ماختارش ليها واحدة.
+ *
+ * محايدة عن قصد: الفئات اللي اتعملت قبل الميزة دي (وكل الفئات الافتراضية)
+ * مالهاش `icon`، ولو سبناها من غير أيقونة كانت القوايم هتطلع نص صفوفها
+ * مزّحزح عن التاني. الأيقونة الافتراضية بتخلي الشكل واحد لحد ما المستخدم
+ * يختار.
+ */
+export const DEFAULT_CATEGORY_ICON = '🏷️';
+
+export type CategoryLabelOptions = {
+  /** `false` بتدّي الاسم من غير أيقونة — للتصدير، عشان عمود الإكسيل يفضل قابل للفرز */
+  icon?: boolean;
+};
+
+export function categoryLabel(
+  c?: { name: string; icon?: string; archived?: boolean },
+  opts: CategoryLabelOptions = {},
+) {
   if (!c) return '';
   const name = c.archived ? `${c.name} (${ARCHIVED_SUFFIX})` : c.name;
-  return c.icon ? `${c.icon} ${name}` : name;
+  if (opts.icon === false) return name;
+  return `${c.icon || DEFAULT_CATEGORY_ICON} ${name}`;
 }
 
 /**
@@ -844,10 +863,23 @@ export function categoryLabel(c?: { name: string; icon?: string; archived?: bool
 export function categoryLabelById(
   categories: { id: string; name: string; icon?: string; archived?: boolean }[],
   id?: string,
+  opts: CategoryLabelOptions = {},
 ) {
   if (!id) return '';
   const found = categories.find(c => c.id === id);
-  return found ? categoryLabel(found) : DELETED_CATEGORY_LABEL;
+  return found ? categoryLabel(found, opts) : DELETED_CATEGORY_LABEL;
+}
+
+/** الأيقونة لوحدها — للأماكن اللي بتعرضها جنب اسم قابل للتعديل */
+export function categoryIcon(c?: { icon?: string }) {
+  return c?.icon || DEFAULT_CATEGORY_ICON;
+}
+
+/** أطول أيقونة مقبولة. الإيموجي المركّب (زي ✈️ أو 👨‍👩‍👧) بياخد أكتر من حرف */
+export const CATEGORY_ICON_MAX = 8;
+
+export function categoryIconValid(icon: string) {
+  return CATEGORY_ICONS.includes(icon) || (icon.length > 0 && icon.length <= CATEGORY_ICON_MAX);
 }
 
 export const CATEGORY_ICONS = [
