@@ -1,4 +1,4 @@
-import { APP_VERSION } from '@/lib/appInfo';
+import { APP_FULL_VERSION, APP_VERSION, BUILD_NUMBER } from '@/lib/appInfo';
 import { lettersPhrase } from '@/lib/archiving';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
@@ -68,6 +68,10 @@ export function formatDeviceModel(manufacturer: string | null, modelName: string
 export function deviceInfo() {
   return {
     appVersion: APP_VERSION,
+    // نفس النص اللي المستخدم شايفه في "عن التطبيق" — لو قال "مشكلة في
+    // 1.0.0.007" لازم نلاقي نفس الرقم في المستند من غير ما نركّبه بإيدينا
+    buildNumber: BUILD_NUMBER,
+    fullVersion: APP_FULL_VERSION,
     platform: String(Platform.OS),
     deviceModel: formatDeviceModel(Device.manufacturer, Device.modelName),
     osVersion: (Device.osVersion || '').trim() || UNKNOWN_DEVICE,

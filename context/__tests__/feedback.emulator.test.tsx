@@ -23,7 +23,8 @@ async function expectDenied(p: Promise<unknown>) {
 function validDoc(uid: string, over: Record<string, unknown> = {}) {
   return {
     uid, type: 'bug', text: 'فيه مشكلة في الشاشة دي',
-    appVersion: '1.0.0', platform: 'android', deviceModel: 'samsung SM-A546B', osVersion: '14',
+    appVersion: '1.0.0', buildNumber: '007', fullVersion: '1.0.0.007',
+    platform: 'android', deviceModel: 'samsung SM-A546B', osVersion: '14',
     createdAt: serverTimestamp(),
     ...over,
   };
@@ -95,6 +96,32 @@ describe('قواعد مجموعة الآراء', () => {
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { deviceModel: 'x'.repeat(65) })));
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { osVersion: 'x'.repeat(33) })));
     await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { osVersion: 14 })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { buildNumber: 7 })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { buildNumber: 'x'.repeat(17) })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { fullVersion: 1 })));
+    await expectDenied(addDoc(collection(db, 'feedback'), validDoc(uid, { fullVersion: 'x'.repeat(49) })));
+  });
+
+  it('رقم البناء لازم يكون موجود — من غيره مش هنعرف الرأي جه من أنهي APK', async () => {
+    const uid = await signInTestUser();
+    const { buildNumber, ...withoutBuild } = validDoc(uid);
+    await expectDenied(addDoc(collection(db, 'feedback'), withoutBuild));
+    const { fullVersion, ...withoutFull } = validDoc(uid);
+    await expectDenied(addDoc(collection(db, 'feedback'), withoutFull));
+  });
+
+  it('"dev" مقبول — بناء من جهاز مطوّر', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'feedback'), validDoc(uid, { buildNumber: 'dev', fullVersion: '1.0.0.dev' }))
+    ).resolves.toBeDefined();
+  });
+
+  it('رقم بناء بأربع خانات (بعد 999) مقبول', async () => {
+    const uid = await signInTestUser();
+    await expect(
+      addDoc(collection(db, 'feedback'), validDoc(uid, { buildNumber: '1000', fullVersion: '1.0.0.1000' }))
+    ).resolves.toBeDefined();
   });
 
   it('موديل حقيقي طويل شوية بيعدّي — 64 حرف مساحة كفاية', async () => {

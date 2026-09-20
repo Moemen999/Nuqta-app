@@ -1,5 +1,5 @@
 import BackButton from '@/components/BackButton';
-import { APP_VERSION } from '@/lib/appInfo';
+import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -20,7 +20,7 @@ export default function AboutScreen() {
 
       <View style={styles.card}>
         <Text style={styles.appName}>نقطة</Text>
-        <Text style={styles.version}>الإصدار {APP_VERSION}</Text>
+        <Text testID="about_version" style={styles.version}>الإصدار {APP_FULL_VERSION}</Text>
       </View>
     </ScrollView>
   );

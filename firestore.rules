@@ -39,7 +39,11 @@ service cloud.firestore {
         && request.resource.data.deviceModel is string
         && request.resource.data.deviceModel.size() <= 64
         && request.resource.data.osVersion is string
-        && request.resource.data.osVersion.size() <= 32;
+        && request.resource.data.osVersion.size() <= 32
+        && request.resource.data.buildNumber is string
+        && request.resource.data.buildNumber.size() <= 16
+        && request.resource.data.fullVersion is string
+        && request.resource.data.fullVersion.size() <= 48;
     }
 
     match /users/{userId} {

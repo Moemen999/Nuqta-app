@@ -32,6 +32,25 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # رقم البناء = run_number، وده عدّاد GitHub اللي بيزيد لوحده مع كل
+      # تشغيلة. البوابتين دول بيحموه من الحالتين اللي بيتكرر فيهم:
+      #   - Re-run: بيعيد نفس run_number، فبناءين مختلفين بنفس versionCode —
+      #     وجوجل بلاي بيرفض التاني وإحنا مش عارفين ليه.
+      #   - run_number <= 5: الإزاحة بتطرح 5، فأي رقم أقل بيدّي رقم عرض سالب
+      #     أو صفر. ده بيحصل لو ملف الورك فلو اتمسح واتعمل من جديد (العدّاد
+      #     بيرجع 1) — شوف "رقم البناء" في CLAUDE.md.
+      - name: فحص عدّاد البناء
+        run: |
+          if [ "${{ github.run_attempt }}" != "1" ]; then
+            echo "::error::زرار Re-run بيعيد نفس run_number (${{ github.run_number }}) فبيدّي نفس versionCode. شغّل الورك فلو من الأول بدل Re-run."
+            exit 1
+          fi
+          if [ "${{ github.run_number }}" -lt 5 ]; then
+            echo "::error::run_number = ${{ github.run_number }} وهو لازم ميقلّش عن 5 (الإزاحة). غالبًا ملف الورك فلو اتعمل من جديد — عدّل RUN_NUMBER_OFFSET في app.config.js."
+            exit 1
+          fi
+          echo "run_number=${{ github.run_number }} · versionCode=${{ github.run_number }}"
+
       - uses: actions/checkout@v4
 
       # جافا 17 بالتحديد. الرَنر افتراضيًا 17 دلوقتي، بس لو الافتراضي اتغيّر
@@ -71,6 +90,8 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           # الناتج بيتحط هنا بدل ما يترمي في جذر المشروع
           EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+          # app.config.js بيقرا منها versionCode ورقم البناء المعروض
+          NUQTA_RUN_NUMBER: ${{ github.run_number }}
         run: eas build --platform android --profile ${{ inputs.profile }} --local --non-interactive
 
       - name: الناتج

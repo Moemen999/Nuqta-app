@@ -4,7 +4,7 @@ import { useNotifications } from '@/context/NotificationsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { APP_VERSION } from '@/lib/appInfo';
+import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -153,7 +153,7 @@ export default function SettingsScreen() {
         {
           key: 'about',
           title: 'عن التطبيق',
-          status: APP_VERSION,
+          status: APP_FULL_VERSION,
           onPress: () => router.push('/settings-screens/about'),
         },
       ],

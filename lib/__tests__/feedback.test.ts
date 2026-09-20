@@ -69,7 +69,7 @@ describe('buildFeedbackDoc', () => {
   it('مفيش أي بيانات مالية في المستند — ده اللي بنقوله للمستخدم', () => {
     const doc = buildFeedbackDoc('u1', 'bug', 'نص') as Record<string, unknown>;
     expect(Object.keys(doc).sort()).toEqual(
-      ['appVersion', 'deviceModel', 'osVersion', 'platform', 'text', 'type', 'uid']
+      ['appVersion', 'buildNumber', 'deviceModel', 'fullVersion', 'osVersion', 'platform', 'text', 'type', 'uid']
     );
   });
 
@@ -126,6 +126,13 @@ describe('deviceInfo', () => {
     expect(typeof info.platform).toBe('string');
     expect(typeof info.deviceModel).toBe('string');
     expect(typeof info.osVersion).toBe('string');
+    expect(typeof info.buildNumber).toBe('string');
+    expect(typeof info.fullVersion).toBe('string');
+  });
+
+  it('رقم البناء بيتبعت زي ما المستخدم شايفه في "عن التطبيق"', () => {
+    const info = deviceInfo();
+    expect(info.fullVersion).toBe(`${info.appVersion}.${info.buildNumber}`);
   });
 
   it('بياخد الموديل الحقيقي من expo-device', () => {
