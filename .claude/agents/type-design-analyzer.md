@@ -1,8 +1,8 @@
 ---
 name: type-design-analyzer
-description: Analyze type design for encapsulation, invariant expression, usefulness, and enforcement.
+description: Evaluates whether a type models the domain honestly — illegal states representable, optional fields that should be required. RUNS ON: new or reshaped domain types in context/DataContext.tsx or lib/. DOES NOT RUN ON: component prop types or routine annotations.
 model: sonnet
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Bash
 ---
 
 ## Prompt Defense Baseline

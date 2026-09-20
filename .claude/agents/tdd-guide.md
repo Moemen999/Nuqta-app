@@ -1,6 +1,6 @@
 ---
 name: tdd-guide
-description: Test-Driven Development specialist enforcing write-tests-first methodology. Use PROACTIVELY when writing new features, fixing bugs, or refactoring code. Ensures 80%+ test coverage.
+description: Drives test-first for logic with a definable contract. RUNS ON: new pure functions in lib/, especially money maths. DOES NOT RUN ON: UI layout, or code whose only assertion would restate the implementation.
 tools: Read, Write, Edit, Bash, Grep
 model: sonnet
 ---

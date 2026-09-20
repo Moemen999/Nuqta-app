@@ -1,6 +1,6 @@
 ---
 name: doc-updater
-description: Documentation and codemap specialist. Use PROACTIVELY for updating codemaps and documentation. Generates docs/CODEMAPS/*, updates READMEs and guides. Backs the /update-codemaps and /update-docs commands.
+description: Updates CLAUDE.md, TIMELINE.md and repo docs when behaviour or a decision changes. RUNS ON: a decision taken, deferred or reversed, or a documented rule changing. DOES NOT RUN ON: code changes that alter no documented behaviour.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: haiku
 ---

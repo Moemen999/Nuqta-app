@@ -1,8 +1,8 @@
 ---
 name: spec-miner
-description: Extracts behavioral specs from existing codebases for OpenSpec. Produces flat Requirement and Invariant blocks with structured metadata (entities, enforced, id, test anchors). Outputs openspec/specs/<capability>/spec.md. Fully self-bootstrapping — no dependency on codebase-onboarding. Use when onboarding a brownfield project to spec-driven development.
+description: Extracts the implied contract from existing code and tests before it is changed. RUNS ON: investigation before modifying long-standing behaviour. DOES NOT RUN ON: greenfield code with no prior contract.
 model: opus
-tools: Read, Grep, Glob, Bash, Write
+tools: Read, Grep, Glob, Bash
 ---
 
 ## Tool guardrails

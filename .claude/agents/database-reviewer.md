@@ -1,6 +1,6 @@
 ---
 name: database-reviewer
-description: PostgreSQL database specialist for query optimization, schema design, security, and performance. Use PROACTIVELY when writing SQL, creating migrations, designing schemas, or troubleshooting database performance. Incorporates Supabase best practices.
+description: Reviews data-layer changes: schema shape, query cost, indexes, read/write amplification, security rules. RUNS ON: firestore.rules, DataContext listeners or writes, new collections or fields. DOES NOT RUN ON: UI reading already-loaded state, or local-only storage.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

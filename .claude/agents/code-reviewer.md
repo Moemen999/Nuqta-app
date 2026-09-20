@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Expert code review specialist. Proactively reviews code for quality, security, and maintainability. Use immediately after writing or modifying code. MUST BE USED for all code changes.
+description: General correctness review when no specialist fits. RUNS ON: changes that are not money, not rules, not a new screen, not new strings. DOES NOT RUN ON: anything a specialist above covers — defer to that specialist instead of duplicating it.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

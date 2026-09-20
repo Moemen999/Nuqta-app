@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Security vulnerability detection and remediation specialist. Use PROACTIVELY after writing code that handles user input, authentication, API endpoints, or sensitive data. Flags secrets, SSRF, injection, unsafe crypto, and OWASP Top 10 vulnerabilities.
+description: Reviews for security defects: authz gaps, data exposure, injection, secret handling, over-permissive rules. RUNS ON: firestore.rules, auth flows, app-lock code, anything writing outside users/{uid}. DOES NOT RUN ON: internal refactors with no trust boundary, or styling.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

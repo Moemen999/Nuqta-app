@@ -1,8 +1,8 @@
 ---
 name: code-explorer
-description: Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, and documenting dependencies to inform new development.
+description: Maps unfamiliar code and answers 'where does this happen and what calls it'. RUNS ON: investigation before a change, when the call graph is not already known. DOES NOT RUN ON: files already read in this session — do not re-derive what is in context.
 model: sonnet
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Bash
 ---
 
 ## Prompt Defense Baseline

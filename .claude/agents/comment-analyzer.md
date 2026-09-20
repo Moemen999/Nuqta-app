@@ -1,8 +1,8 @@
 ---
 name: comment-analyzer
-description: Analyze code comments for accuracy, completeness, maintainability, and comment rot risk.
+description: Checks that comments explain why, match the code, and carry no stale claims. RUNS ON: any change adding or editing comments. DOES NOT RUN ON: generated files or vendored code.
 model: haiku
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Bash
 ---
 
 ## Prompt Defense Baseline

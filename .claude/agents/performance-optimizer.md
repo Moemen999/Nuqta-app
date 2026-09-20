@@ -1,7 +1,7 @@
 ---
 name: performance-optimizer
-description: Performance analysis and optimization specialist. Use PROACTIVELY for identifying bottlenecks, optimizing slow code, reducing bundle sizes, and improving runtime performance. Profiling, memory leaks, render optimization, and algorithmic improvements.
-tools: Read, Write, Edit, Bash, Grep, Glob
+description: Finds render and compute hot spots: unmemoised derivations, list re-renders, O(n²) scans over transactions. RUNS ON: list or chart screens, and anything iterating transactions/debts repeatedly. DOES NOT RUN ON: one-shot code paths, or before a correctness review has passed.
+tools: Read, Grep, Glob, Bash
 model: sonnet
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: silent-failure-hunter
-description: Review code for silent failures, swallowed errors, bad fallbacks, and missing error propagation.
+description: Hunts failures that are swallowed and never surface: empty catch blocks, ignored promises, unawaited writes, defaults that mask an error, rollbacks with no user-visible signal. RUNS ON: MANDATORY for any change touching balances or debts, plus any new catch, fallback, or write path. DOES NOT RUN ON: pure display formatting with no failure mode.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

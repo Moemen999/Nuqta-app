@@ -1,6 +1,6 @@
 ---
 name: react-reviewer
-description: Expert React/JSX code reviewer specializing in hook correctness, render performance, server/client component boundaries, accessibility, and React-specific security. Use for any change touching .tsx/.jsx files or React component logic. MUST BE USED for React projects.
+description: Reviews React and React Native component code: hooks rules, render cost, state placement, effect dependencies, list virtualisation. RUNS ON: changes under app/ or components/. DOES NOT RUN ON: pure logic in lib/ or context/ with no JSX, styling-only edits, or web-React idioms that do not apply to React Native.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

@@ -1,7 +1,7 @@
 ---
 name: architect
-description: Software architecture specialist for system design, scalability, and technical decision-making. Use PROACTIVELY when planning new features, refactoring large systems, or making architectural decisions.
-tools: Read, Grep, Glob
+description: Designs the shape of a multi-file change before coding. RUNS ON: features spanning several screens, contexts, or the data model. DOES NOT RUN ON: single-file changes or bug fixes with an obvious location.
+tools: Read, Grep, Glob, Bash
 model: opus
 ---
 

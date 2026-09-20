@@ -1,6 +1,6 @@
 ---
 name: code-architect
-description: Designs feature architectures by analyzing existing codebase patterns and conventions, then providing implementation blueprints with concrete files, interfaces, data flow, and build order.
+description: Reviews whether a change sits at the right layer and respects existing module boundaries. RUNS ON: new modules in lib/ or context/, or logic moving between layers. DOES NOT RUN ON: changes contained in one existing file.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

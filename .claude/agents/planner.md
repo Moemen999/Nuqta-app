@@ -1,7 +1,7 @@
 ---
 name: planner
-description: Expert planning specialist for complex features and refactoring. Use PROACTIVELY when users request feature implementation, architectural changes, or complex refactoring. Automatically activated for planning tasks.
-tools: Read, Grep, Glob
+description: Breaks an approved goal into ordered, individually shippable steps. RUNS ON: multi-item work where sequencing matters. DOES NOT RUN ON: work already broken into numbered items by the user.
+tools: Read, Grep, Glob, Bash
 model: opus
 ---
 

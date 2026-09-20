@@ -1,6 +1,6 @@
 ---
 name: pr-test-analyzer
-description: Review pull request test coverage quality and completeness, with emphasis on behavioral coverage and real bug prevention.
+description: Reads failing test output and explains the real cause. RUNS ON: a red suite with output to read. DOES NOT RUN ON: passing suites, or guesses about tests not yet run.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

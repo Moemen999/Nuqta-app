@@ -1,6 +1,6 @@
 ---
 name: react-build-resolver
-description: Diagnose and fix React build failures across Vite, webpack, Next.js, CRA, Parcel, esbuild, and Bun. Handles JSX/TSX compile errors, hydration mismatches, server/client component boundary failures, missing types, and bundler-specific configuration issues with minimal, surgical changes. MUST BE USED when a React build fails.
+description: Diagnoses failing React Native / Expo builds and Metro bundler errors. RUNS ON: a build or bundler failure with an actual error log to read. DOES NOT RUN ON: type errors (use typescript-reviewer), failing tests (use pr-test-analyzer), or runtime bugs in working builds.
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---
