@@ -1,9 +1,9 @@
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
-import { overlayStyle, sheetStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 type Mode = 'enable' | 'change' | 'disable';
 
@@ -57,6 +57,11 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
         <View style={styles.sheet}>
+        <ScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheetContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag">
           <Text style={styles.title}>
             {mode === 'enable' ? 'تفعيل القفل' : mode === 'change' ? 'تغيير الباسورد' : 'إلغاء القفل'}
           </Text>
@@ -97,15 +102,16 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           )}
 
           {!!error && <Text style={styles.error}>{error}</Text>}
+        </ScrollView>
 
-          <View style={styles.actions}>
-            <TouchableOpacity testID="setlock_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity testID="setlock_submit" style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
-            </TouchableOpacity>
-          </View>
+        <View style={styles.footer}>
+          <TouchableOpacity testID="setlock_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity testID="setlock_submit" style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
+          </TouchableOpacity>
+        </View>
         </View>
       </View>
       </KeyboardAvoidingView>
@@ -116,14 +122,19 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayStyle,
-    sheet: sheetStyle(c),
+    // الشاشة دي كانت أسوأ حالة في القايمة: مفيش `ScrollView` خالص. في وضع
+    // "تغيير الباسورد" الفورم بيبقى تلات حقول + اختيار نوع، ومع الكيبورد
+    // مفتوح مكانش فيه ولا تمرير احتياطي — الزرار يروح تحت الكيبورد وخلاص.
+    sheet: { ...sheetStyle(c), padding: 0, overflow: 'hidden', maxHeight: '90%' },
+    sheetScroll: { flexShrink: 1 },
+    sheetContent: { padding: 20 },
     title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 12, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, padding: 12, fontSize: 15 },
     row: { flexDirection: 'row-reverse', gap: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 6 },
+    footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
   });

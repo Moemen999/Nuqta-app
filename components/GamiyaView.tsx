@@ -4,7 +4,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import { daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
-import { overlayStyle, sheetStyle, sheetTitleStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -187,7 +187,8 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <View style={styles.sheet}>
+        <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
@@ -231,17 +232,19 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <TouchableOpacity testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-            </TouchableOpacity>
-          </View>
 
           <CalendarPickerModal visible={showPicker} value={startDate} onSelect={setStartDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -274,7 +277,9 @@ function makeStyles(c: ThemeColors) {
     editBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
     deleteBtnFlex: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
     overlay: overlayStyle,
-    sheet: sheetStyle(c, { maxHeight: '90%' }),
+    sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
+    sheetScroll: { flexShrink: 1 },
+    sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 10),
     hintNote: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', lineHeight: 17, marginBottom: 4 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
@@ -285,7 +290,7 @@ function makeStyles(c: ThemeColors) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    actions: { flexDirection: 'row-reverse', gap: 10, marginTop: 20, marginBottom: 6 },
+    footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     btnBusy: { opacity: 0.6 },
@@ -329,7 +334,8 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <ScrollView style={styles.sheet} contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+        <View style={styles.sheet}>
+        <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تعديل جمعية</Text>
           <Text style={styles.hintNote}>
             المبالغ وعدد الشهور وشهر الاستلام مش بيتعدلوا هنا عشان الجدول اتبنى عليهم بالفعل
@@ -356,15 +362,17 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <View style={styles.actions}>
-            <TouchableOpacity testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
-            </TouchableOpacity>
-          </View>
         </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
+            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
+          </TouchableOpacity>
+          <TouchableOpacity testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
+          </TouchableOpacity>
+        </View>
+        </View>
       </View>
       </KeyboardAvoidingView>
     </Modal>
