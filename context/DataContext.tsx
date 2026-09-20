@@ -2,7 +2,11 @@ import { useAuth } from '@/context/AuthContext';
 import { db } from '@/firebaseConfig';
 import { settlementNote } from '@/lib/archiving';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
-import { addDays, addMonths, debtGrandTotal, debtPaid, todayStr } from '@/lib/finance';
+import {
+  addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
+  installmentChangeMessage, installmentCountAfterPayment, installmentValue,
+  planInstallmentCountEdit, todayStr,
+} from '@/lib/finance';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
@@ -136,7 +140,16 @@ export type Debt = {
   totalAmount: number;
   date: string;
   isInstallment: boolean;
+  /** إجمالي عدد الأقساط زي ما هو معروض ("القسط 3 من 6") */
   installmentCount?: number;
+  /**
+   * قيمة القسط الواحد، متخزّنة مش محسوبة.
+   *
+   * لو محسوبة (`الإجمالي ÷ العدد`) كانت هترقص مع كل تعديل للعدد، والمستخدم
+   * مستنّي العكس: القسط ثابت والعدد هو اللي يتغيّر. غايب في الديون القديمة
+   * اللي اتعملت قبل الميزة — `installmentValue` بترجع للحسبة القديمة وقتها.
+   */
+  installmentAmount?: number;
   note?: string;
   createdAt: string;
   payments: DebtPayment[];
@@ -253,7 +266,8 @@ type DataContextType = {
   }) => Promise<void>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
   deleteDebt: (id: string) => Promise<void>;
-  addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<void>;
+  addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<string | null | void>;
+  setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<void>;
   addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<void>;
   deleteDebtIncrease: (debtId: string, entryId: string) => Promise<void>;
@@ -811,9 +825,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         note: `${data.direction === 'owed_to_me' ? 'قرض لـ' : 'استلاف من'} ${data.personName}`,
       });
     }
+    /**
+     * قيمة القسط بتتحسب مرة واحدة هنا وبتتخزّن. لو سبناها تتحسب كل مرة
+     * (`الإجمالي ÷ العدد`) كانت هترقص مع كل تعديل للعدد — والمستخدم مستنّي
+     * القسط يفضل ثابت والعدد هو اللي يتحرّك.
+     */
+    const installmentAmount = data.isInstallment && data.installmentCount && data.installmentCount > 0
+      ? data.totalAmount / data.installmentCount
+      : undefined;
     const clean = Object.fromEntries(Object.entries({
       direction: data.direction, personName: data.personName, personPhone: data.personPhone, personContactId: data.personContactId, totalAmount: data.totalAmount, date: data.date,
-      isInstallment: data.isInstallment, installmentCount: data.installmentCount, note: data.note,
+      isInstallment: data.isInstallment, installmentCount: data.installmentCount, installmentAmount, note: data.note,
       initialWalletId: data.walletId, initialTransactionId,
       dueDate: data.dueDate, reminderDaysBefore: data.reminderDaysBefore,
     }).filter(([, v]) => v !== undefined));
@@ -880,6 +902,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const patch: Record<string, unknown> = { payments: [...debt.payments, payment] };
 
     /**
+     * دفعة بغير قيمة القسط بتغيّر **عدد** الأقساط، مش قيمتها. اللي دفع نص
+     * قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري — وبنقوله بالكلام.
+     */
+    const nextCount = installmentCountAfterPayment(debt, amount);
+    if (nextCount !== null && nextCount !== debt.installmentCount) {
+      patch.installmentCount = nextCount;
+    }
+
+    /**
      * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
      * دفعة — نفس فكرة nextDueDate في الاشتراكات، بدل ما نعمل جدول شهور كامل
      * زي الجمعية.
@@ -894,7 +925,39 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
     track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch), namedLabel('دفعة الدين', debt.personName));
+
+    const value = installmentValue(debt);
+    return installmentChangeMessage(
+      amount,
+      value ?? amount,
+      debt.installmentCount ?? 0,
+      nextCount ?? debt.installmentCount ?? 0,
+      debtRemaining(debt) - amount <= 0.005,
+    );
   }
+  /**
+   * تعديل عدد الأقساط بإيد المستخدم.
+   *
+   * العدد اللي بيكتبه هو الإجمالي (زي "القسط 3 من 6")، والقسط بيتعاد
+   * حسابه من المتبقي على الأقساط الباقية — ده معنى "قسّمهالي على N".
+   * بترجّع `false` لو العدد مش مقبول، فالشاشة تقوله ليه.
+   */
+  async function setInstallmentCount(debtId: string, nextTotal: number): Promise<boolean> {
+    if (!uid) return false;
+    const debt = debts.find(d => d.id === debtId);
+    if (!debt) return false;
+    const plan = planInstallmentCountEdit(debt, nextTotal);
+    if (!plan) return false;
+    track(
+      updateDoc(doc(db, 'users', uid, 'debts', debtId), {
+        installmentCount: plan.count,
+        installmentAmount: plan.value,
+      }),
+      namedLabel('عدد أقساط الدين', debt.personName),
+    );
+    return true;
+  }
+
   async function deleteDebtPayment(debtId: string, paymentId: string) {
     if (!uid) return;
     const debt = debts.find(d => d.id === debtId);
@@ -1125,6 +1188,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
+        setInstallmentCount,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
       }}>

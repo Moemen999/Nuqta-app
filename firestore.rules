@@ -101,7 +101,16 @@ service cloud.firestore {
           && request.resource.data.personName is string
           && request.resource.data.totalAmount is number
           && request.resource.data.totalAmount > 0
-          && request.resource.data.direction in ['owed_to_me', 'i_owe'];
+          && request.resource.data.direction in ['owed_to_me', 'i_owe']
+          // قيمة القسط اختيارية: الديون اللي اتعملت قبل الميزة مالهاش الحقل
+          // ده، والقاعدة بتتحقق من **المستند بعد الدمج** — فلو خليناه مطلوب
+          // كان أي تعديل على دين قديم هيترفض بـpermission-denied
+          && (!('installmentAmount' in request.resource.data)
+              || (request.resource.data.installmentAmount is number
+                  && request.resource.data.installmentAmount > 0))
+          && (!('installmentCount' in request.resource.data)
+              || (request.resource.data.installmentCount is int
+                  && request.resource.data.installmentCount > 0));
       }
 
       match /subscriptions/{subId} {

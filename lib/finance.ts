@@ -522,6 +522,123 @@ export function percentInvalidBody(labels: string[]) {
   return `${which} لازم ${verb} رقم من ${PERCENT_MIN} لـ${PERCENT_MAX}. صلّح وحاول تاني.`;
 }
 
+/* ─────────────────────  الأقساط  ───────────────────── */
+
+/**
+ * قيمة القسط الواحد.
+ *
+ * **ليه متخزّنة مش محسوبة كل مرة:** الحسبة الطبيعية `الإجمالي ÷ العدد`
+ * بتتغيّر مع كل تعديل للعدد، فالقسط نفسه كان هيرقص. والمستخدم مستنّي
+ * العكس بالظبط: القسط يفضل 1000 والعدد هو اللي يتغيّر — ده نص القرار
+ * ("دفعت 700 بدل 1000، الأقساط بقت 7").
+ *
+ * فالقيمة بتتحسب مرة عند الإنشاء (`totalAmount ÷ installmentCount`)
+ * وبتتخزّن، ومبتتغيّرش غير لما المستخدم يعدّل العدد بإيده.
+ *
+ * والرجوع للحسبة القديمة لو الحقل مش موجود: الديون اللي اتعملت قبل
+ * الميزة دي مالهاش `installmentAmount`، ولازم تفضل شغالة.
+ */
+export function installmentValue(d: Debt): number | null {
+  if (!d.isInstallment) return null;
+  if (typeof d.installmentAmount === 'number' && d.installmentAmount > MONEY_EPS) {
+    return d.installmentAmount;
+  }
+  const count = d.installmentCount;
+  if (!count || count <= 0) return null;
+  const value = debtGrandTotal(d) / count;
+  return value > MONEY_EPS ? value : null;
+}
+
+export type InstallmentProgress = { current: number; total: number };
+
+/**
+ * "القسط 3 من 6".
+ *
+ * `current` هو رقم القسط **الجاي** (اللي المستخدم بيدفعه دلوقتي)، يعني
+ * عدد الدفعات اللي اتسجلت + 1. لو الدين اتسدد خلاص بترجّع `null` —
+ * مفيش قسط جاي يتقال عليه حاجة.
+ */
+export function installmentProgress(d: Debt): InstallmentProgress | null {
+  if (!d.isInstallment) return null;
+  const total = d.installmentCount;
+  if (!total || total <= 0) return null;
+  if (debtRemaining(d) <= MONEY_EPS) return null;
+  const paidCount = (d.payments || []).length;
+  return { current: Math.min(paidCount + 1, total), total };
+}
+
+export function installmentProgressLabel(d: Debt): string | null {
+  const p = installmentProgress(d);
+  return p ? `القسط ${p.current} من ${p.total}` : null;
+}
+
+/**
+ * عدد الأقساط بعد دفعة بمبلغ معيّن.
+ *
+ * القاعدة: **الدفعات اللي اتسجلت + عدد الأقساط الباقية**، والباقي =
+ * المتبقي ÷ قيمة القسط مجبور لفوق. يعني القسط ثابت والعدد هو اللي
+ * بيتحرّك — اللي دفع نص قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري.
+ *
+ * بترجّع `null` لو مفيش حاجة تتحسب (مش قسط، أو الدين خلص).
+ */
+export function installmentCountAfterPayment(d: Debt, paidAmount: number): number | null {
+  if (!d.isInstallment) return null;
+  const value = installmentValue(d);
+  if (!value || value <= MONEY_EPS) return null;
+
+  const remaining = debtRemaining(d) - paidAmount;
+  const paidCount = (d.payments || []).length + 1;
+
+  // اتسدد بالكامل (أو زيادة): العدد بيقف عند الدفعات اللي حصلت فعلاً
+  if (remaining <= MONEY_EPS) return paidCount;
+
+  return paidCount + Math.ceil(remaining / value - MONEY_EPS);
+}
+
+/**
+ * الرسالة اللي بتتقال للمستخدم لما العدد يتغيّر.
+ *
+ * بترجّع `null` في تلات حالات مقصودة: العدد ما اتغيرش، أو الدفعة كانت
+ * بقيمة القسط بالظبط (مفيش حاجة تتقال)، أو الدفعة خلّصت الدين — وقتها
+ * "اتسدد بالكامل" هي الرسالة، ومفيش لازمة لكلام عن أقساط خلصت.
+ */
+export function installmentChangeMessage(
+  paidAmount: number,
+  expectedValue: number,
+  beforeCount: number,
+  afterCount: number,
+  settled: boolean,
+): string | null {
+  if (settled) return null;
+  if (beforeCount === afterCount) return null;
+  if (Math.abs(paidAmount - expectedValue) <= MONEY_EPS) return null;
+  return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
+}
+
+/**
+ * لما المستخدم يعدّل عدد الأقساط بإيده.
+ *
+ * العدد اللي بيكتبه هو **الإجمالي** (زي ما هو معروض في "القسط 3 من 6")،
+ * فلازم يكون أكبر من عدد الدفعات اللي حصلت خلاص. والقسط بيتعاد حسابه من
+ * المتبقي على الأقساط الباقية — ده معنى "قسّمهالي على N".
+ *
+ * `null` معناها العدد مش مقبول.
+ */
+export function planInstallmentCountEdit(d: Debt, nextTotal: number): { count: number; value: number } | null {
+  if (!Number.isInteger(nextTotal) || nextTotal <= 0) return null;
+  const paidCount = (d.payments || []).length;
+  if (nextTotal <= paidCount) return null;
+
+  const remaining = debtRemaining(d);
+  if (remaining <= MONEY_EPS) return null;
+
+  return { count: nextTotal, value: remaining / (nextTotal - paidCount) };
+}
+
+export function installmentCountTooLowMessage(paidCount: number) {
+  return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
+}
+
 export function debtPaidLabel(d: Debt) {
   const excess = debtExcess(d);
   if (excess > 0) return `اتسدد بالكامل · زيادة ${fmt(excess)} ج.م`;

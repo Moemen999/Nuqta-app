@@ -7,7 +7,10 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
-import { categoryLabel, debtRemaining, fmt, overpayCheck, projectBalances, todayStr, type DebtPrefill } from '@/lib/finance';
+import {
+  categoryLabel, debtRemaining, fmt, installmentProgressLabel, installmentValue,
+  overpayCheck, projectBalances, todayStr, type DebtPrefill,
+} from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
@@ -23,6 +26,8 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, T
  * تعديل، وواحد فيهم هينساه حد.
  */
 
+export const INSTALLMENTS_CHANGED_TITLE = 'عدد الأقساط اتظبط';
+
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -31,7 +36,21 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
   const remaining = debtRemaining(debt);
 
-  const [amount, setAmount] = useState(String(remaining > 0 ? remaining : ''));
+  /**
+   * دين الأقساط بيقترح **قيمة القسط** مش المتبقي كله.
+   *
+   * قبل كده الخانة كانت بتتملّى بالمتبقي بالكامل، فاللي بيسدد قسط من ستة
+   * كان لازم يمسح الرقم ويكتب قسطه كل مرة. ولسه يقدر يعدّله — الاقتراح
+   * اقتراح مش قفل، ودي نص القاعدة: يدفع أقل أو أكتر والعدد يتظبط لوحده.
+   */
+  const suggested = useMemo(() => {
+    const value = installmentValue(debt);
+    if (value && remaining > value + 0.005) return Math.round(value * 100) / 100;
+    return remaining;
+  }, [debt, remaining]);
+  const progressLabel = installmentProgressLabel(debt);
+
+  const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
   const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [date, setDate] = useState(todayStr());
@@ -70,8 +89,9 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     const check = overpayCheck(amt, remaining);
     if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
+      let note: string | null | void = null;
       try {
-        await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
+        note = await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
@@ -80,6 +100,9 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         setError('حصل خطأ، جرب تاني');
         return;
       }
+      // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
+      // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
+      if (note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, note);
       onClose();
     });
   }
@@ -92,6 +115,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
           <Text style={styles.hintText}>المتبقي: {fmt(remaining)} ج.م</Text>
+          {!!progressLabel && <Text style={styles.installmentText}>{progressLabel}</Text>}
 
           <Text style={styles.label}>المبلغ</Text>
           <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
@@ -456,6 +480,7 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
+    installmentText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },

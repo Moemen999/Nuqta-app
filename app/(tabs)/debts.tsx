@@ -8,7 +8,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
-import { categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson, reverseDebtPrefill, walletHistoryName } from '@/lib/finance';
+import {
+  categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson,
+  installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
+  reverseDebtPrefill, walletHistoryName,
+} from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -17,6 +21,24 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+/**
+ * "القسط 3 من 6 · 1,000 ج.م" — الرقم اللي المستخدم محتاجه على الكارت.
+ *
+ * قبل كده كان "أقساط (6)" وبس: عدد مجرّد مبيقولش القسط بكام ولا إحنا فين
+ * منه. والعدد ده كان **مالوش أي أثر** أصلاً — الدين بستة أقساط كان بيتصرّف
+ * زي اللي بأربعة وعشرين بالظبط.
+ */
+function installmentSummary(d: Debt) {
+  const progress = installmentProgressLabel(d);
+  const value = installmentValue(d);
+  const money = value ? `${fmt(value)} ج.م` : null;
+  if (progress && money) return `${progress} · ${money}`;
+  if (progress) return progress;
+  return `أقساط (${d.installmentCount || '-'})`;
+}
+
+export const INSTALLMENT_COUNT_INVALID = 'عدد الأقساط لازم يكون رقم صحيح أكبر من صفر.';
 
 function debtDate(d: Debt) {
   return d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '0000-00-00');
@@ -174,7 +196,7 @@ function DebtsContent() {
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
           <Text style={styles.progressText}>
-            {debtPaidLabel(d)} {d.isInstallment ? `· أقساط (${d.installmentCount || '-'})` : '· مبلغ واحد'}
+            {debtPaidLabel(d)} · {d.isInstallment ? installmentSummary(d) : 'مبلغ واحد'}
           </Text>
         </TouchableOpacity>
 
@@ -292,7 +314,7 @@ function DebtsContent() {
 function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { updateDebt } = useData();
+  const { updateDebt, setInstallmentCount } = useData();
   const { busy, run: runBusy } = useBusy();
   const picker = useDeviceContacts();
 
@@ -304,10 +326,23 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(
     debt.reminderDaysBefore ?? null
   );
+  const [installmentCount, setInstallmentCountDraft] = useState(
+    debt.isInstallment && debt.installmentCount ? String(debt.installmentCount) : ''
+  );
   const [error, setError] = useState('');
 
   async function handleSave() {
     if (!personName.trim()) { setError('لازم تسيب اسم للشخص'); return; }
+
+    // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه
+    if (debt.isInstallment && installmentCount.trim()) {
+      const next = Number(installmentCount);
+      if (!Number.isInteger(next) || next <= 0) { setError(INSTALLMENT_COUNT_INVALID); return; }
+      if (next !== debt.installmentCount) {
+        const done = await setInstallmentCount(debt.id, next);
+        if (!done) { setError(installmentCountTooLowMessage(debt.payments.length)); return; }
+      }
+    }
     await runBusy(async () => {
       try {
         await updateDebt(debt.id, {
@@ -376,6 +411,25 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
             onChangeDueDate={setDueDate}
             onChangeReminder={setReminderDaysBefore}
           />
+
+          {debt.isInstallment && (
+            <>
+              <Text style={styles.label}>عدد الأقساط</Text>
+              <Text style={styles.installmentHint}>
+                العدد ده هو الإجمالي زي ما هو معروض. لما تغيّره، المتبقي
+                بيتقسّم من جديد على الأقساط الفاضلة.
+              </Text>
+              <TextInput
+                testID="debt_edit_installment_count"
+                style={styles.input}
+                value={installmentCount}
+                onChangeText={setInstallmentCountDraft}
+                keyboardType="numeric"
+                placeholderTextColor={colors.textSecondary}
+                textAlign="right"
+              />
+            </>
+          )}
 
           <Text style={styles.label}>ملاحظة</Text>
           <TextInput style={styles.input} value={note} onChangeText={setNote}
@@ -469,6 +523,7 @@ function makeStyles(c: ThemeColors) {
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
     unlinkText: { color: c.danger, fontSize: 12, fontWeight: '700' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
+    installmentHint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 6, lineHeight: 16 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
