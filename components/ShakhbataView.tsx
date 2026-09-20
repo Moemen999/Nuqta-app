@@ -1,10 +1,14 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
-import { currentMonth, fmt } from '@/lib/finance';
+import {
+  currentMonth, fmt, parsePercentInput, percentInvalidBody, percentInvalidTitle,
+  planIncomeCommit,
+} from '@/lib/finance';
+import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy } from '@/lib/useBusy';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -22,53 +26,29 @@ export default function ShakhbataView() {
   const { busy: savingPercents, run: runSavePercents } = useBusy();
 
   const nowMonth = currentMonth();
-  const [incomeDraft, setIncomeDraft] = useState<string | null>(null);
   const [percentDrafts, setPercentDrafts] = useState<{ needs: string; wants: string; future: string } | null>(null);
 
-  const income = incomeDraft !== null ? Number(incomeDraft) || 0 : (shakhbataIncome[nowMonth] || 0);
+  // الدخل كان `Number(raw) || 0` مع حفظ تلقائي بعد ثانية **من غير ما يستنى
+  // الخروج من الخانة** — يعني نص رقم أو لصقة غلط كانت بتتكتب صفر في
+  // فايربيز لوحدها، وكل أهداف الشهر تتصفّر من غير أي رسالة. نفس الباگ
+  // اللي اتصلح في المحافظ، عاش هنا لأن الكود كان متكرر. دلوقتي نفس الهوك
+  // بنفس القواعد: الكلام اللي مش رقم مترفوض والخانة بترجع للمحفوظ.
+  const incomeDrafts = useAmountDrafts(
+    month => shakhbataIncome[month] || 0,
+    (month, value) => setMonthlyIncome(month, value),
+    { plan: planIncomeCommit, blankWhenZero: true },
+  );
+  const income = incomeDrafts.numberFor(nowMonth, shakhbataIncome[nowMonth] || 0);
 
-  // الدخل كان بيتحفظ في onBlur بس. لكن التبديل بين "الميزانية" و"شخبطة" بيشيل
-  // المكوّن من الشاشة على طول من غير ما يشغّل onBlur، فالرقم كان بيضيع قبل ما
-  // يوصل لقاعدة البيانات. دلوقتي بنحفظ بعد ثانية من آخر حرف، وكمان بنحفظ أي
-  // مسوّدة لسه ما اتحفظتش وقت ما المكوّن يتشال.
-  const pendingIncome = useRef<{ month: string; value: number } | null>(null);
-
-  function saveIncome(raw: string) {
-    const value = Number(raw) || 0;
-    pendingIncome.current = null;
-    setMonthlyIncome(nowMonth, value);
-  }
-
-  function handleIncomeChange(raw: string) {
-    setIncomeDraft(raw);
-    pendingIncome.current = { month: nowMonth, value: Number(raw) || 0 };
-  }
-
-  function handleIncomeBlur() {
-    if (incomeDraft === null) return;
-    saveIncome(incomeDraft);
-  }
-
-  useEffect(() => {
-    if (incomeDraft === null) return;
-    const t = setTimeout(() => saveIncome(incomeDraft), 1000);
-    return () => clearTimeout(t);
-  }, [incomeDraft]);
-
-  useEffect(() => {
-    return () => {
-      const pending = pendingIncome.current;
-      if (pending) setMonthlyIncome(pending.month, pending.value);
+  // المعاينة وانت بتعدّل: النسبة الغلط بتوري المحفوظ، مش صفر
+  const percents = useMemo(() => {
+    if (!percentDrafts) return shakhbataPercents;
+    const pick = (k: 'needs' | 'wants' | 'future') => {
+      const v = parsePercentInput(percentDrafts[k]);
+      return v === null ? shakhbataPercents[k] : v;
     };
-  }, []);
-
-  const percents = percentDrafts
-    ? {
-        needs: Number(percentDrafts.needs) || 0,
-        wants: Number(percentDrafts.wants) || 0,
-        future: Number(percentDrafts.future) || 0,
-      }
-    : shakhbataPercents;
+    return { needs: pick('needs'), wants: pick('wants'), future: pick('future') };
+  }, [percentDrafts, shakhbataPercents]);
   const percentSum = percents.needs + percents.wants + percents.future;
 
   function startEditingPercents() {
@@ -78,13 +58,35 @@ export default function ShakhbataView() {
       future: String(shakhbataPercents.future),
     });
   }
+
+  /**
+   * النسب ليها زرار حفظ صريح (مش حفظ تلقائي زي الدخل)، فالتحقق بيحصل هنا
+   * مرة واحدة على التلاتة: أي واحدة برّه 0-100 بتوقف الحفظ كله وتتسمّى
+   * بالاسم. المجموع لسه تحذير ناعم — شوف `parsePercentInput`.
+   *
+   * **ومفيش `onBlur` بيصلّح الخانة لوحده.** جربنا كده وطلع بيبلع الرسالة:
+   * في React Native الضغط على "حفظ النسب" بيعمل blur للخانة الأول، فالخانة
+   * كانت بترجع للمحفوظ بصمت قبل ما التحقق ده يشتغل أصلاً — فالمستخدم يشوف
+   * رقمه بيختفي من غير ما حد يقوله إيه الغلط. دلوقتي الرقم بيفضل قدامه
+   * لحد ما الرسالة تقوله بالاسم إيه اللي مش مظبوط.
+   */
   function savePercents() {
     if (!percentDrafts) return;
+    const parsed = {
+      needs: parsePercentInput(percentDrafts.needs),
+      wants: parsePercentInput(percentDrafts.wants),
+      future: parsePercentInput(percentDrafts.future),
+    };
+    const bad = BUCKET_META.filter(b => parsed[b.key] === null).map(b => b.label);
+    if (bad.length > 0) {
+      Alert.alert(percentInvalidTitle(bad.length), percentInvalidBody(bad));
+      return;
+    }
     runSavePercents(async () => {
       await setShakhbataPercents({
-        needs: Number(percentDrafts.needs) || 0,
-        wants: Number(percentDrafts.wants) || 0,
-        future: Number(percentDrafts.future) || 0,
+        needs: parsed.needs as number,
+        wants: parsed.wants as number,
+        future: parsed.future as number,
       });
       setPercentDrafts(null);
     });
@@ -116,9 +118,9 @@ export default function ShakhbataView() {
         keyboardType="numeric"
         placeholder="0"
         placeholderTextColor={colors.textSecondary}
-        value={incomeDraft !== null ? incomeDraft : (shakhbataIncome[nowMonth] ? String(shakhbataIncome[nowMonth]) : '')}
-        onChangeText={handleIncomeChange}
-        onBlur={handleIncomeBlur}
+        value={incomeDrafts.valueFor(nowMonth, shakhbataIncome[nowMonth] || 0)}
+        onChangeText={v => incomeDrafts.onChange(nowMonth, v)}
+        onBlur={() => incomeDrafts.onBlur(nowMonth)}
         textAlign="right"
       />
 

@@ -1,4 +1,4 @@
-import { planWalletAmountCommit } from '@/lib/finance';
+import { planWalletAmountCommit, type WalletAmountPlan } from '@/lib/finance';
 import { useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
 
@@ -10,11 +10,33 @@ export const NEGATIVE_CONFIRM_NO = 'عدّل الرقم';
 /** نفس مهلة BudgetView — بنحفظ بعد ثانية من آخر حرف */
 export const AUTOSAVE_DELAY_MS = 1000;
 
+/** الفروق المسموح بيها بين خانة وخانة — أي حاجة غير دي بتبقى نسخة تانية */
+export type AmountDraftOptions = {
+  /**
+   * القاعدة اللي بتقرر الخانة تعمل إيه. الافتراضي قاعدة المحفظة (سالب
+   * بتأكيد). الميزانية وشخبطة بيبعتوا قواعدهم — ودي **الفرق الحقيقي
+   * الوحيد** اللي كان مانع توحيد التلات نسخ.
+   */
+  plan?: (draft: string | undefined, stored: number) => WalletAmountPlan;
+  /**
+   * صفر محفوظ يتعرض خانة فاضية بدل "0".
+   *
+   * رصيد محفظة بصفر هو صفر فعلاً، فبيتعرض "0". لكن ميزانية بصفر أو دخل
+   * شهر بصفر معناهم "لسه ماتحددش" — و"0" هناك بيبان كأن المستخدم اختاره.
+   */
+  blankWhenZero?: boolean;
+};
+
 /**
- * خانة رقم فلوس في المحفظة (الرصيد الابتدائي أو حد التنبيه).
+ * خانة رقم فلوس بتتحفظ لوحدها — رصيد محفظة، سقف ميزانية، دخل شهر، نسبة.
  *
  * كل المنطق هنا مش في الشاشة، لسببين: الأول إنه يتختبر من غير ما نعمل render
- * لشاشة الإعدادات كلها، والتاني إن الخانتين بيستخدموا نفس الكلام بالظبط.
+ * لأي شاشة، والتاني إن الخانات دي كلها بتستخدم نفس الكلام بالظبط.
+ *
+ * كان فيه **تلات نسخ** من نفس الفكرة (هنا، وBudgetView، وShakhbataView)،
+ * وكل نسخة اتصلحت لوحدها — عشان كده باگ `Number(x) || 0` عاش في شخبطة بعد
+ * ما اتصلح في المحافظ. دلوقتي نسخة واحدة، والفرق الحقيقي الوحيد (قاعدة
+ * التحقق) بقى بارامتر مش نسخة تانية من الملف.
  *
  * بتجمّع تلات قواعد مع بعض:
  *
@@ -25,8 +47,10 @@ export const AUTOSAVE_DELAY_MS = 1000;
  * 2. **الكلام اللي مش رقم مترفوض مش متحوّل لصفر.** الخانة بترجع لآخر قيمة
  *    محفوظة، والمستخدم يشوف إن اللي كتبه مادخلش.
  *
- * 3. **السالب مسموح بتأكيد.** والتأكيد من موجب لسالب بس (شوف
- *    `planWalletAmountCommit`).
+ * 3. **القاعدة نفسها بارامتر.** المحفظة بتسمح بالسالب بتأكيد
+ *    (`planWalletAmountCommit`)، والميزانية والدخل بيرفضوا السالب من أصله
+ *    (`planBudgetCommit`). والنسب في شخبطة ليها زرار حفظ صريح فبتتحقق
+ *    هناك بـ`parsePercentInput` مش عن طريق الهوك.
  *
  * وعلى نمط BudgetView: المسوّدة بتتحفظ لوحدها بعد ثانية من آخر حرف، وأي
  * مسوّدة فاضلة بتتحفظ وقت ما الشاشة تتشال — عشان تبديل التاب أو الرجوع
@@ -40,15 +64,21 @@ export const AUTOSAVE_DELAY_MS = 1000;
 export function useAmountDrafts(
   storedFor: (id: string) => number,
   write: (id: string, value: number) => void,
+  opts: AmountDraftOptions = {},
 ) {
+  const plan = opts.plan ?? planWalletAmountCommit;
+  const blankWhenZero = opts.blankWhenZero ?? false;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const pending = useRef<Record<string, string>>({});
 
   // المؤقت وflush الخروج بيشتغلوا بعد ما الـrender اللي عملهم يخلص، فلو
   // قفلوا على نسخة قديمة من المحافظ هيقارنوا بقيمة قديمة. الـref بيخليهم
   // يقروا آخر نسخة دايمًا.
-  const latest = useRef({ storedFor, write });
-  useEffect(() => { latest.current = { storedFor, write }; });
+  // `plan` داخل الـref كمان: الاستدعاءات الحالية كلها بتبعت دوال ثابتة من
+  // `lib/finance.ts`، بس لو حد بعدين بعت دالة متعرّفة جوه الكومبوننت،
+  // المؤقّت وflush الخروج كانوا هيمسكوا نسخة قديمة منها من غير ما حد ياخد باله.
+  const latest = useRef({ storedFor, write, plan });
+  useEffect(() => { latest.current = { storedFor, write, plan }; });
 
   function clearDraft(id: string) {
     setDrafts(d => {
@@ -67,9 +97,9 @@ export function useAmountDrafts(
 
   /** الحفظ التلقائي. بيرجّع true لو خلص الموضوع فعلاً */
   function autoCommit(id: string, raw: string): boolean {
-    const plan = planWalletAmountCommit(raw, latest.current.storedFor(id));
-    if (plan.action !== 'write') return false;
-    commitWrite(id, plan.value);
+    const p = latest.current.plan(raw, latest.current.storedFor(id));
+    if (p.action !== 'write') return false;
+    commitWrite(id, p.value);
     return true;
   }
 
@@ -90,17 +120,34 @@ export function useAmountDrafts(
     return () => {
       Object.entries(held.current).forEach(([id, raw]) => {
         // مفيش setState ولا ديالوج والشاشة بتتشال — فبنكتب الأكيد بس
-        const plan = planWalletAmountCommit(raw, latest.current.storedFor(id));
-        if (plan.action === 'write') latest.current.write(id, plan.value);
+        const p = latest.current.plan(raw, latest.current.storedFor(id));
+        if (p.action === 'write') latest.current.write(id, p.value);
       });
       held.current = {};
     };
   }, []);
 
-  /** صفر محفوظ بيتعرض "0" — مش خانة فاضية تخلي المستخدم يحزر */
+  /** صفر محفوظ بيتعرض "0" — مش خانة فاضية تخلي المستخدم يحزر (إلا لو `blankWhenZero`) */
   function valueFor(id: string, stored: number) {
     if (drafts[id] !== undefined) return drafts[id];
-    return String(isFinite(stored) ? stored : 0);
+    const value = isFinite(stored) ? stored : 0;
+    if (blankWhenZero && value === 0) return '';
+    return String(value);
+  }
+
+  /**
+   * الرقم اللي المستخدم شايفه دلوقتي: المسوّدة لو صالحة، وإلا المحفوظ.
+   *
+   * مسوّدة نص طريق أو كلام مش رقم **مبتديش صفر** — بتسيب المحفوظ زي ما هو.
+   * ده مهم للمعاينة الحيّة (شريط الميزانية، دلاء شخبطة): قبل كده كانت
+   * `Number(draft) || 0` بتوري المستخدم أهداف بصفر وهو لسه بيمسح الرقم.
+   */
+  function numberFor(id: string, stored: number) {
+    const current = isFinite(stored) ? stored : 0;
+    const raw = drafts[id];
+    if (raw === undefined) return current;
+    const p = plan(raw, current);
+    return p.action === 'write' || p.action === 'confirm' ? p.value : current;
   }
 
   function onChange(id: string, raw: string) {
@@ -113,15 +160,16 @@ export function useAmountDrafts(
     const raw = drafts[id];
     if (raw === undefined) return;
 
-    const plan = planWalletAmountCommit(raw, latest.current.storedFor(id));
-    if (plan.action === 'none' || plan.action === 'reject') { clearDraft(id); return; }
-    if (plan.action === 'write') { commitWrite(id, plan.value); return; }
+    const p = plan(raw, latest.current.storedFor(id));
+    if (p.action === 'none' || p.action === 'reject') { clearDraft(id); return; }
+    if (p.action === 'write') { commitWrite(id, p.value); return; }
 
+    const confirmed = p.value;
     Alert.alert(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
       { text: NEGATIVE_CONFIRM_NO, style: 'cancel', onPress: () => clearDraft(id) },
-      { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, plan.value) },
+      { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, confirmed) },
     ]);
   }
 
-  return { valueFor, onChange, onBlur };
+  return { valueFor, numberFor, onChange, onBlur };
 }

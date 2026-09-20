@@ -1,7 +1,8 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, currentMonth, fmt, monthSpend, parseBudgetInput } from '@/lib/finance';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { categoryLabel, currentMonth, fmt, monthSpend, planBudgetCommit } from '@/lib/finance';
+import { useAmountDrafts } from '@/lib/useAmountDrafts';
+import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 const TOTAL_KEY = 'total_budget';
@@ -13,50 +14,16 @@ export default function BudgetView() {
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
   // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const nowMonth = currentMonth();
 
-  // نفس مشكلة شخبطة: الحفظ كان في onBlur بس، والتبديل بين الميزانية وشخبطة
-  // بيشيل المكوّن من غير onBlur فالسقف اللي المستخدم كتبه كان بيضيع.
-  // بنحفظ بعد ثانية من آخر حرف، وأي مسوّدة فاضلة بتتحفظ وقت ما المكوّن يتشال.
-  const pendingDrafts = useRef<Record<string, string>>({});
-
-  function saveDraft(key: string, raw: string) {
-    delete pendingDrafts.current[key];
-    const num = parseBudgetInput(raw);
-    // مترفوض: نشيل المسوّدة فالخانة ترجع لآخر قيمة محفوظة، والمستخدم يشوف إنه مادخلش
-    if (num === null) { setDrafts(d => { const next = { ...d }; delete next[key]; return next; }); return; }
-    setBudget(key, num);
-  }
-  function handleChange(key: string, value: string) {
-    setDrafts(d => ({ ...d, [key]: value }));
-    pendingDrafts.current[key] = value;
-  }
-  function handleBlur(key: string) {
-    const raw = drafts[key];
-    if (raw === undefined) return;
-    saveDraft(key, raw);
-  }
-
-  useEffect(() => {
-    const pending = Object.entries(pendingDrafts.current);
-    if (pending.length === 0) return;
-    const t = setTimeout(() => pending.forEach(([key, raw]) => saveDraft(key, raw)), 1000);
-    return () => clearTimeout(t);
-  }, [drafts]);
-
-  useEffect(() => {
-    const pending = pendingDrafts;
-    return () => {
-      Object.entries(pending.current).forEach(([key, raw]) => {
-        const num = parseBudgetInput(raw);
-        if (num !== null) setBudget(key, num);
-      });
-    };
-  }, []);
-  function valueFor(key: string) {
-    return drafts[key] !== undefined ? drafts[key] : (budgets[key] ? String(budgets[key]) : '');
-  }
+  // المسوّدة والحفظ التلقائي وflush الخروج كلهم في `useAmountDrafts` دلوقتي.
+  // كانت النسخة المحلية هنا نسخة تالتة من نفس الكود (مع المحافظ وشخبطة)،
+  // والفرق الوحيد الحقيقي إن السقف مبيقبلش سالب — وده بقى `planBudgetCommit`.
+  const { valueFor, numberFor, onChange, onBlur } = useAmountDrafts(
+    key => budgets[key] || 0,
+    (key, value) => setBudget(key, value),
+    { plan: planBudgetCommit, blankWhenZero: true },
+  );
 
   const totalBudget = budgets[TOTAL_KEY] || 0;
   const allocated = categories.reduce((s, c) => s + (budgets[c.id] || 0), 0);
@@ -87,9 +54,9 @@ export default function BudgetView() {
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={colors.textSecondary}
-              value={valueFor(TOTAL_KEY)}
-              onChangeText={v => handleChange(TOTAL_KEY, v)}
-              onBlur={() => handleBlur(TOTAL_KEY)}
+              value={valueFor(TOTAL_KEY, budgets[TOTAL_KEY] || 0)}
+              onChangeText={v => onChange(TOTAL_KEY, v)}
+              onBlur={() => onBlur(TOTAL_KEY)}
               textAlign="right"
             />
           </View>
@@ -108,7 +75,7 @@ export default function BudgetView() {
 
         <Text style={styles.sectionTitle}>توزيع الميزانية على الفئات</Text>
         {categories.map(c => {
-          const limit = drafts[c.id] !== undefined ? Number(drafts[c.id]) || 0 : (budgets[c.id] || 0);
+          const limit = numberFor(c.id, budgets[c.id] || 0);
           const spend = spendByCategory.get(c.id) || 0;
           const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
           const color = pct >= 100 ? colors.danger : pct >= 80 ? colors.accent : colors.success;
@@ -122,9 +89,9 @@ export default function BudgetView() {
                   keyboardType="numeric"
                   placeholder="السقف"
                   placeholderTextColor={colors.textSecondary}
-                  value={valueFor(c.id)}
-                  onChangeText={v => handleChange(c.id, v)}
-                  onBlur={() => handleBlur(c.id)}
+                  value={valueFor(c.id, budgets[c.id] || 0)}
+                  onChangeText={v => onChange(c.id, v)}
+                  onBlur={() => onBlur(c.id)}
                   textAlign="right"
                 />
               </View>

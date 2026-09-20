@@ -448,16 +448,78 @@ export type WalletAmountPlan =
  * لسالب مفيش سؤال: المستخدم عارف أصلاً إن المحفظة دي بالسالب، والسؤال في
  * كل تعديل بيبقى إزعاج مش حماية.
  */
-export function planWalletAmountCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+function planWith(
+  draft: string | undefined,
+  stored: number,
+  parse: (raw: string) => number | null,
+): WalletAmountPlan {
   if (draft === undefined) return { action: 'none' };
 
-  const value = parseWalletAmountInput(draft);
+  const value = parse(draft);
   if (value === null) return { action: 'reject' };
 
   const current = isFinite(stored) ? stored : 0;
   if (value === current) return { action: 'none' };
-  if (value < 0 && current >= 0) return { action: 'confirm', value };
   return { action: 'write', value };
+}
+
+export function planWalletAmountCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  const base = planWith(draft, stored, parseWalletAmountInput);
+  if (base.action !== 'write') return base;
+
+  const current = isFinite(stored) ? stored : 0;
+  if (base.value < 0 && current >= 0) return { action: 'confirm', value: base.value };
+  return base;
+}
+
+/**
+ * سقف الميزانية: نفس القواعد التلاتة، بس من غير خطوة التأكيد — السالب هنا
+ * مرفوض من الأساس (`parseBudgetInput`)، مش بيتسأل عنه. ميزانية بالسالب
+ * مالهاش معنى، على عكس رصيد محفظة كارت ائتمان.
+ */
+export function planBudgetCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  return planWith(draft, stored, parseBudgetInput);
+}
+
+/** دخل الشهر في شخبطة — نفس قاعدة الميزانية بالظبط: موجب أو صفر، والسالب مرفوض */
+export function planIncomeCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  return planWith(draft, stored, parseBudgetInput);
+}
+
+export const PERCENT_MIN = 0;
+export const PERCENT_MAX = 100;
+
+/**
+ * نسبة من نسب شخبطة.
+ *
+ * القاعدة: كل خانة لوحدها لازم تكون رقم بين 0 و100 (الطرفين داخلين). أي
+ * حاجة برّه ده — كلام، سالب، أكبر من 100 — مرفوضة، والخانة بترجع لآخر قيمة
+ * محفوظة زي أي خانة تانية.
+ *
+ * **ومجموع التلاتة مش مفروض يبقى 100.** ده عن قصد: وانت بتعدّل لازم تعدّي
+ * على مجاميع غلط (تمسح 50 عشان تكتب 60، المجموع يبقى 50 لحظتها) — فلو
+ * رفضنا على أساس المجموع، الكتابة نفسها تبقى مستحيلة. المجموع فضل تحذير
+ * ناعم زي ما كان.
+ */
+export function parsePercentInput(raw: string): number | null {
+  const num = Number(String(raw ?? '').trim());
+  if (!isFinite(num)) return null;
+  if (num < PERCENT_MIN || num > PERCENT_MAX) return null;
+  return num;
+}
+
+
+export function percentInvalidTitle(count: number) {
+  return count === 1 ? 'نسبة مش مظبوطة' : 'نسب مش مظبوطة';
+}
+
+/** "احتياجات ورفاهيات لازم تكون رقم من 0 لـ100" — بالأسماء اللي المستخدم شايفها */
+export function percentInvalidBody(labels: string[]) {
+  const which = labels.length <= 1
+    ? (labels[0] || '')
+    : `${labels.slice(0, -1).join('، ')} و${labels[labels.length - 1]}`;
+  const verb = labels.length === 1 ? 'تكون' : 'يكونوا';
+  return `${which} لازم ${verb} رقم من ${PERCENT_MIN} لـ${PERCENT_MAX}. صلّح وحاول تاني.`;
 }
 
 export function debtPaidLabel(d: Debt) {
