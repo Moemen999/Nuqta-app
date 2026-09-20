@@ -846,7 +846,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       patch[key] = trimmed || deleteField();
     });
     if (Object.keys(patch).length === 0) return;
-    track(updateDoc(doc(db, 'users', uid, 'debts', id), patch), namedLabel('تعديل الدين', data.personName ?? debts.find(d => d.id === id)?.personName));
+    track(updateDoc(doc(db, 'users', uid, 'debts', id), patch), namedLabel('تعديل الدين', data.personName?.trim() || debts.find(d => d.id === id)?.personName));
   }
 
   async function deleteDebt(id: string) {

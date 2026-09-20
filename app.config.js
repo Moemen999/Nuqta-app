@@ -43,11 +43,22 @@ function resolveBuild() {
   return { versionCode: runNumber, buildNumber: displayBuildNumber(runNumber) };
 }
 
+/**
+ * الـDSN بتاع Sentry بييجي من البيئة، **مش** من الريبو.
+ *
+ * هو مش سر بطبيعته (بيتشحن جوه أي تطبيق موبايل وأي حد يقدر يطلّعه من الـAPK)،
+ * بس بنسيبه برّه الكود عشان حاجة تانية: من غيره Sentry مبتشتغلش خالص، فأي
+ * بناء محلي أو fork مبيبعتش أخطاء لمشروعنا ومبيلخبطش أرقامنا.
+ */
+function resolveSentryDsn() {
+  return process.env.EXPO_PUBLIC_SENTRY_DSN || undefined;
+}
+
 module.exports = ({ config }) => {
   const { versionCode, buildNumber } = resolveBuild();
   return {
     ...config,
     android: { ...config.android, versionCode },
-    extra: { ...config.extra, buildNumber },
+    extra: { ...config.extra, buildNumber, sentryDsn: resolveSentryDsn() },
   };
 };

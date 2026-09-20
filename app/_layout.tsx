@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
+import { initSentry } from '@/lib/sentry';
 import { applyGlobalFont } from '@/lib/applyGlobalFont';
 
 import LockScreen from '@/components/LockScreen';
@@ -87,6 +88,15 @@ function RootNavigator() {
     </NavThemeProvider>
   );
 }
+
+/**
+ * Sentry بتتشغّل **برّه** الكومبوننت عن قصد.
+ *
+ * الأخطاء اللي بتحصل وقت تحميل الموديولات أو في أول render مبتتلقطش لو
+ * التهيئة جوه `useEffect` — وقتها بيكون فات الأوان. ولو مفيش DSN الدالة
+ * بترجع من غير ما تعمل حاجة، فالتطبيق بيشتغل عادي على أي جهاز مطوّر.
+ */
+initSentry();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
