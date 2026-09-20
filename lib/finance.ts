@@ -299,6 +299,22 @@ export function debtPaid(d: Debt) {
  */
 const MONEY_EPS = 1e-9;
 
+/**
+ * أصغر فرق فلوس **بيهم المستخدم**: نص قرش.
+ *
+ * `MONEY_EPS` بتاعة فواصل الآلة (1e-9)، وهي غلط تستخدم في مقارنة مبالغ:
+ * قسط 1083.333... واللي المستخدم دفعه فعلاً 1083.33 بيختلفوا بـ0.0033 —
+ * أكبر من 1e-9 بكتير، فالكود كان بيعتبرهم مبلغين مختلفين ويقول "دفعت
+ * 1,083.33 بدل 1,083.33" (نفس الرقمين حرفيًا لأن العرض بيقرّب). الفرق ده
+ * مش موجود عند المستخدم، فمش المفروض يبقى موجود عندنا.
+ */
+export const PIASTRE_EPS = 0.005;
+
+/** تقريب مبلغ لأقرب قرش — الرقم اللي بيتخزّن هو الرقم اللي بيتعرض */
+export function roundMoney(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
 /** المتبقي على الدين. بيطلع بالسالب لو اتدفع أكتر من الإجمالي. */
 export function debtRemaining(d: Debt) {
   return debtGrandTotal(d) - debtPaid(d);
@@ -545,8 +561,11 @@ export function installmentValue(d: Debt): number | null {
   }
   const count = d.installmentCount;
   if (!count || count <= 0) return null;
-  const value = debtGrandTotal(d) / count;
-  return value > MONEY_EPS ? value : null;
+  // `totalAmount` مش `debtGrandTotal`: القيمة المتخزّنة بتتحسب من الأصلي،
+  // فالرجوع لازم يدّي **نفس** الرقم. لو استخدمنا الإجمالي مع الزيادات، دين
+  // قديم فيه زيادة كان هياخد قسط مختلف عن دين جديد مطابق له بالظبط.
+  const value = roundMoney(d.totalAmount / count);
+  return value > PIASTRE_EPS ? value : null;
 }
 
 export type InstallmentProgress = { current: number; total: number };
@@ -562,7 +581,7 @@ export function installmentProgress(d: Debt): InstallmentProgress | null {
   if (!d.isInstallment) return null;
   const total = d.installmentCount;
   if (!total || total <= 0) return null;
-  if (debtRemaining(d) <= MONEY_EPS) return null;
+  if (debtRemaining(d) <= PIASTRE_EPS) return null;
   const paidCount = (d.payments || []).length;
   return { current: Math.min(paidCount + 1, total), total };
 }
@@ -581,6 +600,23 @@ export function installmentProgressLabel(d: Debt): string | null {
  *
  * بترجّع `null` لو مفيش حاجة تتحسب (مش قسط، أو الدين خلص).
  */
+/**
+ * العدد اللي يوصف الدين **بحالته الحالية**: الدفعات اللي حصلت + الأقساط
+ * الباقية. بتتنادى بعد الحذف كمان مش بعد الدفع بس — العدد لازم يوصف
+ * الواقع في الاتجاهين.
+ */
+export function installmentCountFor(d: Debt): number | null {
+  if (!d.isInstallment) return null;
+  const value = installmentValue(d);
+  if (!value || value <= PIASTRE_EPS) return null;
+
+  const remaining = debtRemaining(d);
+  const paidCount = (d.payments || []).length;
+  if (remaining <= PIASTRE_EPS) return Math.max(paidCount, 1);
+
+  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+}
+
 export function installmentCountAfterPayment(d: Debt, paidAmount: number): number | null {
   if (!d.isInstallment) return null;
   const value = installmentValue(d);
@@ -590,9 +626,9 @@ export function installmentCountAfterPayment(d: Debt, paidAmount: number): numbe
   const paidCount = (d.payments || []).length + 1;
 
   // اتسدد بالكامل (أو زيادة): العدد بيقف عند الدفعات اللي حصلت فعلاً
-  if (remaining <= MONEY_EPS) return paidCount;
+  if (remaining <= PIASTRE_EPS) return paidCount;
 
-  return paidCount + Math.ceil(remaining / value - MONEY_EPS);
+  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
 }
 
 /**
@@ -611,7 +647,8 @@ export function installmentChangeMessage(
 ): string | null {
   if (settled) return null;
   if (beforeCount === afterCount) return null;
-  if (Math.abs(paidAmount - expectedValue) <= MONEY_EPS) return null;
+  // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش إنه غيّر حاجة
+  if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) return null;
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
 }
 
@@ -630,9 +667,9 @@ export function planInstallmentCountEdit(d: Debt, nextTotal: number): { count: n
   if (nextTotal <= paidCount) return null;
 
   const remaining = debtRemaining(d);
-  if (remaining <= MONEY_EPS) return null;
+  if (remaining <= PIASTRE_EPS) return null;
 
-  return { count: nextTotal, value: remaining / (nextTotal - paidCount) };
+  return { count: nextTotal, value: roundMoney(remaining / (nextTotal - paidCount)) };
 }
 
 export function installmentCountTooLowMessage(paidCount: number) {

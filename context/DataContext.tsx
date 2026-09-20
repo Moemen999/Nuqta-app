@@ -4,8 +4,8 @@ import { settlementNote } from '@/lib/archiving';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentValue,
-  planInstallmentCountEdit, todayStr,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor,
+  installmentValue, planInstallmentCountEdit, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, serverTimestamp,
@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
-import { WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
+import { WRITE_ERROR_RESET_MS, WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -414,10 +414,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     console.warn('كتابة فشلت في فايربيز', label ?? '', e);
     if (errorShown.current) return;
     errorShown.current = true;
+    /**
+     * القفل بيتفك بالزرار **وبمؤقّت احتياطي**.
+     *
+     * لو تنبيه تاني كان مفتوح لحظتها، المنصة ممكن تبلع التنبيه ده خالص —
+     * وساعتها `onPress` عمره ما هيشتغل، والقفل يفضل مقفول لآخر الجلسة. يعني
+     * كل كتابة تفشل بعد كده تبقى صامتة. المؤقّت بيضمن إن أسوأ حالة هي تنبيه
+     * واحد ضايع، مش كل التنبيهات بعده.
+     */
+    const unlock = () => { errorShown.current = false; };
+    const backstop = setTimeout(unlock, WRITE_ERROR_RESET_MS);
     Alert.alert(
       WRITE_ERROR_TITLE,
       writeErrorBody(label),
-      [{ text: 'تمام', onPress: () => { errorShown.current = false; } }]
+      [{ text: 'تمام', onPress: () => { clearTimeout(backstop); unlock(); } }]
     );
   }
 
@@ -685,15 +695,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return;
       }
       if ((d.payments || []).some(p => p.transactionId === txId)) {
-        batch.update(doc(db, 'users', uid, 'debts', d.id), {
-          payments: d.payments.filter(p => p.transactionId !== txId),
-        });
+        const payments = d.payments.filter(p => p.transactionId !== txId);
+        // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
+        // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
+        const patch: Record<string, unknown> = { payments };
+        const recount = installmentCountFor({ ...d, payments });
+        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
+        batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
       if ((d.increases || []).some(e => e.transactionId === txId)) {
-        batch.update(doc(db, 'users', uid, 'debts', d.id), {
-          increases: (d.increases || []).filter(e => e.transactionId !== txId),
-        });
+        const increases = (d.increases || []).filter(e => e.transactionId !== txId);
+        const patch: Record<string, unknown> = { increases };
+        const recount = installmentCountFor({ ...d, increases });
+        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
+        batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
     }
@@ -830,8 +846,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
      * (`الإجمالي ÷ العدد`) كانت هترقص مع كل تعديل للعدد — والمستخدم مستنّي
      * القسط يفضل ثابت والعدد هو اللي يتحرّك.
      */
+    // **مقرّبة للقرش**: المودال بيقترح الرقم ده بالظبط، فلو خزّناه بكسر
+    // لا نهائي (1083.333...) اللي بيدفع الاقتراح كان بيطلعله "دفعت 1,083.33
+    // بدل 1,083.33، الأقساط بقت 7" — رقمين متطابقين وسط جملة بتقول إنهم
+    // مختلفين. اللي بيتخزّن هو اللي بيتعرض.
     const installmentAmount = data.isInstallment && data.installmentCount && data.installmentCount > 0
-      ? data.totalAmount / data.installmentCount
+      ? roundMoney(data.totalAmount / data.installmentCount)
       : undefined;
     const clean = Object.fromEntries(Object.entries({
       direction: data.direction, personName: data.personName, personPhone: data.personPhone, personContactId: data.personContactId, totalAmount: data.totalAmount, date: data.date,
@@ -964,7 +984,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return;
     const payment = debt.payments.find(p => p.id === paymentId);
     if (payment?.transactionId) await deleteTransactionDoc(payment.transactionId);
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { payments: debt.payments.filter(p => p.id !== paymentId) }), namedLabel('حذف دفعة الدين', debt.personName));
+    const payments = debt.payments.filter(p => p.id !== paymentId);
+    // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
+    // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
+    // حسابه 6. ده نفس عيب الرقم اللي مبيقولش الحقيقة اللي البند ده اتعمل
+    // عشان يشيله، بس بعد الحذف بدل قبل الحساب.
+    const patch: Record<string, unknown> = { payments };
+    const recount = installmentCountFor({ ...debt, payments });
+    if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch), namedLabel('حذف دفعة الدين', debt.personName));
   }
   async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
     if (!uid) return;

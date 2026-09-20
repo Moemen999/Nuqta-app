@@ -27,6 +27,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, T
  */
 
 export const INSTALLMENTS_CHANGED_TITLE = 'عدد الأقساط اتظبط';
+export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
@@ -309,12 +310,19 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     const amt = Number(totalAmount);
     if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
+    // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
+    // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
+    const count = isInstallment ? Number(installmentCount) : 0;
+    if (isInstallment && (!Number.isInteger(count) || count <= 0)) {
+      setError(INSTALLMENT_COUNT_REQUIRED);
+      return;
+    }
     await runBusy(async () => {
       try {
         await addDebt({
           direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
           isInstallment,
-          installmentCount: isInstallment ? Number(installmentCount) || undefined : undefined,
+          installmentCount: isInstallment ? count : undefined,
           note: note.trim() || undefined,
           walletId: linkedToWallet ? walletId : undefined,
           date,

@@ -2,6 +2,7 @@ import {
   installmentChangeMessage, installmentCountAfterPayment, installmentCountTooLowMessage,
   installmentProgress, installmentProgressLabel, installmentValue, planInstallmentCountEdit,
 } from '@/lib/finance';
+import { installmentCountFor, roundMoney } from '@/lib/finance';
 import type { Debt } from '@/context/DataContext';
 
 /**
@@ -169,7 +170,8 @@ describe('تعديل العدد بإيد المستخدم', () => {
     // باقي 4000 على (8 − 2) = 666.67 للقسط
     const plan = planInstallmentCountEdit(d, 8)!;
     expect(plan.count).toBe(8);
-    expect(plan.value).toBeCloseTo(4000 / 6, 6);
+    // مقرّبة للقرش: الرقم اللي بيتخزّن هو الرقم اللي المودال هيقترحه
+    expect(plan.value).toBe(666.67);
   });
 
   it('من غير دفعات بيقسّم الإجمالي', () => {
@@ -198,5 +200,83 @@ describe('تعديل العدد بإيد المستخدم', () => {
     expect(installmentCountTooLowMessage(1)).toContain('قسط واحد');
     expect(installmentCountTooLowMessage(2)).toContain('قسطين');
     expect(installmentCountTooLowMessage(5)).toContain('5 أقساط');
+  });
+});
+
+describe('التقريب للقرش — الرقم المعروض هو الرقم المحسوب', () => {
+  /**
+   * الباگ اللي المراجعة مسكته: القيمة كانت بتتخزّن بكسر لا نهائي
+   * (6500 ÷ 6 = 1083.333...) والمودال بيقترح 1083.33 مقرّبة. اللي بيدفع
+   * الاقتراح بالظبط كان بيطلعله **"دفعت 1,083.33 بدل 1,083.33، الأقساط بقت
+   * 7"** — رقمين متطابقين حرفيًا وسط جملة بتقول إنهم مختلفين، وقسط وهمي
+   * زيادة كل مرة.
+   */
+  const odd = () => debt({ totalAmount: 6500, installmentCount: 6, installmentAmount: roundMoney(6500 / 6) });
+
+  it('القيمة المتخزّنة مقرّبة', () => {
+    expect(installmentValue(odd())).toBe(1083.33);
+  });
+
+  it('اللي بيدفع الاقتراح بالظبط مبيتقالوش إن العدد اتغيّر', () => {
+    const d = odd();
+    const value = installmentValue(d)!;
+    const after = installmentCountAfterPayment(d, value)!;
+    expect(installmentChangeMessage(value, value, 6, after, false)).toBeNull();
+  });
+
+  it('وفرق القرش مبيزوّدش قسط وهمي', () => {
+    const d = odd();
+    expect(installmentCountAfterPayment(d, 1083.33)).toBe(6);
+  });
+
+  it('الفرق الحقيقي لسه بيتقال', () => {
+    expect(installmentChangeMessage(700, 1083.33, 6, 7, false))
+      .toBe('دفعت 700 بدل 1,083.33، الأقساط بقت 7.');
+  });
+});
+
+describe('الرجوع للديون القديمة بيدّي نفس رقم الجديدة', () => {
+  it('نفس الدين بالظبط، بحقل متخزّن ومن غيره = نفس القسط', () => {
+    const stored = debt({ totalAmount: 6000, installmentCount: 6, installmentAmount: 1000 });
+    const legacy = debt({ totalAmount: 6000, installmentCount: 6, installmentAmount: undefined });
+    expect(installmentValue(legacy)).toBe(installmentValue(stored));
+  });
+
+  it('**وكمان مع زيادة على الدين** — دي الحالة اللي كانت بتفرق', () => {
+    const inc = [{ id: 'i1', date: '2026-03-01', amount: 2000 }] as any;
+    const stored = debt({ increases: inc });
+    const legacy = debt({ increases: inc, installmentAmount: undefined });
+    // الاتنين بيحسبوا من `totalAmount` مش من الإجمالي بعد الزيادة
+    expect(installmentValue(legacy)).toBe(1000);
+    expect(installmentValue(stored)).toBe(1000);
+  });
+});
+
+describe('installmentCountFor — العدد بيرجع لما دفعة تتمسح', () => {
+  /**
+   * دفعة غيّرت العدد من 6 لـ7، وبعدين اتمسحت. العدد كان بيفضل 7 للأبد —
+   * فالكارت يقول "القسط 1 من 7" لدين حسابه 6. نفس عيب الرقم اللي مبيقولش
+   * الحقيقة اللي البند ده اتعمل عشان يشيله، بس بعد الحذف.
+   */
+  it('بعد مسح الدفعة العدد بيرجع زي ما كان', () => {
+    const afterShortPay = debt({ installmentCount: 7, payments: [pay(700)] });
+    expect(installmentCountFor(afterShortPay)).toBe(7);
+
+    const afterDelete = { ...afterShortPay, payments: [] } as Debt;
+    expect(installmentCountFor(afterDelete)).toBe(6);
+  });
+
+  it('ومسح دفعة كبيرة بيزوّد العدد تاني', () => {
+    const afterBigPay = debt({ installmentCount: 4, payments: [pay(3000)] });
+    expect(installmentCountFor(afterBigPay)).toBe(4);
+    expect(installmentCountFor({ ...afterBigPay, payments: [] } as Debt)).toBe(6);
+  });
+
+  it('الدين المسدّد بيفضل عنده على الأقل قسط واحد', () => {
+    expect(installmentCountFor(debt({ payments: [pay(6000)] }))).toBe(1);
+  });
+
+  it('دين مش قسط = null', () => {
+    expect(installmentCountFor(debt({ isInstallment: false }))).toBeNull();
   });
 });

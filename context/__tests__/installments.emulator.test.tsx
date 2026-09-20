@@ -1,6 +1,8 @@
 import { installmentProgressLabel, installmentValue } from '@/lib/finance';
+import { collection, doc, setDoc } from 'firebase/firestore';
+import { db } from '@/firebaseConfig';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
-import { setMockUid } from '@/test-utils/mockAuth';
+import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -159,15 +161,75 @@ describe('تعديل العدد بإيد المستخدم', () => {
   });
 });
 
-describe('الديون القديمة من غير الحقل الجديد', () => {
-  it('لسه بتشتغل — الحقل اختياري في القواعد والكود', async () => {
+describe('مسح دفعة بيرجّع العدد', () => {
+  /**
+   * دفعة غيّرت العدد من 6 لـ7 وبعدين اتمسحت: العدد كان بيفضل 7 للأبد،
+   * فالكارت يقول "القسط 1 من 7" لدين حسابه 6.
+   */
+  it('حذف الدفعة مباشرةً', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    // نحاكي دين قديم: نشيل القيمة المتخزّنة
-    await harness.api().updateDebt(debtId, { note: 'قديم' });
-    await harness.waitForData(api => api.debts[0].note === 'قديم');
+    await harness.api().addDebtPayment(debtId, 700, walletId, '2026-02-01');
+    await harness.waitForData(api => api.debts[0].installmentCount === 7);
 
-    const note = await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-02-01');
-    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
-    expect(note).toBeNull();
+    const paymentId = harness.api().debts[0].payments[0].id;
+    await harness.api().deleteDebtPayment(debtId, paymentId);
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 0);
+
+    expect(harness.api().debts[0].installmentCount).toBe(6);
+  });
+
+  it('وحذف العملية المربوطة بيها بيعمل نفس الحاجة', async () => {
+    const { walletId, debtId } = await makeInstallmentDebt();
+    await harness.api().addDebtPayment(debtId, 700, walletId, '2026-02-01');
+    await harness.waitForData(api => api.debts[0].installmentCount === 7);
+
+    const txId = harness.api().debts[0].payments[0].transactionId!;
+    await harness.api().deleteTransaction(txId);
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 0);
+
+    expect(harness.api().debts[0].installmentCount).toBe(6);
+  });
+});
+
+describe('الديون القديمة من غير الحقل الجديد', () => {
+  /**
+   * **دين قديم حقيقي**: بنكتبه على فايرستور مباشرةً من غير
+   * `installmentAmount` خالص. النسخة الأولى من الاختبار ده كانت بتنادي
+   * `updateDebt` وتفتكر إنها شالت الحقل — و`updateDebt` أصلاً بيكتب حقول
+   * `DebtMetadata` بس ومبيلمسش الحقل ده، فالاختبار كان بيعدّي على دين عادي.
+   */
+  it('بيتقبل من القواعد وبيشتغل بالحسبة القديمة', async () => {
+    const uid = getMockUid();
+    const ref = doc(collection(db, 'users', uid, 'debts'));
+    await setDoc(ref, {
+      direction: 'i_owe', personName: 'دين قديم', totalAmount: 6000,
+      date: '2025-01-01', isInstallment: true, installmentCount: 6,
+      createdAt: '2025-01-01T00:00:00.000Z', payments: [], increases: [],
+    });
+    await harness.waitForData(api => api.debts.some(d => d.personName === 'دين قديم'));
+
+    const legacy = harness.api().debts.find(d => d.personName === 'دين قديم')!;
+    expect(legacy.installmentAmount).toBeUndefined();
+    expect(installmentValue(legacy)).toBe(1000);
+    expect(installmentProgressLabel(legacy)).toBe('القسط 1 من 6');
+  });
+
+  it('والدفع عليه بيظبط العدد زي أي دين تاني', async () => {
+    const uid = getMockUid();
+    const ref = doc(collection(db, 'users', uid, 'debts'));
+    await setDoc(ref, {
+      direction: 'i_owe', personName: 'دين قديم', totalAmount: 6000,
+      date: '2025-01-01', isInstallment: true, installmentCount: 6,
+      createdAt: '2025-01-01T00:00:00.000Z', payments: [], increases: [],
+    });
+    await harness.waitForData(api => api.debts.some(d => d.personName === 'دين قديم'));
+
+    const legacy = harness.api().debts.find(d => d.personName === 'دين قديم')!;
+    const w = harness.api().wallets[0];
+    const note = await harness.api().addDebtPayment(legacy.id, 700, w.id, '2026-02-01');
+    await harness.waitForData(
+      api => api.debts.find(d => d.id === legacy.id)?.installmentCount === 7
+    );
+    expect(note).toBe('دفعت 700 بدل 1,000، الأقساط بقت 7.');
   });
 });
