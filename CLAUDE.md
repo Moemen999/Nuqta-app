@@ -26,18 +26,24 @@
 ## البنية (إيه اللي في كل فولدر)
 
 ### `app/` — الشاشات (Expo Router)
-- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `AppLockProvider` → `AuthProvider` → `DataProvider`)، بيحمّل خطوط Tajawal ويطبّقها عالميًا، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context
+- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `AppLockProvider` → `AuthProvider` → `DataProvider` → `NotificationsProvider`)، بيحمّل خطوط Tajawal ويطبّقها عالميًا، وبيشغّل `initSentry()` وقت تحميل الموديول (برّه الكومبوننت عن قصد — الأخطاء اللي بتحصل في أول render مبتتلقطش لو التهيئة جوه `useEffect`)، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context.
+  **ترتيب الـ Providers مش شكلي:** `NotificationsProvider` **جوّه** `DataProvider` لأنه بينادي `useData()` عشان يراقب الاشتراكات والجمعيات
 - `(auth)/` — شاشة تسجيل الدخول/التسجيل (`index.tsx`) و`_layout.tsx` بتاعها
 - `(tabs)/` — التابات الخمسة الأساسية:
   - `index.tsx` — الرئيسية: أرصدة المحافظ + بانرات التنبيهات (رصيد قرب يخلص، ميزانية قربت تخلص، اشتراك/قسط جمعية مستحق) + آخر العمليات
   - `reports.tsx` — التقارير والرسوم البيانية
   - `planning.tsx` — التخطيط: فيها تاب فرعي بين "الميزانية" (`BudgetView`) و"شخبطة" (`ShakhbataView`)
   - `debts.tsx` — الديون: فيها تاب فرعي بين "الديون" و"الاشتراكات" (`SubscriptionsView`) و"الجمعية" (`GamiyaView`)
-  - `settings.tsx` — الإعدادات: المحافظ، الفئات، الثيم، قفل التطبيق، تسجيل الخروج، إعادة عرض شاشة الترحيب
+  - `settings.tsx` — الإعدادات: **قايمة صفوف متعرّفة في مصفوفة واحدة** (`sections`)، مش شاشة فيها كل حاجة بالطول. كل صف بيروح لشاشة جوّه، وسطر الحالة جنبه بيتحسب من البيانات الحقيقية كل render
+- `settings-screens/` — الشاشات اللي بيتفتحوا من قايمة الإعدادات: `wallets.tsx`, `categories.tsx`, `notifications.tsx`, `lock.tsx`, `about.tsx`, `feedback.tsx`.
+  **الاسم `settings-screens` مش `settings` عن قصد:** تاب الإعدادات نفسه مساره `/settings`، وفولدر اسمه `settings` كان هيحط عقدة تانية على نفس المقطع في جذر الـStack
 - `modal.tsx` — مودال إضافة/تعديل عملية (مصروف/إيراد/سحب)
 - `archive.tsx` — أرشيف العمليات بفلترة تاريخ + تصدير إكسيل
 - `person-ledger.tsx` — كشف حساب شخص معين في الديون (تاريخ كامل للزيادات والسدادات)
-- `user-guide.tsx` — دليل استخدام التطبيق
+- `user-guide.tsx` — دليل استخدام التطبيق. **ده نسخة تانية من التوثيق
+  بتوصل للمستخدم**، فأي ميزة جديدة أو سلوك بيتغيّر لازم يتراجع عليه هو كمان
+  — اتلقى مرة بيقول إن القفل بيفضل بعد الخروج من غير ما يذكر مخرج "نسيت
+  الكود؟"، وكان ساكت خالص عن الإشعارات والرأي والأرشفة
 - `oauth2redirect.tsx` — صفحة استقبال الرجوع من تسجيل الدخول بجوجل (لازم تشتغل حتى قبل تسجيل الدخول)
 
 ### `components/`
@@ -49,8 +55,22 @@
 - `SetLockModal.tsx` — مودال تفعيل/تغيير/إلغاء قفل التطبيق
 - `OnboardingScreen.tsx` — شاشة الترحيب لأول مرة (`ONBOARDING_KEY` في AsyncStorage)
 - `CalendarPickerModal.tsx` — اختيار تاريخ (مستخدم في أماكن كتير: مودال العملية، الأرشيف، إلخ)
-- `external-link.tsx`, `haptic-tab.tsx`, `hello-wave.tsx`, `parallax-scroll-view.tsx`, `themed-text.tsx`, `themed-view.tsx` — كومبوننتس مساعدة عامة (جزء منها من قالب Expo الافتراضي)
-- `ui/icon-symbol.tsx` (+ `.ios.tsx`), `ui/collapsible.tsx` — أيقونات وكومبوننتس UI عامة
+- `ArchiveSheet.tsx` — شيت الأرشفة: بينقل الحاجات الشغّالة لمكان تاني وبعدين يأرشف في خطوة واحدة
+- `ArchivedList.tsx` — قايمة المؤرشف القابلة للطي (محافظ/فئات) مع زرار "رجّعها"
+- `ArchivedSettlement.tsx` — تسوية رصيد محفظة مؤرشفة قبل ما تتقفل
+- `ListEmptyState.tsx` — الحالة الفاضية في قوايم المحافظ والفئات، وبتفرّق بين "مفيش" و"لسه ما وصلتش من غير نت"
+- `DebtEntryModals.tsx` — مودالات الدين: إضافة، دفعة، زيادة
+- `DebtReminderFields.tsx` — حقول معاد الدين والتذكير قبله
+- `CategoryIconPicker.tsx` — اختيار أيقونة الفئة من `CATEGORY_ICONS`
+- `ContactPickerModal.tsx` + `useDeviceContacts.ts` — اختيار شخص من جهات الاتصال
+- `AmountPreview.tsx` — معاينة رصيد المحفظة قبل وبعد العملية
+- `PendingSyncMark.tsx` — علامة "⏳ لسه بترفع" جنب العملية
+- `BackButton.tsx` — زرار الرجوع في الشاشات الجوّه
+
+**كود ميت من قالب Expo** — مفيش حاجة بتستورده، وسايبينه لحد ما يتشال في
+تنضيفة مقصودة: `external-link.tsx`, `hello-wave.tsx`, `parallax-scroll-view.tsx`,
+`themed-text.tsx`, `themed-view.tsx`, `ui/collapsible.tsx`.
+**اللي لسه شغّال من القالب:** `haptic-tab.tsx` و`ui/icon-symbol.tsx` (+ `.ios.tsx`).
 
 ### `context/` — الـ Contexts والدور بتاع كل واحدة
 - **`AuthContext.tsx`** — تسجيل الدخول/الخروج (إيميل+باسورد، جوجل)، `sendEmailVerification`، بيكتب بيانات المستخدم الأساسية في `users/{uid}` عند أول تسجيل
@@ -65,11 +85,19 @@
 ### `lib/`
 - `applyGlobalFont.ts` — بتـpatch كومبوننتس `Text` و`TextInput` من react-native عشان تطبّق خط Tajawal على **كل** نص في التطبيق تلقائيًا (تختار الوزن المناسب حسب `fontWeight`)، بدل ما تحط `fontFamily` يدوي في كل ملف
 - `finance.ts` — دوال حسابية مشتركة: `walletBalance` (رصيد محفظة من كل العمليات)، `monthSpend`، `fmt` (تنسيق أرقام)، `todayStr`، `formatTime` (12 ساعة بصيغة ص/م)، `categoryLabel`، وقائمة `CATEGORY_ICONS`
+- `archiving.ts` — **نموذج الأرشفة مقابل الحذف كله**: مين مربوط بمين (`walletReferences`/`categoryReferences`)، إيه اللي بيمنع الأرشفة (`walletArchiveBlock`)، إيه اللي هيضيع لو مسحت (`walletDeleteConsequences`)، وتسوية رصيد المحفظة المؤرشفة (`archivedWalletDeltas`, `settlementNote`). وكمان صيغ العدّ بالعربي (`walletsPhrase`, `transactionsPhrase`...) — فيها حالة صفر ("مفيش محافظ") مش رقم في جملة
+- `tokens.ts` — **مصدر التصميم**: المسافات، الزوايا، شكل الورقة المنسدلة (`sheetStyle`)، والفوتر اللاصق (`stickyFooterStyle`) اللي بيمنع زرار الحفظ يضيع تحت الكيبورد
+- `useAmountDrafts.ts` — خانة رقم فلوس بتتحفظ لوحدها: مسوّدة + حفظ بعد ثانية + حفظ الفاضل وقت ما الشاشة تتشال. **نسخة واحدة** بتخدم المحافظ والميزانية ودخل شخبطة، والفرق بينهم بارامتر (`plan`) مش نسخة تانية من الملف
+- `writeError.ts` — نص رسالة "الكتابة ما وصلتش" مسمّى بالسجل («الاشتراك "نتفليكس"»)
+- `sentry.ts` + `sentryScrub.ts` — تهيئة Sentry وتنضيف أي بيانات مالية قبل الإرسال
+- `appInfo.ts` — رقم الإصدار والبناء (`APP_FULL_VERSION`)
+- `feedback.ts`, `contacts.ts`, `notificationStatus.ts`, `selection.ts`, `useBusy.ts` — مساعدات صغيرة لكل موضوع
 - `notifications.ts` — طبقة رفيعة فوق `expo-notifications`: إعداد قناة أندرويد وسلوك الإشعارات (`setupNotifications`)، طلب/فحص الإذن، وجدولة إشعار في تاريخ معين أو تذكير يومي متكرر
 - `scheduleAllReminders.ts` — بيمسح كل التذكيرات المجدولة ويعيد جدولتها من الأول بناءً على الاشتراكات والجمعية الحالية (كل واحد قبل موعده بـ `reminderDaysBefore` يوم) + التذكير اليومي لو مفعّل — بينادى من `NotificationsContext` كل ما البيانات أو الإعدادات تتغيّر
 
 ### `hooks/` و`constants/`
-- `use-color-scheme.ts` / `.web.ts`, `use-theme-color.ts` — هوكس مساعدة لثيم النظام (منفصلة عن `ThemeContext` بتاع التطبيق)
+- `use-chart-colors.ts` — **الهوك الشغّال**: بيوزّع ألوان الرسوم على كل الفئات والمحافظ مرة واحدة، عشان نفس الفئة تاخد نفس اللون في كل الشاشات
+- `use-color-scheme.ts` / `.web.ts`, `use-theme-color.ts` — **كود ميت** من قالب Expo (مفيش حاجة بتستوردهم غير كومبوننتس ميتة). مصدر الألوان الحقيقي `ThemeContext`
 - `constants/theme.ts` — ثوابت ثيم من قالب Expo الافتراضي (مش المصدر الأساسي للألوان — المصدر الحقيقي `ThemeContext`)
 
 ### `firebaseConfig.js`
@@ -77,14 +105,15 @@
 
 ## المميزات الأساسية
 
+0. **الفئات (Categories)** — اسم وأيقونة اختيارية من `CATEGORY_ICONS` (الافتراضية `🏷️` لحد ما المستخدم يختار). الأيقونة بتظهر في كل مكان بيتعرض فيه اسم الفئة، لأن `categoryLabel`/`categoryLabelById` هما المصدر الوحيد للاسم — ماعدا تصدير الإكسيل، بيطلب الاسم من غير أيقونة عن قصد عشان العمود يفضل قابل للفرز
 1. **المحافظ (Wallets)** — كل محفظة ليها اسم، رصيد افتتاحي، وحد تنبيه لو الرصيد قرب يخلص. الرصيد الفعلي بيتحسب من مجموع العمليات مش بيتخزن مباشرة (`walletBalance` في `lib/finance.ts`)
 2. **العمليات (Transactions)** — 3 أنواع: `expense` (مصروف)، `income` (إيراد)، `withdraw` (تحويل بين محفظتين — بياخد من واحدة ويحط في التانية عبر `walletId`/`toWalletId`)
-3. **التقارير (Reports)** — رسوم بيانية على العمليات (مصروفات حسب الفئة، اتجاه شهري، إلخ)
+3. **التقارير (Reports)** — رسم دائري واحد للمصروفات حسب الفئة (`buildPieSlices`) مع فلتر فترة وفلتر فئات، ونسبة التغيّر عن الفترة اللي فاتت. **مفيش رسم اتجاه شهري** — كان مكتوب هنا وهو مش موجود
 4. **التخطيط (Planning)**:
    - **ميزانية** — حد شهري لكل فئة، وبانر تنبيه لو قربت تخلص أو خلصت
    - **شخبطة** — توزيع الدخل الشهري على 3 نسب قابلة للتعديل (احتياجات/رغبات/مستقبل)، افتراضيًا 50/30/20
 5. **الديون (Debts)** — تاب واحد فيه 3 تحت-تابات:
-   - **ديون** — `owed_to_me` (له عندك) أو `i_owe` (عليك له)، ممكن تكون قسط (installment)، وممكن تربط الدين بشخص من جهات الاتصال (`personContactId`) عشان تفتح كارت جهة الاتصال بضغطة، فيها زيادات (`increases`) وسدادات (`payments`) كل واحدة بتولّد Transaction
+   - **ديون** — `owed_to_me` (له عندك) أو `i_owe` (عليك له)، ممكن تكون قسط: قيمة القسط بتتخزّن (`installmentAmount`، مقرّبة للقرش) و**العدد** هو اللي بيتحرّك مع كل دفعة مختلفة — اللي دفع أقل بياخد قسط زيادة واللي دفع أكتر بيخلّص بدري، والتغيير بيتقال بالكلام، وممكن تربط الدين بشخص من جهات الاتصال (`personContactId`) عشان تفتح كارت جهة الاتصال بضغطة، فيها زيادات (`increases`) وسدادات (`payments`) كل واحدة بتولّد Transaction
    - **اشتراكات (Subscriptions)** — دفعات دورية (شهري/سنوي/عدد أيام)، `markSubscriptionPaid` بيسجل العملية ويحسب `nextDueDate` تلقائي
    - **الجمعية (Gamiya)** — جدول شهور بمبلغ ثابت وشهر استلام واحد فيه المبلغ التراكمي، كل شهر بيتحدد `pending`/`done` وبيولّد Transaction عند التسديد/الاستلام
 6. **الأرشيف (Archive)** — عرض كل العمليات بفلاتر تاريخ جاهزة (الشهر ده، آخر 7 أيام، الشهر اللي فات، الكل، مخصص) وتصدير Excel عبر `xlsx` + `expo-file-system` + `expo-sharing`
@@ -92,6 +121,31 @@
 8. **الإشعارات** — نوعين مختلفين، ماتلخبطش بينهم:
    - **إشعارات نظام حقيقية** (`expo-notifications` عبر `NotificationsContext` + `lib/notifications.ts` + `lib/scheduleAllReminders.ts`) — بتتفعّل من الإعدادات، وبتذكّر بمواعيد الاشتراكات وأقساط الجمعية قبلها بـ `reminderDaysBefore` يوم، وفيها كمان تذكير يومي اختياري بمعاد محدد لتسجيل مصاريف اليوم. أي حقل جديد يأثر على الجدولة (تاريخ استحقاق، مبلغ، `reminderDaysBefore`) لازم يتغطى في `scheduleAllReminders.ts`
    - **بانرات تنبيه داخل شاشة الرئيسية** — عرض بصري بس جوه `index.tsx`، بتظهر لما: رصيد محفظة يقرب يخلص، ميزانية (فئة أو إجمالية) تقرب تخلص. دي مش إشعارات نظام ومش مرتبطة بالجدولة اللي فوق
+
+## Sentry — وإيه اللي ممنوع يخرج من التطبيق
+
+`@sentry/react-native` (النسخة اللي SDK 54 مثبّتها، مش الأحدث). الـDSN
+بييجي من `EXPO_PUBLIC_SENTRY_DSN` وقت البناء — **مش في الريبو** — ولو مش
+موجود Sentry مبتشتغلش خالص والتطبيق بيكمّل عادي.
+
+**القاعدة: مفيش ولا رقم من فلوس المستخدم بيخرج.** مفيش مبالغ، مفيش أرصدة،
+مفيش أسامي محافظ أو فئات، مفيش أسامي ناس، مفيش نص الرأي. ودي مش نظرية —
+`reportWriteError` بيعمل `console.warn` باسم السجل، وSentry بتاخد الـconsole
+كـbreadcrumbs أوتوماتيك، فمن غير تنضيف أول كتابة تفشل كانت هتبعت اسم صاحب
+الدين.
+
+التنضيف في `lib/sentryScrub.ts` وهو **allowlist مش denylist**: بيتبعت نوع
+الاستثناء والستاك والإصدار ونوع الجهاز والمعرّف، وبيتشال كل اللي غيره —
+breadcrumbs الـconsole بالكامل، و`extra`، و`request`، وكل `contexts` ماعدا
+بتاعة الجهاز. ولقطة الشاشة وشجرة العناصر مقفولين (`attachScreenshot`،
+`attachViewHierarchy`): الشاشة مليانة أرقام المستخدم.
+
+وأي نص فاضل بيعدّي على `redactText`: أي حاجة بين علامتي تنصيص بتتشال
+(هناك `namedLabel` بتحط الأسامي)، وأي رقم شكله فلوس كمان.
+
+`release` في Sentry = `APP_FULL_VERSION` = نفس النص اللي المستخدم شايفه في
+"عن التطبيق" وبيتبعت مع الرأي. لو حد قال "المشكلة في 1.0.0.007" لازم نلاقي
+نفس السطر في Sentry من غير ترجمة بين تلات أنظمة ترقيم.
 
 ## سجل القرارات — TIMELINE.md
 
@@ -137,6 +191,7 @@
 | بناء واقع | `react-build-resolver` (ميترو/Expo) أو `build-error-resolver` (جرادل/CI) |
 | اختبارات حمرا | `pr-test-analyzer` |
 | قرار اتاخد أو اتأجل أو اترجع فيه | `doc-updater` — يحدّث `TIMELINE.md` |
+| نقل شاشة أو قسم من مكان لمكان | فرق سطر بسطر للقديم والجديد **+ اختبار جرد** (`settingsScreenInventory.test.tsx` هو النموذج) — قسم القفل ضاع منه أربع أدوات في نقل ومحدش حس |
 | أي حاجة تانية | `code-reviewer` |
 
 ### قواعد تشغيل
@@ -164,28 +219,35 @@
 - **listener على مجموعة فاضية مبيرميش أي snapshot** — اتكشفت وإحنا بنجيب حالة الاتصال من `metadata.fromCache`: لو أخدناها من العمليات لوحدها، المستخدم اللي لسه مامعموش أي عملية هيفضل "مش متصل" للأبد وكل تسديد هيترفض. عشان كده `noteConnection` بتتنادى من أكتر من listener (المحافظ + العمليات). أي إشارة جديدة بتتبني على وجود بيانات لازم تتسأل: إيه اللي هيحصل لمستخدم لسه فاضي؟
 - **اختفاء/كراش مع الأسماء العربية في جهات الاتصال** — بعض جهات الاتصال العربية مالهاش حقل `name` موحّد وبس فيها `firstName`/`lastName` منفصلين، فكان بيرجع اسم فاضي أو يعمل كراش. الحل في `debts.tsx`: اطلب `Contacts.Fields.Name` و`FirstName` و`LastName` مع بعض، واعمل fallback: لو `name` فاضي، ادمج `firstName` + `lastName` (`composed`) واستخدمه بدله
 
-## TODO — مودالات لسه فيها "زرار الحفظ بيضيع تحت الكيبورد" (2026-09-15)
+## زرار الحفظ تحت الكيبورد — **اتقفلت** (2026-09-20)
 
-الإصلاح اللي اتعمل في `app/modal.tsx` وموداليّ `components/DebtEntryModals.tsx`:
-زرارات الحفظ/الإلغاء اتنقلت **برّه** الـ `ScrollView` لفوتر لاصق
-(`stickyFooterStyle` في `lib/tokens.ts`) بدل ما تفضل آخر عنصر جوه المحتوى
-القابل للتمرير — فتفضل فوق الكيبورد دايمًا مهما طال الفورم. نفس العلة (فورم
-طويل، والزرار آخر حاجة جوه الـ ScrollView) موجودة لسه من غير إصلاح في:
+زرارات الحفظ/الإلغاء في كل مودال فيه فورم بقت **برّه** الـ`ScrollView` في
+فوتر لاصق (`stickyFooterStyle` في `lib/tokens.ts`) بدل ما تفضل آخر عنصر
+جوه المحتوى القابل للتمرير — فتفضل فوق الكيبورد مهما طال الفورم.
 
-- `app/(tabs)/debts.tsx` — `AddDebtModal` و`EditDebtModal`
-- `components/GamiyaView.tsx` — `AddGamiyaModal` و`EditGamiyaModal`
-- `components/SubscriptionsView.tsx` — `AddSubscriptionModal` و`EditSubscriptionModal`
-- `components/SetLockModal.tsx` — أسوأ حالة من غيرهم: مفيش `ScrollView` خالص،
-  يعني في وضع "تغيير الباسورد" (لغاية 3 حقول + اختيار نوع) مفيش حتى تمرير
-  احتياطي لو الفورم طال عن المساحة المتاحة فوق الكيبورد
-- `app/(auth)/index.tsx` — زرار الدخول/التسجيل جوه `ScrollView` بعد الحقول؛
-  نفس البنية بالظبط، بس الفورم قصير فمتأكدش إنه بيتكسر فعليًا على أجهزة عادية
+اتصلحت في `app/modal.tsx` و`components/DebtEntryModals.tsx` أول مرة، وفي
+الباقي يوم 2026-09-20: `EditDebtModal` في `app/(tabs)/debts.tsx`، ومودالات
+`GamiyaView` و`SubscriptionsView` (إضافة وتعديل)، و`SetLockModal` (دي كانت
+أسوأ واحدة — **مفيش `ScrollView` خالص**، فحتى التمرير الاحتياطي مكانش
+موجود). و`components/LockScreen.tsx` كمان، وهي أخطرهم: القفل بيتحط قدام
+التطبيق كله، فزرار "دخول" ومخرج "نسيت الكود؟" كانوا الاتنين ممكن يقعوا
+تحت الكيبورد.
 
-اتفحصت واستُبعدت من القايمة دي لأنها مش نفس النمط (مفيش زرار حفظ عمومي آخر
-فورم طويل يضيع تحت الكيبورد):
-- `components/BudgetView.tsx` — كل حقل بيتحفظ لوحده `onBlur`، مفيش زرار حفظ
-- `components/ShakhbataView.tsx` — "حفظ النسب" جنب حقل الدخل مباشرة، مش آخر
-  حاجة في فورم طويل
+**تصحيح لعدد كان مكتوب هنا غلط:** القايمة القديمة كانت بتقول إن
+`app/(tabs)/debts.tsx` فيه `AddDebtModal` و`EditDebtModal`. `AddDebtModal`
+كانت اتنقلت لـ`components/DebtEntryModals.tsx` واتصلحت مع إخواتها من زمان،
+فالعدد الحقيقي كان ستة مش تسعة. و`app/(auth)/index.tsx` اتفحصت واستُبعدت:
+فيها `KeyboardAvoidingView` و`ScrollView` فعلاً والفورم قصير.
+
+**واللي بيمنع رجوعها:** `lib/__tests__/stickyFooterModals.test.ts` بيقرا
+الملفات نفسها ويرفض النمط القديم بالاسم (`<ScrollView style={styles.sheet}`
+و`style={styles.actions}`)، وبيمسح **التطبيق كله** على أي ملف فيه
+`<TextInput` من غير `KeyboardAvoidingView` ولا `ScrollView` — فقاعدة 5 بقى
+ليها حارس بدل ما تعتمد على إن حد يفتكرها.
+
+اتفحصت واستُبعدت لأنها مش نفس النمط (مفيش زرار حفظ عمومي آخر فورم طويل):
+- `components/BudgetView.tsx` — كل حقل بيتحفظ لوحده، مفيش زرار حفظ
+- `components/ShakhbataView.tsx` — "حفظ النسب" جنب حقل الدخل مباشرة
 - `components/ContactPickerModal.tsx` — مفيش زرار حفظ في الآخر خالص
 
 ## رقم البناء (versionCode) — اقرا ده قبل ما تلمس الورك فلو
@@ -244,11 +306,15 @@ RNFB (اتجرب على 26.4.0) بيوصل لكل حاجة عن طريق
 XHR — وعشان كده `jest.setup.emulator.js` مضطر يجيب `XMLHttpRequest` من `xhr2`.
 
 **يبقى الاتنين مع بعض معناهم:** التخزين على القرص وطقم اختبارات المحاكي الحالي
-**مايتجمعوش** على الستاك ده. لو رحنا RNFB: 10 اختبارات من 48 بس اللي بتعيش
-(`security.emulator.test.tsx` — دي بتختبر القواعد نفسها ومش بتعرف حاجة عن
-كلاينت التطبيق)، و38 بيموتوا لأنهم بيعملوا render لـ `DataProvider` الحقيقي —
-وده بيشمل كل اختبارات سلامة الفلوس (cascade، duplication، reconcile، editdebt،
-overpay).
+**مايتجمعوش** على الستاك ده. لو رحنا RNFB، اللي بيعيش هو
+`security.emulator.test.tsx` بس (22 اختبار — دي بتختبر القواعد نفسها ومش
+بتعرف حاجة عن كلاينت التطبيق)، والباقي كله بيموت لأنه بيعمل render لـ
+`DataProvider` الحقيقي — وده بيشمل كل اختبارات سلامة الفلوس (cascade،
+duplication، reconcile، editdebt، overpay، settlement، installments).
+
+> الأرقام دي بتكبر مع الوقت، فمتكتبش عدد ثابت هنا تاني. العدد الحالي بيطلع
+> من `npm run test:db`، ونسبة اللي هيموت تقريبًا كل حاجة غير
+> `security.emulator.test.tsx`.
 
 **وطبقة وسيطة (adapter) مش حل.** فكرة إن الاختبارات تشتغل على الـ JS SDK
 والإنتاج على RNFB بتلغي نفسها: قيمة الهجرة كلها إن RNFB **بيتصرف بشكل مختلف**
