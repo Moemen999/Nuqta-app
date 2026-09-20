@@ -5,6 +5,7 @@ import {
     GoogleAuthProvider,
     onAuthStateChanged,
     sendEmailVerification,
+    sendPasswordResetEmail,
     signInWithCredential,
     signInWithEmailAndPassword,
     updateProfile,
@@ -21,6 +22,7 @@ type AuthContextType = {
   signInWithGoogleCredential: (idToken: string) => Promise<void>;
   logOut: () => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -82,6 +84,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(auth);
   }
 
+  /**
+   * "نسيت الباسورد؟" في شاشة الدخول.
+   *
+   * مش رفاهية: مخرج "نسيت الكود؟" في شاشة القفل بيخرّج المستخدم من حسابه،
+   * وبيفترض إنه يقدر يدخل تاني. اللي سجّل بإيميل وباسورد ونسي الاتنين
+   * (كود القفل وباسورد الحساب) مكانش قدامه أي طريق يرجع لبياناته.
+   *
+   * بيتستنى فعلاً (`await`) — ده مش كتابة في فايرستور، ده طلب للسيرفر
+   * ولازم نعرف نجح ولا لأ عشان نقول للمستخدم حاجة قاطعة.
+   */
+  async function resetPassword(email: string) {
+    await sendPasswordResetEmail(auth, email);
+  }
+
   async function resendVerificationEmail() {
     if (auth.currentUser) {
       await sendEmailVerification(auth.currentUser);
@@ -89,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogleCredential, logOut, resendVerificationEmail }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogleCredential, logOut, resendVerificationEmail, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,11 +4,25 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 
 WebBrowser.maybeCompleteAuthSession();
+
+export const RESET_LABEL = 'نسيت الباسورد؟';
+export const RESET_NEEDS_EMAIL = 'اكتب إيميلك الأول، وبعدين دوس "نسيت الباسورد؟"';
+export const RESET_TITLE = 'بعتنالك رابط';
+export function resetSentBody(email: string) {
+  return `بعتنا رابط على ${email} تقدر تغيّر منه الباسورد. لو ملقتهوش في الوارد، بصّ في الـSpam.`;
+}
+/**
+ * جوجل مبتقولش "الإيميل ده مش موجود" عن قصد (عشان محدش يعرف مين مسجّل
+ * ومين لأ)، وفايربيز بقت بتعمل نفس الحاجة. فالرسالة دي مبتأكدش إن الحساب
+ * موجود — بتقول إننا بعتنا لو كان موجود، وخلاص.
+ */
+export const RESET_GOOGLE_HINT =
+  'ولو انت سجّلت بجوجل من الأول، مش هيوصلك حاجة — ادخل بزرار جوجل فوق على طول.';
 
 // الـ Web Client ID بتاع مشروع Firebase "nuqta" — عمومي وآمن يتحط في الكود
 const GOOGLE_WEB_CLIENT_ID = '662258111881-r6c7jaudqjeud0oa7dsn119rf0tsv4tu.apps.googleusercontent.com';
@@ -20,7 +34,7 @@ const GOOGLE_REVERSED_SCHEME = 'com.googleusercontent.apps.662258111881-suhr5mgq
 export default function AuthScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn, signUp, signInWithGoogleCredential } = useAuth();
+  const { signIn, signUp, signInWithGoogleCredential, resetPassword } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -28,6 +42,7 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
 
   // جوجل بتطلب شرطة واحدة بعد النقطتين في الصيغة دي (scheme:/path مش scheme://path)
   const redirectUri = useMemo(
@@ -81,6 +96,26 @@ export default function AuthScreen() {
     }
   }
 
+  /**
+   * الرابط ده هو الطرف التاني لمخرج "نسيت الكود؟" في شاشة القفل: هناك
+   * بنخرّج المستخدم من حسابه وبنفترض إنه يقدر يدخل تاني. من غير ده، اللي
+   * نسي كود القفل **و**باسورد حسابه مكانش ليه أي طريق يرجع لفلوسه.
+   */
+  async function handleReset() {
+    setError('');
+    const target = email.trim();
+    if (!target) { setError(RESET_NEEDS_EMAIL); return; }
+    setResetBusy(true);
+    try {
+      await resetPassword(target);
+      Alert.alert(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
+    } catch (e: any) {
+      setError(mapError(e?.code));
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
@@ -121,6 +156,14 @@ export default function AuthScreen() {
         )}
       </TouchableOpacity>
 
+      {mode === 'login' && (
+        <TouchableOpacity testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
+          <Text style={[styles.resetText, resetBusy && { opacity: 0.6 }]}>
+            {resetBusy ? '...' : RESET_LABEL}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
         <Text style={styles.switchText}>
           {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب بالفعل؟ سجّل دخول'}
@@ -139,6 +182,9 @@ function mapError(code: string) {
     case 'auth/invalid-credential': return 'الإيميل أو الباسورد غلط';
     case 'auth/email-already-in-use': return 'الإيميل ده مستخدم قبل كده';
     case 'auth/weak-password': return 'الباسورد لازم يكون 6 حروف/أرقام على الأقل';
+    case 'auth/missing-email': return 'اكتب إيميلك الأول';
+    case 'auth/too-many-requests': return 'جرّبت كتير أوي. استنى شوية وحاول تاني';
+    case 'auth/network-request-failed': return 'مفيش نت. وصّل النت وحاول تاني';
     default: return 'حصل خطأ، جرب تاني';
   }
 }
@@ -158,6 +204,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.danger, fontSize: 13, textAlign: 'center' },
     button: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     buttonText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
+    resetText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 12, textDecorationLine: 'underline' },
     switchText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 14 },
   });
 }

@@ -1,15 +1,45 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert, KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, Text, TextInput, TouchableOpacity, View,
+} from 'react-native';
 import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
+import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { stickyFooterStyle } from '@/lib/tokens';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
+/**
+ * الرسالة بتقول بالظبط اللي هيحصل **قبل** ما يحصل.
+ *
+ * كانت بتقول "ترجع تدخل بإيميلك وباسوردك" — وده غلط لناس كتير: اللي سجّل
+ * بجوجل معندهوش باسورد أصلاً، فالجملة دي كانت بتخوّفه من غير سبب. دلوقتي
+ * بتقول "بنفس الطريقة اللي سجّلت بيها"، وبتوريه إن فيه "نسيت الباسورد؟"
+ * في شاشة الدخول لو ده كمان ضايع منه.
+ */
 export const FORGOT_BODY =
-  'هنشيل القفل ونخرجك من حسابك. ترجع تدخل بإيميلك وباسوردك، وبياناتك كلها زي ما هي. '
-  + 'وبعدين تقدر تفعّل القفل من جديد بكود تفتكره.';
+  'هنشيل القفل ونخرجك من حسابك. ترجع تدخل بنفس الطريقة اللي سجّلت بيها — '
+  + 'بجوجل أو بالإيميل والباسورد — وبياناتك كلها زي ما هي مستنياك. ولو نسيت '
+  + 'باسورد حسابك كمان، هتلاقي "نسيت الباسورد؟" في شاشة الدخول. وبعد ما ترجع '
+  + 'تقدر تفعّل القفل من جديد بكود تفتكره.\n\nمحتاج نت عشان ترجع تدخل.';
 export const FORGOT_CONFIRM = 'شيل القفل واخرج';
+
+/**
+ * من غير نت، شيل القفل + خروج = المستخدم برّه التطبيق ومش قادر يرجع.
+ *
+ * بس **مش** بنمنعه: `serverReachable` بتبدأ `false` وبتبقى `true` بس بعد أول
+ * snapshot من السيرفر، فالثواني الأولى بعد فتح التطبيق بتبان زي "مفيش نت"
+ * حتى والنت شغال. لو منعنا على أساسها كنا هنحبس ناس نتهم كويس. فبنحذّر
+ * ونسيب له مخرج "النت شغال عندي".
+ */
+export const FORGOT_OFFLINE_TITLE = 'محتاج نت الأول';
+export const FORGOT_OFFLINE_BODY =
+  'إحنا مش شايفين نت دلوقتي. لو شيلنا القفل وخرجناك وانت من غير نت، مش هتعرف '
+  + 'ترجع تدخل لحد ما النت يرجع — بياناتك مش هتضيع، بس هتفضل برّه التطبيق. '
+  + 'وصّل النت وجرب تاني.';
+export const FORGOT_OFFLINE_CONTINUE = 'النت شغال عندي، كمّل';
 
 const KEY_ROWS = [
   ['1', '2', '3'],
@@ -22,6 +52,7 @@ export default function LockScreen() {
   const { colors } = useTheme();
   const { lockType, verify, unlock, clearLock } = useAppLock();
   const { logOut } = useAuth();
+  const { serverReachable } = useData();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const styles = makeStyles(colors);
@@ -30,22 +61,31 @@ export default function LockScreen() {
    * القفل بيتحط قدام التطبيق كله قبل حتى شاشة الدخول، فاللي بينسى كوده مكانش
    * قدامه أي طريق غير إنه يمسح التطبيق — ودي حبسة مش حماية.
    *
-   * الخروج منها مربوط بباسورد الحساب: بنشيل القفل وبنسجّل خروج، فالمستخدم
-   * لازم يعرف بيانات حسابه عشان يرجع لبياناته. يعني الاسترجاع محمي بحاجة
-   * أقوى من الكود المحلي، مش أضعف منه.
+   * الخروج منها مربوط بالحساب نفسه: بنشيل القفل وبنسجّل خروج، فالمستخدم
+   * لازم يقدر يدخل حسابه تاني (بجوجل أو بالإيميل والباسورد) عشان يرجع
+   * لبياناته. يعني الاسترجاع محمي بحاجة أقوى من الكود المحلي، مش أضعف منه.
    */
-  function handleForgot() {
+  async function runForgot() {
+    await clearLock();
+    await logOut();
+  }
+
+  function confirmForgot() {
     Alert.alert(FORGOT_TITLE, FORGOT_BODY, [
       { text: 'إلغاء', style: 'cancel' },
-      {
-        text: FORGOT_CONFIRM,
-        style: 'destructive',
-        onPress: async () => {
-          await clearLock();
-          await logOut();
-        },
-      },
+      { text: FORGOT_CONFIRM, style: 'destructive', onPress: runForgot },
     ]);
+  }
+
+  function handleForgot() {
+    if (!serverReachable) {
+      Alert.alert(FORGOT_OFFLINE_TITLE, FORGOT_OFFLINE_BODY, [
+        { text: 'تمام', style: 'cancel' },
+        { text: FORGOT_OFFLINE_CONTINUE, onPress: confirmForgot },
+      ]);
+      return;
+    }
+    confirmForgot();
   }
 
   async function handleSubmit(value?: string) {
@@ -73,7 +113,17 @@ export default function LockScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      testID="lock_kav"
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView
+        testID="lock_scroll"
+        style={styles.flex}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}>
       <Text style={styles.lockEmoji}>🔒</Text>
       <Text style={styles.title}>نقطة مقفولة</Text>
 
@@ -106,6 +156,7 @@ export default function LockScreen() {
       ) : (
         <View style={styles.passwordArea}>
           <TextInput
+            testID="lock_password_input"
             style={styles.input}
             value={code}
             onChangeText={setCode}
@@ -116,22 +167,35 @@ export default function LockScreen() {
             autoFocus
           />
           <Text style={styles.error}>{error || ' '}</Text>
-          <TouchableOpacity style={styles.submitBtn} onPress={() => handleSubmit()}>
+          <TouchableOpacity testID="lock_submit_button" style={styles.submitBtn} onPress={() => handleSubmit()}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <TouchableOpacity testID="lock_forgot_button" style={styles.forgotBtn} onPress={handleForgot}>
-        <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
-      </TouchableOpacity>
-    </View>
+      </ScrollView>
+
+      {/*
+        المخرج برّه الـ`ScrollView` في فوتر لاصق عن قصد. مع الباسورد النصي
+        الكيبورد بيفتح لوحده (`autoFocus`)، وقبل كده الشاشة مكانش فيها لا
+        `KeyboardAvoidingView` ولا تمرير — فعلى موبايل قصير زرار "دخول"
+        و"نسيت الكود؟" كانوا بيقعوا تحت الكيبورد من غير أي طريق توصلهم.
+        يعني المخرج الوحيد من الحبسة كان هو نفسه محبوس.
+      */}
+      <View testID="lock_footer" style={styles.footer}>
+        <TouchableOpacity testID="lock_forgot_button" style={styles.forgotBtn} onPress={handleForgot}>
+          <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', padding: 24 },
+    flex: { flex: 1, backgroundColor: c.bg },
+    container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+    footer: { ...stickyFooterStyle(c, c.bg), justifyContent: 'center' },
     lockEmoji: { fontSize: 44, marginBottom: 10 },
     title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
@@ -145,7 +209,7 @@ function makeStyles(c: ThemeColors) {
     passwordArea: { width: '100%', maxWidth: 320 },
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
     submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
-    forgotBtn: { marginTop: 28, padding: 8 },
+    forgotBtn: { padding: 8 },
     forgotText: { color: c.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   });
 }
