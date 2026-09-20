@@ -107,6 +107,21 @@ describe('"نسيت الباسورد؟"', () => {
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 
+  it('إيميل مش موجود بيتعامل زي النجاح — عشان محدش يعرف مين مسجّل عندنا', async () => {
+    mockAuth.resetPassword.mockRejectedValueOnce(
+      Object.assign(new Error('x'), { code: 'auth/user-not-found' })
+    );
+    await renderAuth();
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('auth_email_input'), 'nobody@example.com');
+    });
+    await act(async () => { fireEvent.press(screen.getByTestId('auth_reset_button')); });
+
+    const [title] = (Alert.alert as unknown as jest.Mock).mock.calls[0];
+    expect(title).toBe(RESET_TITLE);
+    expect(screen.queryByText('الإيميل أو الباسورد غلط')).toBeNull();
+  });
+
   it('الزرار بيرجع شغال بعد الفشل — مش بيفضل "..." للأبد', async () => {
     mockAuth.resetPassword.mockRejectedValueOnce(
       Object.assign(new Error('x'), { code: 'auth/too-many-requests' })

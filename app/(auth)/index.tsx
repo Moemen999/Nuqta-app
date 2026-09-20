@@ -110,7 +110,16 @@ export default function AuthScreen() {
       await resetPassword(target);
       Alert.alert(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
     } catch (e: any) {
-      setError(mapError(e?.code));
+      // `auth/user-not-found` بيتعامل **زي النجاح** عن قصد: لو فرّقنا بين
+      // "الإيميل ده عنده حساب" و"لأ"، أي حد يقدر يعرف مين مسجّل عندنا بإنه
+      // يجرب إيميلات ويقرا الفرق. فايربيز نفسها بقت بتخفي الفرق ده لما
+      // حماية التعداد تكون مفعّلة، بس مش بنعتمد على إعداد في الكونسول
+      // لوحده — الكود بيقفلها كمان.
+      if (e?.code === 'auth/user-not-found') {
+        Alert.alert(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
+      } else {
+        setError(mapError(e?.code));
+      }
     } finally {
       setResetBusy(false);
     }

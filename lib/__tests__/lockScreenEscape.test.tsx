@@ -177,6 +177,39 @@ describe('من غير نت', () => {
   });
 });
 
+describe('ترتيب الخروج وشيل القفل', () => {
+  /**
+   * لو شيلنا القفل الأول، `enabled`/`isLocked` بيبقوا false على طول
+   * والبوابة بتفتح — ولو التطبيق مات بين الخطوتين، المفاتيح تبقى اتمسحت
+   * وجلسة فايربيز لسه محفوظة، فالفتحة الجاية بتدخل الحساب كامل من غير أي
+   * كود. الترتيب الصح بيقع في الاتجاه الآمن: أسوأ حاجة إنه يلاقي القفل تاني.
+   */
+  it('الخروج بيحصل **قبل** شيل القفل', async () => {
+    const order: string[] = [];
+    mockAuth.logOut.mockImplementation(async () => { order.push('logOut'); });
+    mockLock.clearLock.mockImplementation(async () => { order.push('clearLock'); });
+
+    await renderLock();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_forgot_button')); });
+    const confirm = (Alert.alert as unknown as jest.Mock).mock.calls[0][2]
+      .find((b: any) => b.text === FORGOT_CONFIRM);
+    await act(async () => { await confirm.onPress(); });
+
+    expect(order).toEqual(['logOut', 'clearLock']);
+  });
+
+  it('لو الخروج فشل، القفل مبيتشالش — مبنفتحش الباب على الفاضي', async () => {
+    mockAuth.logOut.mockRejectedValueOnce(new Error('offline'));
+    await renderLock();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_forgot_button')); });
+    const confirm = (Alert.alert as unknown as jest.Mock).mock.calls[0][2]
+      .find((b: any) => b.text === FORGOT_CONFIRM);
+    await act(async () => { await confirm.onPress().catch(() => {}); });
+
+    expect(mockLock.clearLock).not.toHaveBeenCalled();
+  });
+});
+
 describe('نص رسالة "نسيت الكود؟"', () => {
   it('مبيقولش "بإيميلك وباسوردك" — اللي داخل بجوجل معندهوش باسورد أصلاً', () => {
     expect(FORGOT_BODY).not.toContain('ترجع تدخل بإيميلك وباسوردك');
