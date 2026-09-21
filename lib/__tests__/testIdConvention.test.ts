@@ -1,4 +1,5 @@
-import { execSync } from 'child_process';
+import { readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * الـtestIDs هي العمود الفقري لأي اختبارات E2E جاية (الأداة المختارة
@@ -14,23 +15,35 @@ import { execSync } from 'child_process';
  * الفحص. النص العربي مكانه التأكيدات (`assertVisible`) مش المعرّفات.
  */
 
+
+/**
+ * كل الملفات تحت الفولدرات دي، بـ Node مش بـ `grep`: `execSync` على ويندوز
+ * بيشغّل cmd.exe، ومفيهوش `grep` ولا `|` لـ `sed` — فالاختبار كان بيقع
+ * على اللاب بس وينجح في الكلاود.
+ */
+function walk(dirs: string[], ext?: RegExp): string[] {
+  const out: string[] = [];
+  const visit = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) visit(p);
+      else if (!ext || ext.test(e.name)) out.push(p);
+    }
+  };
+  dirs.forEach(visit);
+  return out;
+}
+
+const SOURCES = () => walk(['app', 'components']).map(p => readFileSync(p, 'utf-8'));
+
 function allTestIds(): string[] {
-  const out = execSync(
-    `grep -rho 'testID="[^"]*"' app components | sed 's/testID="//; s/"$//'`,
-    { cwd: process.cwd(), encoding: 'utf-8' }
-  );
-  return out.split('\n').map(s => s.trim()).filter(Boolean);
+  return SOURCES().flatMap(src => [...src.matchAll(/testID="([^"]*)"/g)].map(m => m[1].trim())).filter(Boolean);
 }
 
 /** الـIDs المبنية بقالب — بنستخرج الجزء الثابت قبل `${` */
 function templateTestIdPrefixes(): string[] {
-  const out = execSync(
-    `grep -rhoE 'testID=\\{\`[^\`]*\`\\}' app components || true`,
-    { cwd: process.cwd(), encoding: 'utf-8' }
-  );
-  return out
-    .split('\n')
-    .map(s => s.replace(/^testID=\{`/, '').replace(/`\}$/, ''))
+  return SOURCES()
+    .flatMap(src => [...src.matchAll(/testID={`([^`]*)`}/g)].map(m => m[1]))
     .map(s => s.split('${')[0])
     .map(s => s.trim())
     .filter(Boolean);

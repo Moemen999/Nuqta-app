@@ -1,5 +1,23 @@
-import { execSync } from 'child_process';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
+/**
+ * كل الملفات تحت الفولدرات دي، بـ Node مش بـ `grep`: `execSync` على ويندوز
+ * بيشغّل cmd.exe، ومفيهوش `grep` ولا `|` لـ `sed` — فالاختبار كان بيقع
+ * على اللاب بس وينجح في الكلاود.
+ */
+function walk(dirs: string[], ext?: RegExp): string[] {
+  const out: string[] = [];
+  const visit = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) visit(p);
+      else if (!ext || ext.test(e.name)) out.push(p);
+    }
+  };
+  dirs.forEach(visit);
+  return out;
+}
+
 
 /**
  * "زرار الحفظ بيضيع تحت الكيبورد".
@@ -57,10 +75,8 @@ describe('مفيش شاشة فيها TextInput من غير KeyboardAvoidingView'
    * خرقاها وهي أخطر واحدة — القفل بيتحط قدام التطبيق كله.
    */
   it('كل الشاشات', () => {
-    const files = execSync(
-      `grep -rl '<TextInput' app components --include='*.tsx'`,
-      { cwd: process.cwd(), encoding: 'utf-8' }
-    ).split('\n').map(s => s.trim()).filter(Boolean);
+    const files = walk(['app', 'components'], /.tsx$/)
+      .filter(p => readFileSync(p, 'utf-8').includes('<TextInput'));
 
     expect(files.length).toBeGreaterThan(5);
 
