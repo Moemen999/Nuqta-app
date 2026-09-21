@@ -5,7 +5,7 @@ import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor,
-  installmentValue, planInstallmentCountEdit, roundMoney, todayStr,
+  installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, serverTimestamp,
@@ -76,6 +76,13 @@ export type Settlement = {
 class WalletMissingError extends Error {}
 
 /**
+ * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
+ * جهاز تاني، يا إما لسه ما وصلش (وده اللي `waitForOurWritesToLand` بيمنعه).
+ * الرمي بيلغي العملية كلها، فمفيش عملية يتيمة بتتكتب لدين مش موجود.
+ */
+class DebtMissingError extends Error {}
+
+/**
  * هل المحفظة دي لسه تنفع نخصم منها؟
  *
  * بتتقري من **جوه** العملية الذرية مش من حالة الرياكت: الاشتراك ممكن يكون
@@ -121,6 +128,25 @@ export const PAY_OUTCOME_ALERT_GAMIYA: typeof PAY_OUTCOME_ALERT = {
     body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل الجمعية واختار محفظة شغالة وجرب تاني.',
   },
 };
+
+/**
+ * نفس الرسايل بس للدين: المحفظة هنا بتتختار في مودال الدفعة نفسه، فالكلام
+ * لازم يوجّه على المودال اللي المستخدم واقف فيه مش على تعديل السجل.
+ */
+export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
+  ...PAY_OUTCOME_ALERT,
+  'wallet-missing': {
+    title: 'محتاج محفظة تانية',
+    body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * نتيجة دفعة الدين: النتيجة القاطعة زي أي عملية بتقرا من السيرفر، ومعاها
+ * جملة تغيّر الأقساط لو العدد اتحرك (`note`) — الاتنين لازم يرجعوا مع بعض
+ * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
+ */
+export type DebtPayResult = { outcome: PayOutcome; note?: string | null };
 
 /** أقصى انتظار لتأكيد السيرفر على الرأي قبل ما نقول إنه في الطابور */
 const FEEDBACK_ACK_MS = 8000;
@@ -266,11 +292,11 @@ type DataContextType = {
   }) => Promise<void>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
   deleteDebt: (id: string) => Promise<void>;
-  addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<string | null | void>;
+  addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
-  deleteDebtPayment: (debtId: string, paymentId: string) => Promise<void>;
-  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<void>;
-  deleteDebtIncrease: (debtId: string, entryId: string) => Promise<void>;
+  deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<PayOutcome>;
+  deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
@@ -395,6 +421,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * اللي هيتصرف في الخطأ بنفسه (العمليات الذرية بترجّع نتيجة قاطعة للشاشة)،
    * عشان المستخدم ميشوفش تنبيهين على نفس الحاجة
    */
+  /**
+   * فشل العملية الذرية بيرجع للشاشة كـ`PayOutcome` وهي اللي بتعرضه، فمش
+   * بنستخدم تنبيه `track` العام معاه. بس السطر ده لازم يتكتب برضه:
+   * `deleteDebtPayment` و`deleteDebtIncrease` **مفيش ولا شاشة بتناديهم** لحد
+   * دلوقتي، فمن غيره فشلهم مش هيسيب أي أثر لا في لوج ولا قدام المستخدم.
+   *
+   * بنكتب اسم العملية بس — مفيش أسامي ولا مبالغ. الـconsole بيتحوّل
+   * breadcrumbs في Sentry، وقسم Sentry في CLAUDE.md بيقول مفيش ولا رقم من
+   * فلوس المستخدم يخرج (و`sentryScrub` بيشيل الـbreadcrumbs دي أصلاً).
+   */
+  function noteAtomicFailure(op: string, e: unknown) {
+    console.warn('عملية ذرية فشلت', op, e);
+  }
+
   function countPending<T>(p: Promise<T>): Promise<T> {
     pendingCount.current += 1;
     setPendingWrites(pendingCount.current);
@@ -904,56 +944,98 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     track(deleteDoc(doc(db, 'users', uid, 'debts', id)), namedLabel('حذف الدين', debt?.personName));
   }
-  async function addDebtPayment(debtId: string, amount: number, walletId: string, date: string, categoryId?: string) {
-    if (!uid) return;
-    const debt = debts.find(d => d.id === debtId);
-    if (!debt) return;
-    const type = debt.direction === 'owed_to_me' ? 'income' : 'expense';
-    const txId = await addTransaction({
-      type, amount, walletId, date,
-      categoryId: type === 'expense' ? categoryId : undefined,
-      note: `${debt.direction === 'owed_to_me' ? 'استلام دين من' : 'سداد دين لـ'} ${debt.personName}`,
-    });
-    const payment: DebtPayment = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      date, amount, walletId, transactionId: txId,
-      ...(categoryId ? { categoryId } : {}),
-    };
-    const patch: Record<string, unknown> = { payments: [...debt.payments, payment] };
+  /**
+   * **دفعة الدين بقت عملية ذرية** — قبل كده كانت بتقرا `debt.payments` من حالة
+   * الرياكت وتكتب المصفوفة كلها تاني، فدفعتين في نفس الوقت (جهازين، أو دوستين
+   * قبل ما الأولى ترجع) كانوا الاتنين بيشوفوا نفس المصفوفة القديمة والتانية
+   * بتمسح الأولى — فلوس اتدفعت واختفت من الكشف. دلوقتي المصفوفة بتتقري من
+   * السيرفر **جوه** العملية الذرية، فالتانية بتلاقي الأولى وبتزوّد عليها.
+   *
+   * والعملية المالية نفسها بقت جوه نفس الذرة: العملية والدفعة بيتكتبوا مع بعض
+   * أو مفيش — بدل ما العملية تتكتب وتحديث الدين يضيع فيفضل عندنا خصم من
+   * المحفظة مش مقابله أي دفعة في الكشف.
+   *
+   * **وده مش خرق لقاعدة "الكتابة متستناش تأكيد السيرفر"** — ده نفس الاستثناء
+   * المكتوب في القاعدة نفسها: أي حاجة **بتقرا من السيرفر** بتستنى بطبيعتها.
+   * وعشان الانتظار ميبقاش مفتوح: بنرفض على طول لو مفيش اتصال، وبنستنى اللي
+   * لسه بيرفع بسقف زمني، وبنرجّع نتيجة قاطعة تتعرض من `PAY_OUTCOME_ALERT_DEBT`.
+   */
+  async function addDebtPayment(
+    debtId: string, amount: number, walletId: string, date: string, categoryId?: string,
+  ): Promise<DebtPayResult> {
+    if (!uid) return { outcome: 'done' };
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    // الجملة بتتحسب جوه العملية الذرية (على الدين اللي اتقرا من السيرفر) وبتتقري
+    // من بره بعد ما تنجح. الحامل ده مش ترف: الـcallback ممكن تتعاد لما العملية
+    // تتصادم، والقيمة اللي تهمنا هي بتاعة اللفة اللي نجحت
+    const result: { note: string | null } = { note: null };
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(debtRef);
+        if (!snap.exists()) throw new DebtMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        // كل القرايات قبل كل الكتابات — شرط من فايربيز نفسها
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) throw new WalletMissingError();
 
-    /**
-     * دفعة بغير قيمة القسط بتغيّر **عدد** الأقساط، مش قيمتها. اللي دفع نص
-     * قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري — وبنقوله بالكلام.
-     */
-    const nextCount = installmentCountAfterPayment(debt, amount);
-    if (nextCount !== null && nextCount !== debt.installmentCount) {
-      patch.installmentCount = nextCount;
+        const type = debt.direction === 'owed_to_me' ? 'income' : 'expense';
+        const txData = {
+          type, amount, walletId, date,
+          categoryId: type === 'expense' ? categoryId : undefined,
+          note: `${debt.direction === 'owed_to_me' ? 'استلام دين من' : 'سداد دين لـ'} ${debt.personName}`,
+          createdAt: new Date().toISOString(),
+        };
+        t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+
+        const payment: DebtPayment = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date, amount, walletId, transactionId: txRef.id,
+          ...(categoryId ? { categoryId } : {}),
+        };
+        const patch: Record<string, unknown> = { payments: [...(debt.payments || []), payment] };
+
+        /**
+         * دفعة بغير قيمة القسط بتغيّر **عدد** الأقساط، مش قيمتها. اللي دفع نص
+         * قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري — وبنقوله بالكلام.
+         */
+        const nextCount = installmentCountAfterPayment(debt, amount);
+        if (nextCount !== null && nextCount !== debt.installmentCount) {
+          patch.installmentCount = nextCount;
+        }
+
+        /**
+         * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
+         * دفعة — نفس فكرة nextDueDate في الاشتراكات، بدل ما نعمل جدول شهور كامل
+         * زي الجمعية.
+         *
+         * لو الدفعة خلّصت الدين، المعاد بيفضل زي ما هو ومبنمسحوش: التذكيرات
+         * أصلاً بتتخطى الديون المسددة، ولو المستخدم مسح الدفعة بعد كده الدين
+         * بيرجع مفتوح والتذكير بيرجع معاه.
+         */
+        if (debt.isInstallment && debt.dueDate) {
+          const remainingAfter = debtGrandTotal(debt) - (debtPaid(debt) + amount);
+          if (remainingAfter > PIASTRE_EPS) patch.dueDate = addMonths(debt.dueDate, 1);
+        }
+
+        t.update(debtRef, patch);
+
+        result.note = installmentChangeMessage(
+          amount,
+          installmentValue(debt) ?? amount,
+          debt.installmentCount ?? 0,
+          nextCount ?? debt.installmentCount ?? 0,
+          debtRemaining(debt) - amount <= PIASTRE_EPS,
+        );
+      }));
+      return { outcome: 'done', note: result.note };
+    } catch (e) {
+      // ذرية يعني كله أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل، والشاشة
+      // بتقول كده صريح بدل ما المستخدم يفضل يتخمّن
+      noteAtomicFailure('دفعة الدين', e);
+      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
     }
-
-    /**
-     * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
-     * دفعة — نفس فكرة nextDueDate في الاشتراكات، بدل ما نعمل جدول شهور كامل
-     * زي الجمعية.
-     *
-     * لو الدفعة خلّصت الدين، المعاد بيفضل زي ما هو ومبنمسحوش: التذكيرات
-     * أصلاً بتتخطى الديون المسددة، ولو المستخدم مسح الدفعة بعد كده الدين
-     * بيرجع مفتوح والتذكير بيرجع معاه.
-     */
-    if (debt.isInstallment && debt.dueDate) {
-      const remainingAfter = debtGrandTotal(debt) - (debtPaid(debt) + amount);
-      if (remainingAfter > 0.001) patch.dueDate = addMonths(debt.dueDate, 1);
-    }
-
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch), namedLabel('دفعة الدين', debt.personName));
-
-    const value = installmentValue(debt);
-    return installmentChangeMessage(
-      amount,
-      value ?? amount,
-      debt.installmentCount ?? 0,
-      nextCount ?? debt.installmentCount ?? 0,
-      debtRemaining(debt) - amount <= 0.005,
-    );
   }
   /**
    * تعديل عدد الأقساط بإيد المستخدم.
@@ -961,6 +1043,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * العدد اللي بيكتبه هو الإجمالي (زي "القسط 3 من 6")، والقسط بيتعاد
    * حسابه من المتبقي على الأقساط الباقية — ده معنى "قسّمهالي على N".
    * بترجّع `false` لو العدد مش مقبول، فالشاشة تقوله ليه.
+   *
+   * **ودي فضلت كتابة عادية مش عملية ذرية عن قصد:** هي مبتحركش فلوس ومبتلمسش
+   * مصفوفة — بتكتب وصف الدين (العدد وقيمة القسط المقترحة) واللي بيتكتب هو
+   * اللي المستخدم كتبه بإيده. أسوأ سباق ممكن يحصل إن دفعة تنزل في نفس اللحظة
+   * فيطلع العدد قديم بواحد، والرصيد والمتبقي مايتأثروش خالص (محسوبين من
+   * الدفعات مش من العدد)، وأول دفعة جاية بتعيد حسابه صح. وخليناها كده عشان
+   * تفضل شغالة من غير نت زي أي تعديل تاني على الدين.
    */
   async function setInstallmentCount(debtId: string, nextTotal: number): Promise<boolean> {
     if (!uid) return false;
@@ -978,48 +1067,115 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
-  async function deleteDebtPayment(debtId: string, paymentId: string) {
-    if (!uid) return;
-    const debt = debts.find(d => d.id === debtId);
-    if (!debt) return;
-    const payment = debt.payments.find(p => p.id === paymentId);
-    if (payment?.transactionId) await deleteTransactionDoc(payment.transactionId);
-    const payments = debt.payments.filter(p => p.id !== paymentId);
-    // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
-    // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
-    // حسابه 6. ده نفس عيب الرقم اللي مبيقولش الحقيقة اللي البند ده اتعمل
-    // عشان يشيله، بس بعد الحذف بدل قبل الحساب.
-    const patch: Record<string, unknown> = { payments };
-    const recount = installmentCountFor({ ...debt, payments });
-    if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), patch), namedLabel('حذف دفعة الدين', debt.personName));
-  }
-  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string) {
-    if (!uid) return;
-    const debt = debts.find(d => d.id === debtId);
-    if (!debt) return;
-    let transactionId: string | undefined;
-    if (walletId) {
-      const type = debt.direction === 'owed_to_me' ? 'expense' : 'income';
-      transactionId = await addTransaction({
-        type, amount, walletId, date,
-        note: `${debt.direction === 'owed_to_me' ? 'زيادة قرض لـ' : 'زيادة استلاف من'} ${debt.personName}`,
-      });
+  /**
+   * حذف الدفعة بقى ذري زي إضافتها، ولنفس السببين: المصفوفة بتتقري من السيرفر
+   * (فحذف ودفعة في نفس الوقت مبيمسحوش بعض)، والعملية المالية بتتمسح جوه نفس
+   * الذرة بدل ما تتمسح في كتابة منفصلة ممكن تنجح والتانية لأ.
+   *
+   * **ملحوظة:** مفيش ولا شاشة بتنادي الدالة دي لحد دلوقتي — مفيش زرار "امسح
+   * الدفعة" في الواجهة، والمستخدم بيوصل لنفس النتيجة بحذف العملية المالية
+   * نفسها من الأرشيف (`deleteTransaction` ← `stageReconcile`).
+   */
+  async function deleteDebtPayment(debtId: string, paymentId: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    if (!serverReachableRef.current) return 'no-connection';
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(debtRef);
+        if (!snap.exists()) throw new DebtMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const payment = (debt.payments || []).find(p => p.id === paymentId);
+        // اتمسحت قبل كده (من جهاز تاني، أو دوسة اتكررت) — مفيش حاجة تتعمل،
+        // والنتيجة "تمام" لأن اللي المستخدم عايزه حاصل فعلاً
+        if (!payment) return;
+        const payments = (debt.payments || []).filter(p => p.id !== paymentId);
+        // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
+        // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
+        // حسابه 6.
+        const patch: Record<string, unknown> = { payments };
+        const recount = installmentCountFor({ ...debt, payments });
+        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
+        t.update(debtRef, patch);
+      }));
+      return 'done';
+    } catch (e) {
+      noteAtomicFailure('حذف دفعة الدين', e);
+      return 'failed';
     }
-    const entry: DebtEntry = {
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      date, amount,
-      ...(walletId ? { walletId, transactionId } : {}),
-    };
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: [...(debt.increases || []), entry] }), namedLabel('زيادة الدين', debt.personName));
   }
-  async function deleteDebtIncrease(debtId: string, entryId: string) {
-    if (!uid) return;
-    const debt = debts.find(d => d.id === debtId);
-    if (!debt) return;
-    const entry = (debt.increases || []).find(e => e.id === entryId);
-    if (entry?.transactionId) await deleteTransactionDoc(entry.transactionId);
-    track(updateDoc(doc(db, 'users', uid, 'debts', debtId), { increases: (debt.increases || []).filter(e => e.id !== entryId) }), namedLabel('حذف زيادة الدين', debt.personName));
+  /** زيادة الدين — ذرية لنفس أسباب الدفعة بالظبط (شوف `addDebtPayment` فوق) */
+  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    if (!serverReachableRef.current) return 'no-connection';
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(debtRef);
+        if (!snap.exists()) throw new DebtMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        // الزيادة ممكن تكون من غير محفظة (تسجيل على الورق)، وساعتها مفيش عملية
+        // مالية أصلاً ومفيش محفظة تتفحص
+        if (walletId && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) {
+          throw new WalletMissingError();
+        }
+
+        let transactionId: string | undefined;
+        if (walletId) {
+          const type = debt.direction === 'owed_to_me' ? 'expense' : 'income';
+          const txData = {
+            type, amount, walletId, date,
+            note: `${debt.direction === 'owed_to_me' ? 'زيادة قرض لـ' : 'زيادة استلاف من'} ${debt.personName}`,
+            createdAt: new Date().toISOString(),
+          };
+          t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+          transactionId = txRef.id;
+        }
+        const entry: DebtEntry = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          date, amount,
+          ...(walletId ? { walletId, transactionId } : {}),
+        };
+        t.update(debtRef, { increases: [...(debt.increases || []), entry] });
+      }));
+      return 'done';
+    } catch (e) {
+      noteAtomicFailure('زيادة الدين', e);
+      return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
+    }
+  }
+  /**
+   * حذف الزيادة — ذري زي حذف الدفعة بالظبط، ومحدش بيناديه من الواجهة كمان
+   * (نفس الملحوظة اللي فوق `deleteDebtPayment`)
+   */
+  async function deleteDebtIncrease(debtId: string, entryId: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    if (!serverReachableRef.current) return 'no-connection';
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(debtRef);
+        if (!snap.exists()) throw new DebtMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const entry = (debt.increases || []).find(e => e.id === entryId);
+        if (!entry) return;
+        const increases = (debt.increases || []).filter(e => e.id !== entryId);
+        const patch: Record<string, unknown> = { increases };
+        const recount = installmentCountFor({ ...debt, increases });
+        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
+        t.update(debtRef, patch);
+      }));
+      return 'done';
+    } catch (e) {
+      noteAtomicFailure('حذف زيادة الدين', e);
+      return 'failed';
+    }
   }
 
   async function addSubscription(data: {

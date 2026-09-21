@@ -65,7 +65,7 @@ describe('إنشاء دين بأقساط', () => {
 describe('الدفع بيظبط العدد', () => {
   it('دفعة بقيمة القسط مبتغيّرش حاجة', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    const note = await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-02-01');
+    const { note } = await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-02-01');
     await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
 
     expect(note).toBeNull();
@@ -75,7 +75,7 @@ describe('الدفع بيظبط العدد', () => {
 
   it('دفع أقل ⇒ العدد بيزيد والرسالة بتتقال', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    const note = await harness.api().addDebtPayment(debtId, 700, walletId, '2026-02-01');
+    const { note } = await harness.api().addDebtPayment(debtId, 700, walletId, '2026-02-01');
     await harness.waitForData(api => api.debts[0].installmentCount === 7);
 
     expect(note).toBe('دفعت 700 بدل 1,000، الأقساط بقت 7.');
@@ -85,7 +85,7 @@ describe('الدفع بيظبط العدد', () => {
 
   it('دفع أكتر ⇒ العدد بيقل', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    const note = await harness.api().addDebtPayment(debtId, 3000, walletId, '2026-02-01');
+    const { note } = await harness.api().addDebtPayment(debtId, 3000, walletId, '2026-02-01');
     await harness.waitForData(api => api.debts[0].installmentCount === 4);
 
     expect(note).toBe('دفعت 3,000 بدل 1,000، الأقساط بقت 4.');
@@ -94,7 +94,7 @@ describe('الدفع بيظبط العدد', () => {
 
   it('الدفعة الأخيرة بتقفل الدين من غير كلام عن أقساط', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    const note = await harness.api().addDebtPayment(debtId, 6000, walletId, '2026-02-01');
+    const { note } = await harness.api().addDebtPayment(debtId, 6000, walletId, '2026-02-01');
     await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
 
     expect(note).toBeNull();
@@ -147,9 +147,9 @@ describe('تعديل العدد بإيد المستخدم', () => {
 
   it('عدد أقل من الدفعات اللي حصلت بيترفض من غير أي كتابة', async () => {
     const { walletId, debtId } = await makeInstallmentDebt();
-    // لازم ننتظر كل دفعة توصل قبل التانية: `addDebtPayment` بيبني المصفوفة
-    // من الحالة المحلية، فدفعتين ورا بعض من غير انتظار بتضيّع واحدة. ده سباق
-    // **موجود أصلاً** في الكود ومترفوع كملاحظة منفصلة — مش من التغيير ده.
+    // الانتظار هنا بقى عشان الحالة المحلية توصل للشرط اللي بعده، مش عشان
+    // السباق: `addDebtPayment` بقى عملية ذرية بتقرا المصفوفة من السيرفر،
+    // والدفعتين المتوازيتين بينزلوا الاتنين (شوف debtConcurrency).
     await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-02-01');
     await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
     await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-03-01');
@@ -226,7 +226,7 @@ describe('الديون القديمة من غير الحقل الجديد', () =
 
     const legacy = harness.api().debts.find(d => d.personName === 'دين قديم')!;
     const w = harness.api().wallets[0];
-    const note = await harness.api().addDebtPayment(legacy.id, 700, w.id, '2026-02-01');
+    const { note } = await harness.api().addDebtPayment(legacy.id, 700, w.id, '2026-02-01');
     await harness.waitForData(
       api => api.debts.find(d => d.id === legacy.id)?.installmentCount === 7
     );

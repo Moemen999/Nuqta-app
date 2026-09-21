@@ -4,7 +4,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useData, type Debt } from '@/context/DataContext';
+import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
@@ -90,20 +90,26 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     const check = overpayCheck(amt, remaining);
     if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
-      let note: string | null | void = null;
+      let result: Awaited<ReturnType<typeof addDebtPayment>>;
       try {
-        note = await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
+        result = await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
       } catch {
-        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
-        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
-        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
-        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
+        // الدفعة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي، فالرمي هنا مابقاش
+        // متوقع خالص — فاضل للأخطاء المتزامنة (تجهيز البيانات، التنقل)
         setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      // النتيجة قاطعة: يا اتسجلت يا مفيش أي خصم اتسجل. والمودال بيفضل مفتوح
+      // لو ما اتسجلتش، عشان يقدر يغيّر المحفظة أو يجرب تاني من غير ما يعيد
+      // كتابة كل حاجة
+      if (result.outcome !== 'done') {
+        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
+        Alert.alert(alert.title, alert.body);
         return;
       }
       // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
       // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
-      if (note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, note);
+      if (result.note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
@@ -197,14 +203,18 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
     if (!amt || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
+      let outcome: Awaited<ReturnType<typeof addDebtIncrease>>;
       try {
-        await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+        outcome = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
       } catch {
-        // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
-        // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
-        // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
-        // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
+        // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
+        // المتزامنة بس
         setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      if (outcome !== 'done') {
+        const alert = PAY_OUTCOME_ALERT_DEBT[outcome];
+        Alert.alert(alert.title, alert.body);
         return;
       }
       onClose();
