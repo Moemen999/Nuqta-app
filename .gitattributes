@@ -1,4 +1,8 @@
-# Claude Code's frontmatter loader drops an agent whose file is CRLF *and*
-# whose description has an unquoted ": " — every agent here, on Windows with
-# core.autocrlf=true. Keep all .claude markdown LF on every checkout.
-.claude/**/*.md text eol=lf
+# Everything checks out LF, on Windows too. The index is already all LF, but
+# with core.autocrlf=true a Windows checkout turned every text file CRLF, and
+# that broke two things the cloud (LF) never saw:
+# - Claude Code's frontmatter loader silently drops an agent whose file is
+#   CRLF *and* whose description has an unquoted ": " — all 27 of them.
+# - The source-scanning tests (stickyFooterModals, testIdConvention,
+#   cascadeDeleteBatch) match patterns across lines and failed on CRLF only.
+* text=auto eol=lf
