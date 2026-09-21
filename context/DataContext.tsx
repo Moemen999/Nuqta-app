@@ -545,7 +545,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     });
     const unsubDebts = onSnapshot(collection(db, 'users', uid, 'debts'), (snap) => {
-      setDebts(snap.docs.map(d => ({ id: d.id, increases: [], ...(d.data() as any) })) as Debt[]);
+      // `payments` و`increases` الاتنين بقيمة افتراضية: النوع `Debt` بيقول إنهم
+      // مصفوفات مش اختياريين، ومستند قديم من غير الحقلين كان بيخلي النوع
+      // يكدب — وأربع شاشات بتعمل `d.payments.forEach/.map/.length` من غير
+      // حراسة (`person-ledger`, `reports`, `debts` في مكانين)
+      setDebts(snap.docs.map(d => ({ id: d.id, payments: [], increases: [], ...(d.data() as any) })) as Debt[]);
     });
     const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
       setSubscriptions(snap.docs.map(d => ({ id: d.id, history: [], ...(d.data() as any) })) as Subscription[]);
@@ -723,10 +727,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   function deleteWithTransactions(recordRef: DocumentReference, txIds: string[], label?: string) {
     if (!uid) return;
-    // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك شهري
-    // لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض — والسجل نفسه
-    // بيتمسح في آخر دفعة، عشان لو التقسيم اتقطع في النص ميبقاش عندنا سجل
-    // متمسوح وعملياته لسه موجودة
+    // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك
+    // شهري لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض.
+    //
+    // **والضمان هنا لازم يتقال بالظبط:** كل دفعة لوحدها ذرية، لكن **مفيش
+    // ذرية بين الدفعات** — بنبعتهم كلهم مع بعض عن قصد، لأن تسلسلهم معناه
+    // انتظار تأكيد الدفعة اللي قبلها، وده بيكسر الحذف أوفلاين (الوعد مبيتحلش
+    // خالص من غير نت، فالسجل مكانش هيتمسح محليًا أصلاً). يعني لسجل فيه أكتر
+    // من 499 عملية، فشل جزئي (توكن خلص، خروج في نفس اللحظة) ممكن يسيب
+    // عمليات يتيمة. اخترنا إن الحذف يشتغل أوفلاين على حساب الحالة دي —
+    // والوضع القديم مكانش فيه ذرية أصلاً لا جوه الدفعة ولا بينها.
     const refs = txIds.map(txId => doc(db, 'users', uid!, 'transactions', txId));
     const chunks: DocumentReference[][] = [];
     for (let i = 0; i < refs.length; i += BATCH_LIMIT - 1) chunks.push(refs.slice(i, i + BATCH_LIMIT - 1));
@@ -735,7 +745,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const batch = writeBatch(db);
       chunk.forEach(ref => batch.delete(ref));
       if (idx === chunks.length - 1) batch.delete(recordRef);
-      track(batch.commit(), label);
+      // رقم الدفعة في الاسم عشان لو واحدة بس فشلت يبان **أنهي** واحدة في
+      // اللوج — التنبيه للمستخدم واحد بس في الجلسة، فاللوج هو اللي بيفرّق
+      track(batch.commit(), chunks.length > 1 ? `${label} (دفعة ${idx + 1} من ${chunks.length})` : label);
     });
   }
 
