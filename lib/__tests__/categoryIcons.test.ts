@@ -28,15 +28,15 @@ describe('الأيقونة الافتراضية', () => {
 
 describe('اسم الفئة بالأيقونة', () => {
   it('الفئة الجديدة بأيقونتها', () => {
-    expect(categoryLabel({ name: 'أكل', icon: '🍔' })).toBe('🍔 أكل');
+    expect(categoryLabel({ name: 'أكل', icon: '🍔' })).toBe('🍔\u00A0أكل');
   });
 
   it('والقديمة بالافتراضية — الشكل بيفضل واحد', () => {
-    expect(categoryLabel({ name: 'أكل' })).toBe(`${DEFAULT_CATEGORY_ICON} أكل`);
+    expect(categoryLabel({ name: 'أكل' })).toBe(`${DEFAULT_CATEGORY_ICON}\u00A0أكل`);
   });
 
   it('المؤرشفة لسه بتقول إنها مؤرشفة', () => {
-    expect(categoryLabel({ name: 'أكل', icon: '🍔', archived: true })).toBe('🍔 أكل (مؤرشفة)');
+    expect(categoryLabel({ name: 'أكل', icon: '🍔', archived: true })).toBe('🍔\u00A0أكل (مؤرشفة)');
   });
 
   it('مفيش فئة = نص فاضي', () => {
@@ -53,8 +53,8 @@ describe('categoryLabelById', () => {
   const cats = [{ id: 'c1', name: 'أكل', icon: '🍔' }, { id: 'c2', name: 'مواصلات' }];
 
   it('بتوصّل الأيقونة', () => {
-    expect(categoryLabelById(cats, 'c1')).toBe('🍔 أكل');
-    expect(categoryLabelById(cats, 'c2')).toBe(`${DEFAULT_CATEGORY_ICON} مواصلات`);
+    expect(categoryLabelById(cats, 'c1')).toBe('🍔\u00A0أكل');
+    expect(categoryLabelById(cats, 'c2')).toBe(`${DEFAULT_CATEGORY_ICON}\u00A0مواصلات`);
   });
 
   it('وبتوصّل الخيار كمان', () => {

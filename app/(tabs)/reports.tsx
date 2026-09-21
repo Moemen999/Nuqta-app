@@ -194,7 +194,7 @@ export default function ReportsScreen() {
           return (
             <TouchableOpacity key={c.id} onPress={() => toggleCat(c.id)}
               style={[styles.chip, selectionStyle(colors, active)]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
         })}

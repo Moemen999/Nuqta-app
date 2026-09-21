@@ -181,7 +181,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -352,7 +352,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
             ))}
           </View>

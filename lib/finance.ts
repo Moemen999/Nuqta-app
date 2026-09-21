@@ -852,7 +852,10 @@ export function categoryLabel(
   if (!c) return '';
   const name = c.archived ? `${c.name} (${ARCHIVED_SUFFIX})` : c.name;
   if (opts.icon === false) return name;
-  return `${c.icon || DEFAULT_CATEGORY_ICON} ${name}`;
+  // مسافة مبتتكسرش (U+00A0) مش مسافة عادية: لو عرض الشريحة اتقاس أقل بكام
+  // بكسل من المرسوم، السطر كان بيتكسر هنا والاسم ينزل سطر تاني متقصوص —
+  // «أيقونة من غير اسم» (بناء 1.0.0.000)
+  return `${c.icon || DEFAULT_CATEGORY_ICON}\u00A0${name}`;
 }
 
 /**

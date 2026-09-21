@@ -83,7 +83,7 @@ export default function BudgetView() {
           return (
             <View key={c.id} style={styles.card}>
               <View style={styles.head}>
-                <Text style={styles.name}>{categoryLabel(c)}</Text>
+                <Text numberOfLines={1} ellipsizeMode="middle" style={styles.name}>{categoryLabel(c)}</Text>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
@@ -123,7 +123,7 @@ function makeStyles(c: ThemeColors) {
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    name: { color: c.text, fontSize: 14, fontWeight: '500' },
+    name: { color: c.text, fontSize: 14, fontWeight: '500', flexShrink: 1 },
     input: { width: 110, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13 },
     track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 12, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 3 },

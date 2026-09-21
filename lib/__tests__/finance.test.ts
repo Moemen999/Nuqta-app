@@ -389,7 +389,7 @@ describe('formatTime — عرض الوقت بنظام 12 ساعة', () => {
 
 describe('categoryLabel — اسم الفئة مع الأيقونة', () => {
   it('الفئة اللي ليها أيقونة بتظهر بالأيقونة قبل الاسم', () => {
-    expect(categoryLabel({ name: 'مواصلات', icon: '🚗' })).toBe('🚗 مواصلات');
+    expect(categoryLabel({ name: 'مواصلات', icon: '🚗' })).toBe('🚗\u00A0مواصلات');
   });
 
   /**
@@ -400,7 +400,7 @@ describe('categoryLabel — اسم الفئة مع الأيقونة', () => {
    * لحد ما المستخدم يختار — ومفيش فئة مستحيل تختارلها دلوقتي.
    */
   it('الفئة من غير أيقونة بتاخد الافتراضية', () => {
-    expect(categoryLabel({ name: 'مواصلات' })).toBe(`${DEFAULT_CATEGORY_ICON} مواصلات`);
+    expect(categoryLabel({ name: 'مواصلات' })).toBe(`${DEFAULT_CATEGORY_ICON}\u00A0مواصلات`);
   });
 
   it('واللي عايز الاسم نضيف (زي عمود الإكسيل) بيطلبه صريح', () => {

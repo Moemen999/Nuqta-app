@@ -60,8 +60,8 @@ describe('أسماء التاريخ', () => {
   });
 
   it('الأيقونة بتفضل مع الاسم، والمؤرشفة بتاخد اللاحقة', () => {
-    expect(categoryLabelById(CATS, 'c1')).toBe('🍔 أكل');
-    expect(categoryLabel(CATS[2])).toBe(`${DEFAULT_CATEGORY_ICON} ترفيه (${ARCHIVED_SUFFIX})`);
+    expect(categoryLabelById(CATS, 'c1')).toBe('🍔\u00A0أكل');
+    expect(categoryLabel(CATS[2])).toBe(`${DEFAULT_CATEGORY_ICON}\u00A0ترفيه (${ARCHIVED_SUFFIX})`);
   });
 });
 
@@ -164,7 +164,7 @@ describe('buildCategorySpend — الفلوس مبتختفيش', () => {
     const out = buildCategorySpend([{ categoryId: 'c3', amount: 80 }], CATS, opts);
     expect(out).toHaveLength(1);
     expect(out[0].id).toBe('c3');
-    expect(out[0].name).toBe(`${DEFAULT_CATEGORY_ICON} ترفيه (${ARCHIVED_SUFFIX})`);
+    expect(out[0].name).toBe(`${DEFAULT_CATEGORY_ICON}\u00A0ترفيه (${ARCHIVED_SUFFIX})`);
   });
 });
 

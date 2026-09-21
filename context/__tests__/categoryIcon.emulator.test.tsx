@@ -97,6 +97,6 @@ describe('الفئة الجديدة', () => {
 
     await harness.api().updateCategory(created.id, { icon: '✈️' });
     await harness.waitForData(api => api.categories.find(c => c.id === created.id)?.icon === '✈️');
-    expect(categoryLabelById(harness.api().categories, created.id)).toBe('✈️ سفر');
+    expect(categoryLabelById(harness.api().categories, created.id)).toBe('✈️\u00A0سفر');
   });
 });

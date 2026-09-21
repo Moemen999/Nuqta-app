@@ -189,7 +189,7 @@ export default function ShakhbataView() {
       <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
       {categories.map(c => (
         <View key={c.id} style={styles.catRow}>
-          <Text style={styles.catName}>{categoryLabel(c)}</Text>
+          <Text numberOfLines={1} ellipsizeMode="middle" style={styles.catName}>{categoryLabel(c)}</Text>
           <View style={styles.catBtns}>
             {BUCKET_META.map(b => {
               const active = c.bucket === b.key;
