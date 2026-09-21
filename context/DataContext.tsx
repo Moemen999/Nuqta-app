@@ -328,6 +328,9 @@ const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 }
  */
 const PENDING_WAIT_TIMEOUT_MS = 15000;
 
+/** حد فايرستور لعدد العمليات في الدفعة الواحدة */
+const BATCH_LIMIT = 500;
+
 async function claimSeeding(uid: string): Promise<boolean> {
   const userRef = doc(db, 'users', uid);
   try {
@@ -695,11 +698,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
     stageSettlements(batch, settlements);
     track(batch.commit());
   }
-  // حذف العملية من غير أي تنسيق — بتستخدمها بس المسارات اللي بتمسح السجل الأصلي
-  // بنفسها (حذف دين/اشتراك/جمعية)، عشان منلفش في دايرة حذف
-  async function deleteTransactionDoc(id: string) {
+  /**
+   * حذف سجل (دين/اشتراك/جمعية) **بكل العمليات المالية المولّدة منه**، في دفعة
+   * واحدة بتتبعت من غير انتظار.
+   *
+   * قبل كده كان الشكل:
+   *
+   *     await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
+   *     track(deleteDoc(recordRef));
+   *
+   * وده كان بيقرا كإنه بيستنى تأكيد السيرفر على كل حذفة. عمليًا مكانش بيستنى،
+   * لأن `deleteTransactionDoc` كانت برمي وعد `track` وترجع على طول — بس ده
+   * كان **بالصدفة**، وأول تنضيفة تخلي الدالة ترجّع وعدها كانت هتولّد مصيدة
+   * "الزرار بيفضل بيلف للأبد" على طول: التلات شاشات بتلفّ الحذف في `runBusy`،
+   * واللي بيقفل الزرار بـ`ref` وبيفكّه في `finally` — و`finally` اللي مبتوصلش
+   * معناها زرار مقفول لآخر الجلسة، مش بيلف وبس.
+   *
+   * وكان كمان بيسيب الحذف **مش ذري**: كل عملية في كتابة، والسجل في كتابة
+   * تالتة. لو واحدة اترفضت بيفضل عندنا سجل متمسوح وعملياته موجودة (أو العكس)
+   * — وده بالظبط اللي `stageReconcile` اتعملت عشان تمنعه في المسار التاني.
+   *
+   * دلوقتي: دفعة واحدة، بتتكتب محليًا على طول، والـ`onSnapshot` بيرد فورًا،
+   * والرفع بيحصل لوحده أول ما النت يرجع — قاعدة 7 بالحرف.
+   */
+  function deleteWithTransactions(recordRef: DocumentReference, txIds: string[], label?: string) {
     if (!uid) return;
-    track(deleteDoc(doc(db, 'users', uid, 'transactions', id)), 'حذف العملية');
+    // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك شهري
+    // لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض — والسجل نفسه
+    // بيتمسح في آخر دفعة، عشان لو التقسيم اتقطع في النص ميبقاش عندنا سجل
+    // متمسوح وعملياته لسه موجودة
+    const refs = txIds.map(txId => doc(db, 'users', uid!, 'transactions', txId));
+    const chunks: DocumentReference[][] = [];
+    for (let i = 0; i < refs.length; i += BATCH_LIMIT - 1) chunks.push(refs.slice(i, i + BATCH_LIMIT - 1));
+    if (chunks.length === 0) chunks.push([]);
+    chunks.forEach((chunk, idx) => {
+      const batch = writeBatch(db);
+      chunk.forEach(ref => batch.delete(ref));
+      if (idx === chunks.length - 1) batch.delete(recordRef);
+      track(batch.commit(), label);
+    });
   }
 
   /**
@@ -934,15 +971,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteDebt(id: string) {
     if (!uid) return;
     const debt = debts.find(d => d.id === id);
-    if (debt) {
-      const txIds = [
-        debt.initialTransactionId,
-        ...debt.payments.map(p => p.transactionId),
-        ...(debt.increases || []).map(inc => inc.transactionId),
-      ].filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
-    }
-    track(deleteDoc(doc(db, 'users', uid, 'debts', id)), namedLabel('حذف الدين', debt?.personName));
+    const txIds = debt ? [
+      debt.initialTransactionId,
+      ...(debt.payments || []).map(p => p.transactionId),
+      ...(debt.increases || []).map(inc => inc.transactionId),
+    ].filter((x): x is string => !!x) : [];
+    deleteWithTransactions(doc(db, 'users', uid, 'debts', id), txIds, namedLabel('حذف الدين', debt?.personName));
   }
   /**
    * **دفعة الدين بقت عملية ذرية** — قبل كده كانت بتقرا `debt.payments` من حالة
@@ -1195,11 +1229,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteSubscription(id: string) {
     if (!uid) return;
     const sub = subscriptions.find(s => s.id === id);
-    if (sub) {
-      const txIds = (sub.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
-    }
-    track(deleteDoc(doc(db, 'users', uid, 'subscriptions', id)), namedLabel('حذف الاشتراك', sub?.name));
+    const txIds = (sub?.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
+    deleteWithTransactions(doc(db, 'users', uid, 'subscriptions', id), txIds, namedLabel('حذف الاشتراك', sub?.name));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -1314,11 +1345,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteGamiya(id: string) {
     if (!uid) return;
     const g = gamiyas.find(x => x.id === id);
-    if (g) {
-      const txIds = g.months.map(m => m.transactionId).filter((x): x is string => !!x);
-      await Promise.all(txIds.map(txId => deleteTransactionDoc(txId)));
-    }
-    track(deleteDoc(doc(db, 'users', uid, 'gamiyas', id)), namedLabel('حذف الجمعية', g?.name));
+    const txIds = (g?.months || []).map(m => m.transactionId).filter((x): x is string => !!x);
+    deleteWithTransactions(doc(db, 'users', uid, 'gamiyas', id), txIds, namedLabel('حذف الجمعية', g?.name));
   }
   /**
    * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
