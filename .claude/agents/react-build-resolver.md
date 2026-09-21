@@ -1,6 +1,6 @@
 ---
 name: react-build-resolver
-description: Diagnoses failing React Native / Expo builds and Metro bundler errors. RUNS ON: a build or bundler failure with an actual error log to read. DOES NOT RUN ON: type errors (use typescript-reviewer), failing tests (use pr-test-analyzer), or runtime bugs in working builds.
+description: 'Diagnoses failing React Native / Expo builds and Metro bundler errors. RUNS ON: a build or bundler failure with an actual error log to read. DOES NOT RUN ON: type errors (use typescript-reviewer), failing tests (use pr-test-analyzer), or runtime bugs in working builds.'
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

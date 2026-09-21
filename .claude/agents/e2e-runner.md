@@ -1,6 +1,6 @@
 ---
 name: e2e-runner
-description: Plans and interprets end-to-end runs, including the Firebase Test Lab robo script. RUNS ON: changes to navigation, testIDs, or the robo script. DOES NOT RUN ON: unit-testable logic.
+description: 'Plans and interprets end-to-end runs, including the Firebase Test Lab robo script. RUNS ON: changes to navigation, testIDs, or the robo script. DOES NOT RUN ON: unit-testable logic.'
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

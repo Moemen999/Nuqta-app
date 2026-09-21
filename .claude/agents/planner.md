@@ -1,6 +1,6 @@
 ---
 name: planner
-description: Breaks an approved goal into ordered, individually shippable steps. RUNS ON: multi-item work where sequencing matters. DOES NOT RUN ON: work already broken into numbered items by the user.
+description: 'Breaks an approved goal into ordered, individually shippable steps. RUNS ON: multi-item work where sequencing matters. DOES NOT RUN ON: work already broken into numbered items by the user.'
 tools: Read, Grep, Glob, Bash
 model: opus
 ---

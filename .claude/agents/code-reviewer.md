@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: General correctness review when no specialist fits. RUNS ON: changes that are not money, not rules, not a new screen, not new strings. DOES NOT RUN ON: anything a specialist above covers — defer to that specialist instead of duplicating it.
+description: 'General correctness review when no specialist fits. RUNS ON: changes that are not money, not rules, not a new screen, not new strings. DOES NOT RUN ON: anything a specialist above covers — defer to that specialist instead of duplicating it.'
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

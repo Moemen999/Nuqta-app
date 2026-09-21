@@ -1,6 +1,6 @@
 ---
 name: performance-optimizer
-description: Finds render and compute hot spots: unmemoised derivations, list re-renders, O(n²) scans over transactions. RUNS ON: list or chart screens, and anything iterating transactions/debts repeatedly. DOES NOT RUN ON: one-shot code paths, or before a correctness review has passed.
+description: 'Finds render and compute hot spots: unmemoised derivations, list re-renders, O(n²) scans over transactions. RUNS ON: list or chart screens, and anything iterating transactions/debts repeatedly. DOES NOT RUN ON: one-shot code paths, or before a correctness review has passed.'
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

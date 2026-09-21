@@ -1,6 +1,6 @@
 ---
 name: money-reviewer
-description: Reviews correctness of money logic — wallet balances, transfers, debts, subscriptions, gamiya instalments, archived-wallet settlement. RUNS ON: MANDATORY for any change touching balances or debts, including lib/finance.ts, lib/archiving.ts, the transaction/debt/subscription/gamiya paths in context/DataContext.tsx, and any screen that writes a money value. DOES NOT RUN ON: pure styling, copy wording, navigation, or notification scheduling that carries no amount.
+description: 'Reviews correctness of money logic — wallet balances, transfers, debts, subscriptions, gamiya instalments, archived-wallet settlement. RUNS ON: MANDATORY for any change touching balances or debts, including lib/finance.ts, lib/archiving.ts, the transaction/debt/subscription/gamiya paths in context/DataContext.tsx, and any screen that writes a money value. DOES NOT RUN ON: pure styling, copy wording, navigation, or notification scheduling that carries no amount.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

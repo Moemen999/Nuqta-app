@@ -1,0 +1,4 @@
+# Claude Code's frontmatter loader drops an agent whose file is CRLF *and*
+# whose description has an unquoted ": " — every agent here, on Windows with
+# core.autocrlf=true. Keep all .claude markdown LF on every checkout.
+.claude/**/*.md text eol=lf

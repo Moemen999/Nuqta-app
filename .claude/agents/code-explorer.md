@@ -1,6 +1,6 @@
 ---
 name: code-explorer
-description: Maps unfamiliar code and answers 'where does this happen and what calls it'. RUNS ON: investigation before a change, when the call graph is not already known. DOES NOT RUN ON: files already read in this session — do not re-derive what is in context.
+description: 'Maps unfamiliar code and answers ''where does this happen and what calls it''. RUNS ON: investigation before a change, when the call graph is not already known. DOES NOT RUN ON: files already read in this session — do not re-derive what is in context.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

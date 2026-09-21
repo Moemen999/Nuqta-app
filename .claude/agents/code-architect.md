@@ -1,6 +1,6 @@
 ---
 name: code-architect
-description: Reviews whether a change sits at the right layer and respects existing module boundaries. RUNS ON: new modules in lib/ or context/, or logic moving between layers. DOES NOT RUN ON: changes contained in one existing file.
+description: 'Reviews whether a change sits at the right layer and respects existing module boundaries. RUNS ON: new modules in lib/ or context/, or logic moving between layers. DOES NOT RUN ON: changes contained in one existing file.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

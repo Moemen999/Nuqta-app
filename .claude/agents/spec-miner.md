@@ -1,6 +1,6 @@
 ---
 name: spec-miner
-description: Extracts the implied contract from existing code and tests before it is changed. RUNS ON: investigation before modifying long-standing behaviour. DOES NOT RUN ON: greenfield code with no prior contract.
+description: 'Extracts the implied contract from existing code and tests before it is changed. RUNS ON: investigation before modifying long-standing behaviour. DOES NOT RUN ON: greenfield code with no prior contract.'
 model: opus
 tools: Read, Grep, Glob, Bash
 ---

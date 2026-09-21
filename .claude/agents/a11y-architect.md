@@ -1,6 +1,6 @@
 ---
 name: a11y-architect
-description: Reviews accessibility: touch target size, labels for screen readers, contrast, focus order — with RTL Arabic as the default reading direction. RUNS ON: new or restructured screens and interactive controls. DOES NOT RUN ON: non-visual logic, or copy wording (use arabic-copy-reviewer).
+description: 'Reviews accessibility: touch target size, labels for screen readers, contrast, focus order — with RTL Arabic as the default reading direction. RUNS ON: new or restructured screens and interactive controls. DOES NOT RUN ON: non-visual logic, or copy wording (use arabic-copy-reviewer).'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

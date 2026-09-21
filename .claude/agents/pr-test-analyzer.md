@@ -1,6 +1,6 @@
 ---
 name: pr-test-analyzer
-description: Reads failing test output and explains the real cause. RUNS ON: a red suite with output to read. DOES NOT RUN ON: passing suites, or guesses about tests not yet run.
+description: 'Reads failing test output and explains the real cause. RUNS ON: a red suite with output to read. DOES NOT RUN ON: passing suites, or guesses about tests not yet run.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

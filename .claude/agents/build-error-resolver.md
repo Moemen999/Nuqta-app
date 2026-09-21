@@ -1,6 +1,6 @@
 ---
 name: build-error-resolver
-description: Resolves build failures not specific to React Native — Gradle, Node, CI workflow. RUNS ON: a failing build outside the Metro/RN layer. DOES NOT RUN ON: Metro or Expo bundler errors (use react-build-resolver).
+description: 'Resolves build failures not specific to React Native — Gradle, Node, CI workflow. RUNS ON: a failing build outside the Metro/RN layer. DOES NOT RUN ON: Metro or Expo bundler errors (use react-build-resolver).'
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

@@ -1,6 +1,6 @@
 ---
 name: docs-lookup
-description: Fetches exact versioned upstream docs — Expo SDK 54 in particular — instead of recalling APIs. RUNS ON: any use of an Expo or Firebase API whose signature is not already confirmed in this session. DOES NOT RUN ON: project-internal APIs.
+description: 'Fetches exact versioned upstream docs — Expo SDK 54 in particular — instead of recalling APIs. RUNS ON: any use of an Expo or Firebase API whose signature is not already confirmed in this session. DOES NOT RUN ON: project-internal APIs.'
 tools: Read, Grep, Glob, Bash
 model: haiku
 ---

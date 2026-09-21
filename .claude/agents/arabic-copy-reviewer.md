@@ -1,6 +1,6 @@
 ---
 name: arabic-copy-reviewer
-description: Reviews Egyptian-Arabic UI copy for tone, clarity, grammatical number agreement, and RTL correctness. RUNS ON: any change adding or editing a user-facing string, alert, label, or empty state. DOES NOT RUN ON: code comments, commit messages, or logic with no visible text.
+description: 'Reviews Egyptian-Arabic UI copy for tone, clarity, grammatical number agreement, and RTL correctness. RUNS ON: any change adding or editing a user-facing string, alert, label, or empty state. DOES NOT RUN ON: code comments, commit messages, or logic with no visible text.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

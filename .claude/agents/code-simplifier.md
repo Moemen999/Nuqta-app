@@ -1,6 +1,6 @@
 ---
 name: code-simplifier
-description: Reduces accidental complexity: duplicated logic, needless indirection, dead branches. RUNS ON: explicit cleanup requests, or after a correctness review has already passed. DOES NOT RUN ON: the same pass as a correctness review — never let a simplification change behaviour under cover of a bug fix.
+description: 'Reduces accidental complexity: duplicated logic, needless indirection, dead branches. RUNS ON: explicit cleanup requests, or after a correctness review has already passed. DOES NOT RUN ON: the same pass as a correctness review — never let a simplification change behaviour under cover of a bug fix.'
 model: sonnet
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---

@@ -1,6 +1,6 @@
 ---
 name: security-reviewer
-description: Reviews for security defects: authz gaps, data exposure, injection, secret handling, over-permissive rules. RUNS ON: firestore.rules, auth flows, app-lock code, anything writing outside users/{uid}. DOES NOT RUN ON: internal refactors with no trust boundary, or styling.
+description: 'Reviews for security defects: authz gaps, data exposure, injection, secret handling, over-permissive rules. RUNS ON: firestore.rules, auth flows, app-lock code, anything writing outside users/{uid}. DOES NOT RUN ON: internal refactors with no trust boundary, or styling.'
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

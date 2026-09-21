@@ -1,6 +1,6 @@
 ---
 name: refactor-cleaner
-description: Carries out a named refactor and removes what it replaced. RUNS ON: an explicit refactor instruction with a stated target shape. DOES NOT RUN ON: speculative tidying, or any file another agent is editing in the same pass.
+description: 'Carries out a named refactor and removes what it replaced. RUNS ON: an explicit refactor instruction with a stated target shape. DOES NOT RUN ON: speculative tidying, or any file another agent is editing in the same pass.'
 tools: Read, Write, Edit, Bash, Grep, Glob
 model: sonnet
 ---

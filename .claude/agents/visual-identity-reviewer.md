@@ -1,6 +1,6 @@
 ---
 name: visual-identity-reviewer
-description: Reviews visual consistency against the design tokens — colours from ThemeContext only, spacing and sheet/footer shapes from lib/tokens.ts, contrast in both themes, RTL layout. RUNS ON: any new screen, modal, or restyled component. DOES NOT RUN ON: pure logic, copy wording, or data-layer changes.
+description: 'Reviews visual consistency against the design tokens — colours from ThemeContext only, spacing and sheet/footer shapes from lib/tokens.ts, contrast in both themes, RTL layout. RUNS ON: any new screen, modal, or restyled component. DOES NOT RUN ON: pure logic, copy wording, or data-layer changes.'
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
