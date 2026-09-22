@@ -19,6 +19,7 @@ const MAPPING = {
   'chart.bar.fill': 'insights',
   'person.2.fill': 'people-alt',
   'person.crop.circle': 'contacts',
+  'trash': 'delete-outline',
 } as IconMapping;
 
 export function IconSymbol({

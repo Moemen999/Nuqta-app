@@ -652,6 +652,101 @@ export function installmentChangeMessage(
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
 }
 
+export type DebtEntryKind = 'payment' | 'increase';
+
+export type DebtEntryDeletePlan = {
+  amount: number;
+  /**
+   * المسح بيشيل العملية المالية، فأثره عكس أثرها: مصروف اتمسح ← الفلوس
+   * `returns` للمحفظة، دخل اتمسح ← الفلوس `leaves`. `null` = مفيش عملية مالية
+   * (تسجيل على الورق) فمفيش رصيد هيتغيّر.
+   */
+  walletEffect: 'returns' | 'leaves' | null;
+  walletId: string | null;
+  /** الاتنين `null` لو العدد مش هيتغيّر — نفس شرط `deleteDebtPayment` بالظبط */
+  countBefore: number | null;
+  countAfter: number | null;
+};
+
+/**
+ * إيه اللي هيحصل لو السجل ده اتمسح — بيتحسب **قبل** التأكيد عشان الرسالة
+ * تقول الحقيقة. نوع العملية المالية لازم يطابق اللي `addDebtPayment`
+ * و`addDebtIncrease` بيكتبوه: دفعة من حد مديون ليا = دخل، زيادة على قرض
+ * مدّيه = مصروف، والعكس.
+ */
+export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: string): DebtEntryDeletePlan | null {
+  const payments = d.payments || [];
+  const increases = d.increases || [];
+  const entry = (kind === 'payment' ? payments : increases).find(e => e.id === entryId);
+  if (!entry) return null;
+
+  const recount = installmentCountFor(kind === 'payment'
+    ? { ...d, payments: payments.filter(e => e.id !== entryId) }
+    : { ...d, increases: increases.filter(e => e.id !== entryId) });
+  // العدد المتخزّن ممكن يبقى ناقص (بيانات قديمة) — ساعتها بنقارن بالمحسوب،
+  // وإلا دفعة بقيمة القسط بالظبط كانت هتقول "هيرجع 6 بدل 6"
+  const before = d.installmentCount ?? installmentCountFor(d);
+  const moves = recount !== null && recount !== before;
+
+  const wasIncome = kind === 'payment' ? d.direction === 'owed_to_me' : d.direction === 'i_owe';
+  const linked = !!(entry.walletId && entry.transactionId);
+
+  return {
+    amount: entry.amount,
+    walletEffect: linked ? (wasIncome ? 'leaves' : 'returns') : null,
+    walletId: linked ? entry.walletId! : null,
+    countBefore: moves ? before : null,
+    countAfter: moves ? recount : null,
+  };
+}
+
+/**
+ * المسح الذري مبيعملش تسوية للمحفظة المؤرشفة: مسح دفعة خرجت من محفظة
+ * اتأرشفت بعدها كان هيسيب رصيدها مش صفر ومحدش شايفه (المؤرشفة برّه
+ * الإجمالي). لحد ما المسح يعمل تسوية زي `ArchivedSettlement`، بنمنعه
+ * ونقول الطريق. المحفظة الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً.
+ */
+export function debtEntryArchivedWalletBlock(
+  kind: DebtEntryKind,
+  plan: DebtEntryDeletePlan,
+  wallets: { id: string; name: string; archived?: boolean }[],
+): { title: string; body: string } | null {
+  const w = plan.walletId ? wallets.find(x => x.id === plan.walletId) : undefined;
+  if (!w?.archived) return null;
+  return {
+    title: 'المحفظة دي مؤرشفة',
+    body: `${kind === 'payment' ? 'الدفعة' : 'الزيادة'} دي مربوطة بمحفظة "${w.name}" وهي مؤرشفة، ومسحها هيغيّر رصيدها من غير ما يبان في أي مكان. رجّع المحفظة الأول من الإعدادات ← المحافظ، وبعدين امسح.`,
+  };
+}
+
+/**
+ * نص تأكيد المسح. `money` بتيجي من الشاشة: `plainAmount` — ده تأكيد قبل
+ * كتابة، فالرقم الحقيقي هو اللي المستخدم بيأكّد عليه حتى لو المبالغ مخفية.
+ */
+export function debtEntryDeleteMessage(
+  d: Debt,
+  kind: DebtEntryKind,
+  plan: DebtEntryDeletePlan,
+  walletName: string,
+  money: (n: number) => string,
+): { title: string; body: string } {
+  const amt = `${money(plan.amount)} ج.م`;
+  const lines: string[] = [];
+  if (kind === 'payment') {
+    lines.push(`دفعة ${amt} ${d.direction === 'owed_to_me' ? 'من' : 'لـ'} ${d.personName} هتتمسح.`);
+  } else {
+    lines.push(`زيادة ${amt} على دين ${d.personName} هتتمسح.`);
+  }
+  if (plan.countBefore !== null && plan.countAfter !== null) {
+    lines.push(`عدد الأقساط هيرجع ${plan.countAfter} بدل ${plan.countBefore}.`);
+  }
+  if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
+  else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
+  else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');
+
+  return { title: kind === 'payment' ? 'تمسح الدفعة دي؟' : 'تمسح الزيادة دي؟', body: lines.join('\n') };
+}
+
 /**
  * لما المستخدم يعدّل عدد الأقساط بإيده.
  *

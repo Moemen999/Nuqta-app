@@ -1,6 +1,6 @@
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
-import type { AmountFormatter } from '@/lib/money';
+import { plainAmount, type AmountFormatter } from '@/lib/money';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import DebtReminderFields from '@/components/DebtReminderFields';
@@ -8,13 +8,13 @@ import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { useData, type Debt } from '@/context/DataContext';
+import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
-  categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
+  categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
-  reverseDebtPrefill, walletHistoryName,
+  reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -22,7 +22,7 @@ import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -42,6 +42,12 @@ function installmentSummary(d: Debt, money: AmountFormatter) {
 }
 
 export const INSTALLMENT_COUNT_INVALID = 'عدد الأقساط لازم يكون رقم صحيح أكبر من صفر.';
+
+/**
+ * فوق وتحت ٢ بس: السطور بينها ٤ (paddingVertical ٢ لكل سطر)، فأي أكبر من كده
+ * كان هيخلي دوسة بين سطرين تمسح دفعة السطر التاني. ٣٦ طول × ٤٤ عرض.
+ */
+const ENTRY_DELETE_SLOP = { top: 2, bottom: 2, left: 6, right: 6 };
 
 function debtDate(d: Debt) {
   return d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '0000-00-00');
@@ -82,8 +88,8 @@ export default function DebtsTabScreen() {
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { debts, wallets, categories, deleteDebt } = useData();
-  const { money } = usePrivacy();
+  const { debts, wallets, categories, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
   const personKeyByDebt = useMemo(() => {
     const map = new Map<string, string>();
@@ -113,6 +119,36 @@ function DebtsContent() {
     Alert.alert('حذف الدين', `متأكد إنك عايز تمسح دين "${d.personName}"؟ (كل العمليات المرتبطة بيه هتتمسح كمان)`, [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, () => deleteDebt(d.id)) },
+    ]);
+  }
+
+  /**
+   * التأكيد بيقول قبل الدوسة: المبلغ، الشخص، العدد لو هيتحرك، والفلوس رايحة
+   * فين (`debtEntryDeletePlan`). الرقم حقيقي حتى لو المبالغ مخفية — ده تأكيد
+   * قبل كتابة. المسح ذري بيقرا من السيرفر، فالزرار بيلف لحد النتيجة القاطعة.
+   */
+  function confirmDeleteEntry(d: Debt, kind: DebtEntryKind, entryId: string) {
+    const plan = debtEntryDeletePlan(d, kind, entryId);
+    if (!plan) return;
+    const blocked = debtEntryArchivedWalletBlock(kind, plan, wallets);
+    if (blocked) { Alert.alert(blocked.title, blocked.body); return; }
+    const walletName = plan.walletId ? walletHistoryName(wallets, plan.walletId) : '';
+    const { title, body } = debtEntryDeleteMessage(d, kind, plan, walletName, plainAmount);
+    Alert.alert(title, body, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'امسح',
+        style: 'destructive',
+        onPress: () => runBusy(entryId, async () => {
+          const outcome = await (kind === 'payment' ? deleteDebtPayment : deleteDebtIncrease)(d.id, entryId);
+          if (outcome !== 'done') {
+            Alert.alert(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
+            return;
+          }
+          // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال
+          AccessibilityInfo.announceForAccessibility(kind === 'payment' ? 'اتمسحت الدفعة' : 'اتمسحت الزيادة');
+        }),
+      },
     ]);
   }
 
@@ -207,7 +243,7 @@ function DebtsContent() {
         {expanded && (
           <View style={styles.expandedArea}>
             <View style={styles.paymentsList}>
-              {timeline.map((t, i) => {
+              {timeline.map(t => {
                 // المحفظة/الفئة الممسوحة بتطلع باسم صريح بدل ما الشريحة تختفي
                 // خالص — الدفعة خرجت من مكان ما، وإخفاء المكان بيخلي السطر ناقص
                 const wLabel = 'walletId' in t && t.walletId ? walletHistoryName(wallets, t.walletId) : '';
@@ -215,12 +251,31 @@ function DebtsContent() {
                 const label = t.kind === 'initial' ? 'المبلغ الأساسي' : t.kind === 'increase' ? 'زيادة' : 'دفعة';
                 const sign = t.kind === 'payment' ? '−' : '+';
                 const lineColor = t.kind === 'payment' ? colors.success : colors.textSecondary;
+                const entryBusy = t.kind !== 'initial' && busyKey === t.id;
                 return (
-                  <View key={i} style={styles.paymentRow}>
+                  <View key={t.kind === 'initial' ? 'initial' : `${t.kind}-${t.id}`} style={styles.paymentRow}>
                     <Text style={[styles.paymentText, { color: lineColor }]}>
                       {label} <Money value={t.amount} sign={sign} />{wLabel ? ' · ' + wLabel : ''}{cLabel ? ' · ' + cLabel : ''}
                     </Text>
-                    <Text style={styles.paymentDate}>{t.date}</Text>
+                    <View style={styles.paymentMeta}>
+                      <Text style={styles.paymentDate}>{t.date}</Text>
+                      {t.kind !== 'initial' && (
+                        <TouchableOpacity
+                          testID={`debt_entry_delete_${t.id}`}
+                          style={styles.entryDeleteBtn}
+                          hitSlop={ENTRY_DELETE_SLOP}
+                          disabled={busyKey !== null}
+                          onPress={() => confirmDeleteEntry(d, t.kind, t.id)}
+                          accessibilityRole="button"
+                          // بالتاريخ عشان السطور متتشابهش في الودن، والمبلغ بس لو مش مخفي
+                          accessibilityLabel={`امسح ${t.kind === 'payment' ? 'الدفعة' : 'الزيادة'} بتاعة ${t.date}${amountsHidden ? '' : `، ${money(t.amount)} ج.م`}`}
+                          accessibilityState={{ busy: entryBusy, disabled: busyKey !== null }}>
+                          {entryBusy
+                            ? <ActivityIndicator size="small" color={colors.danger} />
+                            : <IconSymbol name="trash" size={17} color={colors.textMuted} />}
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 );
               })}
@@ -501,8 +556,11 @@ function makeStyles(c: ThemeColors) {
     progressText: { color: c.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 6 },
     expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
     paymentsList: { marginBottom: 10 },
-    paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', paddingVertical: 5 },
-    paymentText: { fontSize: 12 },
+    paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2, gap: 8 },
+    paymentText: { fontSize: 12, flexShrink: 1 },
+    paymentMeta: { flexDirection: 'row-reverse', alignItems: 'center', gap: 2 },
+    // ٣٢ مرئي؛ الـhitSlop مقصوص فوق وتحت عشان ميدخلش على السطر اللي جنبه
+    entryDeleteBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     paymentDate: { color: c.textMuted, fontSize: 11 },
     actionsRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
     increaseBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },

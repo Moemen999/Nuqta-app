@@ -83,6 +83,19 @@ class WalletMissingError extends Error {}
 class DebtMissingError extends Error {}
 
 /**
+ * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
+ * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
+ * والفحص ده جوه الذرة للي اتأرشف من جهاز تاني بين الدوسة والمسح.
+ */
+class WalletArchivedError extends Error {}
+
+/** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
+async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
+  const snap = await t.get(walletRef);
+  return snap.exists() && (snap.data() as any)?.archived === true;
+}
+
+/**
  * هل المحفظة دي لسه تنفع نخصم منها؟
  *
  * بتتقري من **جوه** العملية الذرية مش من حالة الرياكت: الاشتراك ممكن يكون
@@ -138,6 +151,27 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * مسح دفعة أو زيادة من تاريخ الدين. مش `PAY_OUTCOME_ALERT`: هناك الكلام عن
+ * "خصم ما اتسجلش"، وهنا المستخدم بيمسح — اللي محتاج يعرفه إن السجل لسه
+ * زي ما هو ورصيد المحفظة ما اتلمسش. `wallet-missing` هنا معناه إن المحفظة
+ * المربوطة اتأرشفت من جهاز تاني بين الدوسة والمسح (`WalletArchivedError`).
+ */
+export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'ما اتمسحش حاجة، والرصيد زي ما هو. المسح لازم يتأكد من السيرفر عشان العدد والمحفظة يتظبطوا صح — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتمسحتش',
+    body: 'السجل لسه زي ما هو والرصيد ما اتلمسش. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'wallet-missing': {
+    title: 'المحفظة دي مؤرشفة',
+    body: 'المحفظة المربوطة بيها اتأرشفت، فما اتمسحش حاجة والرصيد زي ما هو. رجّع المحفظة الأول من الإعدادات ← المحافظ، وبعدين امسح.',
   },
 };
 
@@ -426,9 +460,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   /**
    * فشل العملية الذرية بيرجع للشاشة كـ`PayOutcome` وهي اللي بتعرضه، فمش
-   * بنستخدم تنبيه `track` العام معاه. بس السطر ده لازم يتكتب برضه:
-   * `deleteDebtPayment` و`deleteDebtIncrease` **مفيش ولا شاشة بتناديهم** لحد
-   * دلوقتي، فمن غيره فشلهم مش هيسيب أي أثر لا في لوج ولا قدام المستخدم.
+   * بنستخدم تنبيه `track` العام معاه. بس السطر ده لازم يتكتب برضه: الشاشة
+   * بتقول للمستخدم "ما اتسجلش" من غير السبب، واللوج هو المكان الوحيد اللي
+   * السبب الحقيقي بيفضل فيه.
    *
    * بنكتب اسم العملية بس — مفيش أسامي ولا مبالغ. الـconsole بيتحوّل
    * breadcrumbs في Sentry، وقسم Sentry في CLAUDE.md بيقول مفيش ولا رقم من
@@ -1118,9 +1152,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * (فحذف ودفعة في نفس الوقت مبيمسحوش بعض)، والعملية المالية بتتمسح جوه نفس
    * الذرة بدل ما تتمسح في كتابة منفصلة ممكن تنجح والتانية لأ.
    *
-   * **ملحوظة:** مفيش ولا شاشة بتنادي الدالة دي لحد دلوقتي — مفيش زرار "امسح
-   * الدفعة" في الواجهة، والمستخدم بيوصل لنفس النتيجة بحذف العملية المالية
-   * نفسها من الأرشيف (`deleteTransaction` ← `stageReconcile`).
+   * بتتنادى من علامة المسح جنب كل دفعة في تاريخ الدين (`debts.tsx`). الشاشة
+   * بتمنعها لو المحفظة المربوطة مؤرشفة (`debtEntryArchivedWalletBlock`) —
+   * المسح هنا مبيعملش تسوية، فكان هيسيب رصيد المؤرشفة مش صفر.
    */
   async function deleteDebtPayment(debtId: string, paymentId: string): Promise<PayOutcome> {
     if (!uid) return 'done';
@@ -1136,6 +1170,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // اتمسحت قبل كده (من جهاز تاني، أو دوسة اتكررت) — مفيش حاجة تتعمل،
         // والنتيجة "تمام" لأن اللي المستخدم عايزه حاصل فعلاً
         if (!payment) return;
+        if (payment.transactionId && payment.walletId
+          && await walletArchived(t, doc(db, 'users', uid!, 'wallets', payment.walletId))) {
+          throw new WalletArchivedError();
+        }
         const payments = (debt.payments || []).filter(p => p.id !== paymentId);
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
@@ -1149,7 +1187,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return 'done';
     } catch (e) {
       noteAtomicFailure('حذف دفعة الدين', e);
-      return 'failed';
+      return e instanceof WalletArchivedError ? 'wallet-missing' : 'failed';
     }
   }
   /** زيادة الدين — ذرية لنفس أسباب الدفعة بالظبط (شوف `addDebtPayment` فوق) */
@@ -1195,8 +1233,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
   /**
-   * حذف الزيادة — ذري زي حذف الدفعة بالظبط، ومحدش بيناديه من الواجهة كمان
-   * (نفس الملحوظة اللي فوق `deleteDebtPayment`)
+   * حذف الزيادة — ذري زي حذف الدفعة بالظبط، وبيتنادى من نفس المكان وبنفس
+   * منع المحفظة المؤرشفة (شوف الملحوظة اللي فوق `deleteDebtPayment`)
    */
   async function deleteDebtIncrease(debtId: string, entryId: string): Promise<PayOutcome> {
     if (!uid) return 'done';
@@ -1210,6 +1248,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
         const entry = (debt.increases || []).find(e => e.id === entryId);
         if (!entry) return;
+        if (entry.transactionId && entry.walletId
+          && await walletArchived(t, doc(db, 'users', uid!, 'wallets', entry.walletId))) {
+          throw new WalletArchivedError();
+        }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
         const patch: Record<string, unknown> = { increases };
         const recount = installmentCountFor({ ...debt, increases });
@@ -1220,7 +1262,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return 'done';
     } catch (e) {
       noteAtomicFailure('حذف زيادة الدين', e);
-      return 'failed';
+      return e instanceof WalletArchivedError ? 'wallet-missing' : 'failed';
     }
   }
 
