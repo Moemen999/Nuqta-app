@@ -1,6 +1,8 @@
+import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, currentMonth, fmt, monthSpend, planBudgetCommit } from '@/lib/finance';
+import { categoryLabel, currentMonth, monthSpend, planBudgetCommit } from '@/lib/finance';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -11,6 +13,7 @@ export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories: allCategories, transactions, budgets, setBudget } = useData();
+  const { money } = usePrivacy();
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
   // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
@@ -63,12 +66,12 @@ export default function BudgetView() {
           {totalBudget > 0 && (
             <>
               <View style={styles.totalRow}>
-                <Text style={styles.totalSub}>موزّع على الفئات: {fmt(allocated)}</Text>
+                <Text style={styles.totalSub}>موزّع على الفئات: <Money value={allocated} currency={false} /></Text>
                 <Text style={[styles.totalSub, { color: remaining < 0 ? colors.danger : colors.success }]}>
-                  {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + fmt(Math.abs(remaining)) : 'متبقي للتوزيع: ' + fmt(remaining)}
+                  {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
                 </Text>
               </View>
-              <Text style={styles.totalSub}>مصروف الشهر الفعلي: {fmt(totalMonthSpend)} / {fmt(totalBudget)}</Text>
+              <Text style={styles.totalSub}>مصروف الشهر الفعلي: <Money value={totalMonthSpend} currency={false} /> / <Money value={totalBudget} currency={false} /></Text>
             </>
           )}
         </View>
@@ -100,7 +103,7 @@ export default function BudgetView() {
                   <View style={styles.track}>
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
-                  <Text style={[styles.sub, { color }]}>{fmt(spend)} / {fmt(limit)} ج.م</Text>
+                  <Text style={[styles.sub, { color }]}><Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                 </>
               )}
             </View>

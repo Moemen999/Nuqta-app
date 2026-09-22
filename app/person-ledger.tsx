@@ -1,8 +1,10 @@
+import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { debtGrandTotal, debtPaid, findPersonGroup, fmt } from '@/lib/finance';
+import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -32,6 +34,7 @@ export default function PersonLedgerScreen() {
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
   const { debts } = useData();
+  const { money } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
   const personName = group?.displayName || '';
@@ -110,7 +113,7 @@ export default function PersonLedgerScreen() {
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>الرصيد الحالي</Text>
         <Text style={[styles.summaryValue, { color: finalBalance > 0 ? colors.success : finalBalance < 0 ? colors.danger : colors.textSecondary }]}>
-          {finalBalance > 0 ? `ليك عنده ${fmt(finalBalance)} ج.م` : finalBalance < 0 ? `عليك له ${fmt(Math.abs(finalBalance))} ج.م` : 'متسدد بالكامل'}
+          {finalBalance > 0 ? `ليك عنده ${money(finalBalance)} ج.م` : finalBalance < 0 ? `عليك له ${money(Math.abs(finalBalance))} ج.م` : 'متسدد بالكامل'}
         </Text>
       </View>
 
@@ -130,10 +133,10 @@ export default function PersonLedgerScreen() {
             <Text style={styles.rowDebtLabel} numberOfLines={1}>{r.debtLabel}</Text>
           </View>
           <Text style={[styles.td, { flex: 0.9, color: r.delta >= 0 ? colors.success : colors.danger, fontWeight: '700' }]}>
-            {r.delta >= 0 ? '+' : ''}{fmt(r.delta)}
+            <Money value={r.delta} sign={r.delta >= 0 ? '+' : ''} currency={false} />
           </Text>
           <Text style={[styles.td, { flex: 0.9, color: r.balance > 0 ? colors.success : r.balance < 0 ? colors.danger : colors.textSecondary }]}>
-            {fmt(r.balance)}
+            <Money value={r.balance} currency={false} />
           </Text>
           <Text style={[styles.td, { flex: 0.9, color: colors.textMuted, fontSize: 10.5 }]}>{r.date}</Text>
         </View>
@@ -177,7 +180,7 @@ export default function PersonLedgerScreen() {
                 <View style={styles.debtBlockHead}>
                   <Text style={styles.debtBlockTitle}>{debtLabelOf(d)}</Text>
                   <Text style={[styles.debtBlockRemaining, { color: d.direction === 'owed_to_me' ? colors.success : colors.danger }]}>
-                    متبقي {fmt(remaining)} ج.م
+                    متبقي <Money value={remaining} />
                   </Text>
                 </View>
                 <View style={styles.actionsRow}>

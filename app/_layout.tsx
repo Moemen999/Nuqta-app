@@ -16,6 +16,7 @@ import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { DataProvider } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
 
 export const unstable_settings = {
@@ -114,15 +115,18 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider>
-      <AppLockProvider>
-        <AuthProvider>
-          <DataProvider>
-            <NotificationsProvider>
-              <RootNavigator />
-            </NotificationsProvider>
-          </DataProvider>
-        </AuthProvider>
-      </AppLockProvider>
+      {/* فوق NotificationsProvider: الإشعارات بتشيل المبالغ لو مخفية */}
+      <PrivacyProvider>
+        <AppLockProvider>
+          <AuthProvider>
+            <DataProvider>
+              <NotificationsProvider>
+                <RootNavigator />
+              </NotificationsProvider>
+            </DataProvider>
+          </AuthProvider>
+        </AppLockProvider>
+      </PrivacyProvider>
     </ThemeProvider>
   );
 }

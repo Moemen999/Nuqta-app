@@ -676,10 +676,11 @@ export function installmentCountTooLowMessage(paidCount: number) {
   return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
 }
 
-export function debtPaidLabel(d: Debt) {
+/** `money` بييجي من `usePrivacy()` في الشاشة — عشان الجملة تتخبّى مع المبالغ */
+export function debtPaidLabel(d: Debt, money: (n: number) => string = fmt) {
   const excess = debtExcess(d);
-  if (excess > 0) return `اتسدد بالكامل · زيادة ${fmt(excess)} ج.م`;
-  return `اتسدد ${fmt(debtPaid(d))} من ${fmt(debtGrandTotal(d))} ج.م`;
+  if (excess > 0) return `اتسدد بالكامل · زيادة ${money(excess)} ج.م`;
+  return `اتسدد ${money(debtPaid(d))} من ${money(debtGrandTotal(d))} ج.م`;
 }
 
 /** تطبيع اسم الشخص قبل المقارنة: شيل المسافات الزايدة ووحّد المسافات الجوّا */

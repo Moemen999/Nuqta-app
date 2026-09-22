@@ -1,9 +1,10 @@
+import { Money } from '@/components/Money';
 import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, addDays, categoryLabelById, endOfMonth, fmt, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { TYPE_LABELS, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -138,11 +139,11 @@ export default function ArchiveScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          <Text style={[styles.metricValue, { color: colors.success }]}>{fmt(totalIn)} ج.م</Text>
+          <Money value={totalIn} style={[styles.metricValue, { color: colors.success }]} />
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
-          <Text style={[styles.metricValue, { color: colors.danger }]}>{fmt(totalOut)} ج.م</Text>
+          <Money value={totalOut} style={[styles.metricValue, { color: colors.danger }]} />
         </View>
       </View>
 
@@ -175,7 +176,7 @@ export default function ArchiveScreen() {
               <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
             </View>
             <View style={styles.txRight}>
-              <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
+              <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
               <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
               {pendingTxIds.has(t.id) && <PendingSyncMark />}
             </View>

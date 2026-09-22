@@ -1,8 +1,10 @@
+import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
 import {
-  categoryLabel, currentMonth, fmt, parsePercentInput, percentInvalidBody, percentInvalidTitle,
+  categoryLabel, currentMonth, parsePercentInput, percentInvalidBody, percentInvalidTitle,
   planIncomeCommit,
 } from '@/lib/finance';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
@@ -20,6 +22,7 @@ export default function ShakhbataView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
+  const { money } = usePrivacy();
   // المؤرشفة مش بتتوزّع على الدلاء — هي مش جزء من خطة الشهر الجاي
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
 
@@ -171,13 +174,13 @@ export default function ShakhbataView() {
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
                   <Text style={styles.bucketLabel}>{b.label} ({percents[b.key]}%)</Text>
-                  <Text style={styles.bucketTarget}>{fmt(target)} ج.م</Text>
+                  <Money value={target} style={styles.bucketTarget} />
                 </View>
                 <View style={styles.track}>
                   <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
                 </View>
                 <Text style={[styles.bucketSpend, { color }]}>
-                  اتصرف: {fmt(spend)} {spend > target ? `(زيادة ${fmt(spend - target)})` : `(متبقي ${fmt(target - spend)})`}
+                  اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
                 </Text>
               </View>
             );

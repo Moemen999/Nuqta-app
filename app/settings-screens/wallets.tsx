@@ -1,3 +1,4 @@
+import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
 import ListEmptyState from '@/components/ListEmptyState';
@@ -9,7 +10,6 @@ import {
   roundedWalletBalance, walletArchiveBlock, walletDeleteConsequences, walletHasHistory,
   walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
-import { fmt } from '@/lib/finance';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -88,7 +88,7 @@ export default function WalletsScreen() {
     }
     if (block.kind === 'balance') {
       Alert.alert('رصيدها لسه مش صفر',
-        `رصيد "${name}" ${fmt(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`,
+        `رصيد "${name}" ${plainAmount(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`,
         [{ text: 'تمام' }]);
       return;
     }

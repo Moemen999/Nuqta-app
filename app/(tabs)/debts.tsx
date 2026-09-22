@@ -1,3 +1,6 @@
+import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
+import type { AmountFormatter } from '@/lib/money';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import DebtReminderFields from '@/components/DebtReminderFields';
@@ -9,7 +12,7 @@ import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
-  categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, fmt, groupDebtsByPerson,
+  categoryLabelById, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName,
 } from '@/lib/finance';
@@ -29,11 +32,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * منه. والعدد ده كان **مالوش أي أثر** أصلاً — الدين بستة أقساط كان بيتصرّف
  * زي اللي بأربعة وعشرين بالظبط.
  */
-function installmentSummary(d: Debt) {
+function installmentSummary(d: Debt, money: AmountFormatter) {
   const progress = installmentProgressLabel(d);
   const value = installmentValue(d);
-  const money = value ? `${fmt(value)} ج.م` : null;
-  if (progress && money) return `${progress} · ${money}`;
+  const valueText = value ? `${money(value)} ج.م` : null;
+  if (progress && valueText) return `${progress} · ${valueText}`;
   if (progress) return progress;
   return `أقساط (${d.installmentCount || '-'})`;
 }
@@ -80,6 +83,7 @@ function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, deleteDebt } = useData();
+  const { money } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
   const personKeyByDebt = useMemo(() => {
     const map = new Map<string, string>();
@@ -183,7 +187,7 @@ function DebtsContent() {
               )}
             </View>
             <Text style={[styles.remainingText, { color }]}>
-              {settled ? 'اتسدد بالكامل' : `${fmt(remaining)} ج.م`}
+              {settled ? 'اتسدد بالكامل' : <Money value={remaining} />}
             </Text>
           </View>
           {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
@@ -196,7 +200,7 @@ function DebtsContent() {
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
           <Text style={styles.progressText}>
-            {debtPaidLabel(d)} · {d.isInstallment ? installmentSummary(d) : 'مبلغ واحد'}
+            {debtPaidLabel(d, money)} · {d.isInstallment ? installmentSummary(d, money) : 'مبلغ واحد'}
           </Text>
         </TouchableOpacity>
 
@@ -214,7 +218,7 @@ function DebtsContent() {
                 return (
                   <View key={i} style={styles.paymentRow}>
                     <Text style={[styles.paymentText, { color: lineColor }]}>
-                      {label} {sign}{fmt(t.amount)} ج.م{wLabel ? ' · ' + wLabel : ''}{cLabel ? ' · ' + cLabel : ''}
+                      {label} <Money value={t.amount} sign={sign} />{wLabel ? ' · ' + wLabel : ''}{cLabel ? ' · ' + cLabel : ''}
                     </Text>
                     <Text style={styles.paymentDate}>{t.date}</Text>
                   </View>
@@ -277,11 +281,11 @@ function DebtsContent() {
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>ليا (متبقي)</Text>
-          <Text style={[styles.summaryValue, { color: colors.success }]}>{fmt(totalOwedToMe)} ج.م</Text>
+          <Money value={totalOwedToMe} style={[styles.summaryValue, { color: colors.success }]} />
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>عليا (متبقي)</Text>
-          <Text style={[styles.summaryValue, { color: colors.danger }]}>{fmt(totalIOwe)} ج.م</Text>
+          <Money value={totalIOwe} style={[styles.summaryValue, { color: colors.danger }]} />
         </View>
       </View>
 

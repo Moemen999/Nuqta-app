@@ -1,8 +1,10 @@
+import { plainAmount } from '@/lib/money';
+import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
-import { categoryLabel, categoryLabelById, daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
+import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -28,7 +30,7 @@ export default function SubscriptionsView() {
     ]);
   }
   function confirmPay(s: Subscription) {
-    Alert.alert('تسجيل الدفع', `اتخصم ${fmt(s.amount)} ج.م من محفظتك دلوقتي؟`, [
+    Alert.alert('تسجيل الدفع', `اتخصم ${plainAmount(s.amount)} ج.م من محفظتك دلوقتي؟`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'تأكيد',
@@ -69,7 +71,7 @@ export default function SubscriptionsView() {
           <View key={s.id} style={[styles.card, soon && { borderColor: colors.warnBorder }]}>
             <View style={styles.cardHead}>
               <Text style={styles.name}>{s.name}</Text>
-              <Text style={styles.amount}>{fmt(s.amount)} ج.م</Text>
+              <Money value={s.amount} style={styles.amount} />
             </View>
             <Text style={styles.sub}>
               {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {FREQ_LABEL[s.frequency]}

@@ -1,3 +1,5 @@
+import { plainAmount } from '@/lib/money';
+import { Money } from '@/components/Money';
 import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -8,7 +10,7 @@ import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContex
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, fmt, installmentProgressLabel, installmentValue,
+  categoryLabel, debtRemaining, installmentProgressLabel, installmentValue,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -74,8 +76,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     const excess = amt - (remaining > 0 ? remaining : 0);
     const title = kind === 'settled' ? 'الدين ده متسدد بالكامل' : 'المبلغ أكبر من المتبقي';
     const body = kind === 'settled'
-      ? `مفيش متبقي على ${debt.personName}.\nاللي هيتسجّل: ${fmt(amt)} ج.م\nنسجّله؟`
-      : `المتبقي على ${debt.personName}: ${fmt(remaining)} ج.م\nاللي هيتسجّل: ${fmt(amt)} ج.م\nيعني زيادة ${fmt(excess)} ج.م — نسجّله؟`;
+      ? `مفيش متبقي على ${debt.personName}.\nاللي هيتسجّل: ${plainAmount(amt)} ج.م\nنسجّله؟`
+      : `المتبقي على ${debt.personName}: ${plainAmount(remaining)} ج.م\nاللي هيتسجّل: ${plainAmount(amt)} ج.م\nيعني زيادة ${plainAmount(excess)} ج.م — نسجّله؟`;
     return new Promise<boolean>(resolve => {
       Alert.alert(title, body, [
         { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
@@ -121,7 +123,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         <View style={styles.sheet}>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
-          <Text style={styles.hintText}>المتبقي: {fmt(remaining)} ج.م</Text>
+          <Text style={styles.hintText}>المتبقي: <Money value={remaining} /></Text>
           {!!progressLabel && <Text style={styles.installmentText}>{progressLabel}</Text>}
 
           <Text style={styles.label}>المبلغ</Text>

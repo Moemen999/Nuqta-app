@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useData } from '@/context/DataContext';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { hasNotificationPermission, requestNotificationPermission, setupNotifications } from '@/lib/notifications';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
@@ -26,6 +27,7 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { subscriptions, gamiyas, debts } = useData();
+  const { amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
   const [dailyHour, setDailyHourState] = useState(20);
@@ -84,7 +86,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   // بنعيد جدولة التذكيرات كل ما البيانات أو الإعدادات تتغير
   useEffect(() => {
-    if (loading || !enabled) return;
+    // مستنيين تفضيل الإخفاء كمان: من غيره أول جدولة كانت ممكن تحط المبالغ
+    // في إشعارات مستخدم مختار يخبّيها
+    if (loading || !enabled || !privacyLoaded) return;
     scheduleAllReminders({
       subscriptions,
       gamiyas,
@@ -92,8 +96,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dailyReminderEnabled: dailyEnabled,
       dailyHour,
       dailyMinute: 0,
+      hideAmounts: amountsHidden,
     }).catch(() => {});
-  }, [loading, enabled, subscriptions, gamiyas, debts, dailyEnabled, dailyHour]);
+  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, dailyEnabled, dailyHour]);
 
   async function enableNotifications() {
     const granted = await requestNotificationPermission();

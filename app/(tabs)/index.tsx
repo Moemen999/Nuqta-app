@@ -1,10 +1,12 @@
+import { Money } from '@/components/Money';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, fmt, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -20,7 +22,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
   const { walletColors } = useChartColors();
-  const [showBalance, setShowBalance] = useState(true);
+  const { amountsHidden, toggleAmounts, money } = usePrivacy();
 
   // المؤرشفة بتختفي من الرئيسية بالكامل: الشرايح والإجمالي والتنبيهات.
   // شرط الأرشفة إن رصيدها صفر، فشيلها من الإجمالي مبيغيّرش رقم — والتنبيه
@@ -87,22 +89,27 @@ export default function HomeScreen() {
 
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeadRow}>
-            <TouchableOpacity onPress={() => setShowBalance(s => !s)} style={styles.eyeBtn}>
-              <IconSymbol name={showBalance ? 'eye' : 'eye.slash'} size={18} color={colors.textSecondary} />
+            <TouchableOpacity
+              onPress={toggleAmounts}
+              style={styles.eyeBtn}
+              hitSlop={13}
+              testID="home_hide_amounts_toggle"
+              accessibilityRole="switch"
+              accessibilityLabel="إخفاء المبالغ"
+              accessibilityState={{ checked: amountsHidden }}>
+              <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.balanceLabel}>إجمالي رصيدك</Text>
           </View>
           <Text style={styles.balanceValue}>
-            {showBalance ? fmt(totalBalance) : '••••'} <Text style={styles.currency}>ج.م</Text>
+            <Money value={totalBalance} currency={false} /> <Text style={styles.currency}>ج.م</Text>
           </Text>
           <View style={styles.walletsRow}>
             {activeWallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
                 <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>
-                <Text style={styles.walletChipVal}>
-                  {showBalance ? fmt(balances.get(w.id) || 0) : '••••'}
-                </Text>
+                <Money value={balances.get(w.id) || 0} currency={false} style={styles.walletChipVal} />
               </View>
             ))}
           </View>
@@ -125,21 +132,21 @@ export default function HomeScreen() {
         {lowWallets.map(w => (
           <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
             <Text style={[styles.bannerText, { color: colors.danger }]}>
-              رصيد {w.name} قرب يخلص ({fmt(balances.get(w.id) || 0)} ج.م)
+              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
             </Text>
           </View>
         ))}
         {totalBudgetAlert && (
           <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, { color: colors.accent }]}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({fmt(totalMonthSpend)}/{fmt(totalBudgetLimit)})
+              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
           </View>
         )}
         {budgetAlerts.map(b => (
           <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, { color: colors.accent }]}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({fmt(b.spend)}/{fmt(b.limit)})
+              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
             </Text>
           </View>
         ))}
@@ -148,7 +155,7 @@ export default function HomeScreen() {
           return (
             <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
               <Text style={[styles.bannerText, { color: colors.accent }]}>
-                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({fmt(s.amount)} ج.م)
+                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
               </Text>
             </TouchableOpacity>
           );
@@ -158,7 +165,7 @@ export default function HomeScreen() {
           return (
             <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
               <Text style={[styles.bannerText, { color: colors.accent }]}>
-                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({fmt(month.amount)} ج.م)
+                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
               </Text>
             </TouchableOpacity>
           );
@@ -193,7 +200,7 @@ export default function HomeScreen() {
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
-                <Text style={[styles.txAmount, { color: T.color }]}>{T.sign}{fmt(t.amount)}</Text>
+                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
               </View>

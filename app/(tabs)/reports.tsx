@@ -1,8 +1,10 @@
+import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, fmt, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -18,6 +20,7 @@ export default function ReportsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories, transactions, debts } = useData();
+  const { money } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [catFilter, setCatFilter] = useState<string[]>([]);
@@ -177,7 +180,7 @@ export default function ReportsScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-          <Text style={styles.metricValue}>{fmt(periodExpense)} ج.م</Text>
+          <Money value={periodExpense} style={styles.metricValue} />
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>مقارنة بالفترة السابقة</Text>
@@ -224,7 +227,7 @@ export default function ReportsScreen() {
               <View key={c.id} style={styles.legendItem}>
                 <View style={[styles.dot, { backgroundColor: c.color }]} />
                 <Text style={styles.legendText}>
-                  {c.name} · {fmt(c.amount)} ({Math.round((c.amount / periodExpense) * 100)}%)
+                  {c.name} · <Money value={c.amount} currency={false} /> ({Math.round((c.amount / periodExpense) * 100)}%)
                 </Text>
               </View>
             ))}
@@ -245,12 +248,12 @@ export default function ReportsScreen() {
             <View style={styles.personHead}>
               <Text style={styles.personName}>{s.personName}</Text>
               <Text style={[styles.personBadge, { color: s.balance > 0 ? colors.success : s.balance < 0 ? colors.danger : colors.textSecondary }]}>
-                {s.balance > 0 ? `ليك عنده ${fmt(s.balance)}` : s.balance < 0 ? `عليك له ${fmt(Math.abs(s.balance))}` : 'متسدد بالكامل'}
+                {s.balance > 0 ? `ليك عنده ${money(s.balance)}` : s.balance < 0 ? `عليك له ${money(Math.abs(s.balance))}` : 'متسدد بالكامل'}
               </Text>
             </View>
             <View style={styles.personRow}>
-              <Text style={styles.personSub}>منك ليه: {fmt(s.outFlow)}</Text>
-              <Text style={styles.personSub}>منه ليك: {fmt(s.inFlow)}</Text>
+              <Text style={styles.personSub}>منك ليه: <Money value={s.outFlow} currency={false} /></Text>
+              <Text style={styles.personSub}>منه ليك: <Money value={s.inFlow} currency={false} /></Text>
             </View>
           </TouchableOpacity>
         ))

@@ -1,7 +1,7 @@
+import { plainAmount } from '@/lib/money';
 import { useData, type Settlement } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/archiving';
-import { fmt } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
@@ -17,7 +17,7 @@ export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
  * ترجمة: الفعل بيقول الاتجاه، والرقم بيبقى مطلق دايمًا.
  */
 export function settleBody(name: string, delta: number) {
-  const amount = fmt(Math.abs(delta));
+  const amount = plainAmount(Math.abs(delta));
   return delta > 0
     ? `التعديل ده هيزوّد رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق يروح لأنهي محفظة؟`
     : `التعديل ده هينقّص رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق هيتاخد من أنهي محفظة؟`;

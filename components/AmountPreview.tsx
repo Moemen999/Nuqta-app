@@ -1,5 +1,7 @@
+import { plainAmount } from '@/lib/money';
+import { Money } from '@/components/Money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { fmt, type BalanceProjection } from '@/lib/finance';
+import { type BalanceProjection } from '@/lib/finance';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -27,11 +29,12 @@ export default function AmountPreview({ amount, projections }: { amount: string;
 
   return (
     <View style={styles.wrap}>
-      {showAmount && <Text style={styles.amountText}>{fmt(num)} ج.م</Text>}
+      {/* الرقم اللي بيتكتب دلوقتي — استثناء الإخفاء: ده صدى الخانة نفسها */}
+      {showAmount && <Text style={styles.amountText}>{plainAmount(num)} ج.م</Text>}
       {projections.map(p => (
         <View key={p.walletId} style={styles.row}>
           <Text style={styles.walletName}>{p.name}</Text>
-          <Text style={styles.balanceText}>من {fmt(p.before)} إلى {fmt(p.after)}</Text>
+          <Text style={styles.balanceText}>من <Money value={p.before} currency={false} /> إلى <Money value={p.after} currency={false} /></Text>
         </View>
       ))}
     </View>

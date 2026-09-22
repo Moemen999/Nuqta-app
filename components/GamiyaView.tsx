@@ -1,8 +1,10 @@
+import { plainAmount } from '@/lib/money';
+import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
-import { daysUntil, fmt, todayStr, walletHistoryName } from '@/lib/finance';
+import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
@@ -27,7 +29,7 @@ export default function GamiyaView() {
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {
     Alert.alert(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
-      isPayout ? `هتستلم ${fmt(amount)} ج.م في محفظتك؟` : `هيتخصم ${fmt(amount)} ج.م من محفظتك؟`,
+      isPayout ? `هتستلم ${plainAmount(amount)} ج.م في محفظتك؟` : `هيتخصم ${plainAmount(amount)} ج.م من محفظتك؟`,
       [
         { text: 'إلغاء', style: 'cancel' },
         {
@@ -73,7 +75,7 @@ export default function GamiyaView() {
                 <Text style={styles.sub2}>{walletLabel}</Text>
               </View>
               <Text style={styles.sub}>
-                {fmt(g.monthlyAmount)} ج.م/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} ({fmt(g.payoutAmount)} ج.م)
+                <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
               </Text>
               <View style={styles.track}>
                 <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
@@ -81,7 +83,7 @@ export default function GamiyaView() {
               <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
               {nextPending && (
                 <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
-                  {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} ({fmt(nextPending.amount)} ج.م)
+                  {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
                 </Text>
               )}
             </TouchableOpacity>
@@ -91,7 +93,7 @@ export default function GamiyaView() {
                 {g.months.map(m => (
                   <View key={m.id} style={styles.monthRow}>
                     <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
-                      شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · {fmt(m.amount)} ج.م
+                      شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
                     </Text>
                     {m.status === 'pending' ? (
                       <TouchableOpacity

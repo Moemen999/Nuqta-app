@@ -1,4 +1,5 @@
 import { NotificationsProvider, useNotifications } from '@/context/NotificationsContext';
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook } from '@testing-library/react-native';
 import React from 'react';
@@ -29,7 +30,7 @@ jest.mock('@/context/DataContext', () => ({
 }));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <NotificationsProvider>{children}</NotificationsProvider>
+  <PrivacyProvider><NotificationsProvider>{children}</NotificationsProvider></PrivacyProvider>
 );
 
 async function setup() {

@@ -28,8 +28,16 @@ export async function scheduleAllReminders(opts: {
   dailyReminderEnabled: boolean;
   dailyHour: number;
   dailyMinute: number;
+  /**
+   * المستخدم مخبّي المبالغ: الإشعار بيظهر على شاشة القفل قدام أي حد، فمفيش
+   * رقم فيه خالص — مش قناع «••••»، الجملة من غير مبلغ. العنوان (الاسم) بيفضل
+   * زي ما هو: الإخفاء عن الأرقام بس.
+   */
+  hideAmounts?: boolean;
 }) {
   await cancelAllReminders();
+  const amount = (n: number) => (opts.hideAmounts ? '' : ` — ${fmt(n)} ج.م`);
+  const debtLeft = (n: number) => (opts.hideAmounts ? ' — لسه فيه متبقي' : ` — متبقي ${fmt(n)} ج.م`);
 
   const candidates: Candidate[] = [];
 
@@ -39,8 +47,8 @@ export async function scheduleAllReminders(opts: {
       title: `اشتراك ${s.name}`,
       body:
         s.reminderDaysBefore > 0
-          ? `مستحق بعد ${s.reminderDaysBefore} يوم — ${fmt(s.amount)} ج.م`
-          : `مستحق النهاردة — ${fmt(s.amount)} ج.م`,
+          ? `مستحق بعد ${s.reminderDaysBefore} يوم${amount(s.amount)}`
+          : `مستحق النهاردة${amount(s.amount)}`,
       date: addDays(s.nextDueDate, -(s.reminderDaysBefore || 0)),
     });
   });
@@ -53,8 +61,8 @@ export async function scheduleAllReminders(opts: {
         candidates.push({
           title: `جمعية ${g.name}`,
           body: m.isPayoutMonth
-            ? `شهر الاستلام قرب — ${fmt(m.amount)} ج.م`
-            : `قسط الشهر قرب — ${fmt(m.amount)} ج.م`,
+            ? `شهر الاستلام قرب${amount(m.amount)}`
+            : `قسط الشهر قرب${amount(m.amount)}`,
           date: addDays(m.dueDate, -(g.reminderDaysBefore || 0)),
         });
       });
@@ -72,8 +80,8 @@ export async function scheduleAllReminders(opts: {
     candidates.push({
       title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,
       body: d.reminderDaysBefore > 0
-        ? `المعاد بعد ${d.reminderDaysBefore} يوم — متبقي ${fmt(remaining)} ج.م`
-        : `المعاد النهاردة — متبقي ${fmt(remaining)} ج.م`,
+        ? `المعاد بعد ${d.reminderDaysBefore} يوم${debtLeft(remaining)}`
+        : `المعاد النهاردة${debtLeft(remaining)}`,
       date: addDays(d.dueDate, -d.reminderDaysBefore),
     });
   });

@@ -1,5 +1,6 @@
 import ShakhbataView from '@/components/ShakhbataView';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import { percentInvalidBody, percentInvalidTitle } from '@/lib/finance';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
@@ -28,7 +29,7 @@ const mockData = {
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 
 async function renderView() {
-  return render(<ThemeProvider><ShakhbataView /></ThemeProvider>);
+  return render(<ThemeProvider><PrivacyProvider><ShakhbataView /></PrivacyProvider></ThemeProvider>);
 }
 
 /** بيفتح وضع التعديل ويرجّع خانات النسب التلاتة بالترتيب */
