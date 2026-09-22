@@ -67,9 +67,11 @@ service cloud.firestore {
           // الأيقونة اختيارية: الفئات القديمة (وكل الافتراضية) مالهاش الحقل،
           // والقاعدة بتتحقق من المستند بعد الدمج — فلو خليناه مطلوب كان أي
           // تعديل على فئة قديمة هيترفض. والفاضي مسموح لأنه معناه "شيل الأيقونة".
+          // `size()` بتعدّ وحدات UTF-16 (اتقاس) — نفس `.length` في الكلاينت.
+          // 16 = أطول إيموجي معياري (~15) بهامش؛ لازم يطابق CATEGORY_ICON_MAX.
           && (!('icon' in request.resource.data)
               || (request.resource.data.icon is string
-                  && request.resource.data.icon.size() <= 8))
+                  && request.resource.data.icon.size() <= 16))
           && archiveFieldsValid(request.resource.data);
       }
 

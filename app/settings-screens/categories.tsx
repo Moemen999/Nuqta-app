@@ -196,9 +196,10 @@ export default function CategoriesScreen() {
         <CategoryIconPicker
           visible={iconFor !== null}
           current={activeCategories.find(c => c.id === iconFor)?.icon}
+          others={activeCategories.filter(c => c.id !== iconFor)}
+          // بيحفظ بس — الشيت بيقفل نفسه، أو بيفضل مفتوح بملاحظة لو الأيقونة مستخدمة
           onPick={icon => {
             if (iconFor) updateCategory(iconFor, { icon: icon ?? '' });
-            setIconFor(null);
           }}
           onClose={() => setIconFor(null)}
         />

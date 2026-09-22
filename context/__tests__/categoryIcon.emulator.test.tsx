@@ -1,6 +1,8 @@
-import { DEFAULT_CATEGORY_ICON, categoryIcon, categoryLabelById } from '@/lib/finance';
+import { db } from '@/firebaseConfig';
+import { doc, setDoc, updateDoc } from 'firebase/firestore';
+import { CATEGORY_ICON_MAX, DEFAULT_CATEGORY_ICON, categoryIcon, categoryLabelById } from '@/lib/finance';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
-import { setMockUid } from '@/test-utils/mockAuth';
+import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -98,5 +100,47 @@ describe('الفئة الجديدة', () => {
     await harness.api().updateCategory(created.id, { icon: '✈️' });
     await harness.waitForData(api => api.categories.find(c => c.id === created.id)?.icon === '✈️');
     expect(categoryLabelById(harness.api().categories, created.id)).toBe('✈️\u00A0سفر');
+  });
+});
+
+/**
+ * سقف `icon` في القواعد. `size()` بتعدّ وحدات UTF-16 — اتقاس على المحاكي
+ * قبل ما السقف يتغيّر (👨‍👩‍👧‍👦 = 11 وحدة كانت بتترفض على سقف 8 مع إنها
+ * إيموجي واحد). الكتابة هنا مباشرة على المستند، من غير طبقة التطبيق —
+ * يعني ده اختبار القاعدة نفسها زي ما هي على السيرفر.
+ */
+describe('سقف الأيقونة في القواعد', () => {
+  async function write(icon: unknown) {
+    const cat = harness.api().categories[0];
+    return updateDoc(doc(db, 'users', getMockUid(), 'categories', cat.id), { icon });
+  }
+  async function expectDenied(p: Promise<unknown>) {
+    await expect(p).rejects.toMatchObject({ code: 'permission-denied' });
+  }
+
+  it.each([
+    ['عيلة بأربعة (11)', '👨‍👩‍👧‍👦'],
+    ['علم إنجلترا (14)', '🏴\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}'],
+    ['بوسة بلونين بشرة (15)', '👩🏽‍❤️‍💋‍👨🏻'],
+  ])('%s بيعدّي', async (_l, icon) => {
+    expect(icon.length).toBeLessThanOrEqual(CATEGORY_ICON_MAX);
+    await expect(write(icon)).resolves.toBeUndefined();
+  });
+
+  it('على السقف بالظبط بيعدّي، وواحد زيادة بيترفض', async () => {
+    await expect(write('x'.repeat(CATEGORY_ICON_MAX))).resolves.toBeUndefined();
+    await expectDenied(write('x'.repeat(CATEGORY_ICON_MAX + 1)));
+  });
+
+  it('نص طويل (حد بيكتب في الحقل من برّه التطبيق) بيترفض', async () => {
+    await expectDenied(write('🍔'.repeat(50)));
+  });
+
+  it('مش نص بيترفض', async () => {
+    await expectDenied(write(123));
+  });
+
+  it('الفئة الجديدة بأيقونة طويلة بتترفض من أول كتابة', async () => {
+    await expectDenied(setDoc(doc(db, 'users', getMockUid(), 'categories', 'new'), { name: 'x', icon: 'y'.repeat(17) }));
   });
 });

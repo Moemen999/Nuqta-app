@@ -974,8 +974,13 @@ export function categoryIcon(c?: { icon?: string }) {
   return c?.icon || DEFAULT_CATEGORY_ICON;
 }
 
-/** أطول أيقونة مقبولة. الإيموجي المركّب (زي ✈️ أو 👨‍👩‍👧) بياخد أكتر من حرف */
-export const CATEGORY_ICON_MAX = 8;
+/**
+ * أطول أيقونة مقبولة، بوحدات UTF-16 (`.length`) — ودي بالظبط اللي `size()`
+ * في `firestore.rules` بتعدّها (اتقاس على المحاكي: 👨‍👩‍👧 = 8 عدّت،
+ * 👨‍👩‍👧‍👦 = 11 وحدة/7 code points اترفضت على سقف 8). أطول إيموجي معياري
+ * ~15 (بوسة بلونين بشرة)، وعلم إنجلترا 14. **لازم يطابق الرقم في القواعد.**
+ */
+export const CATEGORY_ICON_MAX = 16;
 
 export function categoryIconValid(icon: string) {
   return CATEGORY_ICONS.includes(icon) || (icon.length > 0 && icon.length <= CATEGORY_ICON_MAX);
