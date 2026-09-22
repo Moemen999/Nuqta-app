@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import IncomeHomeCards from '@/components/IncomeHomeCards';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
@@ -177,6 +178,8 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
+        {/* فوق آخر العمليات: فلوس داخلة محتاجة دوسة، مش تاريخ */}
+        <IncomeHomeCards />
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>

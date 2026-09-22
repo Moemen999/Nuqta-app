@@ -1,6 +1,7 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { addDays, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { cancelAllReminders, scheduleDailyReminder, scheduleReminder } from '@/lib/notifications';
+import { incomeDueDate, incomeOpenPeriods, incomeUpcomingPeriod, type RecurringIncome } from '@/lib/recurringIncome';
 
 /**
  * أبعد مدى بنجدول له. أي تذكير أبعد من كده بيتأجل لحد ما الجدولة تتعاد —
@@ -25,6 +26,8 @@ export async function scheduleAllReminders(opts: {
   subscriptions: Subscription[];
   gamiyas: Gamiya[];
   debts: Debt[];
+  /** الدخل الثابت اللي بيستنى تأكيد — اختياري عشان النداءات القديمة */
+  incomes?: RecurringIncome[];
   dailyReminderEnabled: boolean;
   dailyHour: number;
   dailyMinute: number;
@@ -87,6 +90,21 @@ export async function scheduleAllReminders(opts: {
   });
 
   const today = todayStr();
+
+  // الدخل اللي بيستنى تأكيد: إشعار يوم المعاد. التلقائي مش هنا — ده بيبعت
+  // "اتسجل" بعد ما يتسجل فعلاً (`useIncomeAutoRecord`)، مش تذكير قبلها
+  (opts.incomes || []).filter(i => i.mode === 'confirm').forEach(inc => {
+    const keys = [
+      ...incomeOpenPeriods(inc, today).filter(k => incomeDueDate(inc, k) === today),
+      incomeUpcomingPeriod(inc, today),
+    ].filter((k): k is string => !!k);
+    keys.forEach(k => candidates.push({
+      title: `«${inc.name}» نزل؟`,
+      body: `معاده النهاردة${amount(inc.amount)}. افتح نقطة وأكّد إنه نزل.`,
+      date: incomeDueDate(inc, k),
+    }));
+  });
+
   const horizon = addDays(today, HORIZON_DAYS);
   const due = candidates
     .filter(cd => cd.date >= today && cd.date <= horizon)

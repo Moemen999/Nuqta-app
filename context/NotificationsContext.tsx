@@ -26,7 +26,7 @@ type NotificationsContextType = {
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { subscriptions, gamiyas, debts } = useData();
+  const { subscriptions, gamiyas, debts, incomes } = useData();
   const { amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
@@ -97,8 +97,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dailyHour,
       dailyMinute: 0,
       hideAmounts: amountsHidden,
+      incomes,
     }).catch(() => {});
-  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, dailyEnabled, dailyHour]);
+  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour]);
 
   async function enableNotifications() {
     const granted = await requestNotificationPermission();

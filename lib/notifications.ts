@@ -75,6 +75,23 @@ export async function scheduleReminder(opts: {
   });
 }
 
+/**
+ * إشعار دلوقتي حالًا (`trigger: null` — مكتوب في أنواع expo-notifications:
+ * "A null trigger means … delivery immediately"). للي حصل فعلاً زي "سجلنا
+ * المرتب"، مش تذكير بحاجة جاية.
+ */
+export async function notifyNow(title: string, body: string) {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title,
+      body,
+      sound: true,
+      ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
+    },
+    trigger: null,
+  });
+}
+
 /** تذكير يومي ثابت بمعاد محدد (للتذكير بتسجيل مصاريف اليوم) */
 export async function scheduleDailyReminder(hour: number, minute: number) {
   await Notifications.scheduleNotificationAsync({

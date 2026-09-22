@@ -1,4 +1,5 @@
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
+import type { RecurringIncome } from '@/lib/recurringIncome';
 import { fmt, walletBalance } from '@/lib/finance';
 
 /**
@@ -34,6 +35,12 @@ export type WalletRefs = {
   /** اشتراكات/جمعيات خلصت — تاريخ بس، مش بتمنع حاجة */
   inactiveSubscriptions: number;
   inactiveGamiyas: number;
+  /**
+   * دخل ثابت مش متوقف خالص (شغال أو واقف مؤقتًا — المؤقت هيرجع يسجل) — زي
+   * الاشتراك: بيولّد عمليات جديدة، فلازم يتنقل قبل الأرشفة
+   */
+  activeIncomes: NamedRef[];
+  inactiveIncomes: number;
 };
 
 export type CategoryRefs = {
@@ -47,7 +54,10 @@ export type CategoryRefs = {
 
 export function walletReferences(
   walletId: string,
-  data: { transactions: Transaction[]; debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[] },
+  data: {
+    transactions: Transaction[]; debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[];
+    incomes?: RecurringIncome[];
+  },
 ): WalletRefs {
   const transactions = data.transactions.filter(
     t => t.walletId === walletId || t.toWalletId === walletId
@@ -61,6 +71,7 @@ export function walletReferences(
 
   const subs = data.subscriptions.filter(s => s.walletId === walletId);
   const gamiyas = data.gamiyas.filter(g => g.walletId === walletId);
+  const incomes = (data.incomes || []).filter(i => i.walletId === walletId);
 
   // الاشتراك "شغّال" لو `active` مش false صراحةً — الاشتراكات القديمة مالهاش
   // الحقل ده، وافتراض إنها واقفة كان هيسيبها تولّد عمليات على محفظة مؤرشفة
@@ -74,6 +85,8 @@ export function walletReferences(
     activeGamiyas: gamiyas.filter(isActiveGamiya).map(g => ({ id: g.id, name: g.name })),
     inactiveSubscriptions: subs.filter(s => !isActiveSub(s)).length,
     inactiveGamiyas: gamiyas.filter(g => !isActiveGamiya(g)).length,
+    activeIncomes: incomes.filter(i => i.status !== 'stopped').map(i => ({ id: i.id, name: i.name })),
+    inactiveIncomes: incomes.filter(i => i.status === 'stopped').length,
   };
 }
 
@@ -105,7 +118,8 @@ export function categoryReferences(
 export function walletHasHistory(refs: WalletRefs) {
   return refs.transactions > 0 || refs.debts > 0
     || refs.activeSubscriptions.length > 0 || refs.activeGamiyas.length > 0
-    || refs.inactiveSubscriptions > 0 || refs.inactiveGamiyas > 0;
+    || refs.inactiveSubscriptions > 0 || refs.inactiveGamiyas > 0
+    || refs.activeIncomes.length > 0 || refs.inactiveIncomes > 0;
 }
 
 export function categoryHasHistory(refs: CategoryRefs) {
@@ -136,7 +150,8 @@ export function walletArchiveBlock(opts: {
 }): ArchiveBlock | null {
   if (opts.activeWalletCount <= 1) return { kind: 'last-active' };
   if (Math.abs(opts.balance) >= BALANCE_EPS) return { kind: 'balance', balance: opts.balance };
-  const needsTarget = opts.refs.activeSubscriptions.length > 0 || opts.refs.activeGamiyas.length > 0;
+  const needsTarget = opts.refs.activeSubscriptions.length > 0 || opts.refs.activeGamiyas.length > 0
+    || opts.refs.activeIncomes.length > 0;
   if (needsTarget && opts.otherActiveWalletCount === 0) return { kind: 'no-target' };
   return null;
 }
@@ -264,6 +279,9 @@ export function walletDeleteConsequences(opts: { balance: number; refs: WalletRe
   }
   if (refs.activeGamiyas.length > 0) {
     lines.push(`الجمعيات دي هتقف لحد ما تختارلها محفظة: ${namesList(refs.activeGamiyas)}.`);
+  }
+  if (refs.activeIncomes.length > 0) {
+    lines.push(`الدخل الثابت ده هيقف لحد ما تختارله محفظة: ${namesList(refs.activeIncomes)}.`);
   }
   return lines;
 }

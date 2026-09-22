@@ -31,7 +31,7 @@ export default function WalletsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
-    wallets, transactions, debts, subscriptions, gamiyas,
+    wallets, transactions, debts, subscriptions, gamiyas, incomes,
     addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
   } = useData();
   const { walletColors } = useChartColors();
@@ -57,7 +57,7 @@ export default function WalletsScreen() {
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
 
   function refsFor(id: string) {
-    return walletReferences(id, { transactions, debts, subscriptions, gamiyas });
+    return walletReferences(id, { transactions, debts, subscriptions, gamiyas, incomes });
   }
 
   function clearNameDraft(id: string) {
@@ -93,7 +93,7 @@ export default function WalletsScreen() {
       return;
     }
     Alert.alert('مفيش محفظة تانية',
-      'الاشتراكات والجمعيات الشغالة محتاجة محفظة تتنقل لها. اعمل محفظة تانية الأول.',
+      'الاشتراكات والجمعيات والدخل الثابت الشغالة محتاجة محفظة تتنقل لها. اعمل محفظة تانية الأول.',
       [{ text: 'تمام' }]);
   }
 
@@ -143,6 +143,7 @@ export default function WalletsScreen() {
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
       ...refs.activeGamiyas.map(x => ({ ...x, kind: 'جمعية' })),
+      ...refs.activeIncomes.map(x => ({ ...x, kind: 'دخل ثابت' })),
     ];
     if (items.length === 0) {
       Alert.alert('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
@@ -163,14 +164,19 @@ export default function WalletsScreen() {
 
   function confirmSheet(assignments: Record<string, string>) {
     if (!sheet) return;
-    const subIds = new Set(sheet.items.filter(i => i.kind === 'اشتراك').map(i => i.id));
+    // بالنوع صريح مش "أي حاجة مش اشتراك = جمعية": الدخل الثابت كان هيتبعت
+    // كجمعية ويتكتب في مستند مش موجود فالدفعة كلها تفشل
+    const kindOf = new Map(sheet.items.map(i => [i.id, i.kind]));
     const subscriptionsMap: Record<string, string> = {};
     const gamiyasMap: Record<string, string> = {};
+    const incomesMap: Record<string, string> = {};
     Object.entries(assignments).forEach(([itemId, target]) => {
-      if (subIds.has(itemId)) subscriptionsMap[itemId] = target;
+      const kind = kindOf.get(itemId);
+      if (kind === 'اشتراك') subscriptionsMap[itemId] = target;
+      else if (kind === 'دخل ثابت') incomesMap[itemId] = target;
       else gamiyasMap[itemId] = target;
     });
-    archiveWallet(sheet.id, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap });
+    archiveWallet(sheet.id, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
     setSheet(null);
   }
 

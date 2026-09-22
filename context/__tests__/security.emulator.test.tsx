@@ -239,3 +239,26 @@ describe('حقول الأرشفة في المحافظ والفئات', () => {
     );
   });
 });
+
+/**
+ * الدخل الثابت مجموعة جديدة (بند 6) — نفس عزل الأخوات، والاختبار ده بيثبته
+ * بدل ما يبقى افتراض إن القاعدة "شبه" اللي جنبها.
+ */
+describe('الدخل الثابت معزول بين المستخدمين', () => {
+  const income = { name: 'المرتب', amount: 8000, walletId: 'w', frequency: 'monthly', mode: 'confirm', status: 'active', dayOfMonth: 25 };
+
+  it('مستخدم مقدرش يقرا ولا يعدّل ولا يمسح دخل مستخدم تاني', async () => {
+    const uidA = await signInTestUser();
+    await setDoc(doc(db, 'users', uidA, 'incomes', 'i1'), income);
+    await signInTestUser();
+    await expectDenied(getDocs(collection(db, 'users', uidA, 'incomes')));
+    await expectDenied(updateDoc(doc(db, 'users', uidA, 'incomes', 'i1'), { amount: 1 }));
+    await expectDenied(deleteDoc(doc(db, 'users', uidA, 'incomes', 'i1')));
+  });
+
+  it('ومقدرش يزرع دخل في حساب مستخدم تاني', async () => {
+    const uidA = await signInTestUser();
+    await signInTestUser();
+    await expectDenied(setDoc(doc(db, 'users', uidA, 'incomes', 'evil'), income));
+  });
+});

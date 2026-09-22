@@ -163,6 +163,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/SubscriptionsView.tsx': { count: 1, why: 'تأكيد قبل خصم الاشتراك' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
+  'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
 };
 
 /** الشاشات اللي بتعرض مبالغ — كل واحدة لازم فيها `<Money` أو `money(` */
@@ -170,7 +171,7 @@ const MONEY_SCREENS = [
   'app/(tabs)/index.tsx', 'app/(tabs)/debts.tsx', 'app/(tabs)/reports.tsx', 'app/archive.tsx',
   'app/person-ledger.tsx', 'components/AmountPreview.tsx', 'components/BudgetView.tsx',
   'components/DebtEntryModals.tsx', 'components/GamiyaView.tsx', 'components/ShakhbataView.tsx',
-  'components/SubscriptionsView.tsx',
+  'components/SubscriptionsView.tsx', 'components/IncomesView.tsx', 'components/IncomeHomeCards.tsx',
 ];
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -236,6 +237,7 @@ describe('جرد الإخفاء في كل الشاشات', () => {
       'lib/scheduleAllReminders.ts': { count: 2, why: 'محكومة بـ hideAmounts — الإشعار من غير رقم لو مخفي' },
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
       'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
+      'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
     };
     const libFiles = fs.readdirSync(path.join(ROOT, 'lib')).filter(n => /\.tsx?$/.test(n));
     const found: Record<string, number> = {};

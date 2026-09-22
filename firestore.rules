@@ -129,6 +129,28 @@ service cloud.firestore {
           && request.resource.data.amount > 0;
       }
 
+      // الدخل الثابت. مجموعة جديدة فمفيش مستندات قديمة — الحقول الأساسية مطلوبة
+      // من أول يوم. `closed` (الفترات المقفولة) مش متفحوص هنا زي باقي الحقول
+      // الزيادة (قاعدة 6)؛ الحماية من التسجيل مرتين في الذرة ومعرّف العملية الثابت
+      match /incomes/{incomeId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.walletId is string
+          && request.resource.data.frequency in ['monthly', 'weekly']
+          && request.resource.data.mode in ['auto', 'confirm']
+          && request.resource.data.status in ['active', 'paused', 'stopped']
+          && (!('dayOfMonth' in request.resource.data)
+              || (request.resource.data.dayOfMonth is int
+                  && request.resource.data.dayOfMonth >= 1 && request.resource.data.dayOfMonth <= 31))
+          && (!('weekday' in request.resource.data)
+              || (request.resource.data.weekday is int
+                  && request.resource.data.weekday >= 0 && request.resource.data.weekday <= 6));
+      }
+
       match /gamiyas/{gamiyaId} {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId

@@ -8,13 +8,17 @@ import {
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, runTransaction, serverTimestamp,
+  addDoc, collection, deleteDoc, deleteField, doc, FieldPath, onSnapshot, runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
   type DocumentReference, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
 import { WRITE_ERROR_RESET_MS, WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
+import {
+  incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
+  type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
+} from '@/lib/recurringIncome';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -89,6 +93,9 @@ class DebtMissingError extends Error {}
  */
 class WalletArchivedError extends Error {}
 
+/** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
+class IncomeMissingError extends Error {}
+
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
   const snap = await t.get(walletRef);
@@ -151,6 +158,25 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * تسجيل الدخل الثابت. مش `PAY_OUTCOME_ALERT`: هناك الكلام عن "خصم"، وهنا
+ * فلوس داخلة — اللي المستخدم محتاج يعرفه إن مفيش حاجة اتضافت لرصيده.
+ */
+export const INCOME_RECORD_ALERT: typeof PAY_OUTCOME_ALERT = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'ما اتسجلش حاجة. التسجيل لازم يتأكد من السيرفر عشان الدخل ميتسجلش مرتين — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتسجلش',
+    body: 'مفيش حاجة اتضافت لرصيدك. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'wallet-missing': {
+    title: 'محتاج محفظة تانية',
+    body: 'المحفظة المربوطة بالدخل ده اتمسحت أو اتأرشفت، فما اتسجلش حاجة. عدّل الدخل واختار محفظة شغالة وجرب تاني.',
   },
 };
 
@@ -295,6 +321,7 @@ type DataContextType = {
   debts: Debt[];
   subscriptions: Subscription[];
   gamiyas: Gamiya[];
+  incomes: RecurringIncome[];
   /** عدد الكتابات اللي اتبعتت ولسه ما جاش تأكيد من السيرفر بيها */
   pendingWrites: number;
   /** العمليات اللي اتحفظت على الموبايل ولسه بترفع (من metadata بتاعة فايربيز) */
@@ -304,7 +331,9 @@ type DataContextType = {
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
-  archiveWallet: (id: string, reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string> }) => Promise<void>;
+  archiveWallet: (id: string, reassign: {
+    subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string>;
+  }) => Promise<void>;
   restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
@@ -345,7 +374,19 @@ type DataContextType = {
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
   deleteGamiya: (id: string) => Promise<void>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
+  addIncome: (draft: IncomeDraft & { mode: IncomeMode }) => Promise<void>;
+  updateIncome: (id: string, patch: Partial<IncomeDraft & { mode: IncomeMode }>) => Promise<void>;
+  setIncomeStatus: (id: string, status: IncomeStatus) => Promise<void>;
+  recordIncomePeriods: (incomeId: string, entries: { key: string; amount: number }[]) => Promise<IncomeRecordResult>;
+  skipIncomePeriod: (incomeId: string, key: string) => Promise<void>;
 };
+
+/**
+ * نتيجة تسجيل الدخل: قاطعة زي أي عملية ذرية، ومعاها الفترات اللي اتسجلت
+ * فعلاً — اللي كانت مقفولة قبل كده (جهاز تاني سبقنا) مش بتتحسب، فالرسالة
+ * مبتقولش "سجلنا" عن حاجة ما اتسجلتش دلوقتي.
+ */
+export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[] };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -398,6 +439,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [gamiyas, setGamiyas] = useState<Gamiya[]>([]);
+  const [incomes, setIncomes] = useState<RecurringIncome[]>([]);
   const [pendingWrites, setPendingWrites] = useState(0);
   const [pendingTxIds, setPendingTxIds] = useState<Set<string>>(new Set());
   const pendingCount = useRef(0);
@@ -522,7 +564,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) {
       setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
       setShakhbataPercentsState(DEFAULT_PERCENTS);
-      setDebts([]); setSubscriptions([]); setGamiyas([]);
+      setDebts([]); setSubscriptions([]); setGamiyas([]); setIncomes([]);
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
@@ -592,9 +634,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setGamiyas(snap.docs.map(d => ({ id: d.id, months: [], ...(d.data() as any) })) as Gamiya[]);
     });
 
+    const unsubIncomes = onSnapshot(collection(db, 'users', uid, 'incomes'), (snap) => {
+      setIncomes(snap.docs.map(d => ({ id: d.id, closed: {}, ...(d.data() as any) })) as RecurringIncome[]);
+    });
+
     return () => {
       unsubWallets(); unsubCategories(); unsubTx(); unsubBudgets(); unsubShakhbata(); unsubPercents();
-      unsubDebts(); unsubSubs(); unsubGamiyas();
+      unsubDebts(); unsubSubs(); unsubGamiyas(); unsubIncomes();
     };
   }, [uid]);
 
@@ -626,10 +672,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function archiveWallet(
     id: string,
-    reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string> },
+    reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string> },
   ) {
     if (!uid) return;
     const batch = writeBatch(db);
+    // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
+    // محفظة مؤرشفة كل تسجيل بعد كده هيترفض
+    Object.entries(reassign.incomes || {}).forEach(([incomeId, walletId]) => {
+      batch.update(doc(db, 'users', uid, 'incomes', incomeId), { walletId });
+    });
     Object.entries(reassign.subscriptions || {}).forEach(([subId, walletId]) => {
       batch.update(doc(db, 'users', uid, 'subscriptions', subId), { walletId });
     });
@@ -933,6 +984,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     for (const g of gamiyas) {
       if ((g.months || []).some(m => m.transactionId === id)) {
         return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش".`;
+      }
+    }
+    // عكس الجمعية والاشتراك عن قصد: الفترة **مبترجعش** — لو رجعت، التسجيل
+    // التلقائي كان هيسجلها تاني. فالمستخدم لازم يعرف ده قبل ما يمسح
+    for (const inc of incomes) {
+      const key = Object.keys(inc.closed || {}).find(k => inc.closed![k].txId === id);
+      if (key) {
+        return `دي من الدخل الثابت "${inc.name}" عن ${incomePeriodLabel(inc, key, todayStr())} — لو مسحتها مش هتتسجل تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
     }
     return null;
@@ -1344,6 +1403,115 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // ── الدخل الثابت ──────────────────────────────────────────────────────
+
+  async function addIncome(draft: IncomeDraft & { mode: IncomeMode }) {
+    if (!uid) return;
+    const clean = Object.fromEntries(Object.entries({ ...draft, name: draft.name.trim() }).filter(([, v]) => v !== undefined));
+    addDocNoWait('incomes', {
+      ...clean, status: 'active', startDate: todayStr(), closed: {}, createdAt: new Date().toISOString(),
+    }, namedLabel('الدخل الثابت', draft.name));
+  }
+
+  /**
+   * لو الجدول اتغيّر لدرجة إن مفاتيح الفترات اتغيّرت (شهري↔أسبوعي أو يوم
+   * الأسبوع)، `startDate` بيتنقل لبعد آخر دورة اتقفلت — غير كده الأسابيع اللي
+   * اتسجلت كانت هتبان مفتوحة بمفاتيح جديدة وتتسجل مرتين (`incomeRescheduleStart`).
+   * والحقل بتاع الجدول التاني بيتشال بدل ما يفضل معلّق في المستند.
+   */
+  async function updateIncome(id: string, patch: Partial<IncomeDraft & { mode: IncomeMode }>) {
+    if (!uid) return;
+    const current = incomes.find(i => i.id === id);
+    const clean: Record<string, unknown> = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    if (current && incomeScheduleKeysChange(current, patch)) {
+      clean.startDate = incomeRescheduleStart(current, todayStr());
+    }
+    const freq = patch.frequency ?? current?.frequency;
+    if (freq === 'weekly') clean.dayOfMonth = deleteField();
+    if (freq === 'monthly') clean.weekday = deleteField();
+    track(updateDoc(doc(db, 'users', uid, 'incomes', id), clean), namedLabel('تعديل الدخل الثابت', current?.name));
+  }
+
+  /**
+   * الرجوع من الإيقاف بيبدأ العدّ من النهاردة (`startDate`): الإيقاف معناه
+   * "مفيش دخل"، فالفترات اللي وقعت وهو واقف مش بتتلحق بعدين.
+   */
+  async function setIncomeStatus(id: string, status: IncomeStatus) {
+    if (!uid) return;
+    const patch = status === 'active' ? { status, startDate: todayStr() } : { status };
+    track(updateDoc(doc(db, 'users', uid, 'incomes', id), patch), namedLabel('الدخل الثابت', incomes.find(i => i.id === id)?.name));
+  }
+
+  /**
+   * "مانزلش" — الفترة بتتقفل من غير عملية. `FieldPath` مش إعادة كتابة
+   * `closed` كله: لو جهاز تاني سجّل فترة في نفس اللحظة، الخريطة القديمة
+   * اللي عندنا كانت هتمسح علامته، فالتسجيل التلقائي يرجع يسجلها تاني.
+   *
+   * **سباق معروف ومقبول:** جهاز تاني لسه شايف الفترة مفتوحة ودوس "ما نزلش"
+   * بعد ما اتسجلت، فالعلامة بتتحول `{ skipped }` والـtxId بيضيع منها. الفلوس
+   * صح (العملية موجودة) والفترة لسه مقفولة؛ اللي بيضيع الربط بس، ومفيش
+   * حاجة بتقرا `skipped` دلوقتي. لو حاجة اتبنت عليه، ده لازم يبقى ذري.
+   */
+  async function skipIncomePeriod(incomeId: string, key: string) {
+    if (!uid) return;
+    track(
+      updateDoc(doc(db, 'users', uid, 'incomes', incomeId), new FieldPath('closed', key), { skipped: true, at: new Date().toISOString() }),
+      namedLabel('الدخل الثابت', incomes.find(i => i.id === incomeId)?.name),
+    );
+  }
+
+  /**
+   * تسجيل فترة أو أكتر في ذرة واحدة. **مفيش تسجيل مرتين** من تلات جهات:
+   * 1. `closed` بتتقري من السيرفر جوه الذرة — الفترة المقفولة بتتفوّت.
+   * 2. معرّف العملية ثابت (`incomeTxId`) — ولو موجودة (مقفولة من غير علامة
+   *    لأي سبب) بتتقفل من غير ما تتكتب فوقها، فتعديل المستخدم عليها مبيضيعش.
+   * 3. نداءين في نفس اللحظة (جهازين، أو فتح التطبيق مرتين): فايرستور بتعيد
+   *    الذرة التانية فبتلاقي الأولى قفلت.
+   * وكل القرايات قبل كل الكتابات.
+   */
+  async function recordIncomePeriods(incomeId: string, entries: { key: string; amount: number }[]): Promise<IncomeRecordResult> {
+    if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
+    if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection', recorded: [] };
+    const incRef = doc(db, 'users', uid, 'incomes', incomeId);
+    const today = todayStr();
+    let recorded: string[] = [];
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        recorded = [];
+        const snap = await t.get(incRef);
+        if (!snap.exists()) throw new IncomeMissingError();
+        const inc = { id: incomeId, closed: {}, ...(snap.data() as any) } as RecurringIncome;
+        // اتوقف من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
+        if (inc.status !== 'active') return;
+        const todo = entries.filter(e => !inc.closed?.[e.key] && e.amount > 0);
+        if (todo.length === 0) return;
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', inc.walletId)))) throw new WalletMissingError();
+        const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions', incomeTxId(incomeId, e.key)));
+        const existing = await Promise.all(txRefs.map(r => t.get(r)));
+
+        const at = new Date().toISOString();
+        const closed = { ...(inc.closed || {}) };
+        todo.forEach((e, i) => {
+          closed[e.key] = { txId: txRefs[i].id, at };
+          if (existing[i].exists()) return;
+          t.set(txRefs[i], {
+            type: 'income', amount: e.amount, walletId: inc.walletId,
+            date: incomeTxDate(inc, e.key, today),
+            note: `${inc.name} — ${incomePeriodLabel(inc, e.key, today)}`,
+            incomeId, periodKey: e.key, createdAt: at,
+          });
+          recorded.push(e.key);
+        });
+        t.update(incRef, { closed });
+      }));
+      return { outcome: 'done', recorded };
+    } catch (e) {
+      noteAtomicFailure('تسجيل الدخل الثابت', e);
+      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed', recorded: [] };
+    }
+  }
+
   /**
    * بنستنى اللي كتبناه محليًا يوصل السيرفر قبل أي عملية بتقرا منه، وإلا ممكن
    * تلاقي سجل لسه بيرفع فتفتكره مش موجود.
@@ -1447,7 +1615,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, pendingWrites, pendingTxIds, serverReachable,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
@@ -1457,6 +1625,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setInstallmentCount,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
+        addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod,
       }}>
       {children}
     </DataContext.Provider>
