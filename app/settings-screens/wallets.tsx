@@ -126,18 +126,24 @@ export default function WalletsScreen() {
     ]);
   }
 
-  function startArchive(id: string, name: string) {
+  /** شروط الأرشفة على البيانات **دلوقتي** — بتتنادى وقت فتح الشيت ووقت التأكيد */
+  function archiveBlockFor(id: string) {
     const w = wallets.find(x => x.id === id);
-    if (!w) return;
-    const refs = refsFor(id);
-    const others = activeWallets.filter(x => x.id !== id);
-    const block = walletArchiveBlock({
+    if (!w) return null;
+    return walletArchiveBlock({
       walletId: id,
       balance: roundedWalletBalance(transactions, id, w.openingBalance),
-      refs,
+      refs: refsFor(id),
       activeWalletCount: activeWallets.length,
-      otherActiveWalletCount: others.length,
+      otherActiveWalletCount: activeWallets.filter(x => x.id !== id).length,
     });
+  }
+
+  function startArchive(id: string, name: string) {
+    if (!wallets.some(x => x.id === id)) return;
+    const refs = refsFor(id);
+    const others = activeWallets.filter(x => x.id !== id);
+    const block = archiveBlockFor(id);
     if (block) { showBlock(block, name); return; }
 
     const items: ReassignItem[] = [
@@ -164,6 +170,11 @@ export default function WalletsScreen() {
 
   function confirmSheet(assignments: Record<string, string>) {
     if (!sheet) return;
+    // الشيت ممكن يفضل مفتوح وحاجة تتغيّر من جهاز تاني: عملية جديدة على
+    // المحفظة، أو اشتراك/جمعية اتمسحوا ومعاهم دفعاتهم (money-reviewer). الرصيد
+    // اتفحص وقت الفتح بس، فكانت بتتأرشف ورصيدها مش صفر ومحدش شايفه
+    const block = archiveBlockFor(sheet.id);
+    if (block) { setSheet(null); showBlock(block, sheet.name); return; }
     // بالنوع صريح مش "أي حاجة مش اشتراك = جمعية": الدخل الثابت كان هيتبعت
     // كجمعية ويتكتب في مستند مش موجود فالدفعة كلها تفشل
     const kindOf = new Map(sheet.items.map(i => [i.id, i.kind]));
