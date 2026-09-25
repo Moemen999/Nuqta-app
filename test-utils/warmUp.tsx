@@ -23,6 +23,8 @@ export const COLD_START_TIMEOUT_MS = 30_000;
 export function warmUp(tree: () => React.ReactElement) {
   beforeAll(async () => {
     const r = await render(tree());
-    r.unmount();
+    // unmount في RTL 14 async (act جوّاه) — من غير await الـcleanup ممكن يخلص
+    // جوه أول اختبار، ولو رمى الخطأ بيتنسب لغيره
+    await r.unmount();
   }, COLD_START_TIMEOUT_MS);
 }
