@@ -99,7 +99,7 @@ export async function scheduleAllReminders(opts: {
       incomeUpcomingPeriod(inc, today),
     ].filter((k): k is string => !!k);
     keys.forEach(k => candidates.push({
-      title: `«${inc.name}» نزل؟`,
+      title: `"${inc.name}" نزل؟`,
       body: `معاده النهاردة${amount(inc.amount)}. افتح نقطة وأكّد إنه نزل.`,
       date: incomeDueDate(inc, k),
     }));

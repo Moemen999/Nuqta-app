@@ -1,13 +1,20 @@
 # GEMINI.md — تعليمات Google Antigravity في ريبو "نقطة"
 
 > **HARD RULES (read this box even if you read nothing else)**
-> You are a **read-only research companion** on this repository.
+> You are a **research companion** that may also write **non-money code on
+> your own branch**. Your code is information until Claude Code reviews it.
+> 0. **Lock first.** Run `scripts/agent-lock.sh acquire antigravity` before any
+>    work; if it fails, stop — another tool is working. Run
+>    `scripts/agent-lock.sh release antigravity` when you finish.
 > 1. Read `CLAUDE.md` first and follow it — it is the project's source of truth.
-> 2. Do **not** change code, config, tests, `firestore.rules`, `CLAUDE.md`,
->    `TIMELINE.md`, or this file.
-> 3. The **only** directory you may write to is `reports/`.
-> 4. Never run a build. Never `git push`. Never `git commit` outside `reports/`.
-> 5. Cite your sources, and keep **verified facts** separate from **inference**.
+> 2. Code only on a branch named `antigravity/<topic>`. Never on `main`.
+> 3. Never touch money paths: balances, debts, payments, incomes, archiving,
+>    settlement, `firestore.rules`, or anything in `money-reviewer`'s scope
+>    (file list below). If your task reaches one, stop and write a report.
+> 4. Never run a build. Never push to `main`. Never merge anything.
+> 5. Never edit `CLAUDE.md`, `TIMELINE.md`, or this file.
+> 6. Reports still go to `reports/`. Cite sources; keep **verified** apart
+>    from **inference**.
 
 ## اقرا `CLAUDE.md` الأول
 
@@ -18,33 +25,82 @@
 
 ## دورك إيه بالظبط
 
-قراية، وبحث، وتحليل، وتقارير. إنت العين التانية اللي بتقرا كتير وبتكتب
-نتيجة مركّزة — مش اللي بينفّذ.
+قراية، وبحث، وتحليل، وتقارير — **وكمان كود، بس برّه مسارات الفلوس وعلى
+فرعك إنت.** (اتغيّر 2026-09-25: قبل كده كنت قراية بس.)
 
 اللي مطلوب منك عملي:
 - تقرا الكود وترد على أسئلة زي "ده بيحصل فين ومين بينادي مين".
 - تعمل مسح واسع (كل الشاشات، كل مسارات الفلوس، كل النصوص) وتطلع بجدول.
 - تدوّر في توثيق خارجي (Expo SDK 54, Firebase) وتجيب الكلام بالمصدر.
-- تكتب النتيجة في `reports/` وخلاص.
+- تكتب النتيجة في `reports/`.
+- **تنفّذ شغل كود متحدد ليك** (تنضيف، ألوان hardcoded، واجهة مش مالية) على
+  فرع `antigravity/<الموضوع>`.
 
-## ممنوعات — دي مش اقتراحات
+**كودك معلومة لحد ما يتراجع — بالظبط زي تقاريرك.** Claude Code هو اللي
+بيراجع فرعك وهو اللي بيدمجه. كونه اتكتب واتعمله كوميت مش معناه إنه اتقبل.
 
-1. **ممنوع تعدّل كود** — لا `app/`، ولا `components/`، ولا `context/`، ولا
-   `lib/`، ولا `hooks/`، ولا `constants/`.
-2. **ممنوع تعدّل إعدادات أو اختبارات** — `package.json`، `app.config.js`،
-   `eas.json`، `eslint.config.js`، `jest.*`، `.github/`، `.claude/`، وأي
-   ملف `*.test.ts(x)`.
-3. **ممنوع تلمس `firestore.rules`** — ده ملف أمان، وأي تعديل فيه لازم يعدّي
-   على `security-reviewer` + `database-reviewer` واختبارات محاكي.
-4. **ممنوع تعدّل `CLAUDE.md` ولا `TIMELINE.md` ولا `GEMINI.md`** — التوثيق
-   وسجل القرارات بيتكتبوا مع التنفيذ مش بعيد عنه.
-5. **ممنوع تبني** — لا `eas build`، ولا الورك فلو، ولا `expo prebuild`.
-   رقم البناء مربوط بعدّاد GitHub، وأي بناء زيادة بيحرق رقم (شوف قسم
-   "رقم البناء" في `CLAUDE.md`).
-6. **ممنوع `git push`** — ولا لأي فرع.
+## قفل الأدوات — `.agent-lock`
 
-**المكان الوحيد اللي تكتب فيه: `reports/`.** لو محتاج تسيب حاجة ورا، سيبها
-هناك بالاسم `reports/YYYY-MM-DD-الموضوع.md`. أي حاجة غير كده تتقال في ردّك.
+قبل أي شغل (قراية أو كتابة): `scripts/agent-lock.sh acquire antigravity`.
+- لو نجح: القفل بقى معاك. **شيله أول ما تخلص:**
+  `scripts/agent-lock.sh release antigravity`.
+- لو فشل: فيه أداة تانية شغالة على الريبو — **متبدأش**، قول لمؤمن.
+- لو السكريبت قال إن القفل قديم (أكتر من ١٢ ساعة): **متشيلوش إنت.** قول
+  لمؤمن، هو اللي يقرر (الخطوات في `CLAUDE.md` ← "قفل الأدوات").
+
+القفل محلي للفولدر ده: بيمنع أداتين على **نفس النسخة**. جلسة Claude Code
+سحابية شغالة على نسخة تانية مش هتشوفه — عشان كده الفروع المنفصلة تحت.
+
+## الكود — مسموح إيه وفين
+
+**الفرع:** `antigravity/<الموضوع>` بس (مثال: `antigravity/dead-code-cleanup`).
+فرع لكل موضوع، ويبدأ من آخر `main`. **ممنوع** تكتب على `main` أو على أي
+فرع `claude/*`.
+
+**مسموح تعدّل:** `app/` و`components/` و`hooks/` و`constants/` و`lib/`
+(ماعدا الممنوع تحت)، و`app.json` (الأذونات والـsplash)، واختبارات جديدة
+للكود اللي كتبته، و`reports/`.
+
+**ممنوع تلمس — حتى لو التعديل شكله بسيط:**
+1. **مسارات الفلوس** — الأرصدة، الديون، الدفعات، الدخل، الأرشفة، التسوية،
+   وأي حاجة في نطاق `money-reviewer` (`.claude/agents/money-reviewer.md`).
+   **القاعدة قبل القايمة:** أي ملف بيكتب مبلغ، أو بيحسب رصيد أو إجمالي، أو
+   بينادي دالة من `lib/finance.ts`/`lib/archiving.ts` بتحسب فلوس — ممنوع،
+   حتى لو مش في القايمة تحت. القايمة أمثلة مؤكدة، مش الحد:
+   - `lib/finance.ts`، `lib/archiving.ts`، `lib/recurringIncome.ts`،
+     `lib/money.ts`، `lib/useIncomeAutoRecord.ts`، `lib/useAmountDrafts.ts`
+   - `context/DataContext.tsx` كله (كل العمليات والديون والاشتراكات والجمعية
+     والدخل والأرشفة والتسوية عايشين فيه)
+   - `components/ArchiveSheet.tsx`، `components/ArchivedSettlement.tsx`،
+     `components/DebtEntryModals.tsx`، `components/IncomesView.tsx`،
+     `components/IncomeHomeCards.tsx`، `components/GamiyaView.tsx`،
+     `components/SubscriptionsView.tsx`، `components/BudgetView.tsx`،
+     `components/ShakhbataView.tsx`، `components/AmountPreview.tsx`
+   - `app/modal.tsx`، `app/(tabs)/debts.tsx`، `app/person-ledger.tsx`،
+     `app/settings-screens/wallets.tsx`، `app/(tabs)/index.tsx` (أرصدة
+     وبانرات الميزانية)، `app/(tabs)/reports.tsx` (أرصدة الديون لكل شخص)،
+     `app/archive.tsx` (إجماليات + عمود المبلغ في الإكسيل)
+   لو الشغل اللي انت فيه وصل لملف من دول (حتى لون hex أو كود ميت فيه):
+   **وقّف، واكتب اللي لقيته في تقرير** — Claude Code هو اللي ينفّذه.
+2. **`firestore.rules`** وأي اختبار `*.emulator.test.tsx`.
+3. **`CLAUDE.md` و`TIMELINE.md` و`GEMINI.md`** — التوثيق وسجل القرارات
+   بيتكتبوا مع المراجعة والدمج.
+4. **البناء والعدّاد:** `app.config.js`، `eas.json`، `.github/`. رقم البناء
+   مربوط بعدّاد GitHub (شوف "رقم البناء" في `CLAUDE.md`).
+5. **الاعتماديات والأدوات:** `package.json`، `package-lock.json`، `.claude/`،
+   `jest.*`، `eslint.config.js`، `scripts/`. لو محتاج مكتبة جديدة، قول في
+   تقرير.
+6. **الاختبارات الموجودة** — متعدّلش اختبار عشان يعدّي. لو اختبار وقع بسبب
+   تغييرك، يا تصلّح التغيير يا توقف وتكتب.
+
+**ممنوع خالص:** تبني (`eas build`، الورك فلو، `expo prebuild`)، أو تعمل push
+على `main`، أو تدمج أي فرع (ولا حتى فرعك). Push على فرعك `antigravity/*`
+مسموح عشان Claude Code يشوفه.
+
+**قبل ما تقول خلصت:** شغّل `npm test` و`npx tsc --noEmit` و`npm run lint`
+وحط الأرقام في رسالة الكوميت. واكتب في `reports/` تقرير قصير: الفرع،
+واتغيّر إيه، واللي ما قدرتش تعمله وليه (خصوصًا أي حاجة وقفت عندها عشان
+في مسار فلوس).
 
 ## إزاي تكتب التقرير
 
@@ -74,6 +130,7 @@
 
 ## وإحنا واحد ورا التاني مش مع بعض
 
-Claude Code و Antigravity **مبيشتغلوش على الريبو في نفس الوقت**. لو Claude
-Code شغّال دلوقتي، استنى لحد ما يخلص ويـpush. ولما تخلص إنت، قول خلصت عشان
-الجلسة التانية تبدأ.
+Claude Code و Antigravity **مبيشتغلوش على نفس النسخة في نفس الوقت** — والقفل
+(`.agent-lock`، فوق) هو اللي بيضمن ده بدل ما يعتمد على الذاكرة. لو القفل مع
+حد تاني، استنى. ولما تخلص: شيل القفل، واعمل push لفرعك `antigravity/*`،
+وقول خلصت واسم الفرع عشان Claude Code يراجعه.

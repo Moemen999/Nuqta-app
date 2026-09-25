@@ -52,3 +52,6 @@ ui-debug.log
 # النسخة المولّدة (فيها باسورد حقيقي) متتزنقش جوه الريبو
 test-lab/robo-script.rendered.json
 test-lab/*.local.json
+
+# قفل الأدوات (scripts/agent-lock.sh) — محلي لكل نسخة، مش بيتعمله كوميت
+.agent-lock

@@ -18,8 +18,8 @@ import {
 
 /**
  * كروت الدخل الثابت في الرئيسية:
- * - "«المرتب» نزل؟" لكل دخل بيستنى تأكيد ومعاده جه (الأقدم الأول)
- * - "سجلنا «المرتب» عن سبتمبر وأكتوبر" بعد التسجيل التلقائي
+ * - `"المرتب" نزل؟` لكل دخل بيستنى تأكيد ومعاده جه (الأقدم الأول)
+ * - `سجلنا "المرتب" عن سبتمبر وأكتوبر` بعد التسجيل التلقائي
  * - "ما سجلناش …" لو التلقائي فشل — مش بيتبلع
  *
  * شكل مختلف عن بانرات التنبيه عن قصد: خط دهبي على الجنب وعنوان تقيل —
@@ -55,14 +55,14 @@ export default function IncomeHomeCards() {
       }
       ok = true;
       animateOut();
-      AccessibilityInfo.announceForAccessibility(`اتسجل «${inc.name}»`);
+      AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}"`);
     });
     return ok;
   }
 
   function confirmSkip(inc: RecurringIncome, key: string) {
     const label = incomePeriodLabel(inc, key, today);
-    Alert.alert(`«${inc.name}» ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
+    Alert.alert(`"${inc.name}" ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
       { text: 'رجوع', style: 'cancel' },
       { text: 'ما نزلش', onPress: () => { animateOut(); skipIncomePeriod(inc.id, key); } },
     ]);
@@ -103,7 +103,7 @@ export default function IncomeHomeCards() {
         const more = keys.length - 1;
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
-            <Text style={styles.title}>💵 «{inc.name}» نزل؟</Text>
+            <Text style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
             <Text style={styles.sub}>
               {incomePeriodLabel(inc, key, today)} · في {walletHistoryName(wallets, inc.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -116,7 +116,7 @@ export default function IncomeHomeCards() {
                 disabled={busyKey !== null}
                 onPress={() => record(inc, key, inc.amount)}
                 accessibilityRole="button"
-                accessibilityLabel={busy ? `بنسجّل «${inc.name}»` : `«${inc.name}» نزل`}
+                accessibilityLabel={busy ? `بنسجّل "${inc.name}"` : `"${inc.name}" نزل`}
                 accessibilityState={{ busy }}>
                 {busy
                   ? <ActivityIndicator size="small" color={colors.onAccent} />
@@ -186,7 +186,7 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
               />
               {!valid && <Text style={styles.error}>المبلغ لازم يكون أكبر من صفر.</Text>}
               {!!diff && <Text style={styles.diff}>{diff}</Text>}
-              <Text style={styles.hint}>ده للفترة دي بس — «{inc.name}» هيفضل بمبلغه المعتاد.</Text>
+              <Text style={styles.hint}>{`ده للفترة دي بس — "${inc.name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>
               <TouchableOpacity style={styles.cancelBtn} onPress={onClose} accessibilityRole="button">

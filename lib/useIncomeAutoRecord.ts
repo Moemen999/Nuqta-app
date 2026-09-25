@@ -97,7 +97,7 @@ export function useIncomeAutoRecord() {
             const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)));
             found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', text });
             if (notificationsOn) {
-              notifyNow(`«${inc.name}» اتسجل لوحده`, incomeRecordedNotification(text, inc.amount * r.recorded.length, amountsHidden))
+              notifyNow(`"${inc.name}" اتسجل لوحده`, incomeRecordedNotification(text, inc.amount * r.recorded.length, amountsHidden))
                 .catch(() => {});
             }
           } else if (r.outcome === 'wallet-missing' || r.outcome === 'failed') {
@@ -107,8 +107,8 @@ export function useIncomeAutoRecord() {
             found.push({
               id, kind: 'error',
               text: r.outcome === 'wallet-missing'
-                ? `ما سجلناش «${inc.name}»: المحفظة بتاعته اتأرشفت أو اتمسحت، ومفيش حاجة اتسجلت. اختارله محفظة تانية من التخطيط ← دخل ثابت.`
-                : `ما سجلناش «${inc.name}» دلوقتي، ومفيش حاجة اتسجلت. هنجرب تاني أول ما ترجع للتطبيق.`,
+                ? `ما سجلناش "${inc.name}": المحفظة بتاعته اتأرشفت أو اتمسحت، ومفيش حاجة اتسجلت. اختارله محفظة تانية من التخطيط ← دخل ثابت.`
+                : `ما سجلناش "${inc.name}" دلوقتي، ومفيش حاجة اتسجلت. هنجرب تاني أول ما ترجع للتطبيق.`,
             });
           }
         }

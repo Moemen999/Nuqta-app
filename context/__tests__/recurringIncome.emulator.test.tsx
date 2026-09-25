@@ -264,3 +264,87 @@ describe('تغيير الجدول', () => {
     expect(harness.api().incomes[0].startDate).toBe(before);
   });
 });
+
+/**
+ * بند 1ب (2026-09-25): الدخل اللي عمره ما سجّل حاجة بيتمسح؛ اللي سجّل ولو مرة
+ * بيتوقف بس — والذرة بتتأكد من السيرفر مش من النسخة اللي عندنا.
+ */
+describe('مسح الدخل الثابت', () => {
+  it('عمره ما سجّل ← بيتمسح، والرصيد ما اتلمسش', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    const before = balanceOf(walletId);
+    expect(await harness.api().deleteIncome(incomeId)).toBe('done');
+    await harness.waitForData(api => api.incomes.length === 0);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+
+  it('"ما نزلش" بس ← بيتمسح برضه', async () => {
+    const { incomeId } = await makeIncome();
+    await harness.api().skipIncomePeriod(incomeId, '2026-09');
+    await harness.waitForData(api => api.incomes[0].closed?.['2026-09']?.skipped === true);
+    await harness.waitForData(api => api.pendingWrites === 0);
+    expect(await harness.api().deleteIncome(incomeId)).toBe('done');
+    await harness.waitForData(api => api.incomes.length === 0);
+  });
+
+  it('سجّل مرة ← has-records، والدخل والعملية فاضلين', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.waitForData(() => incomeTxs(incomeId).length === 1);
+    const after = balanceOf(walletId);
+    expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
+    expect(harness.api().incomes).toHaveLength(1);
+    expect(incomeTxs(incomeId)).toHaveLength(1);
+    expect(balanceOf(walletId)).toBe(after);
+  });
+
+  it('سجّل والمستخدم مسح العملية ← لسه has-records (كانت فلوس دخلت)', async () => {
+    const { incomeId } = await makeIncome();
+    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.waitForData(() => incomeTxs(incomeId).length === 1);
+    await deleteDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')));
+    await harness.waitForData(() => incomeTxs(incomeId).length === 0);
+    expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
+    expect(harness.api().incomes).toHaveLength(1);
+  });
+
+  it('جهاز تاني سجّل والنسخة اللي عندنا لسه ما عرفتش ← الذرة بتلاقيها من السيرفر', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    // اللي الجهاز التاني كتبه: العلامة بس (من غير العملية)، عشان النسخة المحلية
+    // تفضل فاضية من أي عملية والفحص المحلي ميلحقش يمنع
+    await updateDoc(doc(db, ...uidPath(), 'incomes', incomeId), {
+      closed: { '2026-09': { txId: incomeTxId(incomeId, '2026-09'), at: new Date().toISOString() } },
+    });
+    void walletId;
+    expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
+    await harness.waitForData(api => api.incomes.length === 1);
+  });
+
+  it('العلامة "ما نزلش" بس العملية موجودة بالمعرّف الثابت (سباق skipIncomePeriod) ← has-records من جوه الذرة', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    await harness.api().skipIncomePeriod(incomeId, '2026-09');
+    await harness.waitForData(api => api.incomes[0].closed?.['2026-09']?.skipped === true);
+    await harness.waitForData(api => api.pendingWrites === 0);
+    // العملية مكتوبة من غير incomeId عشان الفحص المحلي ميشوفهاش — الذرة لازم
+    // تلاقيها بالمعرّف الثابت
+    await setDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')), {
+      type: 'income', amount: 8000, walletId, date: '2026-09-25',
+    });
+    expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
+    expect(harness.api().incomes).toHaveLength(1);
+  });
+
+  it('من غير نت ← no-connection على طول والدخل فاضل', async () => {
+    const { incomeId } = await makeIncome();
+    await harness.waitForData(api => api.serverReachable === true);
+    await disableNetwork(db);
+    try {
+      await harness.waitForData(api => api.serverReachable === false);
+      expect(await harness.api().deleteIncome(incomeId)).toBe('no-connection');
+      expect(harness.api().incomes).toHaveLength(1);
+    } finally {
+      await enableNetwork(db);
+      await harness.waitForData(api => api.serverReachable === true);
+    }
+  });
+});

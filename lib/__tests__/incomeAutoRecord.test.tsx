@@ -55,7 +55,7 @@ it('كل الفترات اللي فاتت في نداء واحد، ورسالة 
   const [, entries] = mockData.recordIncomePeriods.mock.calls[0];
   expect(entries.length).toBeGreaterThanOrEqual(2);
   expect(entries.every((e: { amount: number }) => e.amount === 8000)).toBe(true);
-  expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا «المرتب» عن أسبوع .+ وأسبوع /);
+  expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا "المرتب" عن أسبوع .+ وأسبوع /);
   expect(mockNotify).toHaveBeenCalledTimes(1);
 });
 

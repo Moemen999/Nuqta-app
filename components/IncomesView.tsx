@@ -1,12 +1,12 @@
 import { Money } from '@/components/Money';
-import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
+import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import { todayStr, walletHistoryName } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import {
-  WEEKDAY_NAMES, incomeDueDate, incomeOpenPeriods, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel,
+  WEEKDAY_NAMES, incomeDueDate, incomeHasRecords, incomeOpenPeriods, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel,
   incomeUpcomingPeriod, validateIncomeDraft, type IncomeFrequency, type IncomeMode, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import { selectionStyle } from '@/lib/selection';
@@ -30,7 +30,7 @@ export const INCOME_MODE_LABEL: Record<IncomeMode, string> = {
 export default function IncomesView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { incomes, wallets, recordIncomePeriods, setIncomeStatus } = useData();
+  const { incomes, wallets, transactions, recordIncomePeriods, setIncomeStatus, deleteIncome } = useData();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<RecurringIncome | 'new' | null>(null);
   const [showStopped, setShowStopped] = useState(false);
@@ -50,7 +50,7 @@ export default function IncomesView() {
     const label = incomePeriodLabel(inc, key, today);
     const early = incomeDueDate(inc, key) > today;
     Alert.alert(
-      `«${inc.name}» نزل؟`,
+      `"${inc.name}" نزل؟`,
       `هنسجل ${plainAmount(inc.amount)} ج.م في "${walletHistoryName(wallets, inc.walletId)}" عن ${label}.`
         + (early ? ` ولما ييجي معاده مش هنسألك عنه تاني.` : ''),
       [
@@ -68,12 +68,57 @@ export default function IncomesView() {
 
   function confirmStop(inc: RecurringIncome) {
     Alert.alert(
-      `توقف «${inc.name}» خالص؟`,
+      `توقف "${inc.name}" خالص؟`,
       'مش هيتسجل ولا هيسألك عنه تاني. اللي اتسجل قبل كده بيفضل في الأرشيف ورصيدك زي ما هو.',
       [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'وقّفه', style: 'destructive', onPress: () => setIncomeStatus(inc.id, 'stopped') },
       ],
+    );
+  }
+
+  /**
+   * المسح للي عمره ما سجّل حاجة بس — اللي سجّل بيتوقف (تاريخه بيفضل). والذرة
+   * بتتأكد تاني من السيرفر، فلو جهاز تاني سجّل في النص بيرجع `has-records`.
+   */
+  function confirmDelete(inc: RecurringIncome) {
+    Alert.alert(
+      `تمسح "${inc.name}"؟`,
+      'لسه ما اتسجلش منه أي حاجة، فرصيدك مش هيتلمس. هيتشال خالص ومش هنفكرك بيه تاني.',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'امسحه',
+          style: 'destructive',
+          onPress: () => run(`del_${inc.id}`, async () => {
+            const r = await deleteIncome(inc.id);
+            if (r !== 'done') Alert.alert(INCOME_DELETE_ALERT[r].title, INCOME_DELETE_ALERT[r].body);
+          }),
+        },
+      ],
+    );
+  }
+
+  function deleteButton(inc: RecurringIncome) {
+    const busy = busyKey === `del_${inc.id}`;
+    return (
+      <TouchableOpacity
+        testID={`income_delete_${inc.id}`}
+        style={[styles.stopBtn, busy && styles.btnBusy]}
+        onPress={() => confirmDelete(inc)}
+        disabled={busyKey !== null}
+        accessibilityRole="button"
+        accessibilityLabel={busy ? `بنمسح "${inc.name}"` : `امسح "${inc.name}"`}
+        accessibilityState={{ busy }}>
+        {busy ? (
+          <View style={styles.btnLoading}>
+            <ActivityIndicator size="small" color={colors.danger} />
+            <Text style={{ color: colors.danger, fontSize: 12.5 }}>بنمسح</Text>
+          </View>
+        ) : (
+          <Text style={{ color: colors.danger, fontSize: 12.5 }}>امسحه</Text>
+        )}
+      </TouchableOpacity>
     );
   }
 
@@ -125,7 +170,7 @@ export default function IncomesView() {
                   onPress={() => confirmArrived(inc)}
                   disabled={busyKey !== null}
                   accessibilityRole="button"
-                  accessibilityLabel={`«${inc.name}» نزل`}
+                  accessibilityLabel={`"${inc.name}" نزل`}
                   accessibilityState={{ busy: recBusy }}>
                   {recBusy ? (
                     <View style={styles.btnLoading}>
@@ -146,9 +191,12 @@ export default function IncomesView() {
                 accessibilityRole="button">
                 <Text style={styles.editText}>{paused ? 'رجّعه' : 'وقّفه مؤقتًا'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button">
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>وقّفه</Text>
-              </TouchableOpacity>
+              {/* اللي عمره ما سجّل: المسح مكان "وقّفه" — التوقيف كان هيسيب كارت مالوش لازمة */}
+              {incomeHasRecords(inc, transactions) ? (
+                <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button">
+                  <Text style={{ color: colors.danger, fontSize: 12.5 }}>وقّفه</Text>
+                </TouchableOpacity>
+              ) : deleteButton(inc)}
             </View>
           </View>
         );
@@ -171,6 +219,7 @@ export default function IncomesView() {
             <TouchableOpacity style={styles.editBtn} onPress={() => setIncomeStatus(inc.id, 'active')} accessibilityRole="button">
               <Text style={styles.editText}>رجّعه من النهاردة</Text>
             </TouchableOpacity>
+            {!incomeHasRecords(inc, transactions) && deleteButton(inc)}
           </View>
         </View>
       ))}
@@ -351,7 +400,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                     </TouchableOpacity>
                   ))}
                   <Text style={styles.summary}>
-                    «{name.trim()}» · {incomeScheduleLabel(draft)} · {walletHistoryName(wallets, walletId)}
+                    {`"${name.trim()}"`} · {incomeScheduleLabel(draft)} · {walletHistoryName(wallets, walletId)}
                   </Text>
                 </>
               )}

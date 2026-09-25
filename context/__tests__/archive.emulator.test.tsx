@@ -1,6 +1,9 @@
+import { db } from '@/firebaseConfig';
 import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
-import { setMockUid } from '@/test-utils/mockAuth';
+import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
+import { deleteDoc, doc, getDocFromServer, waitForPendingWrites } from 'firebase/firestore';
+import { Alert } from 'react-native';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -272,5 +275,90 @@ describe('حذف فئة بيمسح ميزانيتها', () => {
     await settle();
 
     expect(harness.api().budgets[b.id]).toBe(200);
+  });
+});
+
+/**
+ * شيت الأرشفة بيبني خريطة النقل من النسخة اللي عنده لحظة ما اتفتح. لو اشتراك
+ * أو جمعية أو دخل اتمسح من جهاز تاني والشيت مفتوح، `batch.update` على مستند مش موجود
+ * كان بيوقّع الدفعة كلها — والمحفظة ما تتأرشفش، برسالة خطأ عامة.
+ */
+describe('أرشفة محفظة وحاجة في خريطة النقل اتمسحت من جهاز تاني', () => {
+  let alertSpy: jest.SpyInstance;
+  beforeEach(() => { alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {}); });
+  afterEach(() => { alertSpy.mockRestore(); });
+
+  /**
+   * `pendingWrites === 0` هنا مش كفاية: عدّاد رياكت بيتأخر render، فالشرط كان
+   * بيعدّي قبل ما الأرشفة تتعدّ. و`getDocFromServer` بيحط الكتابات اللي لسه
+   * بترفع فوق نسخة السيرفر — فلازم نستنى السيرفر يقبل أو يرفض الأول.
+   */
+  async function expectArchivedOnServer(walletId: string) {
+    await waitForPendingWrites(db);
+    await settle();
+    const snap = await getDocFromServer(doc(db, 'users', getMockUid(), 'wallets', walletId));
+    expect(snap.data()?.archived).toBe(true);
+    expect(alertSpy).not.toHaveBeenCalled();
+  }
+
+  it('اشتراك اتمسح ← المحفظة بتتأرشف برضه، والباقي بيتنقل', async () => {
+    const [from, to] = harness.api().wallets;
+    await harness.api().addSubscription({
+      name: 'نتفليكس', amount: 100, walletId: from.id,
+      frequency: 'monthly', nextDueDate: '2026-10-01', reminderDaysBefore: 2,
+    });
+    await harness.api().addSubscription({
+      name: 'سبوتيفاي', amount: 60, walletId: from.id,
+      frequency: 'monthly', nextDueDate: '2026-10-05', reminderDaysBefore: 2,
+    });
+    await harness.waitForData(api => api.subscriptions.length === 2 && api.pendingWrites === 0);
+    const [gone, kept] = harness.api().subscriptions;
+    // الشيت اتفتح وهو شايف الاتنين
+    const reassign = { subscriptions: { [gone.id]: to.id, [kept.id]: to.id } };
+
+    await deleteDoc(doc(db, 'users', getMockUid(), 'subscriptions', gone.id));
+    await harness.waitForData(api => api.subscriptions.length === 1);
+
+    await harness.api().archiveWallet(from.id, reassign);
+    await expectArchivedOnServer(from.id);
+    const keptSnap = await getDocFromServer(doc(db, 'users', getMockUid(), 'subscriptions', kept.id));
+    expect(keptSnap.data()?.walletId).toBe(to.id);
+    // الممسوح ما رجعش (update مبيعملش مستند)
+    expect((await getDocFromServer(doc(db, 'users', getMockUid(), 'subscriptions', gone.id))).exists()).toBe(false);
+  });
+
+  it('جمعية اتمسحت ← المحفظة بتتأرشف برضه، والباقية بتتنقل', async () => {
+    const [from, to] = harness.api().wallets;
+    const base = { monthlyAmount: 500, totalMonths: 3, payoutMonthIndex: 2, payoutAmount: 1500, startDate: '2026-10-01', reminderDaysBefore: 2 };
+    await harness.api().addGamiya({ ...base, name: 'جمعية الشغل', walletId: from.id });
+    await harness.api().addGamiya({ ...base, name: 'جمعية العيلة', walletId: from.id });
+    await harness.waitForData(api => api.gamiyas.length === 2 && api.pendingWrites === 0);
+    const [gone, kept] = harness.api().gamiyas;
+    const reassign = { gamiyas: { [gone.id]: to.id, [kept.id]: to.id } };
+
+    await deleteDoc(doc(db, 'users', getMockUid(), 'gamiyas', gone.id));
+    await harness.waitForData(api => api.gamiyas.length === 1);
+
+    await harness.api().archiveWallet(from.id, reassign);
+    await expectArchivedOnServer(from.id);
+    const keptSnap = await getDocFromServer(doc(db, 'users', getMockUid(), 'gamiyas', kept.id));
+    expect(keptSnap.data()?.walletId).toBe(to.id);
+    expect((await getDocFromServer(doc(db, 'users', getMockUid(), 'gamiyas', gone.id))).exists()).toBe(false);
+  });
+
+  it('دخل ثابت اتمسح ← نفس الحاجة', async () => {
+    const [from, to] = harness.api().wallets;
+    await harness.api().addIncome({
+      name: 'المرتب', amount: 8000, walletId: from.id, frequency: 'monthly', dayOfMonth: 25, mode: 'confirm',
+    } as any);
+    await harness.waitForData(api => api.incomes.length === 1 && api.pendingWrites === 0);
+    const inc = harness.api().incomes[0];
+    const reassign = { incomes: { [inc.id]: to.id } };
+
+    await deleteDoc(doc(db, 'users', getMockUid(), 'incomes', inc.id));
+    await harness.waitForData(api => api.incomes.length === 0);
+
+    await harness.api().archiveWallet(from.id, reassign);
+    await expectArchivedOnServer(from.id);
   });
 });
