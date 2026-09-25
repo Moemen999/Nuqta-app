@@ -130,6 +130,17 @@ export function incomeTxId(incomeId: string, key: string) {
   return `income_${incomeId}_${key}`;
 }
 
+/**
+ * سجّل حاجة ولو مرة؟ لو آه مفيش مسح — إيقاف بس، عشان التاريخ يفضل. من
+ * جهتين: علامة `txId` في `closed` (حتى لو المستخدم مسح العملية بعدين — كانت
+ * فلوس دخلت)، أو أي عملية فيها `incomeId` ده (السباق المعروف في
+ * `skipIncomePeriod` بيشيل الـtxId من العلامة والعملية لسه موجودة).
+ * الفترات اللي اتقفلت بـ"ما نزلش" بس مش تسجيل — مفيش فلوس اتحركت.
+ */
+export function incomeHasRecords(inc: Pick<RecurringIncome, 'id' | 'closed'>, transactions: { incomeId?: string }[]) {
+  return Object.values(inc.closed || {}).some(c => !!c.txId) || transactions.some(t => t.incomeId === inc.id);
+}
+
 /** متأخر = يوم المعاد (الفلوس نزلت ساعتها). "نزل" بدري = النهاردة */
 export function incomeTxDate(inc: RecurringIncome, key: string, today: string) {
   const due = incomeDueDate(inc, key);
@@ -150,12 +161,12 @@ function joinAnd(items: string[]) {
   return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(' و')} و${items[items.length - 1]}`;
 }
 
-/** رسالة واحدة للكذا فترة: «سجلنا «المرتب» عن سبتمبر وأكتوبر» */
+/** رسالة واحدة للكذا فترة: `سجلنا "المرتب" عن سبتمبر وأكتوبر` */
 export function incomeRecordedMessage(name: string, labels: string[]) {
   if (labels.length > 3) {
-    return `سجلنا «${name}» عن ${labels.length} ${labels.length <= 10 ? 'فترات' : 'فترة'}، من ${labels[0]} لـ ${labels[labels.length - 1]}`;
+    return `سجلنا "${name}" عن ${labels.length} ${labels.length <= 10 ? 'فترات' : 'فترة'}، من ${labels[0]} لـ ${labels[labels.length - 1]}`;
   }
-  return `سجلنا «${name}» عن ${joinAnd(labels)}`;
+  return `سجلنا "${name}" عن ${joinAnd(labels)}`;
 }
 
 /** «وفيه فترة تانية» / «فترتين» / «3 فترات» / «11 فترة» — العدد بالعربي مش "2 فترات" */

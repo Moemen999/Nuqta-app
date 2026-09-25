@@ -1,6 +1,6 @@
 import {
   INCOME_CATCHUP_MAX, WEEKDAY_NAMES, incomeDiffNote, incomeRecordedNotification, incomeDueDate, incomeOpenPeriods, incomePeriodLabel,
-  incomeRecordedMessage, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel, incomeTxDate, incomeTxId,
+  incomeHasRecords, incomeRecordedMessage, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel, incomeTxDate, incomeTxId,
   incomeUpcomingPeriod, morePeriodsPhrase, validateIncomeDraft,
   type RecurringIncome,
 } from '@/lib/recurringIncome';
@@ -144,10 +144,10 @@ describe('الكلام', () => {
   });
 
   it('رسالة واحدة للكذا فترة', () => {
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر'])).toBe('سجلنا «المرتب» عن سبتمبر');
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر'])).toBe('سجلنا «المرتب» عن سبتمبر وأكتوبر');
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر', 'نوفمبر'])).toBe('سجلنا «المرتب» عن سبتمبر وأكتوبر ونوفمبر');
-    expect(incomeRecordedMessage('المرتب', ['يناير', 'فبراير', 'مارس', 'أبريل'])).toBe('سجلنا «المرتب» عن 4 فترات، من يناير لـ أبريل');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر'])).toBe('سجلنا "المرتب" عن سبتمبر');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر'])).toBe('سجلنا "المرتب" عن سبتمبر وأكتوبر');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر', 'نوفمبر'])).toBe('سجلنا "المرتب" عن سبتمبر وأكتوبر ونوفمبر');
+    expect(incomeRecordedMessage('المرتب', ['يناير', 'فبراير', 'مارس', 'أبريل'])).toBe('سجلنا "المرتب" عن 4 فترات، من يناير لـ أبريل');
   });
 
   it('المواعيد بالكلام', () => {
@@ -181,11 +181,11 @@ describe('validateIncomeDraft', () => {
 
 describe('إشعار "اتسجل لوحده"', () => {
   it('بالرقم لما المبالغ ظاهرة', () => {
-    expect(incomeRecordedNotification('سجلنا «المرتب» عن سبتمبر', 8000, false))
-      .toBe('سجلنا «المرتب» عن سبتمبر — 8,000 ج.م. لو الرقم مختلف عدّله من الأرشيف.');
+    expect(incomeRecordedNotification('سجلنا "المرتب" عن سبتمبر', 8000, false))
+      .toBe('سجلنا "المرتب" عن سبتمبر — 8,000 ج.م. لو الرقم مختلف عدّله من الأرشيف.');
   });
   it('من غير رقم خالص لما مخفية (شاشة القفل)', () => {
-    const body = incomeRecordedNotification('سجلنا «المرتب» عن سبتمبر', 8000, true);
+    const body = incomeRecordedNotification('سجلنا "المرتب" عن سبتمبر', 8000, true);
     expect(body).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
   });
 });
@@ -246,6 +246,30 @@ describe('العدد بالعربي (arabic-copy-reviewer)', () => {
   });
   it('رسالة اللحاق فوق العشرة', () => {
     const labels = Array.from({ length: 12 }, (_, i) => `ش${i + 1}`);
-    expect(incomeRecordedMessage('المرتب', labels)).toBe('سجلنا «المرتب» عن 12 فترة، من ش1 لـ ش12');
+    expect(incomeRecordedMessage('المرتب', labels)).toBe('سجلنا "المرتب" عن 12 فترة، من ش1 لـ ش12');
+  });
+});
+
+/**
+ * بند 1ب (2026-09-25): المسح للي عمره ما سجّل بس. اللي سجّل ولو مرة بيتوقف —
+ * تاريخه لازم يفضل.
+ */
+describe('incomeHasRecords — ينفع يتمسح ولا لأ', () => {
+  const at = '2026-09-01T00:00:00.000Z';
+  it('جديد ولا حاجة اتقفلت ← ما سجّلش', () => {
+    expect(incomeHasRecords({ id: 'i1', closed: {} }, [])).toBe(false);
+    expect(incomeHasRecords({ id: 'i1' }, [])).toBe(false);
+  });
+  it('"ما نزلش" بس ← ما سجّلش (مفيش فلوس اتحركت)', () => {
+    expect(incomeHasRecords({ id: 'i1', closed: { '2026-09': { skipped: true, at } } }, [])).toBe(false);
+  });
+  it('فترة اتسجلت ← سجّل، حتى لو المستخدم مسح العملية بعدين', () => {
+    expect(incomeHasRecords({ id: 'i1', closed: { '2026-09': { txId: 'income_i1_2026-09', at } } }, [])).toBe(true);
+  });
+  it('العلامة اتحولت "ما نزلش" بس العملية موجودة (سباق skipIncomePeriod) ← سجّل', () => {
+    expect(incomeHasRecords({ id: 'i1', closed: { '2026-09': { skipped: true, at } } }, [{ incomeId: 'i1' }])).toBe(true);
+  });
+  it('عملية دخل تاني ← مالهاش دعوة', () => {
+    expect(incomeHasRecords({ id: 'i1', closed: {} }, [{ incomeId: 'i2' }, {}])).toBe(false);
   });
 });

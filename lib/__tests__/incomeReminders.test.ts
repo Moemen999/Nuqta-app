@@ -3,7 +3,7 @@ import type { RecurringIncome } from '@/lib/recurringIncome';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
 /**
- * الدخل اللي بيستنى تأكيد: إشعار يوم المعاد "«المرتب» نزل؟". التلقائي مالوش
+ * الدخل اللي بيستنى تأكيد: إشعار يوم المعاد `"المرتب" نزل؟`. التلقائي مالوش
  * تذكير — ده بيبعت "اتسجل" بعد ما يتسجل فعلاً.
  */
 
@@ -35,7 +35,7 @@ const run = (incomes: RecurringIncome[], hideAmounts = false) => scheduleAllRemi
 it('بيستنى تأكيد ← إشعار يوم المعاد', async () => {
   await run([income()]);
   expect(scheduled).toEqual([
-    { title: '«المرتب» نزل؟', body: 'معاده النهاردة — 8,000 ج.م. افتح نقطة وأكّد إنه نزل.', date: addDays(today, 3) },
+    { title: '"المرتب" نزل؟', body: 'معاده النهاردة — 8,000 ج.م. افتح نقطة وأكّد إنه نزل.', date: addDays(today, 3) },
   ]);
 });
 

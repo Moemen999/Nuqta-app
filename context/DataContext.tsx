@@ -16,8 +16,8 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Alert } from 'react-native';
 import { WRITE_ERROR_RESET_MS, WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
 import {
-  incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
-  type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
+  incomeHasRecords, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
+  type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
 
 /**
@@ -51,6 +51,9 @@ export type Transaction = {
    */
   isSettlement?: boolean;
   archivedWalletId?: string;
+  /** عملية من دخل ثابت (`recordIncomePeriods`) — معرّفها `income_{id}_{الفترة}` */
+  incomeId?: string;
+  periodKey?: string;
 };
 
 /** تسوية واحدة: الفرق ده يروح/ييجي من المحفظة الشغالة دي */
@@ -95,6 +98,9 @@ class WalletArchivedError extends Error {}
 
 /** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
 class IncomeMissingError extends Error {}
+
+/** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
+class IncomeHasRecordsError extends Error {}
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -177,6 +183,26 @@ export const INCOME_RECORD_ALERT: typeof PAY_OUTCOME_ALERT = {
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة المربوطة بالدخل ده اتمسحت أو اتأرشفت، فما اتسجلش حاجة. عدّل الدخل واختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * مسح دخل ثابت. مش بيلمس رصيد، فالكلام عن إن الدخل لسه موجود. `has-records`
+ * معناه إن جهاز تاني سجّل منه حاجة بين الدوسة والمسح — ساعتها بيتوقف بس.
+ */
+export type IncomeDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'has-records';
+export const INCOME_DELETE_ALERT: Record<Exclude<IncomeDeleteOutcome, 'done'>, { title: string; body: string }> = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'ما اتمسحش. المسح لازم يتأكد من السيرفر إن الدخل ده ما اتسجلش منه حاجة — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتمسحش',
+    body: 'الدخل لسه زي ما هو. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'has-records': {
+    title: 'ما ينفعش يتمسح',
+    body: 'اتسجل منه حاجة قبل كده، فبيفضل عشان تاريخه ما يضيعش. تقدر توقّفه بدل ما تمسحه.',
   },
 };
 
@@ -379,6 +405,7 @@ type DataContextType = {
   setIncomeStatus: (id: string, status: IncomeStatus) => Promise<void>;
   recordIncomePeriods: (incomeId: string, entries: { key: string; amount: number }[]) => Promise<IncomeRecordResult>;
   skipIncomePeriod: (incomeId: string, key: string) => Promise<void>;
+  deleteIncome: (incomeId: string) => Promise<IncomeDeleteOutcome>;
 };
 
 /**
@@ -677,8 +704,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     const batch = writeBatch(db);
     // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
-    // محفظة مؤرشفة كل تسجيل بعد كده هيترفض
+    // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
+    // الدخل اللي اتمسح (`deleteIncome`) وشيت الأرشفة مفتوح بيتفوّت: `update`
+    // على مستند مش موجود كان هيوقّع الدفعة كلها والمحفظة ما تتأرشفش
     Object.entries(reassign.incomes || {}).forEach(([incomeId, walletId]) => {
+      if (!incomes.some(i => i.id === incomeId)) return;
       batch.update(doc(db, 'users', uid, 'incomes', incomeId), { walletId });
     });
     Object.entries(reassign.subscriptions || {}).forEach(([subId, walletId]) => {
@@ -1461,6 +1491,41 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   /**
+   * مسح دخل **عمره ما سجّل حاجة**. اللي سجّل ولو مرة بيتوقف بس — تاريخه لازم
+   * يفضل. ذري لأن جهاز تاني ممكن يكون بيسجل منه في نفس اللحظة: التسجيل
+   * بيكتب علامة `closed` في نفس ذرته، فلو سبقنا الذرة دي بتتعاد وتلاقيها.
+   * ولأن معرّف العملية ثابت، كل فترة مقفولة بيتقري معرّفها كمان — ده بيغطي
+   * سباق `skipIncomePeriod` اللي بيشيل الـtxId من العلامة والعملية موجودة.
+   */
+  async function deleteIncome(incomeId: string): Promise<IncomeDeleteOutcome> {
+    if (!uid) return 'failed';
+    const local = incomes.find(i => i.id === incomeId);
+    if (local && incomeHasRecords(local, transactions)) return 'has-records';
+    if (!serverReachableRef.current) return 'no-connection';
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    const incRef = doc(db, 'users', uid, 'incomes', incomeId);
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(incRef);
+        // اتمسح من جهاز تاني — اللي المستخدم طلبه حصل
+        if (!snap.exists()) return;
+        const closed: Record<string, IncomeClosed> = (snap.data() as any).closed || {};
+        if (Object.values(closed).some(c => !!c.txId)) throw new IncomeHasRecordsError();
+        const txs = await Promise.all(
+          Object.keys(closed).map(k => t.get(doc(db, 'users', uid!, 'transactions', incomeTxId(incomeId, k)))),
+        );
+        if (txs.some(x => x.exists())) throw new IncomeHasRecordsError();
+        t.delete(incRef);
+      }));
+      return 'done';
+    } catch (e) {
+      if (e instanceof IncomeHasRecordsError) return 'has-records';
+      noteAtomicFailure('مسح الدخل الثابت', e);
+      return 'failed';
+    }
+  }
+
+  /**
    * تسجيل فترة أو أكتر في ذرة واحدة. **مفيش تسجيل مرتين** من تلات جهات:
    * 1. `closed` بتتقري من السيرفر جوه الذرة — الفترة المقفولة بتتفوّت.
    * 2. معرّف العملية ثابت (`incomeTxId`) — ولو موجودة (مقفولة من غير علامة
@@ -1625,7 +1690,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setInstallmentCount,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
-        addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod,
+        addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod, deleteIncome,
       }}>
       {children}
     </DataContext.Provider>
