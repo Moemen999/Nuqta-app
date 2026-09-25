@@ -173,8 +173,26 @@ export default function WalletsScreen() {
     // الشيت ممكن يفضل مفتوح وحاجة تتغيّر من جهاز تاني: عملية جديدة على
     // المحفظة، أو اشتراك/جمعية اتمسحوا ومعاهم دفعاتهم (money-reviewer). الرصيد
     // اتفحص وقت الفتح بس، فكانت بتتأرشف ورصيدها مش صفر ومحدش شايفه
+    // المحفظة نفسها اتمسحت من جهاز تاني: archiveBlockFor بيرجّع null ساعتها
+    // زي "مفيش مانع"، فكانت بتعدّي لأرشفة مستند مش موجود (silent-failure-hunter)
+    if (!wallets.some(w => w.id === sheet.id)) {
+      setSheet(null);
+      Alert.alert('المحفظة دي اتمسحت', `"${sheet.name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`, [{ text: 'تمام' }]);
+      return;
+    }
     const block = archiveBlockFor(sheet.id);
     if (block) { setSheet(null); showBlock(block, sheet.name); return; }
+    // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
+    // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
+    // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني
+    const live = new Set([...subscriptions, ...gamiyas, ...incomes].map(x => x.id));
+    if (sheet.items.some(i => !live.has(i.id))) {
+      setSheet(null);
+      Alert.alert('فيه حاجة اتغيّرت',
+        `حاجة من اللي كنت بتنقلها اتمسحت من جهاز تاني. افتح الأرشفة تاني عشان نتأكد إن رصيد "${sheet.name}" لسه صفر.`,
+        [{ text: 'تمام' }]);
+      return;
+    }
     // بالنوع صريح مش "أي حاجة مش اشتراك = جمعية": الدخل الثابت كان هيتبعت
     // كجمعية ويتكتب في مستند مش موجود فالدفعة كلها تفشل
     const kindOf = new Map(sheet.items.map(i => [i.id, i.kind]));

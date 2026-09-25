@@ -89,3 +89,19 @@ it('الجمعية اتمسحت من جهاز تاني ومعاها دفعتها
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
   expect(alertSpy).toHaveBeenCalledWith('رصيدها لسه مش صفر', expect.anything(), expect.anything());
 });
+
+it('المحفظة نفسها اتمسحت من جهاز تاني والشيت مفتوح ← مفيش أرشفة، ورسالة إنها اتمسحت', async () => {
+  await openSheetAndAssign();
+  mockData.wallets = wallets.filter(w => w.id !== 'w1');
+  await confirm();
+  expect(mockData.archiveWallet).not.toHaveBeenCalled();
+  expect(alertSpy).toHaveBeenCalledWith('المحفظة دي اتمسحت', expect.stringContaining('كاش'), expect.anything());
+});
+
+it('الجمعية اختفت بس دفعتها لسه ما اتشالتش من الرصيد (listeners منفصلة) ← مفيش أرشفة على رقم قديم', async () => {
+  await openSheetAndAssign();
+  mockData.gamiyas = [];
+  await confirm();
+  expect(mockData.archiveWallet).not.toHaveBeenCalled();
+  expect(alertSpy).toHaveBeenCalledWith('فيه حاجة اتغيّرت', expect.stringContaining('كاش'), expect.anything());
+});
