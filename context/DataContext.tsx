@@ -711,7 +711,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!incomes.some(i => i.id === incomeId)) return;
       batch.update(doc(db, 'users', uid, 'incomes', incomeId), { walletId });
     });
-    // نفس الحاجة للاشتراك اللي اتمسح من جهاز تاني والشيت مفتوح.
+    // نفس الحاجة للاشتراك والجمعية اللي اتمسحوا من جهاز تاني والشيت مفتوح.
     // **فاضل شباك صغير:** التفويت بيشتغل بس لما المسح يكون وصل النسخة دي. لو
     // اتمسح على السيرفر ولسه الـsnapshot ما وصلش، الدفعة بتقع زي الأول —
     // والرسالة بتسمّي المحفظة، فالمستخدم عارف إيه اللي ما اتأرشفش ويجرب تاني
@@ -720,6 +720,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       batch.update(doc(db, 'users', uid, 'subscriptions', subId), { walletId });
     });
     Object.entries(reassign.gamiyas || {}).forEach(([gamiyaId, walletId]) => {
+      if (!gamiyas.some(g => g.id === gamiyaId)) return;
       batch.update(doc(db, 'users', uid, 'gamiyas', gamiyaId), { walletId });
     });
     batch.update(doc(db, 'users', uid, 'wallets', id), {

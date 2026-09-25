@@ -280,7 +280,7 @@ describe('حذف فئة بيمسح ميزانيتها', () => {
 
 /**
  * شيت الأرشفة بيبني خريطة النقل من النسخة اللي عنده لحظة ما اتفتح. لو اشتراك
- * أو دخل اتمسح من جهاز تاني والشيت مفتوح، `batch.update` على مستند مش موجود
+ * أو جمعية أو دخل اتمسح من جهاز تاني والشيت مفتوح، `batch.update` على مستند مش موجود
  * كان بيوقّع الدفعة كلها — والمحفظة ما تتأرشفش، برسالة خطأ عامة.
  */
 describe('أرشفة محفظة وحاجة في خريطة النقل اتمسحت من جهاز تاني', () => {
@@ -325,6 +325,25 @@ describe('أرشفة محفظة وحاجة في خريطة النقل اتمسح
     expect(keptSnap.data()?.walletId).toBe(to.id);
     // الممسوح ما رجعش (update مبيعملش مستند)
     expect((await getDocFromServer(doc(db, 'users', getMockUid(), 'subscriptions', gone.id))).exists()).toBe(false);
+  });
+
+  it('جمعية اتمسحت ← المحفظة بتتأرشف برضه، والباقية بتتنقل', async () => {
+    const [from, to] = harness.api().wallets;
+    const base = { monthlyAmount: 500, totalMonths: 3, payoutMonthIndex: 2, payoutAmount: 1500, startDate: '2026-10-01', reminderDaysBefore: 2 };
+    await harness.api().addGamiya({ ...base, name: 'جمعية الشغل', walletId: from.id });
+    await harness.api().addGamiya({ ...base, name: 'جمعية العيلة', walletId: from.id });
+    await harness.waitForData(api => api.gamiyas.length === 2 && api.pendingWrites === 0);
+    const [gone, kept] = harness.api().gamiyas;
+    const reassign = { gamiyas: { [gone.id]: to.id, [kept.id]: to.id } };
+
+    await deleteDoc(doc(db, 'users', getMockUid(), 'gamiyas', gone.id));
+    await harness.waitForData(api => api.gamiyas.length === 1);
+
+    await harness.api().archiveWallet(from.id, reassign);
+    await expectArchivedOnServer(from.id);
+    const keptSnap = await getDocFromServer(doc(db, 'users', getMockUid(), 'gamiyas', kept.id));
+    expect(keptSnap.data()?.walletId).toBe(to.id);
+    expect((await getDocFromServer(doc(db, 'users', getMockUid(), 'gamiyas', gone.id))).exists()).toBe(false);
   });
 
   it('دخل ثابت اتمسح ← نفس الحاجة', async () => {
