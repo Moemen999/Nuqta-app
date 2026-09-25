@@ -5,6 +5,7 @@ import { EMPTY_OFFLINE_NOTE } from '@/components/ListEmptyState';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 
 /**
  * جرد الأدوات لكل شاشة اتنقلت في إعادة تنظيم الإعدادات.
@@ -50,6 +51,8 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 
 const wrap = (el: React.ReactElement) => render(<ThemeProvider>{el}</ThemeProvider>);
+
+warmUp(() => <ThemeProvider><WalletsScreen /></ThemeProvider>);
 
 beforeEach(() => {
   jest.clearAllMocks();

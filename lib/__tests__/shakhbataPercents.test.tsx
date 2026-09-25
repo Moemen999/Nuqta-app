@@ -4,6 +4,7 @@ import { PrivacyProvider } from '@/context/PrivacyContext';
 import { percentInvalidBody, percentInvalidTitle } from '@/lib/finance';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 import { Alert } from 'react-native';
 
 /**
@@ -31,6 +32,8 @@ jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 async function renderView() {
   return render(<ThemeProvider><PrivacyProvider><ShakhbataView /></PrivacyProvider></ThemeProvider>);
 }
+
+warmUp(() => <ThemeProvider><PrivacyProvider><ShakhbataView /></PrivacyProvider></ThemeProvider>);
 
 /** بيفتح وضع التعديل ويرجّع خانات النسب التلاتة بالترتيب */
 async function startEditing() {

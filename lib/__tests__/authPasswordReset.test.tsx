@@ -2,6 +2,7 @@ import AuthScreen, { RESET_LABEL, RESET_NEEDS_EMAIL, RESET_TITLE } from '@/app/(
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 import { Alert } from 'react-native';
 
 /**
@@ -29,6 +30,8 @@ jest.mock('expo-web-browser', () => ({ maybeCompleteAuthSession: jest.fn() }));
 async function renderAuth() {
   return render(<ThemeProvider><AuthScreen /></ThemeProvider>);
 }
+
+warmUp(() => <ThemeProvider><AuthScreen /></ThemeProvider>);
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -2,6 +2,7 @@ import WalletsScreen from '@/app/settings-screens/wallets';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 import { Alert } from 'react-native';
 
 /**
@@ -37,19 +38,26 @@ jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 
-let alertSpy: jest.SpyInstance;
-beforeEach(() => {
+function seed() {
   Object.assign(mockData, {
     wallets, categories: [], transactions: baseTxs, budgets: {}, debts: [],
     subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true,
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
     archiveWallet: jest.fn(), restoreWallet: jest.fn(),
   });
+}
+
+let alertSpy: jest.SpyInstance;
+beforeEach(() => {
+  seed();
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
 afterEach(() => alertSpy.mockRestore());
 
 const ui = () => <ThemeProvider><WalletsScreen /></ThemeProvider>;
+
+// الـbeforeAll بيشتغل قبل الـbeforeEach، فالـwarm-up محتاج البيانات لوحده
+warmUp(() => { seed(); return ui(); });
 
 /** "امسح" ← "أرشفها" ← الشيت مفتوح وجمعية الشغل رايحة للبنك */
 async function openSheetAndAssign() {

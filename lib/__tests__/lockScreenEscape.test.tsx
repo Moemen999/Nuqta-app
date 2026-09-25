@@ -5,6 +5,7 @@ import LockScreen, {
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 import { Alert } from 'react-native';
 
 /**
@@ -39,6 +40,8 @@ function hasDescendant(node: any, testID: string): boolean {
 async function renderLock() {
   return render(<ThemeProvider><LockScreen /></ThemeProvider>);
 }
+
+warmUp(() => <ThemeProvider><LockScreen /></ThemeProvider>);
 
 beforeEach(() => {
   jest.clearAllMocks();

@@ -2,6 +2,7 @@ import LockSettingsScreen, { GRACE_OPTIONS, LOCK_TYPE_LABEL } from '@/app/settin
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { warmUp } from '@/test-utils/warmUp';
 
 /**
  * حارس ضد التراجع.
@@ -51,6 +52,8 @@ async function renderScreen() {
     </ThemeProvider>
   );
 }
+
+warmUp(() => <ThemeProvider><LockSettingsScreen /></ThemeProvider>);
 
 beforeEach(() => {
   mockLock.enabled = true;

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import CategoryIconPicker, { ICON_PICKER_KEYBOARD_HINT } from '@/components/CategoryIconPicker';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { EMOJI_INPUT_MESSAGES } from '@/lib/emojiIcon';
+import { warmUp } from '@/test-utils/warmUp';
 
 /**
  * سلوك الشيت: الأيقونة المكررة **مش ممنوعة** — الحفظ بيحصل، والشيت بيفضل
@@ -21,6 +22,12 @@ async function mount(current?: string) {
   );
   return { onPick, onClose };
 }
+
+warmUp(() => (
+  <ThemeProvider>
+    <CategoryIconPicker visible others={others} onPick={() => {}} onClose={() => {}} />
+  </ThemeProvider>
+));
 
 describe('أيقونة مستخدمة في فئة تانية', () => {
   it('بتتحفظ، والشيت بيفضل مفتوح بالملاحظة والاقتراح', async () => {
