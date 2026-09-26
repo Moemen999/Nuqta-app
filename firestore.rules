@@ -13,6 +13,14 @@ service cloud.firestore {
         && (!('archivedAt' in data) || data.archivedAt is string);
     }
 
+    // الحقل موجود في المستند المتخزّن وقيمته هي هي بعد الكتابة — يعني الكتابة
+    // دي مش هي اللي كتبته. بيسمح لقيمة قديمة اتكتبت قبل ما القاعدة تتشد إنها
+    // تفضل، من غير ما يسمح بقيمة جديدة غلط. في الإنشاء `resource` بـnull.
+    function unchangedField(f) {
+      return resource != null && f in resource.data
+        && request.resource.data[f] == resource.data[f];
+    }
+
     /**
      * "شاركنا رأيك". المستخدم بيكتب بس — مبيقراش ومبيعدّلش ومبيمسحش، لا بتاعه
      * ولا بتاع غيره. القراية من الكونسول.
@@ -110,13 +118,21 @@ service cloud.firestore {
           && request.resource.data.totalAmount is number
           && request.resource.data.totalAmount > 0
           && request.resource.data.direction in ['owed_to_me', 'i_owe']
-          // قيمة القسط اختيارية: الديون اللي اتعملت قبل الميزة مالهاش الحقل
-          // ده، والقاعدة بتتحقق من **المستند بعد الدمج** — فلو خليناه مطلوب
-          // كان أي تعديل على دين قديم هيترفض بـpermission-denied
+          // قيمة القسط وعدده اختياريين: الديون اللي اتعملت قبل الميزة مالهاش
+          // الحقلين، والقاعدة بتتحقق من **المستند بعد الدمج** — فلو خليناهم
+          // مطلوبين كان أي تعديل على دين قديم هيترفض بـpermission-denied.
+          //
+          // وبيتفحصوا **بس لما يتغيّروا** (`unchangedField`): بناءات 15–17
+          // سبتمبر (قبل ad4a339) كانت بتخزّن `Number(اللي اتكتب) || undefined`
+          // من غير تحقق، فممكن يكون فيه دين متخزّن فيه 3.5 أو -2. الدفعة مبتعدّلش
+          // العدد لما يكون غلط، فلو القاعدة فحصته على طول، الدين ده كان هيبقى
+          // مقفول: لا دفعة ولا تعديل. القيمة الجديدة الغلط بتترفض عادي.
           && (!('installmentAmount' in request.resource.data)
+              || unchangedField('installmentAmount')
               || (request.resource.data.installmentAmount is number
                   && request.resource.data.installmentAmount > 0))
           && (!('installmentCount' in request.resource.data)
+              || unchangedField('installmentCount')
               || (request.resource.data.installmentCount is int
                   && request.resource.data.installmentCount > 0));
       }

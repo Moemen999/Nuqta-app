@@ -1,5 +1,5 @@
 import { db } from '@/firebaseConfig';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
 import { addDoc, collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
@@ -260,5 +260,45 @@ describe('الدخل الثابت معزول بين المستخدمين', () =>
     const uidA = await signInTestUser();
     await signInTestUser();
     await expectDenied(setDoc(doc(db, 'users', uidA, 'incomes', 'evil'), income));
+  });
+});
+
+/**
+ * بناءات 15–17 سبتمبر (قبل ad4a339) كانت بتخزّن عدد الأقساط من غير تحقق
+ * (`Number(اللي اتكتب) || undefined`) — فممكن يكون فيه دين متخزّن فيه -2 أو 3.5.
+ * القاعدة بتتحقق من المستند **بعد الدمج**، فلو فحصت الحقل على طول، الدين ده
+ * كان هيتقفل: لا دفعة ولا تعديل. القاعدة بتفحص الحقل بس لما يتغيّر.
+ */
+describe('ديون قديمة فيها عدد أقساط غلط مبتتقفلش', () => {
+  const base = { personName: 'صاحبي', totalAmount: 900, direction: 'i_owe' };
+
+  it.each([[-2], [3.5], [0]])('دين متخزّن فيه installmentCount = %p ← تعديل الاسم أو إضافة دفعة بيعدّي', async (bad) => {
+    const uid = await signInTestUser();
+    await writeLegacyDoc(`users/${uid}/debts/legacy`, { ...base, isInstallment: 'x', installmentCount: bad });
+    const ref = doc(db, 'users', uid, 'debts', 'legacy');
+    await updateDoc(ref, { personName: 'صاحبي (اتعدّل)' });
+    await updateDoc(ref, { note: 'دفعة' });
+  });
+
+  it('بس لو الكتابة نفسها غيّرت العدد لقيمة غلط ← مرفوضة', async () => {
+    const uid = await signInTestUser();
+    await writeLegacyDoc(`users/${uid}/debts/legacy`, { ...base, installmentCount: -2 });
+    const ref = doc(db, 'users', uid, 'debts', 'legacy');
+    await expectDenied(updateDoc(ref, { installmentCount: -3 }));
+    await expectDenied(updateDoc(ref, { installmentCount: 2.5 }));
+    await updateDoc(ref, { installmentCount: 3 }); // التصليح مسموح
+  });
+
+  it('دين جديد بعدد غلط ← مرفوض زي الأول', async () => {
+    const uid = await signInTestUser();
+    await expectDenied(setDoc(doc(db, 'users', uid, 'debts', 'n1'), { ...base, installmentCount: -2 }));
+    await expectDenied(setDoc(doc(db, 'users', uid, 'debts', 'n2'), { ...base, installmentCount: 3.5 }));
+    await expectDenied(setDoc(doc(db, 'users', uid, 'debts', 'n3'), { ...base, installmentAmount: 0 }));
+  });
+
+  it('installmentAmount = 0 متخزّن من قبل ← التعديلات التانية بتعدّي', async () => {
+    const uid = await signInTestUser();
+    await writeLegacyDoc(`users/${uid}/debts/legacy`, { ...base, installmentCount: 200, installmentAmount: 0 });
+    await updateDoc(doc(db, 'users', uid, 'debts', 'legacy'), { personName: 'صاحبي ب' });
   });
 });

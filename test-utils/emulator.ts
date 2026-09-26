@@ -44,6 +44,24 @@ export async function signInTestUser(): Promise<string> {
   return cred.user.uid;
 }
 
+/**
+ * بيكتب مستند **من غير ما يعدّي على القواعد** (`Bearer owner` — المحاكي بس).
+ * لتمثيل بيانات قديمة اتكتبت قبل ما القاعدة تتشد: مثلاً دين فيه
+ * `installmentCount: -2` من بناء قبل `ad4a339` (15–17 سبتمبر) مكانش بيتحقق منه.
+ * الأرقام الصحيحة بتتكتب `integerValue` والكسور `doubleValue` زي الـSDK بالظبط.
+ */
+export async function writeLegacyDoc(path: string, data: Record<string, string | number>) {
+  const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k,
+    typeof v === 'string' ? { stringValue: v }
+      : Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v },
+  ]));
+  const res = await fetch(
+    `http://${emulatorHost()}/v1/projects/${PROJECT_ID}/databases/(default)/documents/${path}`,
+    { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) }
+  );
+  if (!res.ok) throw new Error(`مقدرتش أكتب المستند القديم: ${res.status} ${await res.text()}`);
+}
+
 /** بيستنى شوية عشان نتأكد إن مفيش كتابات زيادة في السكة (للاختبارات اللي بتتأكد من عدم التكرار) */
 export function settle(ms = 1500) {
   return new Promise(resolve => setTimeout(resolve, ms));
