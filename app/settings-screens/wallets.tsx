@@ -10,6 +10,7 @@ import {
   roundedWalletBalance, walletArchiveBlock, walletDeleteConsequences, walletHasHistory,
   walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
+import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -31,7 +32,7 @@ export default function WalletsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
-    wallets, transactions, debts, subscriptions, gamiyas, incomes,
+    wallets, transactions, debts, subscriptions, gamiyas, incomes, loadErrors,
     addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
   } = useData();
   const { walletColors } = useChartColors();
@@ -55,6 +56,14 @@ export default function WalletsScreen() {
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
+
+  /** لو بيانات الرصيد ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
+  function blockedByMissingData() {
+    const missing = walletActionBlockedBy(loadErrors);
+    if (missing.length === 0) return false;
+    Alert.alert(WALLET_BLOCKED_TITLE, walletBlockedBody(missing), [{ text: 'تمام' }]);
+    return true;
+  }
 
   function refsFor(id: string) {
     return walletReferences(id, { transactions, debts, subscriptions, gamiyas, incomes });
@@ -98,6 +107,7 @@ export default function WalletsScreen() {
   }
 
   function confirmDelete(id: string, name: string) {
+    if (blockedByMissingData()) return;
     const refs = refsFor(id);
     if (!walletHasHistory(refs)) {
       Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
@@ -117,6 +127,7 @@ export default function WalletsScreen() {
 
   /** التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي */
   function confirmHardDelete(id: string, name: string) {
+    if (blockedByMissingData()) return;
     const w = wallets.find(x => x.id === id);
     if (!w) return;
     const balance = roundedWalletBalance(transactions, id, w.openingBalance);
@@ -140,6 +151,7 @@ export default function WalletsScreen() {
   }
 
   function startArchive(id: string, name: string) {
+    if (blockedByMissingData()) return;
     if (!wallets.some(x => x.id === id)) return;
     const refs = refsFor(id);
     const others = activeWallets.filter(x => x.id !== id);
@@ -170,6 +182,7 @@ export default function WalletsScreen() {
 
   function confirmSheet(assignments: Record<string, string>) {
     if (!sheet) return;
+    if (blockedByMissingData()) return;
     // الشيت ممكن يفضل مفتوح وحاجة تتغيّر من جهاز تاني: عملية جديدة على
     // المحفظة، أو اشتراك/جمعية اتمسحوا ومعاهم دفعاتهم (money-reviewer). الرصيد
     // اتفحص وقت الفتح بس، فكانت بتتأرشف ورصيدها مش صفر ومحدش شايفه

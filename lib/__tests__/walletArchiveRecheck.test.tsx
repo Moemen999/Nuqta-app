@@ -41,7 +41,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 function seed() {
   Object.assign(mockData, {
     wallets, categories: [], transactions: baseTxs, budgets: {}, debts: [],
-    subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true,
+    subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true, loadErrors: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
     archiveWallet: jest.fn(), restoreWallet: jest.fn(),
   });
@@ -112,4 +112,25 @@ it('الجمعية اختفت بس دفعتها لسه ما اتشالتش من 
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
   expect(alertSpy).toHaveBeenCalledWith('فيه حاجة اتغيّرت', expect.stringContaining('كاش'), expect.anything());
+});
+
+/**
+ * listener العمليات اترفض (loadErrors) ← القايمة ممكن تكون ناقصة، فـ"مفيش تاريخ"
+ * و"الرصيد صفر" مش مضمونين. المسح والأرشفة بيقفوا وبيقولوا ليه (money-reviewer).
+ */
+it('العمليات ما وصلتش ← المسح بيقف برسالة بتسمّيها، ومفيش مسح ولا أرشفة', async () => {
+  mockData.loadErrors = ['transactions'];
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
+  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'), expect.anything());
+  expect(mockData.deleteWallet).not.toHaveBeenCalled();
+  expect(mockData.archiveWallet).not.toHaveBeenCalled();
+});
+
+it('الشيت مفتوح والعمليات وقعت قبل التأكيد ← مفيش أرشفة', async () => {
+  await openSheetAndAssign();
+  mockData.loadErrors = ['transactions'];
+  await confirm();
+  expect(mockData.archiveWallet).not.toHaveBeenCalled();
+  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.anything(), expect.anything());
 });

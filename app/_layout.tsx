@@ -14,6 +14,7 @@ import { applyGlobalFont } from '@/lib/applyGlobalFont';
 import LockScreen from '@/components/LockScreen';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import { DataProvider } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
@@ -58,6 +59,8 @@ function RootNavigator() {
 
   return (
     <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
+      <DataLoadErrorBanner />
       <Stack>
         <Stack.Protected guard={!!user}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

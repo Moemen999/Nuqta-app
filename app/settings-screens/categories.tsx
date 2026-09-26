@@ -10,6 +10,7 @@ import {
   categoryArchiveBlock, categoryDeleteConsequences, categoryHasHistory, categoryLinkSummary,
   categoryReferences, type ArchiveBlock,
 } from '@/lib/archiving';
+import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } from '@/lib/listenerErrors';
 import { categoryIcon } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -22,7 +23,7 @@ export default function CategoriesScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
-    categories, transactions, debts, subscriptions, budgets,
+    categories, transactions, debts, subscriptions, budgets, loadErrors,
     addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
   } = useData();
   const { categoryColors } = useChartColors();
@@ -74,7 +75,16 @@ export default function CategoriesScreen() {
       [{ text: 'تمام' }]);
   }
 
+  /** لو بيانات الاستخدام ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
+  function blockedByMissingData() {
+    const missing = categoryActionBlockedBy(loadErrors);
+    if (missing.length === 0) return false;
+    Alert.alert(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing), [{ text: 'تمام' }]);
+    return true;
+  }
+
   function confirmDelete(id: string, name: string) {
+    if (blockedByMissingData()) return;
     const refs = refsFor(id);
     if (!categoryHasHistory(refs)) {
       const budgetNote = refs.hasBudget ? ' وميزانيتها هتتمسح معاها.' : '';
@@ -94,6 +104,7 @@ export default function CategoriesScreen() {
   }
 
   function confirmHardDelete(id: string, name: string) {
+    if (blockedByMissingData()) return;
     Alert.alert('مسح نهائي', categoryDeleteConsequences(refsFor(id)).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(id, () => deleteCategory(id)) },
@@ -101,6 +112,7 @@ export default function CategoriesScreen() {
   }
 
   function startArchive(id: string, name: string) {
+    if (blockedByMissingData()) return;
     const refs = refsFor(id);
     const others = activeCategories.filter(x => x.id !== id);
     const block = categoryArchiveBlock({
@@ -213,7 +225,7 @@ export default function CategoriesScreen() {
             targetLabel="الفئة الجديدة"
             note={sheet.note}
             confirmText="أرشفها"
-            onConfirm={assignments => { archiveCategory(sheet.id, assignments); setSheet(null); }}
+            onConfirm={assignments => { if (blockedByMissingData()) return; archiveCategory(sheet.id, assignments); setSheet(null); }}
             onClose={() => setSheet(null)}
           />
         )}

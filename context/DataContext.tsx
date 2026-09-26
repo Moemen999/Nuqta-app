@@ -10,7 +10,7 @@ import {
 import {
   addDoc, collection, deleteDoc, deleteField, doc, FieldPath, onSnapshot, runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
-  type DocumentReference, type Transaction as FirestoreTransaction, type WriteBatch,
+  type DocumentReference, type FirestoreError, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Alert } from 'react-native';
@@ -19,6 +19,7 @@ import {
   incomeHasRecords, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
+import type { ListenerName } from '@/lib/listenerErrors';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -354,6 +355,14 @@ type DataContextType = {
   pendingTxIds: Set<string>;
   /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
   serverReachable: boolean;
+  /**
+   * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
+   * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
+   * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
+   */
+  loadErrors: ListenerName[];
+  /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
+  retryLoad: () => void;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
@@ -476,6 +485,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
   const [serverReachable, setServerReachable] = useState(false);
   const serverReachableRef = useRef(false);
+  const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
+  const [listenRetry, setListenRetry] = useState(0);
   const offlineWaiters = useRef(new Set<() => void>());
 
   /**
@@ -605,18 +617,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
         DEFAULT_CATEGORIES.forEach(name => addDocNoWait('categories', { name }));
       }
     })();
+  }, [uid]);
+
+  // الـlisteners في effect لوحده عشان "جرّب تاني" يفتحهم من الأول من غير ما
+  // يعيد `claimSeeding`
+  useEffect(() => {
+    if (!uid) { setLoadErrors([]); return; }
+
+    /**
+     * فايربيز بتقفل الـlistener نهائي لما يترفض — من غير الـcallback ده كان
+     * بيموت ساكت والقايمة تفضل فاضية. البيانات اللي وصلت قبل كده بتفضل زي ما
+     * هي (مبنمسحهاش)، والشاشة بتقول إنها ما وصلتش. في اللوج اسم المجموعة
+     * والكود بس — مفيش بيانات مستخدم.
+     */
+    const failed = (name: ListenerName) => (e: FirestoreError) => {
+      console.warn('قراية فشلت من فايربيز', name, e?.code);
+      setLoadErrors(prev => (prev.includes(name) ? prev : [...prev, name]));
+    };
+    /**
+     * الاسم بيتشال من `loadErrors` **لما snapshot يوصل فعلاً** — مش لما
+     * "جرّب تاني" يتداس. لو اتشال مع الضغطة، البانر كان هيختفي والقايمة لسه
+     * فاضية لحد ما السيرفر يرد (silent-failure-hunter). بيرجّع نفس الـstate لو
+     * الاسم مش موجود، فمفيش render زيادة مع كل snapshot عادي.
+     */
+    const loaded = (name: ListenerName) =>
+      setLoadErrors(prev => (prev.includes(name) ? prev.filter(n => n !== name) : prev));
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
+      loaded('wallets');
       setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
       noteConnection(snap.metadata.fromCache);
-    });
+    }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
+      loaded('categories');
       setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
-    });
+    }, failed('categories'));
     // includeMetadataChanges عشان نعرف مين لسه بيرفع ومين وصل: من غيرها فايربيز
     // مبتبعتش snapshot تاني لما السيرفر يأكد كتابة محتواها ما اتغيرش، فالعلامة
     // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
+      loaded('transactions');
       setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
@@ -624,18 +664,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
       // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
       noteConnection(snap.metadata.fromCache);
-    });
+    }, failed('transactions'));
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
+      loaded('budgets');
       const b: Budgets = {};
       snap.docs.forEach(d => { b[d.id] = (d.data() as any).limit; });
       setBudgets(b);
-    });
+    }, failed('budgets'));
     const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), (snap) => {
+      loaded('shakhbata_income');
       const s: ShakhbataIncome = {};
       snap.docs.forEach(d => { s[d.id] = (d.data() as any).income; });
       setShakhbataIncome(s);
-    });
+    }, failed('shakhbata_income'));
     const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), (snap) => {
+      loaded('shakhbata_settings');
       if (snap.exists()) {
         const data = snap.data() as any;
         setShakhbataPercentsState({
@@ -646,30 +689,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } else {
         setShakhbataPercentsState(DEFAULT_PERCENTS);
       }
-    });
+    }, failed('shakhbata_settings'));
     const unsubDebts = onSnapshot(collection(db, 'users', uid, 'debts'), (snap) => {
+      loaded('debts');
       // `payments` و`increases` الاتنين بقيمة افتراضية: النوع `Debt` بيقول إنهم
       // مصفوفات مش اختياريين، ومستند قديم من غير الحقلين كان بيخلي النوع
       // يكدب — وأربع شاشات بتعمل `d.payments.forEach/.map/.length` من غير
       // حراسة (`person-ledger`, `reports`, `debts` في مكانين)
       setDebts(snap.docs.map(d => ({ id: d.id, payments: [], increases: [], ...(d.data() as any) })) as Debt[]);
-    });
+    }, failed('debts'));
     const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
+      loaded('subscriptions');
       setSubscriptions(snap.docs.map(d => ({ id: d.id, history: [], ...(d.data() as any) })) as Subscription[]);
-    });
+    }, failed('subscriptions'));
     const unsubGamiyas = onSnapshot(collection(db, 'users', uid, 'gamiyas'), (snap) => {
+      loaded('gamiyas');
       setGamiyas(snap.docs.map(d => ({ id: d.id, months: [], ...(d.data() as any) })) as Gamiya[]);
-    });
+    }, failed('gamiyas'));
 
     const unsubIncomes = onSnapshot(collection(db, 'users', uid, 'incomes'), (snap) => {
+      loaded('incomes');
       setIncomes(snap.docs.map(d => ({ id: d.id, closed: {}, ...(d.data() as any) })) as RecurringIncome[]);
-    });
+    }, failed('incomes'));
 
     return () => {
       unsubWallets(); unsubCategories(); unsubTx(); unsubBudgets(); unsubShakhbata(); unsubPercents();
       unsubDebts(); unsubSubs(); unsubGamiyas(); unsubIncomes();
     };
-  }, [uid]);
+  }, [uid, listenRetry]);
 
   async function addWallet(name: string) {
     if (!uid) return;
@@ -1687,6 +1734,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable,
+        loadErrors, retryLoad: () => setListenRetry(n => n + 1),
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,

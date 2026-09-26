@@ -3,7 +3,8 @@ import NotificationsScreen, { STATUS_OFF, STATUS_ON } from '@/app/settings-scree
 import WalletsScreen from '@/app/settings-screens/wallets';
 import { EMPTY_OFFLINE_NOTE } from '@/components/ListEmptyState';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Alert } from 'react-native';
 import React from 'react';
 import { warmUp } from '@/test-utils/warmUp';
 
@@ -30,7 +31,7 @@ const categories = [
 
 const mockData: any = {
   wallets, categories, transactions: [], budgets: {}, debts: [],
-  subscriptions: [], gamiyas: [], serverReachable: true,
+  subscriptions: [], gamiyas: [], serverReachable: true, loadErrors: [],
   updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
   archiveWallet: jest.fn(), restoreWallet: jest.fn(),
   updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(),
@@ -173,5 +174,22 @@ describe('الحالة الفاضية بتفرّق بين "مفيش" و"لسه �
     await wrap(<CategoriesScreen />);
     expect(screen.getByTestId('categories_empty')).toBeTruthy();
     expect(screen.getByText(new RegExp(EMPTY_OFFLINE_NOTE))).toBeTruthy();
+  });
+});
+
+/**
+ * listener العمليات اترفض ← "الفئة مالهاش تاريخ" ممكن يكون غلط، فالمسح كان
+ * هيمسح فئة عليها عمليات (silent-failure-hunter). المسح بيقف ويقول ليه.
+ */
+describe('الفئات — البيانات ما وصلتش', () => {
+  afterEach(() => { mockData.loadErrors = []; jest.restoreAllMocks(); });
+
+  it('العمليات ما وصلتش ← مسح الفئة بيقف برسالة، ومفيش مسح', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockData.loadErrors = ['transactions'];
+    await wrap(<CategoriesScreen />);
+    await act(async () => { fireEvent.press(screen.getByTestId('category_delete_c1')); });
+    expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'), expect.anything());
+    expect(mockData.deleteCategory).not.toHaveBeenCalled();
   });
 });
