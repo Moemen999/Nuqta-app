@@ -65,6 +65,8 @@ function RootNavigator() {
           <Stack.Screen name="person-ledger" options={{ headerShown: false }} />
           <Stack.Screen name="archive" options={{ headerShown: false }} />
           <Stack.Screen name="user-guide" options={{ headerShown: false }} />
+          {/* تعبئة حساب الاختبار — بترجع للرئيسية في الإنتاج (__DEV__) */}
+          <Stack.Screen name="dev-seed" options={{ headerShown: false }} />
           {/*
             الشاشات الداخلية للإعدادات في فولدر `settings-screens` مش `settings`:
             تاب الإعدادات نفسه مساره `/settings` (من `app/(tabs)/settings.tsx` بعد
