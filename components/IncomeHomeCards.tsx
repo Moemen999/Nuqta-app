@@ -25,19 +25,30 @@ import {
  * شكل مختلف عن بانرات التنبيه عن قصد: خط دهبي على الجنب وعنوان تقيل —
  * دي فلوس داخلة ومحتاجة دوسة، مش تحذير.
  */
+/**
+ * الدخول الثابتة اللي بتستنى "نزل؟" دلوقتي. مصدر واحد للكارت وللزرار العايم:
+ * الـ"+" بيستخبّى في الرئيسية طول ما فيه كارت (`app/(tabs)/_layout.tsx`)،
+ * عشان كان بيقعد فوق زرار "ما نزلش".
+ */
+export function usePendingIncomes() {
+  const { incomes } = useData();
+  const today = todayStr();
+  return incomes
+    .filter(i => i.mode === 'confirm')
+    .map(inc => ({ inc, keys: incomeOpenPeriods(inc, today) }))
+    .filter(x => x.keys.length > 0);
+}
+
 export default function IncomeHomeCards() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { incomes, wallets, recordIncomePeriods, skipIncomePeriod } = useData();
+  const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
   const { notices, dismiss } = useIncomeAutoRecord();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
 
-  const pending = incomes
-    .filter(i => i.mode === 'confirm')
-    .map(inc => ({ inc, keys: incomeOpenPeriods(inc, today) }))
-    .filter(x => x.keys.length > 0);
+  const pending = usePendingIncomes();
 
   // مفيش حركة خروج للكارت عن قصد: LayoutAnimation ما عملش أي حاجة على الجهاز
   // (Galaxy A56، New Architecture) حتى بمدة 3 ثواني — الكارت بيختفي على طول.

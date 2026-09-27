@@ -3,6 +3,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
+import { usePendingIncomes } from '@/components/IncomeHomeCards';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -20,13 +21,19 @@ import { useTheme } from '@/context/ThemeContext';
  *
  * الإخفاء بالشرط مش بإزاحة: الزرار `position: 'absolute'` فمش داخل في حساب
  * التخطيط أصلاً، يعني ظهوره واختفاؤه مش بيحرّك ولا عنصر في أي شاشة.
+ *
+ * **وبيستخبّى في الرئيسية طول ما فيه كارت "نزل؟"** (2026-09-27): كان بيقعد فوق
+ * زرار "ما نزلش" لما الهيدر الثابت يطول بالبانرات. نقل الكارت للهيدر مكانش
+ * هيضمن ده — الهيدر مبيسكرولش، وعلى شاشة صغيرة كان هيزق المحتوى برّه الشاشة.
+ * الكارت بيتحل بدوسة واحدة والزرار بيرجع على طول، وفي التقارير والتخطيط موجود.
  */
 const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
 
 export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
-  const showFab = FAB_TAB_PATHS.includes(pathname);
+  const incomeCardShowing = usePendingIncomes().length > 0;
+  const showFab = FAB_TAB_PATHS.includes(pathname) && !(pathname === '/' && incomeCardShowing);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -80,7 +87,7 @@ export default function TabLayout() {
       </Tabs>
 
       {showFab && (
-        <TouchableOpacity testID="tx_add_button" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+        <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
           <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
         </TouchableOpacity>
       )}

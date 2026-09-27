@@ -314,7 +314,9 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     fixedTop: { paddingHorizontal: 16, paddingTop: 16 },
     scrollArea: { flex: 1 },
-    scrollContent: { paddingHorizontal: 16, paddingBottom: 40 },
+    // 120 مش 40: الزرار العايم (54 على bottom 90) بيغطي ~85–95 من آخر السكرول،
+    // فآخر عملية مكانتش بتقدر تطلع من تحته (a11y-architect)
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
     hello: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 12 },
     balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
