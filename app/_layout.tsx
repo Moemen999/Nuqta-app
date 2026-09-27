@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
+import { ActivityIndicator, Text, View } from 'react-native';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { initSentry } from '@/lib/sentry';
 import { applyGlobalFont } from '@/lib/applyGlobalFont';
@@ -15,7 +16,8 @@ import LockScreen from '@/components/LockScreen';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
-import { DataProvider } from '@/context/DataContext';
+import FirstRunSetup from '@/components/FirstRunSetup';
+import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
@@ -24,10 +26,23 @@ export const unstable_settings = {
   anchor: '(tabs)',
 };
 
+/** لمحة "بنتأكد من حسابك" أول ما حساب يفتح أول مرة على الجهاز ده — ثواني بالكتير */
+function SetupChecking() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 12 }}
+      accessibilityLiveRegion="polite">
+      <ActivityIndicator color={colors.accent} size="large" />
+      <Text style={{ color: colors.textSecondary, fontSize: 14 }}>بنتأكد من حسابك…</Text>
+    </View>
+  );
+}
+
 function RootNavigator() {
   const { user, loading } = useAuth();
   const { theme } = useTheme();
   const { enabled, isLocked, loading: lockLoading } = useAppLock();
+  const { setupStatus } = useData();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -52,6 +67,18 @@ function RootNavigator() {
     return (
       <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
         <LockScreen />
+        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
+      </NavThemeProvider>
+    );
+  }
+
+  // "نبدأ بإيه؟" للحساب الجديد بس — بعد القفل. `needed` معناها السيرفر أكّد إنه
+  // جديد؛ `unknown` (مفيش نت) مبيقفلش التطبيق، والسؤال بيتعاد (DataContext).
+  // `checking` لمحة قصيرة أول مرة بس — بعدها الحالة متفكرة على الجهاز.
+  if (user && (setupStatus === 'needed' || setupStatus === 'checking')) {
+    return (
+      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+        {setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />}
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
     );

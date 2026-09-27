@@ -4,6 +4,12 @@ import React from 'react';
 
 type DataApi = ReturnType<typeof useData>;
 
+/** نفس المحافظ والفئات اللي التعبئة الأوتوماتيك القديمة كانت بتعملها */
+export const TEST_SETUP = {
+  wallets: [{ name: 'CIB', openingBalance: 0 }, { name: 'NBE', openingBalance: 0 }, { name: 'CASH', openingBalance: 0 }],
+  categories: ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'],
+};
+
 /**
  * بيركّب DataProvider الحقيقي (بكل الـ onSnapshot بتوعه) وبيرجّع مقبض للدوال
  * والبيانات اللي جواه. بنستخدم البروفايدر نفسه مش نسخة مقلّدة عشان الاختبار
@@ -50,7 +56,15 @@ export async function renderDataProvider() {
    * وده حصل فعلاً في الاختبارات: المحافظ الافتراضية بتظهر من الكاش المحلي قبل
    * ما السيرفر يأكدها، فالاختبار كان بيكمل والتطبيق لسه بيعتبر نفسه أوفلاين
    */
-  function waitForReady(minWallets = 3) {
+  async function waitForReady(minWallets = 3) {
+    // الحساب الجديد مبقاش بيتعبّى لوحده (شاشة "نبدأ بإيه؟") — فالاختبار بيجهّزه
+    // بنفس الطريق الحقيقي (completeSetup) وبنفس المحافظ والفئات اللي الاختبارات
+    // القديمة متعودة عليها
+    await waitForData(api => api.setupStatus !== 'checking');
+    if (holder.current?.setupStatus === 'needed') {
+      const outcome = await holder.current.completeSetup(TEST_SETUP);
+      if (outcome !== 'done' && outcome !== 'already-done') throw new Error(`تجهيز حساب الاختبار فشل: ${outcome}`);
+    }
     return waitForData(api => api.wallets.length >= minWallets && api.serverReachable);
   }
 

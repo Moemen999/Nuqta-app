@@ -8,7 +8,8 @@ import {
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, FieldPath, onSnapshot, runTransaction, serverTimestamp,
+  addDoc, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
+  runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
   type DocumentReference, type FirestoreError, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
@@ -20,6 +21,11 @@ import {
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
+import {
+  SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, setupDoneKey, setupFingerprint, validateSetupChoice,
+  type SetupChoice, type SetupOutcome, type SetupStatus,
+} from '@/lib/firstRunSetup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -363,6 +369,10 @@ type DataContextType = {
   loadErrors: ListenerName[];
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
+  /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
+  setupStatus: SetupStatus;
+  /** بيحفظ اختيارات التجهيز كلها مرة واحدة وبيستنى السيرفر — شوف `completeSetup` */
+  completeSetup: (choice: SetupChoice) => Promise<SetupOutcome>;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
   deleteWallet: (id: string) => Promise<void>;
@@ -426,12 +436,6 @@ export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[] };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-const DEFAULT_WALLETS = [
-  { name: 'CIB', openingBalance: 0, lowAlert: 0 },
-  { name: 'NBE', openingBalance: 0, lowAlert: 0 },
-  { name: 'CASH', openingBalance: 0, lowAlert: 0 },
-];
-const DEFAULT_CATEGORIES = ['المواصلات', 'الفطار', 'السوبرماركت', 'أكل', 'أخرى'];
 const DEFAULT_PERCENTS: ShakhbataPercents = { needs: 50, wants: 30, future: 20 };
 /**
  * أقصى انتظار للكتابات اللي لسه بترفع قبل أي عملية بتقرا من السيرفر. فايربيز
@@ -442,18 +446,47 @@ const PENDING_WAIT_TIMEOUT_MS = 15000;
 /** حد فايرستور لعدد العمليات في الدفعة الواحدة */
 const BATCH_LIMIT = 500;
 
-async function claimSeeding(uid: string): Promise<boolean> {
-  const userRef = doc(db, 'users', uid);
+/** سقف الانتظار لسؤال السيرفر "الحساب ده جديد؟" قبل ما نقول `unknown` */
+const SETUP_CHECK_TIMEOUT_MS = 8000;
+/** بنعيد السؤال كل الوقت ده طول ما الحالة `unknown` (مفيش نت) */
+const SETUP_RECHECK_MS = 20000;
+/** سقف لحفظ التجهيز — runTransaction نفسها بترفض أوفلاين بعد ~10 ثواني */
+const SETUP_SAVE_TIMEOUT_MS = 20000;
+
+/** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const cap = new Promise<never>((_, reject) => { t = setTimeout(() => reject(new Error('timeout')), ms); });
+  return Promise.race([p, cap]).finally(() => { if (t) clearTimeout(t); });
+}
+
+/**
+ * الحساب ده محتاج شاشة "نبدأ بإيه؟"؟ **من السيرفر بس** — مفيش قرار على تخمين.
+ *
+ * `needed` لو: `users/{uid}` مفيهوش `seeded` **ومفيش** ولا محفظة ولا فئة.
+ * الشرط التاني عشان الحسابات القديمة جدًا (قبل `seeded`) اللي عندها بيانات
+ * متشوفش الشاشة — ودي بيتكتب لها `seeded` على طول.
+ * أي فشل (مفيش نت، سقف الوقت) ← `unknown`: التطبيق بيفتح عادي والسؤال بيتعاد.
+ */
+async function detectSetup(uid: string): Promise<'done' | 'needed' | 'unknown'> {
   try {
-    return await runTransaction(db, async (tx) => {
-      const snap = await tx.get(userRef);
-      const data = snap.exists() ? snap.data() : {};
-      if (data?.seeded) return false;
-      tx.set(userRef, { ...(data || {}), seeded: true }, { merge: true });
-      return true;
-    });
-  } catch {
-    return false;
+    const userRef = doc(db, 'users', uid);
+    const user = await withTimeout(getDocFromServer(userRef), SETUP_CHECK_TIMEOUT_MS);
+    if (user.exists() && user.data()?.seeded) return 'done';
+    const [w, c] = await withTimeout(Promise.all([
+      getDocsFromServer(query(collection(db, 'users', uid, 'wallets'), limit(1))),
+      getDocsFromServer(query(collection(db, 'users', uid, 'categories'), limit(1))),
+    ]), SETUP_CHECK_TIMEOUT_MS);
+    if (!w.empty || !c.empty) {
+      // حساب قديم جدًا من غير seeded: نكتبه عشان الأجهزة الجاية متسألش تاني
+      // (silent-failure-hunter). من غير انتظار — لو فشل هنسأل تاني وخلاص
+      setDoc(userRef, { seeded: true }, { merge: true }).catch(() => {});
+      return 'done';
+    }
+    return 'needed';
+  } catch (e) {
+    console.warn('[setup] مقدرناش نتأكد الحساب جديد ولا لأ', (e as { code?: string })?.code ?? (e as Error)?.message);
+    return 'unknown';
   }
 }
 
@@ -486,6 +519,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [serverReachable, setServerReachable] = useState(false);
   const serverReachableRef = useRef(false);
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
   const offlineWaiters = useRef(new Set<() => void>());
@@ -610,17 +644,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    (async () => {
-      const shouldSeed = await claimSeeding(uid);
-      if (shouldSeed) {
-        DEFAULT_WALLETS.forEach(w => addDocNoWait('wallets', w));
-        DEFAULT_CATEGORIES.forEach(name => addDocNoWait('categories', { name }));
+  }, [uid]);
+
+  /**
+   * الحساب محتاج تجهيز؟ (شاشة "نبدأ بإيه؟"). اللي اتأكد مرة بيتفكر على الجهاز
+   * فمبيتسألش السيرفر تاني. `unknown` بيتعاد كل 20 ثانية لحد ما النت يرجع —
+   * عشان حساب جديد فتح أول مرة من غير نت ميفضلش من غير محافظ ساكت.
+   */
+  useEffect(() => {
+    if (!uid) { setSetupStatus('checking'); return; }
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    setSetupStatus('checking');
+    const run = async () => {
+      try {
+        if ((await AsyncStorage.getItem(setupDoneKey(uid))) === '1') { if (!cancelled) setSetupStatus('done'); return; }
+      } catch {
+        // لو القراية وقعت نسأل السيرفر عادي
       }
-    })();
+      const status = await detectSetup(uid);
+      if (cancelled) return;
+      if (status === 'done') AsyncStorage.setItem(setupDoneKey(uid), '1').catch(() => {});
+      setSetupStatus(status);
+      if (status === 'unknown') retry = setTimeout(run, SETUP_RECHECK_MS);
+    };
+    run();
+    return () => { cancelled = true; if (retry) clearTimeout(retry); };
   }, [uid]);
 
   // الـlisteners في effect لوحده عشان "جرّب تاني" يفتحهم من الأول من غير ما
-  // يعيد `claimSeeding`
+  // يعيد التحقق من التجهيز (شوف setupStatus)
   useEffect(() => {
     if (!uid) { setLoadErrors([]); return; }
 
@@ -1637,6 +1690,73 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * إشارة "الاتصال وقع" ومع سقف زمني — عشان الانتظار يفضل محدود دايمًا.
    * بيرجّع false يعني ما وصلناش السيرفر، ومحصلش أي خصم لأننا مابدأناش أصلاً.
    */
+  /**
+   * أول تجهيز للحساب: المحافظ (بأرصدتها الافتتاحية) والفئات و`seeded: true`
+   * في عملية ذرية واحدة — يا كلهم يتسجلوا يا ولا واحد.
+   *
+   * **بيستنى السيرفر** (استثناء قاعدة 7 زي أي عملية ذرية): المستخدم لازم يعرف
+   * اتحفظ ولا لأ — ده بالظبط اللي كان ناقص في `claimSeeding` القديمة اللي
+   * كانت بتبلع فشلها وتسيب الحساب من غير محافظ.
+   *
+   * مش بنرفض على `serverReachable` زي باقي العمليات الذرية: الحساب الجديد
+   * مفيهوش ولا محفظة ولا عملية، والـlistener على مجموعة فاضية مبيبعتش snapshot
+   * (CLAUDE.md، "مشاكل معروفة") — فـ`serverReachable` بيفضل false وكان هيرفض
+   * على طول. بدل كده سقف وقت، و`runTransaction` نفسها بترفض أوفلاين.
+   *
+   * `seeded` بيتفحص **جوه** العملية: جهازين بيجهّزوا نفس الحساب مع بعض ←
+   * واحد بس يكتب (نفس حماية `claimSeeding`). ولو محاولة سابقة وصلت السيرفر
+   * بعد ما السقف خلص، المحاولة الجاية بتلاقيه ← `already-done` مش تكرار.
+   */
+  async function completeSetup(choice: SetupChoice): Promise<SetupOutcome> {
+    if (!uid) return 'failed';
+    const invalid = validateSetupChoice(choice);
+    if (invalid) { console.warn('[setup] اختيارات مش صحيحة وصلت للحفظ', invalid); return 'failed'; }
+    const userRef = doc(db, 'users', uid);
+    const fingerprint = setupFingerprint(choice);
+    const markDone = () => {
+      setSetupStatus('done');
+      AsyncStorage.setItem(setupDoneKey(uid), '1').catch(() => {});
+    };
+    const tx = countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(userRef);
+        // اتجهّز قبل كده: بنفس الاختيارات ولا بغيرها؟ (محاولة قديمة وصلت بعد السقف
+        // بأرقام قبل ما المستخدم يعدّلها، أو جهاز تاني)
+        if (snap.exists() && snap.data()?.seeded) {
+          return snap.data()?.setupChoice === fingerprint ? 'already-done' as const : 'already-done-other' as const;
+        }
+        choice.wallets.forEach(w => t.set(doc(collection(db, 'users', uid, 'wallets')), {
+          name: w.name.trim(), openingBalance: roundMoney(w.openingBalance), lowAlert: 0,
+        }));
+        choice.categories.forEach(name => t.set(doc(collection(db, 'users', uid, 'categories')), { name: name.trim() }));
+        t.set(userRef, { seeded: true, setupChoice: fingerprint, setupCompletedAt: new Date().toISOString() }, { merge: true });
+        return 'done' as const;
+    }));
+    try {
+      const outcome = await withTimeout(tx, SETUP_SAVE_TIMEOUT_MS);
+      markDone();
+      return outcome;
+    } catch (e) {
+      if ((e as Error)?.message === 'timeout') {
+        // السقف خلص بس العملية نفسها لسه ممكن تكمل (Promise.race مبيلغيهاش). مش
+        // بنقول "ما اتحفظش" — ده مش مؤكد (silent-failure-hunter). ولو وصلت بعدين،
+        // الحالة بتبقى done والتطبيق بيفتح لوحده؛ لو فشلت، الشاشة فاضلة زي ما هي
+        // كل النتايج بتتقال: المستخدم ممكن يكون رجع يعدّل، فالشاشة بتتقفل
+        // فجأة — الـAlert بيقول ليه، وبالاختيارات بتاعة أنهي محاولة (silent-failure-hunter)
+        tx.then(r => {
+          markDone();
+          const msg = r === 'already-done-other' ? SETUP_OTHER_MESSAGE : SETUP_LATE_DONE_MESSAGE;
+          Alert.alert(msg.title, msg.body, [{ text: 'تمام' }]);
+        }).catch(err => noteAtomicFailure('تجهيز الحساب (المحاولة المتأخرة فشلت)', err));
+        noteAtomicFailure('تجهيز الحساب (السقف خلص)', e);
+        return 'unconfirmed';
+      }
+      const code = (e as { code?: string })?.code;
+      noteAtomicFailure('تجهيز الحساب', e);
+      // unavailable من runTransaction نفسها قاطعة: العملية ما اتكتبتش
+      return code === 'unavailable' ? 'no-connection' : 'failed';
+    }
+  }
+
   async function waitForOurWritesToLand(): Promise<boolean> {
     const lost = whenConnectionLost();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1734,7 +1854,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable,
-        loadErrors, retryLoad: () => setListenRetry(n => n + 1),
+        loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
