@@ -67,10 +67,14 @@
 - `PendingSyncMark.tsx` — علامة "⏳ لسه بترفع" جنب العملية
 - `BackButton.tsx` — زرار الرجوع في الشاشات الجوّه
 
-**كود ميت من قالب Expo** — مفيش حاجة بتستورده، وسايبينه لحد ما يتشال في
-تنضيفة مقصودة: `external-link.tsx`, `hello-wave.tsx`, `parallax-scroll-view.tsx`,
-`themed-text.tsx`, `themed-view.tsx`, `ui/collapsible.tsx`.
+**الكود الميت من قالب Expo اتشال** (2026-09-27، تنضيفة Antigravity — `4350d29`):
+`external-link`, `hello-wave`, `parallax-scroll-view`, `themed-text`,
+`themed-view`, `ui/collapsible`، و`hooks/use-color-scheme` (+`.web`)،
+و`hooks/use-theme-color`، و`constants/theme.ts`. ومعاهم `toggleTheme` من
+`ThemeContext` (مكانش حد بيستخدمه).
 **اللي لسه شغّال من القالب:** `haptic-tab.tsx` و`ui/icon-symbol.tsx` (+ `.ios.tsx`).
+- `FirstRunSetup.tsx` — شاشة "نبدأ بإيه؟" لأول تجهيز للحساب الجديد (شوف `setupStatus` تحت)
+- `DataLoadErrorBanner.tsx` — بانر "مقدرناش نجيب بياناتك" لما listener يترفض
 
 ### `context/` — الـ Contexts والدور بتاع كل واحدة
 - **`AuthContext.tsx`** — تسجيل الدخول/الخروج (إيميل+باسورد، جوجل)، `sendEmailVerification`، بيكتب بيانات المستخدم الأساسية في `users/{uid}` عند أول تسجيل
@@ -95,10 +99,8 @@
 - `notifications.ts` — طبقة رفيعة فوق `expo-notifications`: إعداد قناة أندرويد وسلوك الإشعارات (`setupNotifications`)، طلب/فحص الإذن، وجدولة إشعار في تاريخ معين أو تذكير يومي متكرر
 - `scheduleAllReminders.ts` — بيمسح كل التذكيرات المجدولة ويعيد جدولتها من الأول بناءً على الاشتراكات والجمعية الحالية (كل واحد قبل موعده بـ `reminderDaysBefore` يوم) + التذكير اليومي لو مفعّل — بينادى من `NotificationsContext` كل ما البيانات أو الإعدادات تتغيّر
 
-### `hooks/` و`constants/`
-- `use-chart-colors.ts` — **الهوك الشغّال**: بيوزّع ألوان الرسوم على كل الفئات والمحافظ مرة واحدة، عشان نفس الفئة تاخد نفس اللون في كل الشاشات
-- `use-color-scheme.ts` / `.web.ts`, `use-theme-color.ts` — **كود ميت** من قالب Expo (مفيش حاجة بتستوردهم غير كومبوننتس ميتة). مصدر الألوان الحقيقي `ThemeContext`
-- `constants/theme.ts` — ثوابت ثيم من قالب Expo الافتراضي (مش المصدر الأساسي للألوان — المصدر الحقيقي `ThemeContext`)
+### `hooks/`
+- `use-chart-colors.ts` — **الهوك الوحيد**: بيوزّع ألوان الرسوم على كل الفئات والمحافظ مرة واحدة، عشان نفس الفئة تاخد نفس اللون في كل الشاشات. (هوكس القالب و`constants/` اتشالوا — مصدر الألوان الوحيد `ThemeContext`)
 
 ### `firebaseConfig.js`
 إعداد Firebase (apiKey, projectId, إلخ) وتصدير `auth` و`db`. **قواعد الأمان موجودة في `firestore.rules` بجذر الريبو** (اتضافت 2026-09-07 — قبل كده كانت متدارة من كونسول Firebase بس). بتتحقق من **الحقول المطلوبة بس ومبتمنعش أي حقل زيادة** — شوف قاعدة 6 تحت. اختبارات `context/__tests__/*.emulator.test.tsx` (شوف `npm run test:db`) بتشغّل نفس الملف ده على محاكي Firestore الحقيقي.
