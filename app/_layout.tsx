@@ -11,6 +11,7 @@ import { ActivityIndicator, Text, View } from 'react-native';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { initSentry } from '@/lib/sentry';
 import { applyGlobalFont } from '@/lib/applyGlobalFont';
+import { holdSplash, releaseSplash } from '@/lib/splash';
 
 import LockScreen from '@/components/LockScreen';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
@@ -21,6 +22,10 @@ import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+
+// الـsplash يفضل لحد ما يبقى فيه حاجة تتعرض، والحزام (5 ثواني) بيبدأ من هنا —
+// برّه أي كومبوننت، عشان يشتغل حتى لو الخطوط علّقت (lib/splash.ts)
+holdSplash();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -51,7 +56,12 @@ function RootNavigator() {
       .catch(() => setOnboardingDone(true));
   }, []);
 
-  if (loading || lockLoading || onboardingDone === null) return null;
+  const ready = !loading && !lockLoading && onboardingDone !== null;
+  useEffect(() => {
+    if (ready) releaseSplash();
+  }, [ready]);
+
+  if (!ready) return null;
 
   // شاشة الترحيب بتظهر مرة واحدة بس لأول مستخدم جديد
   if (!onboardingDone) {
@@ -132,7 +142,7 @@ function RootNavigator() {
 initSentry();
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Tajawal_400Regular,
     Tajawal_500Medium,
     Tajawal_700Bold,
@@ -143,7 +153,12 @@ export default function RootLayout() {
     if (fontsLoaded) applyGlobalFont();
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) return null;
+  // الخطوط فشلت ← التطبيق يكمّل بخط النظام بدل ما يستنى للأبد
+  useEffect(() => {
+    if (fontError) console.warn('[fonts] Tajawal', fontError);
+  }, [fontError]);
+
+  if (!fontsLoaded && !fontError) return null;
 
   return (
     <ThemeProvider>
