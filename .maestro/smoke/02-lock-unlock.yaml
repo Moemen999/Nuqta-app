@@ -1,0 +1,49 @@
+# قفل بـ PIN ← قفل التطبيق وفتحه ← شاشة القفل ← الـPIN بيفتح ← الرئيسية.
+# وفي الآخر بيلغي القفل عشان التشغيل الجاي يبدأ من غير قفل.
+appId: host.exp.exponent
+---
+- openLink: exp://127.0.0.1:8081/--/settings-screens/lock
+- tapOn:
+    id: lock_enable_button
+- tapOn:
+    id: setlock_type_pin
+- tapOn:
+    id: setlock_code1
+- inputText: "2468"
+- tapOn:
+    id: setlock_code2
+- inputText: "2468"
+- tapOn:
+    id: setlock_submit
+- extendedWaitUntil:
+    visible:
+      id: lock_status
+    timeout: 10000
+- stopApp
+- openLink: exp://127.0.0.1:8081
+- extendedWaitUntil:
+    visible:
+      id: lock_password_input
+    timeout: 60000
+- tapOn:
+    id: lock_password_input
+- inputText: "2468"
+- tapOn:
+    id: lock_submit_button
+- extendedWaitUntil:
+    visible:
+      id: tx_add_button
+    timeout: 20000
+# تنضيف: إلغاء القفل
+- openLink: exp://127.0.0.1:8081/--/settings-screens/lock
+- tapOn:
+    id: lock_disable_button
+- tapOn:
+    id: setlock_old_code
+- inputText: "2468"
+- tapOn:
+    id: setlock_submit
+- extendedWaitUntil:
+    visible:
+      id: lock_enable_button
+    timeout: 10000

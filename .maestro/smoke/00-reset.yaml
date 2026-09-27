@@ -1,0 +1,33 @@
+# حساب الاختبار بس: بيفتح dev-seed بالـuid اللي في -e UID. لو الحساب المفتوح
+# مش هو، الشاشة بترفض (dev_seed_mismatch) والـflow بيقع هنا قبل أي كتابة.
+# بعدين بيمسح بيانات التجربة ويعبّيها من جديد، فكل تشغيل بيبدأ من نفس الحالة.
+# الـuid والإيميل مش مكتوبين هنا — الريبو عام (CLAUDE.md، "طقم الـsmoke").
+appId: host.exp.exponent
+---
+- openLink: exp://127.0.0.1:8081/--/dev-seed?uid=${UID}
+- extendedWaitUntil:
+    visible:
+      id: dev_seed_uid
+    timeout: 60000
+- assertVisible: ${EMAIL}
+- assertNotVisible:
+    id: dev_seed_mismatch
+- runFlow:
+    when:
+      notVisible:
+        id: dev_seed_state_empty
+    commands:
+      - tapOn:
+          id: dev_seed_wipe
+      - tapOn: امسحها نهائي
+      - extendedWaitUntil:
+          visible:
+            id: dev_seed_state_empty
+          timeout: 30000
+- tapOn:
+    id: dev_seed_start
+- tapOn: عبّيها
+- extendedWaitUntil:
+    visible:
+      id: dev_seed_state_complete
+    timeout: 30000

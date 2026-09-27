@@ -1,0 +1,8 @@
+# طقم الـsmoke — ⚠️ لسه ما اشتغلش ولا مرة (2026-09-27): أول تشغيل على الـRedmi وقف
+# قبل أي خطوة (MIUI منع تثبيت أداة Maestro). طريقة التشغيل هتتكتب في CLAUDE.md
+# بعد أول تشغيل ينجح — مش قبل. حساب الاختبار بس: 00-reset بيقع لو مش هو.
+appId: host.exp.exponent
+---
+- runFlow: 00-reset.yaml
+- runFlow: 01-transaction-balance.yaml
+- runFlow: 02-lock-unlock.yaml

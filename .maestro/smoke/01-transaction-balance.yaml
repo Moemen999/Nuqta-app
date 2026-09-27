@@ -1,0 +1,25 @@
+# عملية مصروف 100 من "تجربة 1" ← رصيدها في الرئيسية بيبقى 5,870.
+# التعبئة بتبدأ "تجربة 1" بـ 5,970: 5000 + 3000 − 150 − 200 − 120 − 60 − 500
+# (تحويل) − 1000 (سلفة صاحبي أ).
+appId: host.exp.exponent
+---
+- openLink: exp://127.0.0.1:8081/--/
+- extendedWaitUntil:
+    visible:
+      id: tx_add_button
+    timeout: 30000
+- assertVisible: "5,970"
+- tapOn:
+    id: tx_add_button
+- tapOn:
+    id: tx_type_expense
+- tapOn:
+    id: tx_amount_input
+- inputText: "100"
+- tapOn: تجربة 1
+- tapOn: فئة أ
+- tapOn:
+    id: tx_save_button
+- extendedWaitUntil:
+    visible: "5,870"
+    timeout: 15000
