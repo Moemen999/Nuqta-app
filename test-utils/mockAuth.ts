@@ -13,3 +13,18 @@ export function setMockUid(value: string) {
 export function getMockUid() {
   return uid;
 }
+
+/**
+ * `user.metadata.creationTime` للمستخدم المزيّف — `undefined` افتراضيًا، فالفحص
+ * بيعدّي على السيرفر زي حساب اتعمل بعد SETUP_FEATURE_CUTOFF. الاختبار اللي
+ * محتاجه بيحطه ويرجّعه.
+ */
+let creationTime: string | undefined;
+
+export function setMockCreationTime(value: string | undefined) {
+  creationTime = value;
+}
+
+export function getMockUser() {
+  return { uid, metadata: { creationTime } };
+}

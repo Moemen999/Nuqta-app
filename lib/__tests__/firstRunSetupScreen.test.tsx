@@ -146,3 +146,19 @@ describe('setupFingerprint', () => {
     expect(setupFingerprint(a)).not.toBe(setupFingerprint({ ...a, wallets: [{ name: 'كاش', openingBalance: 11 }, a.wallets[1]] }));
   });
 });
+
+/**
+ * التاريخ ده ممنوع يتأخر أبدًا (money-reviewer): لو اتأخر بعد أول بناء فيه شاشة
+ * "نبدأ بإيه؟"، حساب جديد اتعمل في الفترة دي هيتعدّى الشاشة من غير ما يسأل
+ * السيرفر. الاختبار ده بيوقع لو حد حرّكه لقدام. التأخير لورا (أبكر) آمن.
+ */
+describe('SETUP_FEATURE_CUTOFF', () => {
+  it('مبيتأخرش عن 2026-09-27T00:00:00Z', () => {
+    const { SETUP_FEATURE_CUTOFF, createdBeforeSetupFeature } = jest.requireActual('@/lib/firstRunSetup');
+    expect(Date.parse(SETUP_FEATURE_CUTOFF)).toBeLessThanOrEqual(Date.parse('2026-09-27T00:00:00Z'));
+    expect(createdBeforeSetupFeature('Sat, 26 Sep 2026 10:00:00 GMT')).toBe(true);
+    expect(createdBeforeSetupFeature('Sun, 27 Sep 2026 10:00:00 GMT')).toBe(false);
+    expect(createdBeforeSetupFeature('مش تاريخ')).toBe(false);
+    expect(createdBeforeSetupFeature(undefined)).toBe(false);
+  });
+});

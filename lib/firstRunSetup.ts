@@ -49,6 +49,25 @@ export const SKIP_SETUP: SetupChoice = {
 
 export const SETUP_NAME_MAX = 40;
 
+/**
+ * أي حساب اتعمل **قبل** اللحظة دي اتعمل قبل ما شاشة "نبدأ بإيه؟" تبقى موجودة
+ * في أي نسخة — فأول تشغيل ليه عدّى على التعبئة القديمة، ومش "جديد" بالتعريف.
+ * ده بيخلّي الفحص فوري ومن غير نت للمستخدمين القدام (من غير الـ8 ثواني).
+ *
+ * **ممنوع التاريخ ده يتأخر أبدًا.** لو اتأخر بعد أول نسخة فيها الشاشة، حساب
+ * جديد اتعمل في الفترة دي هيتعدّى الشاشة. التاريخ ده قبل أي بناء فيه الشاشة
+ * (مفيش بناء من 2026-09-20). ولو حساب قديم تعبئته القديمة كانت فشلت (صفر
+ * محافظ)، الرئيسية بتقول "مفيش ولا محفظة" وبتودّيه يضيف — مش ساكت.
+ */
+export const SETUP_FEATURE_CUTOFF = '2026-09-27T00:00:00Z';
+
+/** `creationTime` بتاع Firebase Auth (نص زي "Sat, 26 Sep 2026 10:00:00 GMT") */
+export function createdBeforeSetupFeature(creationTime: string | null | undefined): boolean {
+  if (!creationTime) return false;
+  const t = Date.parse(creationTime);
+  return Number.isFinite(t) && t < Date.parse(SETUP_FEATURE_CUTOFF);
+}
+
 /** مفتاح على الجهاز: الحساب ده اتأكد إنه متجهّز — ميتسألش السيرفر تاني */
 export const setupDoneKey = (uid: string) => `nuqta-setup-done:${uid}`;
 

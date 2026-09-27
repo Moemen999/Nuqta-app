@@ -1,10 +1,10 @@
 import { db } from '@/firebaseConfig';
-import { SKIP_SETUP } from '@/lib/firstRunSetup';
+import { SETUP_FEATURE_CUTOFF, SKIP_SETUP } from '@/lib/firstRunSetup';
 import { walletBalance } from '@/lib/finance';
 import { clearFirestore, settle, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
-import { setMockUid } from '@/test-utils/mockAuth';
+import { setMockCreationTime, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
-import { doc, getDoc, runTransaction, setDoc } from 'firebase/firestore';
+import { disableNetwork, doc, enableNetwork, getDoc, runTransaction, setDoc } from 'firebase/firestore';
 
 /**
  * runTransaction ملفوفة عشان نقدر نخليها تفشل. `disableNetwork` مش بيقطع
@@ -20,7 +20,7 @@ const failNextTransaction = (code: string) =>
   (runTransaction as unknown as jest.Mock).mockImplementationOnce(async () => { throw Object.assign(new Error(code), { code }); });
 
 jest.mock('@/context/AuthContext', () => ({
-  useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
+  useAuth: () => ({ user: require('@/test-utils/mockAuth').getMockUser() }),
 }));
 
 /**
@@ -38,6 +38,7 @@ beforeEach(async () => {
   await clearFirestore();
   uid = await signInTestUser();
   setMockUid(uid);
+  setMockCreationTime(undefined);
 });
 afterEach(async () => {
   if (harness) await harness.unmount();
@@ -168,4 +169,62 @@ describe('المستخدم القديم عمره ما يشوف الشاشة', ()
     await harness.waitForData(api => api.setupStatus !== 'checking');
     expect(harness.api().setupStatus).toBe('done');
   });
+});
+
+/**
+ * creationTime: حساب اتعمل قبل ما الشاشة تبقى موجودة قديم بالتعريف ← done فوري
+ * ومن غير سيرفر (من غير الـ8 ثواني). اللي اتعمل بعدها بيعدّي على السيرفر زي الأول.
+ * disableNetwork هنا صح: getDocFromServer (مش transaction) بيقف معاه.
+ */
+describe('الفحص حسب تاريخ إنشاء الحساب', () => {
+  const before = new Date(Date.parse(SETUP_FEATURE_CUTOFF) - 86400000).toUTCString();
+  const after = new Date(Date.parse(SETUP_FEATURE_CUTOFF) + 86400000).toUTCString();
+
+  it('حساب قديم جدًا (قبل الشاشة)، ومن غير نت، ومن غير بيانات ← done على طول', async () => {
+    setMockCreationTime(before);
+    await disableNetwork(db);
+    try {
+      harness = await renderDataProvider();
+      await harness.waitForData(api => api.setupStatus !== 'checking', 3000);
+      expect(harness.api().setupStatus).toBe('done');
+    } finally {
+      await enableNetwork(db);
+    }
+  });
+
+  it('حساب جديد (بعد الشاشة) من غير بيانات ← needed من السيرفر زي الأول', async () => {
+    setMockCreationTime(after);
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.setupStatus === 'needed');
+  });
+
+  it('حساب جديد ومن غير نت ← unknown (مبنقررش على تخمين)', async () => {
+    setMockCreationTime(after);
+    await disableNetwork(db);
+    try {
+      harness = await renderDataProvider();
+      await harness.waitForData(api => api.setupStatus === 'unknown', 15000);
+    } finally {
+      await enableNetwork(db);
+    }
+  }, 30000);
+
+  it('حساب موجود (seeded) بعد الشاشة ← done من السيرفر', async () => {
+    setMockCreationTime(after);
+    await setDoc(doc(db, 'users', uid), { seeded: true }, { merge: true });
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.setupStatus === 'done');
+  });
+
+  it('creationTime بيتغيّر وهو شغال (undefined ← قديم) ← آخر نتيجة هي اللي بتكسب ومفيش رجوع', async () => {
+    // silent-failure-hunter: الـcancelled guard لازم يمنع نتيجة الفحص القديم (needed من
+    // السيرفر) إنها تكتب فوق النتيجة الجديدة (done فوري)
+    setMockCreationTime(undefined);
+    harness = await renderDataProvider();
+    setMockCreationTime(before);
+    await harness.rerender();
+    await harness.waitForData(api => api.setupStatus === 'done', 5000);
+    await settle(3000);
+    expect(harness.api().setupStatus).toBe('done');
+  }, 30000);
 });

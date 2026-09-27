@@ -22,7 +22,7 @@ import {
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
 import {
-  SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, setupDoneKey, setupFingerprint, validateSetupChoice,
+  SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, createdBeforeSetupFeature, setupDoneKey, setupFingerprint, validateSetupChoice,
   type SetupChoice, type SetupOutcome, type SetupStatus,
 } from '@/lib/firstRunSetup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -498,6 +498,7 @@ function sameIds(prev: Set<string>, next: string[]) {
 export function DataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const uid = user?.uid;
+  const creationTime = user?.metadata?.creationTime;
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -662,6 +663,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       } catch {
         // لو القراية وقعت نسأل السيرفر عادي
       }
+      // حساب اتعمل قبل ما الشاشة تبقى موجودة ← قديم بالتعريف، فوري ومن غير نت
+      // (من غير الـ8 ثواني). الجديد بعد التاريخ بيعدّي على السيرفر زي الأول
+      if (createdBeforeSetupFeature(creationTime)) {
+        AsyncStorage.setItem(setupDoneKey(uid), '1').catch(() => {});
+        if (!cancelled) setSetupStatus('done');
+        return;
+      }
       const status = await detectSetup(uid);
       if (cancelled) return;
       if (status === 'done') AsyncStorage.setItem(setupDoneKey(uid), '1').catch(() => {});
@@ -670,7 +678,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     };
     run();
     return () => { cancelled = true; if (retry) clearTimeout(retry); };
-  }, [uid]);
+  }, [uid, creationTime]);
 
   // الـlisteners في effect لوحده عشان "جرّب تاني" يفتحهم من الأول من غير ما
   // يعيد التحقق من التجهيز (شوف setupStatus)

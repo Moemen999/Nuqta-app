@@ -25,11 +25,12 @@ export async function renderDataProvider() {
   }
 
   // في نسخة 14 من مكتبة الاختبار، render بترجع Promise ولازم تتنتظر
-  const view = await render(
+  const tree = (
     <DataProvider>
       <Probe />
     </DataProvider>
   );
+  const view = await render(tree);
 
   /** آخر نسخة من الـ context — بتتقري من هنا كل مرة بعد أي انتظار */
   function api(): DataApi {
@@ -68,5 +69,15 @@ export async function renderDataProvider() {
     return waitForData(api => api.wallets.length >= minWallets && api.serverReachable);
   }
 
-  return { view, api, waitForData, waitForReady, unmount: () => view.unmount() };
+  /**
+   * رسمة تانية بعنصر **جديد** — عشان mock اتغيّر (مثلاً useAuth) يوصل للبروفايدر.
+   * نفس العنصر (`tree`) كان React بيعدّيه من غير ما يعيد تشغيل البروفايدر
+   * (نفس الـprops) — silent-failure-hunter اتأكد إن ده ما بيوصّلش حاجة.
+   */
+  const rerender = () => view.rerender(
+    <DataProvider>
+      <Probe />
+    </DataProvider>
+  );
+  return { view, api, waitForData, waitForReady, rerender, unmount: () => view.unmount() };
 }
