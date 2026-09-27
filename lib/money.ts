@@ -19,6 +19,15 @@ export function amountFormatter(hidden: boolean): AmountFormatter {
   return hidden ? maskedAmount : plainAmount;
 }
 
+/**
+ * الجملة زي ما قارئ الشاشة يقولها: القناع بيتقري "مبلغ مخفي" بدل ما يتقري
+ * نقط. للبانرات اللي فيها مبلغ جوه جملة (`accessibilityLabel`) — النص الظاهر
+ * بيفضل زي ما هو.
+ */
+export function speakable(text: string) {
+  return text.split(MONEY_MASK).join('مبلغ مخفي');
+}
+
 /** «1,250 ج.م» أو «•••• ج.م» */
 export function moneyText(n: number, hidden: boolean) {
   return `${hidden ? MONEY_MASK : fmt(n)} ${CURRENCY}`;

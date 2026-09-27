@@ -5,15 +5,28 @@ import { amountFormatter, type AmountFormatter } from '@/lib/money';
 /**
  * إخفاء المبالغ — **على الجهاز بس** (AsyncStorage) مش في فايرستور: ده تفضيل
  * للشاشة اللي في إيدك، والتليفون التاني ممكن يبقى في مكان محدش بيبص فيه.
+ *
+ * **النطاق: الرئيسية بس** (قرار مؤمن 2026-09-27، رجوع عن "كل الشاشات"). العين
+ * بتغطي الأرصدة في الرئيسية — غطا سريع من حد بيبص على الشاشة، مش خصوصية
+ * كاملة: اللي ماسك التليفون يقدر يفتح الإعدادات أو الديون ويشوف الأرقام.
+ * الرئيسية ملفوفة في `AmountsMaskScope`، وبرّه النطاق `amountsHidden` بـfalse
+ * و`money()` بيرجّع الرقم — فكل الشاشات التانية بتعرض أرقامها من غير ما
+ * نلمس كل شاشة لوحدها. الإشعارات بتقرا `hidePreference` (التفضيل نفسه):
+ * بتظهر برّه التطبيق على شاشة القفل، ودي أكتر مكان مكشوف.
  */
 export const HIDE_AMOUNTS_KEY = 'nuqta-hide-amounts';
 
 type PrivacyValue = {
   /**
-   * `true` لحد ما التفضيل يتقري: اللي اختار الإخفاء مينفعش أرقامه تلمع لحظة
-   * أول ما التطبيق يفتح. اللي مختار الإظهار بيشوف القناع جزء من الثانية.
+   * المبالغ مخفية **هنا**: التفضيل مفعّل **و**الكومبوننت جوه `AmountsMaskScope`
+   * (الرئيسية). برّه النطاق دايمًا `false`.
+   *
+   * جوه النطاق `true` لحد ما التفضيل يتقري: اللي اختار الإخفاء مينفعش أرقامه
+   * تلمع لحظة أول ما التطبيق يفتح.
    */
   amountsHidden: boolean;
+  /** التفضيل نفسه (العين) من غير النطاق — للزرار وللإشعارات */
+  hidePreference: boolean;
   /** التفضيل اتقري من الجهاز — الإشعارات مستنياه قبل ما تتجدول */
   loaded: boolean;
   toggleAmounts: () => void;
@@ -22,6 +35,12 @@ type PrivacyValue = {
 };
 
 const PrivacyContext = createContext<PrivacyValue | null>(null);
+const MaskScopeContext = createContext(false);
+
+/** اللي جوّاه بيتخبّى لما العين مقفولة. بيتلف حوالين الرئيسية بس */
+export function AmountsMaskScope({ children }: { children: ReactNode }) {
+  return <MaskScopeContext.Provider value>{children}</MaskScopeContext.Provider>;
+}
 
 export function PrivacyProvider({ children }: { children: ReactNode }) {
   const [stored, setStored] = useState<boolean | null>(null);
@@ -48,15 +67,22 @@ export function PrivacyProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ amountsHidden, loaded: stored !== null, toggleAmounts, money: amountFormatter(amountsHidden) }),
+    () => ({ amountsHidden, hidePreference: amountsHidden, loaded: stored !== null, toggleAmounts, money: amountFormatter(amountsHidden) }),
     [amountsHidden, stored, toggleAmounts],
   );
 
   return <PrivacyContext.Provider value={value}>{children}</PrivacyContext.Provider>;
 }
 
-export function usePrivacy() {
+export function usePrivacy(): PrivacyValue {
   const ctx = useContext(PrivacyContext);
-  if (!ctx) throw new Error('usePrivacy must be used within PrivacyProvider');
-  return ctx;
+  const inScope = useContext(MaskScopeContext);
+  // نفس المرجع بين الرسمات (react-reviewer): أي حد يحط النتيجة كلها في deps
+  // ميتنادالوش effect مع كل رسمة
+  const value = useMemo(
+    () => (ctx && !inScope && ctx.amountsHidden ? { ...ctx, amountsHidden: false, money: amountFormatter(false) } : ctx),
+    [ctx, inScope],
+  );
+  if (!value) throw new Error('usePrivacy must be used within PrivacyProvider');
+  return value;
 }

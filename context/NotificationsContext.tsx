@@ -27,7 +27,8 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { subscriptions, gamiyas, debts, incomes } = useData();
-  const { amountsHidden, loaded: privacyLoaded } = usePrivacy();
+  // التفضيل نفسه مش النطاق: الإشعار بيظهر على شاشة القفل برّه أي شاشة
+  const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
   const [dailyHour, setDailyHourState] = useState(20);

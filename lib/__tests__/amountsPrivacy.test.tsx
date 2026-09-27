@@ -5,10 +5,10 @@ import React from 'react';
 import { AccessibilityInfo, Text } from 'react-native';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Money, REVEAL_MS } from '@/components/Money';
-import { HIDE_AMOUNTS_KEY, PrivacyProvider, usePrivacy } from '@/context/PrivacyContext';
+import { AmountsMaskScope, HIDE_AMOUNTS_KEY, PrivacyProvider, usePrivacy } from '@/context/PrivacyContext';
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { addDays, debtPaidLabel, todayStr } from '@/lib/finance';
-import { MONEY_MASK, amountFormatter, moneyText } from '@/lib/money';
+import { MONEY_MASK, amountFormatter, moneyText, speakable } from '@/lib/money';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
 const scheduled: { title: string; body: string; date: string }[] = [];
@@ -39,7 +39,12 @@ describe('صيغة القناع', () => {
   });
 });
 
+/** اللي بيتخبّى — زي الرئيسية (جوه `AmountsMaskScope`) */
 function Probe() {
+  return <AmountsMaskScope><ProbeBody /></AmountsMaskScope>;
+}
+
+function ProbeBody() {
   const { amountsHidden, toggleAmounts, loaded } = usePrivacy();
   return (
     <>
@@ -113,6 +118,35 @@ describe('الدوسة على رقم مخفي', () => {
   });
 });
 
+/**
+ * النطاق: الرئيسية بس (قرار مؤمن 2026-09-27). العين غطا سريع للرئيسية مش
+ * خصوصية كاملة — أي شاشة تانية بتعرض أرقامها حتى والعين مقفولة.
+ */
+function Outside() {
+  const { amountsHidden, hidePreference, money } = usePrivacy();
+  return (
+    <>
+      <Text testID="out_state">{`${amountsHidden}/${hidePreference}`}</Text>
+      <Text testID="out_money">{money(1250)}</Text>
+      <Money value={777} />
+    </>
+  );
+}
+
+describe('النطاق: الرئيسية بس', () => {
+  it('العين مقفولة ← برّه الرئيسية الأرقام ظاهرة، والتفضيل نفسه لسه مقفول', async () => {
+    await AsyncStorage.setItem(HIDE_AMOUNTS_KEY, '1');
+    await render(<PrivacyProvider><Probe /><Outside /></PrivacyProvider>);
+    await waitFor(() => expect(screen.getByTestId('state').props.children).toBe('hidden'));
+    // جوه النطاق مخفي
+    expect(screen.getByText(`${MONEY_MASK} ج.م`)).toBeTruthy();
+    // برّه: ظاهر — Money وmoney() الاتنين — والتفضيل (للإشعارات) لسه true
+    expect(screen.getByTestId('out_state').props.children).toBe('false/true');
+    expect(screen.getByTestId('out_money').props.children).toBe('1,250');
+    expect(screen.getByText('777 ج.م')).toBeTruthy();
+  });
+});
+
 describe('الإشعارات والمبالغ مخفية', () => {
   const today = todayStr();
   const sub = { id: 's', name: 'نتفليكس', amount: 150, nextDueDate: today, reminderDaysBefore: 0 } as Subscription;
@@ -150,8 +184,10 @@ describe('الإشعارات والمبالغ مخفية', () => {
 
 /**
  * جرد: أي شاشة بتعرض فلوس لازم تعدّي من `<Money>` أو `money()` بتاعة
- * `usePrivacy`. `fmt(` في الشاشات ممنوعة خالص — الشاشة الجديدة اللي هتنسى
- * الإخفاء هتقع هنا من أول يوم مش بعد ما حد يلاحظ رقمه ظاهر.
+ * `usePrivacy` — مكان واحد بيقرر القناع ولا الرقم. من 2026-09-27 الإخفاء في
+ * الرئيسية بس (`AmountsMaskScope`)، وبرّه النطاق نفس الكود بيعرض الرقم؛ فالقاعدة
+ * لسه بتحمي: لو الرئيسية (أو كومبوننت جواها) استخدمت `fmt(` مباشرة، الرقم
+ * هيبان والعين مقفولة.
  *
  * `plainAmount(` = رقم حقيقي **عن قصد**، ومسموح بس في الاستثناءات دي:
  */
@@ -215,10 +251,20 @@ describe('جرد الإخفاء في كل الشاشات', () => {
     expect(missing).toEqual([]);
   });
 
-  it('الإشعارات بتتجدول بتفضيل الإخفاء', () => {
+  it('الإشعارات بتتجدول بتفضيل الإخفاء نفسه (مش النطاق — بتظهر على شاشة القفل)', () => {
     const src = fs.readFileSync(path.join(ROOT, 'context', 'NotificationsContext.tsx'), 'utf8');
+    expect(src).toMatch(/hidePreference: amountsHidden/);
     expect(src).toMatch(/hideAmounts: amountsHidden/);
     expect(src).toMatch(/!privacyLoaded/);
+    const auto = fs.readFileSync(path.join(ROOT, 'lib', 'useIncomeAutoRecord.ts'), 'utf8');
+    expect(auto).toMatch(/hidePreference: amountsHidden/);
+  });
+
+  it('النطاق ملفوف حوالين الرئيسية — والرئيسية بس', () => {
+    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
+    expect(home).toMatch(/<AmountsMaskScope>\s*<HomeScreen \/>\s*<\/AmountsMaskScope>/);
+    const users = files.filter(f => /<AmountsMaskScope>/.test(fs.readFileSync(f, 'utf8'))).map(rel);
+    expect(users).toEqual(['app/(tabs)/index.tsx']);
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {
@@ -247,5 +293,31 @@ describe('جرد الإخفاء في كل الشاشات', () => {
       if (hits) found[`lib/${n}`] = hits;
     }
     expect(found).toEqual(Object.fromEntries(Object.entries(LIB_FMT_ALLOWED).map(([k, v]) => [k, v.count])));
+  });
+});
+
+/**
+ * قارئ الشاشة والمبالغ مخفية (a11y-architect، واتشاف على الجهاز): الإجمالي
+ * كان `<Money>` جوه `<Text>` — أندرويد بيفرد ده في عقدة واحدة وبيضيّع label
+ * بتاع Money، فالمخفي كان بيتقري "نقطة نقطة نقطة نقطة ج.م". والبانرات فيها
+ * القناع جوه جملة.
+ */
+describe('قارئ الشاشة والمبالغ مخفية', () => {
+  it('speakable: القناع بيتقري "مبلغ مخفي" والباقي زي ما هو', () => {
+    expect(speakable(`رصيد كاش قرب يخلص (${MONEY_MASK} ج.م)`)).toBe('رصيد كاش قرب يخلص (مبلغ مخفي ج.م)');
+    expect(speakable('رصيد كاش قرب يخلص (1,250 ج.م)')).toBe('رصيد كاش قرب يخلص (1,250 ج.م)');
+  });
+
+  it('الإجمالي في الرئيسية مش Money جوه Text', () => {
+    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
+    expect(home).not.toMatch(/<Text[^>]*>\s*<Money/);
+  });
+
+  it('كل بانر فيه money( في الرئيسية ليه accessibilityLabel بـspeakable', () => {
+    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
+    const bannerTexts = home.match(/<Text style=\{\[styles\.bannerText[\s\S]*?<\/Text>/g) ?? [];
+    const withMoney = bannerTexts.filter(t => /\bmoney\(/.test(t));
+    expect(withMoney.length).toBeGreaterThan(0);
+    for (const t of withMoney) expect(t).toMatch(/accessibilityLabel=\{speakable\(/);
   });
 });

@@ -16,7 +16,7 @@ let mockHidden = false;
 
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 jest.mock('@/context/NotificationsContext', () => ({ useNotifications: () => ({ enabled: true }) }));
-jest.mock('@/context/PrivacyContext', () => ({ usePrivacy: () => ({ amountsHidden: mockHidden, loaded: true }) }));
+jest.mock('@/context/PrivacyContext', () => ({ usePrivacy: () => ({ amountsHidden: mockHidden, hidePreference: mockHidden, loaded: true }) }));
 jest.mock('@/lib/notifications', () => ({ notifyNow: (...a: unknown[]) => (mockNotify as any)(...a) }));
 
 const today = todayStr();

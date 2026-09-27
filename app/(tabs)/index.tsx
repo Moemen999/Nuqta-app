@@ -1,10 +1,11 @@
 import { Money } from '@/components/Money';
+import { speakable } from '@/lib/money';
 import IncomeHomeCards from '@/components/IncomeHomeCards';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { usePrivacy } from '@/context/PrivacyContext';
+import { AmountsMaskScope, usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
@@ -16,7 +17,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
 
-export default function HomeScreen() {
+/**
+ * العين بتخبّي المبالغ **في الرئيسية بس** (قرار 2026-09-27): النطاق ملفوف برّه
+ * `HomeScreen` عشان `usePrivacy()` اللي في أولها يشوفه هي كمان. كل اللي جوّه
+ * (كروت الدخل الثابت، البانرات) بيتخبّى؛ أي شاشة تانية بتعرض أرقامها.
+ */
+export default function HomeTab() {
+  return (
+    <AmountsMaskScope>
+      <HomeScreen />
+    </AmountsMaskScope>
+  );
+}
+
+function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -97,14 +111,18 @@ export default function HomeScreen() {
               testID="home_hide_amounts_toggle"
               accessibilityRole="switch"
               accessibilityLabel="إخفاء المبالغ"
+              accessibilityHint="بيخبّي أرقام الرئيسية بس"
               accessibilityState={{ checked: amountsHidden }}>
               <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.balanceLabel}>إجمالي رصيدك</Text>
           </View>
-          <Text style={styles.balanceValue}>
-            <Money value={totalBalance} currency={false} /> <Text style={styles.currency}>ج.م</Text>
-          </Text>
+          {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
+              وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
+          <View style={styles.balanceValueRow}>
+            <Money value={totalBalance} currency={false} style={styles.balanceValue} />
+            <Text style={styles.currency}>ج.م</Text>
+          </View>
           <View style={styles.walletsRow}>
             {activeWallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
@@ -132,21 +150,24 @@ export default function HomeScreen() {
         )}
         {lowWallets.map(w => (
           <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.danger }]}>
+            <Text style={[styles.bannerText, { color: colors.danger }]}
+              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
               رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
             </Text>
           </View>
         ))}
         {totalBudgetAlert && (
           <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
               الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
           </View>
         )}
         {budgetAlerts.map(b => (
           <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
               ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
             </Text>
           </View>
@@ -155,7 +176,8 @@ export default function HomeScreen() {
           const d = daysUntil(s.nextDueDate);
           return (
             <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}>
+              <Text style={[styles.bannerText, { color: colors.accent }]}
+                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
                 اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
               </Text>
             </TouchableOpacity>
@@ -165,7 +187,8 @@ export default function HomeScreen() {
           const d = daysUntil(month.dueDate);
           return (
             <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}>
+              <Text style={[styles.bannerText, { color: colors.accent }]}
+                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
                 جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
               </Text>
             </TouchableOpacity>
@@ -297,7 +320,9 @@ function makeStyles(c: ThemeColors) {
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
     balanceLabel: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
-    balanceValue: { color: c.text, fontSize: 30, fontWeight: '700', textAlign: 'right', marginTop: 4 },
+    // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
+    balanceValueRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 8, marginTop: 4 },
+    balanceValue: { color: c.text, fontSize: 30, fontWeight: '700', textAlign: 'right' },
     currency: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
     walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 14 },
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, backgroundColor: c.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },

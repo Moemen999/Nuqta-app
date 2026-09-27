@@ -29,7 +29,8 @@ export type IncomeNotice = { id: string; kind: 'recorded' | 'error'; text: strin
 export function useIncomeAutoRecord() {
   const { incomes, serverReachable, recordIncomePeriods } = useData();
   const { enabled: notificationsOn } = useNotifications();
-  const { amountsHidden, loaded: privacyLoaded } = usePrivacy();
+  // الإشعار بيتبع التفضيل مش النطاق (بيظهر على شاشة القفل)
+  const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [notices, setNotices] = useState<IncomeNotice[]>([]);
   const [wake, setWake] = useState(0);
   /** إعادة تقييم من غير ما البصمة تتغيّر — بعد محاولة فاتها تغيير وهي شغالة */
