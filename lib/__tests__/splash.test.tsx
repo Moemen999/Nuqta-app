@@ -8,6 +8,11 @@
  */
 import type * as SplashType from 'expo-splash-screen';
 
+// كل حالة بتعيد تحميل _layout وكل اللي بيستورده من الأول (isolateModules) — أول
+// تشغيل بكاش تحويل بارد كان بيعدّي الـ5 ثواني الافتراضية تحت ضغط السويت كلها
+// (وقع مرة من 6، الاختبارين الأولانيين بس). نفس نوع الاختبارات المتقلّبة اللي قبل كده
+jest.setTimeout(30000);
+
 const mockFonts: { value: [boolean, Error | null] } = { value: [true, null] };
 const mockReady = { auth: false };
 
