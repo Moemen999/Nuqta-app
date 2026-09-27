@@ -69,12 +69,15 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   function selectYear(y: number) { setViewYear(y); setLevel('months'); }
   function close() { setLevel('days'); onClose(); }
 
+  const prevLabel = level === 'days' ? 'الشهر اللي فات' : level === 'months' ? 'السنة اللي فاتت' : 'السنين اللي فاتت';
+  const nextLabel = level === 'days' ? 'الشهر الجاي' : level === 'months' ? 'السنة الجاية' : 'السنين الجاية';
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={close}>
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
-            <TouchableOpacity onPress={goPrev} style={styles.navBtn}>
+            <TouchableOpacity onPress={goPrev} style={styles.navBtn} accessibilityRole="button" accessibilityLabel={prevLabel}>
               <Text style={styles.navText}>›</Text>
             </TouchableOpacity>
 
@@ -99,7 +102,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
               )}
             </View>
 
-            <TouchableOpacity onPress={goNext} style={styles.navBtn}>
+            <TouchableOpacity onPress={goNext} style={styles.navBtn} accessibilityRole="button" accessibilityLabel={nextLabel}>
               <Text style={styles.navText}>‹</Text>
             </TouchableOpacity>
           </View>
@@ -156,7 +159,7 @@ function makeStyles(c: ThemeColors) {
     overlay: overlayCenteredStyle,
     card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: c.borderStrong },
     header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    navBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: 20 },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
     label: { color: c.accent, fontSize: 15, fontWeight: '700' },
