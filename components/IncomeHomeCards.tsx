@@ -12,7 +12,7 @@ import { useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Modal, Platform, ScrollView,
+  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 
@@ -39,10 +39,9 @@ export default function IncomeHomeCards() {
     .map(inc => ({ inc, keys: incomeOpenPeriods(inc, today) }))
     .filter(x => x.keys.length > 0);
 
-  // الكارت بيقع بنعومة بدل ما يختفي فجأة
-  function animateOut() {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }
+  // مفيش حركة خروج للكارت عن قصد: LayoutAnimation ما عملش أي حاجة على الجهاز
+  // (Galaxy A56، New Architecture) حتى بمدة 3 ثواني — الكارت بيختفي على طول.
+  // حركة بايظة أوحش من مفيش؛ لو اتعملت تاني تبقى بند لوحده بمكتبة تانية (TIMELINE).
 
   /** بيرجّع اتسجل ولا لأ — شيت المبلغ مبيتقفلش على فشل عشان الرقم اللي اتكتب مايضيعش */
   async function record(inc: RecurringIncome, key: string, amount: number) {
@@ -54,7 +53,6 @@ export default function IncomeHomeCards() {
         return;
       }
       ok = true;
-      animateOut();
       AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}"`);
     });
     return ok;
@@ -64,7 +62,7 @@ export default function IncomeHomeCards() {
     const label = incomePeriodLabel(inc, key, today);
     Alert.alert(`"${inc.name}" ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
       { text: 'رجوع', style: 'cancel' },
-      { text: 'ما نزلش', onPress: () => { animateOut(); skipIncomePeriod(inc.id, key); } },
+      { text: 'ما نزلش', onPress: () => { skipIncomePeriod(inc.id, key); } },
     ]);
   }
 
@@ -90,7 +88,7 @@ export default function IncomeHomeCards() {
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
-          <TouchableOpacity onPress={() => { animateOut(); dismiss(n.id); }} style={styles.dismiss}
+          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
             accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
             <Text style={styles.dismissText}>✕</Text>
           </TouchableOpacity>
