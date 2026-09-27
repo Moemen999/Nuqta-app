@@ -1,5 +1,6 @@
 import { Money } from '@/components/Money';
 import { speakable } from '@/lib/money';
+import { MIN_TOUCH } from '@/lib/tokens';
 import IncomeHomeCards from '@/components/IncomeHomeCards';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -12,7 +13,8 @@ import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, formatTime, mo
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useNoWallets } from '@/lib/useNoWallets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -67,6 +69,19 @@ function HomeScreen() {
     return () => clearTimeout(t);
   }, []);
   const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
+  /**
+   * حساب مسح (أو أرشف) كل محافظه: مفيش شاشة تجهيز تاني (عدّاها قبل كده)، ومن غير
+   * محفظة مفيش ولا عملية تتسجل — فبنقول كده وبنودّيه يضيف واحدة. بس لما نكون
+   * متأكدين من السيرفر: من غير نت ده بانر "مفيش نت" اللي فوق، ولو listener المحافظ
+   * اترفض ده بانر "مقدرناش نجيب بياناتك" — مش "مفيش محافظ".
+   */
+  const noWalletsState = useNoWallets();
+  const noWallets = loadWindowPassed && noWalletsState.none;
+  const onlyArchived = loadWindowPassed && noWalletsState.onlyArchived;
+  // الحالة بتظهر بعد 2.5 ثانية — قارئ الشاشة يكون عدّى المكان ده خلاص (a11y-architect)
+  useEffect(() => {
+    if (noWallets) AccessibilityInfo.announceForAccessibility('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
+  }, [noWallets]);
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -143,7 +158,7 @@ function HomeScreen() {
             </Text>
           </View>
         )}
-        {!hasTodayTx && !offlineEmpty && (
+        {!hasTodayTx && !offlineEmpty && !noWallets && (
           <View style={styles.banner}>
             <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
           </View>
@@ -202,6 +217,21 @@ function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {/* فوق آخر العمليات: فلوس داخلة محتاجة دوسة، مش تاريخ */}
+        {noWallets && (
+          <View testID="home_no_wallets" style={styles.noWallets}>
+            <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
+            <Text style={styles.noWalletsTitle} accessibilityRole="header">مفيش ولا محفظة</Text>
+            <Text style={styles.noWalletsBody}>
+              {onlyArchived
+                ? 'كل محافظك متأرشفة. ضيف محفظة جديدة، أو رجّع واحدة من الإعدادات، عشان تقدر تسجل مصاريفك ودخلك.'
+                : 'ضيف محفظة (كاش، حساب بنكي…) عشان تقدر تسجل مصاريفك ودخلك.'}
+            </Text>
+            <TouchableOpacity testID="home_add_wallet" style={styles.noWalletsBtn}
+              onPress={() => router.push('/settings-screens/wallets')} accessibilityRole="button">
+              <Text style={styles.noWalletsBtnText}>ضيف محفظة</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <IncomeHomeCards />
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
@@ -337,6 +367,19 @@ function makeStyles(c: ThemeColors) {
     bannerActionText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 6, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+    // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)
+    noWallets: {
+      backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12,
+      padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
+    },
+    noWalletsEmoji: { fontSize: 40 },
+    noWalletsTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
+    noWalletsBody: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    noWalletsBtn: {
+      backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
+      alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
+    },
+    noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
     txMid: { flex: 1 },
     txTitle: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right' },

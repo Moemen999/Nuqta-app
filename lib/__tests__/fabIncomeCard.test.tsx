@@ -21,13 +21,19 @@ const pendingIncome = {
   id: 'i1', name: 'المرتب', amount: 4000, walletId: 'w1', frequency: 'monthly', mode: 'confirm',
   status: 'active', dayOfMonth: Number(today.slice(8, 10)), startDate: `${today.slice(0, 7)}-01`, closed: {},
 };
-const mockData: { incomes: unknown[] } = { incomes: [] };
+const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 
 const mount = () => render(<ThemeProvider><TabLayout /></ThemeProvider>);
 
 describe('الزرار العايم وكارت "نزل؟"', () => {
-  beforeEach(() => { mockData.incomes = []; mockPath = '/'; });
+  beforeEach(() => {
+    Object.assign(mockData, {
+      incomes: [], wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }],
+      serverReachable: true, setupStatus: 'done', loadErrors: [],
+    });
+    mockPath = '/';
+  });
 
   it('مفيش كارت ← الزرار ظاهر في الرئيسية', async () => {
     await mount();
@@ -49,6 +55,22 @@ describe('الزرار العايم وكارت "نزل؟"', () => {
 
   it('دخل "بيتسجل لوحده" مش بيطلع كارت ← الزرار ظاهر', async () => {
     mockData.incomes = [{ ...pendingIncome, mode: 'auto' }];
+    await mount();
+    expect(screen.getByTestId('tx_add_button')).toBeTruthy();
+  });
+
+  it('مفيش ولا محفظة (متأكدين) ← الزرار مستخبّي في كل التابات', async () => {
+    mockData.wallets = [];
+    for (const p of ['/', '/reports', '/planning']) {
+      mockPath = p;
+      await mount();
+      expect(screen.queryByTestId('tx_add_button')).toBeNull();
+    }
+  });
+
+  it('من غير نت ومفيش محافظ لسه ← الزرار ظاهر (مش متأكدين)', async () => {
+    mockData.wallets = [];
+    mockData.serverReachable = false;
     await mount();
     expect(screen.getByTestId('tx_add_button')).toBeTruthy();
   });

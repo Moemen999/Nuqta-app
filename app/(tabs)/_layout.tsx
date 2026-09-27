@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { usePendingIncomes } from '@/components/IncomeHomeCards';
+import { useNoWallets } from '@/lib/useNoWallets';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -33,7 +34,9 @@ export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
   const incomeCardShowing = usePendingIncomes().length > 0;
-  const showFab = FAB_TAB_PATHS.includes(pathname) && !(pathname === '/' && incomeCardShowing);
+  // من غير ولا محفظة مفيش عملية تتحفظ — الرئيسية فيها "ضيف محفظة" بدل الزرار ده
+  const noWallets = useNoWallets().none;
+  const showFab = FAB_TAB_PATHS.includes(pathname) && !(pathname === '/' && incomeCardShowing) && !noWallets;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
