@@ -175,3 +175,12 @@ describe('الرسالة الواحدة', () => {
     expect(chargeRecordedNotification('m', 400, false)).toContain('400');
   });
 });
+
+describe('أسامي الوضعين', () => {
+  it('الدخل الثابت والاشتراكات والجمعية بنفس الأسامي بالظبط (2026-09-28)', () => {
+    const { CHARGE_MODE_LABEL } = require('@/lib/autoCharge');
+    const { INCOME_MODE_LABEL } = require('@/components/IncomesView');
+    expect(CHARGE_MODE_LABEL).toEqual({ confirm: 'بيسألك الأول', auto: 'بيتسجل لوحده' });
+    expect(INCOME_MODE_LABEL).toBe(CHARGE_MODE_LABEL);
+  });
+});

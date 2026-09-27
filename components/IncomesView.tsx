@@ -10,6 +10,7 @@ import {
   incomeUpcomingPeriod, validateIncomeDraft, type IncomeFrequency, type IncomeMode, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import { selectionStyle } from '@/lib/selection';
+import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
@@ -18,10 +19,8 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 
-export const INCOME_MODE_LABEL: Record<IncomeMode, string> = {
-  confirm: 'بيسألك الأول',
-  auto: 'بيتسجل لوحده',
-};
+/** نفس أسامي الاشتراكات والجمعية — مصدر واحد في `lib/autoCharge.ts` */
+export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;
 
 /**
  * "دخل ثابت" — نفس شكل الاشتراكات بالظبط (كارت، اسم ومبلغ فوق، سطر المواعيد،

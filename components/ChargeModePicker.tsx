@@ -4,7 +4,7 @@ import { selectionStyle } from '@/lib/selection';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 /**
- * "بتأكيد" (الافتراضي — أي حاجة بتخصم فلوس) أو "تلقائي". نفس شكل اختيار
+ * "بيسألك الأول" (الافتراضي — أي حاجة بتخصم فلوس) أو "بيتسجل لوحده". نفس شكل اختيار
  * الدخل الثابت (`IncomesView`). `what`: "الاشتراك" / "القسط".
  */
 export default function ChargeModePicker({ value, onChange, what, verb, testIDPrefix }: {
