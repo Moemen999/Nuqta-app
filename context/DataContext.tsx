@@ -8,7 +8,7 @@ import {
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
+  addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
   runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
   type DocumentReference, type FirestoreError, type Transaction as FirestoreTransaction, type WriteBatch,
@@ -21,6 +21,10 @@ import {
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
+import {
+  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges,
+  subscriptionTxId, type ChargeClosed, type ChargeMode,
+} from '@/lib/autoCharge';
 import {
   SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, createdBeforeSetupFeature, setupDoneKey, setupFingerprint, validateSetupChoice,
   type SetupChoice, type SetupOutcome, type SetupStatus,
@@ -60,7 +64,12 @@ export type Transaction = {
   archivedWalletId?: string;
   /** عملية من دخل ثابت (`recordIncomePeriods`) — معرّفها `income_{id}_{الفترة}` */
   incomeId?: string;
+  /** عملية من اشتراك/جمعية بمعرّف ثابت (`sub_{id}_{المعاد}` / `gamiya_{id}_{الشهر}`) */
+  subscriptionId?: string;
+  gamiyaId?: string;
   periodKey?: string;
+  /** اتسجلت لوحدها (دخل ثابت/اشتراك/جمعية "تلقائي") — بتبان بعلامة في التاريخ */
+  autoRecorded?: boolean;
 };
 
 /** تسوية واحدة: الفرق ده يروح/ييجي من المحفظة الشغالة دي */
@@ -105,6 +114,9 @@ class WalletArchivedError extends Error {}
 
 /** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
 class IncomeMissingError extends Error {}
+
+/** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
+class ChargeMissingError extends Error {}
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
 class IncomeHasRecordsError extends Error {}
@@ -305,7 +317,12 @@ export type DebtMetadata = {
   reminderDaysBefore?: number | null;
 };
 
-export type SubscriptionPayment = { id: string; date: string; amount: number; transactionId?: string };
+export type SubscriptionPayment = {
+  id: string; date: string; amount: number; transactionId?: string;
+  /** معاد الفترة اللي الدفعة دي قفلتها — الدفعات القديمة مالهاش */
+  periodKey?: string;
+  auto?: boolean;
+};
 export type Subscription = {
   id: string;
   name: string;
@@ -319,6 +336,12 @@ export type Subscription = {
   active: boolean;
   createdAt: string;
   history: SubscriptionPayment[];
+  /** مش موجود = "بتأكيد" (`lib/autoCharge.ts`) */
+  chargeMode?: ChargeMode;
+  /** "تلقائي" بيسجل الفترات اللي معادها من اليوم ده بس */
+  chargeAutoSince?: string;
+  /** الفترات المقفولة بمفتاح المعاد — في نفس ذرة العملية */
+  closed?: Record<string, ChargeClosed>;
 };
 
 export type GamiyaMonth = {
@@ -329,6 +352,10 @@ export type GamiyaMonth = {
   amount: number;
   status: 'pending' | 'done';
   transactionId?: string;
+  /** اتسجل لوحده */
+  auto?: boolean;
+  /** عمليته اتمسحت ← بيسأل، وعمره ما يتسجل لوحده تاني */
+  reopened?: boolean;
 };
 export type Gamiya = {
   id: string;
@@ -342,6 +369,8 @@ export type Gamiya = {
   reminderDaysBefore: number;
   months: GamiyaMonth[];
   createdAt: string;
+  chargeMode?: ChargeMode;
+  chargeAutoSince?: string;
 };
 
 type DataContextType = {
@@ -408,21 +437,27 @@ type DataContextType = {
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
+    chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
   deleteSubscription: (id: string) => Promise<void>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
+    chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
   deleteGamiya: (id: string) => Promise<void>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
+  /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
+  recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
+  /** "ما اتخصمش" — الفترة بتتقفل من غير عملية */
+  skipSubscriptionCharge: (id: string, key: string) => Promise<PayOutcome>;
   addIncome: (draft: IncomeDraft & { mode: IncomeMode }) => Promise<void>;
   updateIncome: (id: string, patch: Partial<IncomeDraft & { mode: IncomeMode }>) => Promise<void>;
   setIncomeStatus: (id: string, status: IncomeStatus) => Promise<void>;
-  recordIncomePeriods: (incomeId: string, entries: { key: string; amount: number }[]) => Promise<IncomeRecordResult>;
+  recordIncomePeriods: (incomeId: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
   skipIncomePeriod: (incomeId: string, key: string) => Promise<void>;
   deleteIncome: (incomeId: string) => Promise<IncomeDeleteOutcome>;
 };
@@ -433,6 +468,7 @@ type DataContextType = {
  * مبتقولش "سجلنا" عن حاجة ما اتسجلتش دلوقتي.
  */
 export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[] };
+export type ChargeKind = 'subscription' | 'gamiya';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -1036,6 +1072,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const history = sub.history || [];
       const idx = history.findIndex(h => h.transactionId === txId);
       if (idx === -1) continue;
+      // الدفعة معروف هي قفلت أنهي فترة ← الفترة دي بترجع **تسأل** ("اتخصم؟")
+      // والمعاد الجاي زي ما هو. مبترجعش مفتوحة عادي: التلقائي كان هيخصمها
+      // تاني مع أول فتحة — وده بالظبط اللي المستخدم مسح العملية عشانه
+      const key = history[idx].periodKey;
+      if (key) {
+        // arrayRemove للسطر ده بالظبط مش المصفوفة كلها من ذاكرة الرياكت: التلقائي
+        // ممكن يكون ضاف فترة على السيرفر لسه ما وصلتناش، والمصفوفة القديمة كانت هتمسحها
+        // **متبقّي مقبول:** لو السطر هنا مش مطابق حرفيًا للي على السيرفر (جهاز تاني لسه
+        // ما وصلناش تحديثه)، arrayRemove مبيعملش حاجة ساكت — السطر يفضل في history
+        // بعملية اتمسحت. الفلوس صح والفترة بترجع تسأل (closed)، ومفيش شاشة بتقرا history؛
+        // الـcascade بتاع مسح الاشتراك بيمسح عملية ممسوحة أصلاً = مفيش أثر (SFH جولة 2)
+        // ولو دي الفترة اللي قبل المعاد على طول، المعاد بيرجع لها (نفس العقد القديم:
+        // الشاشة تقول "مستحق" عنها مش عن اللي بعدها) — وهي لسه "بتسأل" مش تلقائي
+        const rollBack = subscriptionNextCycle(sub, key) === sub.nextDueDate;
+        batch.update(doc(db, 'users', uid, 'subscriptions', sub.id),
+          'history', arrayRemove(history[idx]),
+          new FieldPath('closed', key), { reopened: true, at: new Date().toISOString() },
+          ...(rollBack ? ['nextDueDate', key] : []));
+        return;
+      }
+      // دفعة قديمة (قبل الفترات) — نفس السلوك القديم
       // لو دي آخر دفعة اتسجلت، بنرجّع موعد الاستحقاق خطوة ورا بعكس نفس المعادلة
       // اللي قدّمته. لو دفعة قديمة، الموعد الحالي لسه صح فبنسيبه زي ما هو
       const isLast = idx === history.length - 1;
@@ -1053,8 +1110,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (!(g.months || []).some(m => m.transactionId === txId)) continue;
       const months = g.months.map(m => {
         if (m.transactionId !== txId) return m;
-        const { transactionId, ...rest } = m;
-        return { ...rest, status: 'pending' as const };
+        const { transactionId, auto: _a, ...rest } = m;
+        // بيسأل، وعمره ما يتسجل لوحده تاني (`lib/autoCharge.ts`)
+        return { ...rest, status: 'pending' as const, reopened: true };
       });
       batch.update(doc(db, 'users', uid, 'gamiyas', g.id), { months });
       return;
@@ -1121,13 +1179,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     for (const sub of subscriptions) {
-      if ((sub.history || []).some(h => h.transactionId === id)) {
+      const entry = (sub.history || []).find(h => h.transactionId === id);
+      if (entry?.periodKey) {
+        return `دي دفعة اشتراك "${sub.name}" عن ${chargeDateLabel(entry.periodKey, todayStr())} — لو مسحتها هترجع تسألك "اتخصم؟" في الرئيسية، ومش هتتسجل لوحدها تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
+      }
+      if (entry) {
         return `دي دفعة اشتراك "${sub.name}" — هتتشال من سجل الاشتراك وموعد الاستحقاق هيترجع.`;
       }
     }
     for (const g of gamiyas) {
       if ((g.months || []).some(m => m.transactionId === id)) {
-        return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش".`;
+        return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
     }
     // عكس الجمعية والاشتراك عن قصد: الفترة **مبترجعش** — لو رجعت، التسجيل
@@ -1472,16 +1534,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function addSubscription(data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
+    chargeMode?: ChargeMode;
   }) {
     if (!uid) return;
-    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    addDocNoWait('subscriptions', { ...clean, active: true, history: [], createdAt: new Date().toISOString() }, namedLabel('الاشتراك', data.name));
+    const { chargeMode, ...rest } = data;
+    const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    addDocNoWait('subscriptions', {
+      ...clean, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()),
+      active: true, history: [], closed: {}, createdAt: new Date().toISOString(),
+    }, namedLabel('الاشتراك', data.name));
   }
   async function updateSubscription(id: string, data: Partial<Subscription>) {
     if (!uid) return;
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
-    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', subscriptions.find(s => s.id === id)?.name));
+    const current = subscriptions.find(s => s.id === id);
+    const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    // "تلقائي" من النهاردة بس — مش من أول ما الاشتراك اتعمل (`chargeModePatch`)
+    if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
+    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
   }
   async function deleteSubscription(id: string) {
     if (!uid) return;
@@ -1497,53 +1568,187 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome> {
+  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today'> {
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
     // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
     if (!serverReachableRef.current) return 'no-connection';
     const subRef = doc(db, 'users', uid, 'subscriptions', id);
-    const txRef = doc(collection(db, 'users', uid, 'transactions'));
     // بما إننا مش بنستنى تأكيد السيرفر على الكتابات العادية، ممكن المستخدم يعمل
     // اشتراك ويدوس "سدّد" قبل ما الاشتراك نفسه يوصل. والعملية الذرية بتقرا من
     // السيرفر، فكانت هتلاقيه مش موجود وتخرج من غير ما تعمل حاجة — الزرار يشتغل
     // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع
     if (!(await waitForOurWritesToLand())) return 'no-connection';
+    const today = todayStr();
+    let paidToday = false;
     try {
       await countPending(runTransaction(db, async (t) => {
+        paidToday = false;
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
         const history = sub.history || [];
-        const alreadyPaid = history.some(h => h.date === date && h.amount === sub.amount);
-        if (alreadyPaid) return;
+        // دوستين "سدّد" في نفس اليوم ← دفعة واحدة (عقد قديم — duplication.emulator).
+        // بس **مش ساكتة**: الشاشة بتقول إنها اتسجلت النهاردة خلاص، وإن الفترة
+        // المتأخرة التانية (لو فيه) في كارت "اتخصم؟" في الرئيسية
+        if (history.some(h => h.date === date && h.amount === sub.amount)) { paidToday = true; return; }
+
+        // "سدّد" بيقفل **فترة**: الأقدم المفتوحة (فيها اللي رجعت تسأل)، ولو
+        // مفيش — اللي جاية. نفس مفتاح التلقائي ونفس معرّف العملية، فالتلقائي
+        // على جهاز تاني بيلاقيها مقفولة ومبيخصمش تاني
+        const key = subscriptionManualKey(sub, today);
+        const txRef = doc(db, 'users', uid!, 'transactions', subscriptionTxId(id, key));
 
         // المحفظة بتتقري من جوه العملية الذرية عشان الإجابة تبقى عن الحالة
         // اللي هتتكتب عليها فعلاً، مش عن نسخة في ذاكرة الرياكت ممكن تكون
         // قديمة. كل القرايات لازم تسبق كل الكتابات في العملية الذرية.
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', sub.walletId)))) throw new WalletMissingError();
+        const existing = await t.get(txRef);
 
-        const txData = {
-          type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
-          categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
-          createdAt: new Date().toISOString(),
-        };
-        t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
-
+        const at = new Date().toISOString();
+        // موجودة (مقفولة من غير علامة لأي سبب) ← بنقفل الفترة من غير ما نكتب فوقها
+        if (!existing.exists()) {
+          const txData = {
+            type: 'expense' as const, amount: sub.amount, walletId: sub.walletId, date,
+            categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+            subscriptionId: id, periodKey: key, createdAt: at,
+          };
+          t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+        }
+        const closed = { ...(sub.closed || {}), [key]: { txId: txRef.id, at } };
         const payment: SubscriptionPayment = {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          date, amount: sub.amount, transactionId: txRef.id,
+          date, amount: sub.amount, transactionId: txRef.id, periodKey: key,
         };
-        const nextDue = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, 1)
-          : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, 12)
-          : addDays(sub.nextDueDate, sub.customDays || 30);
-        t.update(subRef, { history: [...history, payment], nextDueDate: nextDue });
+        const nextHistory = history.some(h => h.transactionId === txRef.id) ? history : [...history, payment];
+        t.update(subRef, { history: nextHistory, closed, nextDueDate: subscriptionAdvance(sub, closed) });
       }));
-      return 'done';
+      return paidToday ? 'already-paid-today' : 'done';
     } catch (e) {
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
+      if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
       return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
+    }
+  }
+
+  /**
+   * "ما اتخصمش" (اشتراك اتلغى، شهر مجاني). ذري: جهاز تاني ممكن يكون سجّل
+   * الفترة دي في نفس اللحظة — لو سبقنا، بنلاقيها مقفولة ومبنكتبش فوق علامته.
+   */
+  async function skipSubscriptionCharge(id: string, key: string): Promise<PayOutcome> {
+    if (!uid) return 'done';
+    if (!serverReachableRef.current) return 'no-connection';
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    const subRef = doc(db, 'users', uid, 'subscriptions', id);
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(subRef);
+        if (!snap.exists()) return;
+        const sub = { id, ...(snap.data() as any) } as Subscription;
+        if (!subscriptionOpenCharges({ ...sub, active: true }, todayStr()).some(o => o.key === key)) return;
+        const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
+        t.update(subRef, { closed, nextDueDate: subscriptionAdvance(sub, closed) });
+      }));
+      return 'done';
+    } catch (e) {
+      noteAtomicFailure('فوّت فترة اشتراك', e);
+      return 'failed';
+    }
+  }
+
+  /**
+   * تسجيل فترات اشتراك أو شهور جمعية (كارت "اتخصم؟"، أو التلقائي) في ذرة
+   * واحدة — نفس `recordIncomePeriods` بالظبط. **مفيش خصم مرتين**:
+   * 1. الفترات المفتوحة بتتحسب من المستند اللي على السيرفر جوه الذرة — اللي
+   *    اتقفل (بـ"سدّد" من الشاشة، أو من جهاز تاني) بيتفوّت.
+   * 2. معرّف العملية ثابت، والعملية بتتكتب **بس لو مش موجودة** — ولو موجودة
+   *    الفترة بتتقفل عليها من غير ما نكتب فوقها، فتعديل المستخدم مبيضيعش.
+   * 3. التلقائي (`auto`) بيسجل بس الفترات اللي `autoOk` — اللي رجعت تسأل
+   *    (عمليتها اتمسحت) وشهر الاستلام وأي فترة قبل تفعيل التلقائي بيسألوا.
+   */
+  async function recordCharges(
+    kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {},
+  ): Promise<IncomeRecordResult> {
+    if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
+    if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection', recorded: [] };
+    const auto = !!opts.auto;
+    const ref = doc(db, 'users', uid, kind === 'subscription' ? 'subscriptions' : 'gamiyas', id);
+    const today = todayStr();
+    let recorded: string[] = [];
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        recorded = [];
+        const snap = await t.get(ref);
+        if (!snap.exists()) throw new ChargeMissingError();
+        const data = { id, ...(snap.data() as any) };
+        const open = kind === 'subscription'
+          ? subscriptionOpenCharges(data as Subscription, today)
+          : gamiyaOpenCharges(data as Gamiya, today);
+        const seen = new Set<string>();
+        const todo = entries.filter(e => {
+          const o = open.find(x => x.key === e.key);
+          if (!o || seen.has(e.key) || !(e.amount > 0) || !Number.isFinite(e.amount) || (auto && !o.autoOk)) return false;
+          seen.add(e.key);
+          return true;
+        });
+        if (todo.length === 0) return;
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
+        const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions',
+          kind === 'subscription' ? subscriptionTxId(id, e.key) : gamiyaTxId(id, e.key)));
+        const existing = await Promise.all(txRefs.map(r => t.get(r)));
+        const at = new Date().toISOString();
+
+        if (kind === 'subscription') {
+          const sub = data as Subscription;
+          const closed = { ...(sub.closed || {}) };
+          const history = [...(sub.history || [])];
+          todo.forEach((e, i) => {
+            const txId = txRefs[i].id;
+            closed[e.key] = auto ? { txId, auto: true, at } : { txId, at };
+            if (!history.some(h => h.transactionId === txId)) {
+              history.push({
+                id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i,
+                date: e.key, amount: e.amount, transactionId: txId, periodKey: e.key, ...(auto ? { auto: true } : {}),
+              });
+            }
+            if (existing[i].exists()) return;
+            const txData = {
+              type: 'expense' as const, amount: e.amount, walletId: sub.walletId, date: e.key,
+              categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
+              subscriptionId: id, periodKey: e.key, createdAt: at, ...(auto ? { autoRecorded: true } : {}),
+            };
+            t.set(txRefs[i], Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
+            recorded.push(e.key);
+          });
+          t.update(ref, { closed, history, nextDueDate: subscriptionAdvance(sub, closed) });
+          return;
+        }
+
+        const g = data as Gamiya;
+        const months = (g.months || []).map(m => {
+          const i = todo.findIndex(e => e.key === m.id);
+          if (i === -1) return m;
+          const { reopened: _r, auto: _a, transactionId: _t, ...rest } = m;
+          if (!existing[i].exists()) {
+            t.set(txRefs[i], {
+              type: m.isPayoutMonth ? 'income' : 'expense', amount: todo[i].amount, walletId: g.walletId, date: m.dueDate,
+              note: `${m.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${m.monthIndex})`,
+              gamiyaId: id, periodKey: m.id, createdAt: at, ...(auto ? { autoRecorded: true } : {}),
+            });
+            recorded.push(m.id);
+          }
+          return { ...rest, status: 'done' as const, transactionId: txRefs[i].id, ...(auto ? { auto: true } : {}) };
+        });
+        t.update(ref, { months });
+      }));
+      return { outcome: 'done', recorded };
+    } catch (e) {
+      // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
+      if (e instanceof ChargeMissingError) return { outcome: 'done', recorded: [] };
+      noteAtomicFailure(kind === 'subscription' ? 'تسجيل الاشتراك' : 'تسجيل الجمعية', e);
+      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed', recorded: [] };
     }
   }
 
@@ -1648,7 +1853,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    *    الذرة التانية فبتلاقي الأولى قفلت.
    * وكل القرايات قبل كل الكتابات.
    */
-  async function recordIncomePeriods(incomeId: string, entries: { key: string; amount: number }[]): Promise<IncomeRecordResult> {
+  async function recordIncomePeriods(incomeId: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {}): Promise<IncomeRecordResult> {
     if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
     if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection', recorded: [] };
@@ -1678,7 +1883,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             type: 'income', amount: e.amount, walletId: inc.walletId,
             date: incomeTxDate(inc, e.key, today),
             note: `${inc.name} — ${incomePeriodLabel(inc, e.key, today)}`,
-            incomeId, periodKey: e.key, createdAt: at,
+            incomeId, periodKey: e.key, createdAt: at, ...(opts.auto ? { autoRecorded: true } : {}),
           });
           recorded.push(e.key);
         });
@@ -1789,6 +1994,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function addGamiya(data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
+    chargeMode?: ChargeMode;
   }) {
     if (!uid) return;
     const months: GamiyaMonth[] = Array.from({ length: data.totalMonths }, (_, i) => {
@@ -1803,12 +2009,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         status: 'pending',
       };
     });
-    addDocNoWait('gamiyas', { ...data, months, createdAt: new Date().toISOString() }, namedLabel('الجمعية', data.name));
+    const { chargeMode, ...rest } = data;
+    addDocNoWait('gamiyas', {
+      ...rest, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()), months, createdAt: new Date().toISOString(),
+    }, namedLabel('الجمعية', data.name));
   }
   async function updateGamiya(id: string, data: Partial<Gamiya>) {
     if (!uid) return;
-    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
-    track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', gamiyas.find(x => x.id === id)?.name));
+    const current = gamiyas.find(x => x.id === id);
+    const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
+    track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
   }
   async function deleteGamiya(id: string) {
     if (!uid) return;
@@ -1828,7 +2040,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بيرفع قبل القراية من السيرفر، والكل متسابق مع "الاتصال وقع"
     if (!serverReachableRef.current) return 'no-connection';
     const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
-    const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    // نفس معرّف التلقائي وكارت "اتخصم؟" — الشهر عمليته واحدة مهما اتسجل منين
+    const txRef = doc(db, 'users', uid, 'transactions', gamiyaTxId(gamiyaId, monthId));
     if (!(await waitForOurWritesToLand())) return 'no-connection';
     try {
       await countPending(runTransaction(db, async (t) => {
@@ -1839,20 +2052,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!month || month.status === 'done') return;
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
+        const existing = await t.get(txRef);
 
-        const type = month.isPayoutMonth ? 'income' : 'expense';
-        t.set(txRef, {
-          type, amount: month.amount, walletId: g.walletId, date: month.dueDate,
-          note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
-          createdAt: new Date().toISOString(),
+        // موجودة ← الشهر بيتقفل عليها من غير ما نكتب فوقها (تعديل المستخدم يفضل)
+        if (!existing.exists()) {
+          t.set(txRef, {
+            type: month.isPayoutMonth ? 'income' : 'expense', amount: month.amount, walletId: g.walletId, date: month.dueDate,
+            note: `${month.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${month.monthIndex})`,
+            gamiyaId, periodKey: monthId, createdAt: new Date().toISOString(),
+          });
+        }
+        const updatedMonths = g.months.map(m => {
+          if (m.id !== monthId) return m;
+          const { reopened: _r, auto: _a, ...rest } = m;
+          return { ...rest, status: 'done' as const, transactionId: txRef.id };
         });
-        const updatedMonths = g.months.map(m =>
-          m.id === monthId ? { ...m, status: 'done' as const, transactionId: txRef.id } : m
-        );
         t.update(gamiyaRef, { months: updatedMonths });
       }));
       return 'done';
     } catch (e) {
+      if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد شهر الجمعية', e);
       return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
     }
   }
@@ -1871,7 +2090,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         setInstallmentCount,
         addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
-        addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone,
+        addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone, recordCharges, skipSubscriptionCharge,
         addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod, deleteIncome,
       }}>
       {children}

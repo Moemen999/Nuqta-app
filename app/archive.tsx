@@ -2,6 +2,7 @@ import { Money } from '@/components/Money';
 import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
+import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
@@ -179,6 +180,7 @@ export default function ArchiveScreen() {
               <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
               <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
               {pendingTxIds.has(t.id) && <PendingSyncMark />}
+              {t.autoRecorded && <AutoRecordedMark />}
             </View>
           </View>
         );

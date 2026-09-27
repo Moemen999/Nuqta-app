@@ -29,7 +29,7 @@ const mount = () => render(<ThemeProvider><TabLayout /></ThemeProvider>);
 describe('الزرار العايم وكارت "نزل؟"', () => {
   beforeEach(() => {
     Object.assign(mockData, {
-      incomes: [], wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }],
+      incomes: [], subscriptions: [], gamiyas: [], wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }],
       serverReachable: true, setupStatus: 'done', loadErrors: [],
     });
     mockPath = '/';
@@ -71,6 +71,18 @@ describe('الزرار العايم وكارت "نزل؟"', () => {
   it('من غير نت ومفيش محافظ لسه ← الزرار ظاهر (مش متأكدين)', async () => {
     mockData.wallets = [];
     mockData.serverReachable = false;
+    await mount();
+    expect(screen.getByTestId('tx_add_button')).toBeTruthy();
+  });
+
+  it('فيه كارت "اتخصم؟" (اشتراك بتأكيد معاده النهاردة) ← الزرار مستخبّي في الرئيسية', async () => {
+    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly', nextDueDate: today, active: true, history: [] }];
+    await mount();
+    expect(screen.queryByTestId('tx_add_button')).toBeNull();
+  });
+
+  it('اشتراك تلقائي معاده النهاردة ← مفيش كارت، الزرار ظاهر', async () => {
+    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly', nextDueDate: today, active: true, history: [], chargeMode: 'auto', chargeAutoSince: today }];
     await mount();
     expect(screen.getByTestId('tx_add_button')).toBeTruthy();
   });

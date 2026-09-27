@@ -90,7 +90,7 @@ export function useIncomeAutoRecord() {
       // يقف للأبد في الجلسة من غير ولا كلمة
       try {
         for (const { inc, keys } of due) {
-          const r = await recordIncomePeriods(inc.id, keys.map(key => ({ key, amount: inc.amount })));
+          const r = await recordIncomePeriods(inc.id, keys.map(key => ({ key, amount: inc.amount })), { auto: true });
           // no-connection والنت "شغال": يعني انتظار الكتابات خلص وقته — مفيش
           // تغيير هيصحّي الهوك، فبنجرب تاني بعد دقيقة بدل ما نستنى الخلفية
           if (r.outcome === 'no-connection') { retry = true; continue; }

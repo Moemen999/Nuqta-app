@@ -13,6 +13,14 @@ service cloud.firestore {
         && (!('archivedAt' in data) || data.archivedAt is string);
     }
 
+    // الخصم التلقائي (اشتراك/جمعية). اختياريين: كل المستندات القديمة مالهاش
+    // الحقلين، ومش موجود = "بتأكيد". `closed` مش متفحوص (قاعدة 6) — الحماية من
+    // الخصم مرتين في الذرة ومعرّف العملية الثابت
+    function chargeModeValid(data) {
+      return (!('chargeMode' in data) || data.chargeMode in ['auto', 'confirm'])
+        && (!('chargeAutoSince' in data) || data.chargeAutoSince is string);
+    }
+
     // الحقل موجود في المستند المتخزّن وقيمته هي هي بعد الكتابة — يعني الكتابة
     // دي مش هي اللي كتبته. بيسمح لقيمة قديمة اتكتبت قبل ما القاعدة تتشد إنها
     // تفضل، من غير ما يسمح بقيمة جديدة غلط. في الإنشاء `resource` بـnull.
@@ -94,7 +102,9 @@ service cloud.firestore {
           // تحويل التسوية: بيرجّع رصيد محفظة مؤرشفة لصفر. الحقلين اختياريين
           // زي حقول الأرشفة — كل العمليات الموجودة من قبل مالهاش الحقلين دول
           && (!('isSettlement' in request.resource.data) || request.resource.data.isSettlement is bool)
-          && (!('archivedWalletId' in request.resource.data) || request.resource.data.archivedWalletId is string);
+          && (!('archivedWalletId' in request.resource.data) || request.resource.data.archivedWalletId is string)
+          // اتسجلت لوحدها (دخل ثابت/اشتراك/جمعية "تلقائي") — علامة في التاريخ بس
+          && (!('autoRecorded' in request.resource.data) || request.resource.data.autoRecorded is bool);
       }
 
       match /budgets/{budgetId} {
@@ -142,7 +152,8 @@ service cloud.firestore {
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
           && request.resource.data.amount is number
-          && request.resource.data.amount > 0;
+          && request.resource.data.amount > 0
+          && chargeModeValid(request.resource.data);
       }
 
       // الدخل الثابت. مجموعة جديدة فمفيش مستندات قديمة — الحقول الأساسية مطلوبة
@@ -171,7 +182,8 @@ service cloud.firestore {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
-          && request.resource.data.monthlyAmount is number;
+          && request.resource.data.monthlyAmount is number
+          && chargeModeValid(request.resource.data);
       }
       match /shakhbata_settings/{docId} {
         allow read, delete: if request.auth != null && request.auth.uid == userId;

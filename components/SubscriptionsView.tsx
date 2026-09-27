@@ -6,6 +6,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
+import ChargeModePicker from '@/components/ChargeModePicker';
+import type { ChargeMode } from '@/lib/autoCharge';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -39,7 +41,9 @@ export default function SubscriptionsView() {
           // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
           // نفس الرسايل بالظبط في شاشة الجمعية
           const outcome = await markSubscriptionPaid(s.id, todayStr());
-          if (outcome !== 'done') {
+          if (outcome === 'already-paid-today') {
+            Alert.alert('اتسجل النهاردة خلاص', `دفعة "${s.name}" اتسجلت النهاردة بنفس المبلغ، فما سجلناش تاني عشان ميتخصمش مرتين. لو عليه مرة متأخرة تانية، هتلاقيها في الرئيسية "اتخصم؟".`);
+          } else if (outcome !== 'done') {
             const m = PAY_OUTCOME_ALERT[outcome];
             Alert.alert(m.title, m.body);
           }
@@ -121,12 +125,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   const [customDays, setCustomDays] = useState('30');
   const [nextDueDate, setNextDueDate] = useState(todayStr());
   const [reminderDays, setReminderDays] = useState('3');
+  const [chargeMode, setChargeMode] = useState<ChargeMode>('confirm');
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
 
   function reset() {
     setName(''); setAmount(''); setFrequency('monthly'); setCustomDays('30');
-    setNextDueDate(todayStr()); setReminderDays('3'); setError(''); setCategoryId(undefined);
+    setNextDueDate(todayStr()); setReminderDays('3'); setError(''); setCategoryId(undefined); setChargeMode('confirm');
   }
 
   async function handleSave() {
@@ -137,7 +142,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
         await addSubscription({
           name: name.trim(), amount: amt, walletId, categoryId,
           frequency, customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
-          nextDueDate, reminderDaysBefore: Number(reminderDays) || 0,
+          nextDueDate, reminderDaysBefore: Number(reminderDays) || 0, chargeMode,
         });
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
@@ -218,6 +223,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
+          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
 
@@ -293,6 +299,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const [customDays, setCustomDays] = useState(String(sub.customDays || 30));
   const [nextDueDate, setNextDueDate] = useState(sub.nextDueDate);
   const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore));
+  const [chargeMode, setChargeMode] = useState<ChargeMode>(sub.chargeMode ?? 'confirm');
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
 
@@ -310,6 +317,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
           nextDueDate,
           reminderDaysBefore: Number(reminderDays) || 0,
+          chargeMode,
         });
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
@@ -389,6 +397,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
+          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
 

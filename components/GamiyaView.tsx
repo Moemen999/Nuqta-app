@@ -6,6 +6,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
+import ChargeModePicker from '@/components/ChargeModePicker';
+import type { ChargeMode } from '@/lib/autoCharge';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -148,12 +150,13 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [startDate, setStartDate] = useState(todayStr());
   const [reminderDays, setReminderDays] = useState('3');
+  const [chargeMode, setChargeMode] = useState<ChargeMode>('confirm');
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
 
   function reset() {
     setName(''); setMonthlyAmount(''); setTotalMonths('12'); setPayoutMonthIndex('1');
-    setPayoutAmount(''); setStartDate(todayStr()); setReminderDays('3'); setError('');
+    setPayoutAmount(''); setStartDate(todayStr()); setReminderDays('3'); setError(''); setChargeMode('confirm');
   }
 
   async function handleSave() {
@@ -171,6 +174,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           name: name.trim(), monthlyAmount: monthly, totalMonths: total,
           payoutMonthIndex: payoutIdx, payoutAmount: payout, walletId, startDate,
           reminderDaysBefore: Number(reminderDays) || 0,
+          chargeMode,
         });
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
@@ -232,6 +236,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
+          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
 
@@ -307,6 +312,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
   const [name, setName] = useState(gamiya.name);
   const [walletId, setWalletId] = useState(gamiya.walletId);
   const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore));
+  const [chargeMode, setChargeMode] = useState<ChargeMode>(gamiya.chargeMode ?? 'confirm');
   const [error, setError] = useState('');
 
   const doneCount = gamiya.months.filter(m => m.status === 'done').length;
@@ -319,6 +325,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           name: name.trim(),
           walletId,
           reminderDaysBefore: Number(reminderDays) || 0,
+          chargeMode,
         });
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
@@ -362,6 +369,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
+          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
         </ScrollView>

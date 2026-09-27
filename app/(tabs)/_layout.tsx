@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { usePendingIncomes } from '@/components/IncomeHomeCards';
+import { usePendingCharges } from '@/components/ChargeHomeCards';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
@@ -33,7 +34,9 @@ const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
 export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
-  const incomeCardShowing = usePendingIncomes().length > 0;
+  // نفس الكلام لكروت "اتخصم؟" (اشتراك/جمعية) — نفس المكان ونفس الزراير
+  const pendingCharges = usePendingCharges().length > 0;
+  const incomeCardShowing = usePendingIncomes().length > 0 || pendingCharges;
   // من غير ولا محفظة مفيش عملية تتحفظ — الرئيسية فيها "ضيف محفظة" بدل الزرار ده
   const noWallets = useNoWallets().none;
   const showFab = FAB_TAB_PATHS.includes(pathname) && !(pathname === '/' && incomeCardShowing) && !noWallets;

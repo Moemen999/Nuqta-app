@@ -284,6 +284,7 @@ describe('جرد الإخفاء في كل الشاشات', () => {
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
       'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
+      'lib/autoCharge.ts': { count: 1, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل' },
     };
     const libFiles = fs.readdirSync(path.join(ROOT, 'lib')).filter(n => /\.tsx?$/.test(n));
     const found: Record<string, number> = {};

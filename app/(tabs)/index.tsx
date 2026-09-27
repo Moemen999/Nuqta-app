@@ -2,7 +2,9 @@ import { Money } from '@/components/Money';
 import { speakable } from '@/lib/money';
 import { MIN_TOUCH } from '@/lib/tokens';
 import IncomeHomeCards from '@/components/IncomeHomeCards';
+import ChargeHomeCards from '@/components/ChargeHomeCards';
 import PendingSyncMark from '@/components/PendingSyncMark';
+import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -97,10 +99,12 @@ function HomeScreen() {
     .reduce((s, t) => s + t.amount, 0);
   const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= 0.8;
 
-  const dueSubscriptions = subscriptions.filter(s => daysUntil(s.nextDueDate) <= s.reminderDaysBefore);
+  // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
+  const dueSubscriptions = subscriptions.filter(s => s.active !== false
+    && daysUntil(s.nextDueDate) > 0 && daysUntil(s.nextDueDate) <= s.reminderDaysBefore);
   const dueGamiyaMonths = gamiyas.flatMap(g =>
     g.months
-      .filter(m => m.status === 'pending' && daysUntil(m.dueDate) <= g.reminderDaysBefore)
+      .filter(m => m.status === 'pending' && daysUntil(m.dueDate) > 0 && daysUntil(m.dueDate) <= g.reminderDaysBefore)
       .map(m => ({ gamiya: g, month: m }))
   );
 
@@ -233,6 +237,7 @@ function HomeScreen() {
           </View>
         )}
         <IncomeHomeCards />
+        <ChargeHomeCards />
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>
@@ -259,6 +264,7 @@ function HomeScreen() {
                 <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
+                {t.autoRecorded && <AutoRecordedMark />}
               </View>
             </TouchableOpacity>
           );
