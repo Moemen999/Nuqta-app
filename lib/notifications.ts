@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import { DARK } from '@/context/ThemeContext';
 
 const CHANNEL_ID = 'nuqta-reminders';
 
@@ -22,7 +23,7 @@ export async function setupNotifications() {
       name: 'تذكيرات نقطة',
       importance: Notifications.AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#C9A961',
+      lightColor: DARK.accent,
     });
   }
 }

@@ -75,7 +75,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
         <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
             <TouchableOpacity onPress={goPrev} style={styles.navBtn}>
-              <Text style={styles.navText}>‹</Text>
+              <Text style={styles.navText}>›</Text>
             </TouchableOpacity>
 
             <View style={styles.labelRow}>
@@ -100,7 +100,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
             </View>
 
             <TouchableOpacity onPress={goNext} style={styles.navBtn}>
-              <Text style={styles.navText}>›</Text>
+              <Text style={styles.navText}>‹</Text>
             </TouchableOpacity>
           </View>
 
@@ -155,7 +155,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayCenteredStyle,
     card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: c.borderStrong },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: 20 },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
