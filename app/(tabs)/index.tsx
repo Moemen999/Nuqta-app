@@ -281,6 +281,13 @@ function HomeScreen() {
  * في إيميله، عشان كده بنعمل reload أول ما الشاشة تفتح وكل ما يرجع للتطبيق —
  * وده اللي بيخلي البانر يختفي بعد التأكيد من غير ما يخرج ويدخل تاني.
  */
+/**
+ * رسالة التأكيد **بتوصل** — بس بتقع في الـSpam (اتأكد 2026-09-28 بحساب جديد).
+ * المستخدم اللي مش لاقيها في الوارد هيفتكر التطبيق بايظ، فالسطر ده ظاهر على طول
+ * مع البانر. نفس صياغة رابط "نسيت الباسورد؟" (`resetSentBody`).
+ */
+export const VERIFY_SPAM_HINT = 'رسالة التأكيد لو ملقتهاش في الوارد، بصّ في الـSpam.';
+
 function EmailVerificationBanner() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -340,6 +347,8 @@ function EmailVerificationBanner() {
           </Text>
         </TouchableOpacity>
       )}
+      {/* بعد "بعتنالك رسالة جديدة" مش قبلها — النصيحة على آخر رسالة اتقال إنها اتبعتت */}
+      <Text testID="verify_spam_hint" style={styles.bannerText}>{VERIFY_SPAM_HINT}</Text>
       {!!error && <Text style={[styles.bannerText, { color: colors.danger }]}>{error}</Text>}
     </View>
   );
