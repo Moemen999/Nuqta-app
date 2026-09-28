@@ -29,18 +29,19 @@ appId: host.exp.exponent
     id: lock_freq_every_resume
 - pressKey: Home
 - openLink: exp://127.0.0.1:8081/--/
+# قفل الـPIN بيظهر **لوحة أرقام** مش خانة (lock_password_input للباسورد بس)،
+# والـPIN بيتبعت لوحده بعد 4 أرقام. lock_forgot_button موجود في الحالتين
 - extendedWaitUntil:
     visible:
-      id: lock_password_input
+      id: lock_forgot_button
     timeout: 30000
-- tapOn:
-    id: lock_password_input
-- inputText: "2468"
-- tapOn:
-    id: lock_submit_button
+- tapOn: "2"
+- tapOn: "4"
+- tapOn: "6"
+- tapOn: "8"
 - extendedWaitUntil:
     notVisible:
-      id: lock_password_input
+      id: lock_forgot_button
     timeout: 20000
 # تنضيف: إلغاء القفل
 - openLink: exp://127.0.0.1:8081/--/settings-screens/lock

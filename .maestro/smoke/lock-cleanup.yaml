@@ -1,0 +1,42 @@
+# تنضيف القفل — بيتنادى من smoke.yaml قبل الطقم (onFlowStart) وبعده
+# (onFlowComplete). **onFlowComplete بيشتغل حتى لو خطوة وقعت** — اتأكد على Maestro
+# 2.10 بـflow بيقع عن قصد (2026-09-28). مبيشتغلش لو Maestro نفسه اتقفل أو الموبايل
+# اتفصل في النص (CLAUDE.md).
+#
+# الـPIN الوحيد اللي الطقم بيحطه 2468. آمن يتنادى في أي حالة: لو مفيش قفل مبيعملش
+# حاجة، وفي الآخر بيتأكد إن القفل مقفول (lock_enable_button ظاهر).
+appId: host.exp.exponent
+---
+- openLink: exp://127.0.0.1:8081/--/settings-screens/lock
+- waitForAnimationToEnd
+# شاشة القفل ظاهرة (قفل الـPIN بلوحة أرقام) ← 2468
+- runFlow:
+    when:
+      visible:
+        id: lock_forgot_button
+    commands:
+      - tapOn: "2"
+      - tapOn: "4"
+      - tapOn: "6"
+      - tapOn: "8"
+      - extendedWaitUntil:
+          notVisible:
+            id: lock_forgot_button
+          timeout: 15000
+# القفل مفعّل ← إلغاؤه
+- runFlow:
+    when:
+      visible:
+        id: lock_disable_button
+    commands:
+      - tapOn:
+          id: lock_disable_button
+      - tapOn:
+          id: setlock_old_code
+      - inputText: "2468"
+      - tapOn:
+          id: setlock_submit
+- extendedWaitUntil:
+    visible:
+      id: lock_enable_button
+    timeout: 15000
