@@ -1,5 +1,11 @@
-# قفل بـ PIN ← قفل التطبيق وفتحه ← شاشة القفل ← الـPIN بيفتح ← الرئيسية.
+# قفل بـ PIN ← التطبيق يروح الخلفية ويرجع ← شاشة القفل ← الـPIN بيفتح ← الرئيسية.
 # وفي الآخر بيلغي القفل عشان التشغيل الجاي يبدأ من غير قفل.
+#
+# **من غير ما يقفل التطبيق ولا يشغّله من الأول** (2026-09-28): على الـSamsung فتح
+# exp:// من البارد مبيوصلش لـExpo Go الرئيسي (فيه نسخة تانية في Secure Folder).
+# فالقفل بيبقى "مع كل رجوع" (مهلة 0 — الافتراضي) والتطبيق بيروح الخلفية بزرار
+# Home ويرجع بنفس اللينك وهو شغّال — ده رجوع مش تشغيل جديد.
+# والرئيسية بتتعرف بـhome_hide_amounts_toggle مش "+": كارت "نزل؟" بيخبّيه (01).
 appId: host.exp.exponent
 ---
 - openLink: exp://127.0.0.1:8081/--/settings-screens/lock
@@ -19,20 +25,22 @@ appId: host.exp.exponent
     visible:
       id: lock_status
     timeout: 10000
-- stopApp
-- openLink: exp://127.0.0.1:8081
+- tapOn:
+    id: lock_freq_every_resume
+- pressKey: Home
+- openLink: exp://127.0.0.1:8081/--/
 - extendedWaitUntil:
     visible:
       id: lock_password_input
-    timeout: 60000
+    timeout: 30000
 - tapOn:
     id: lock_password_input
 - inputText: "2468"
 - tapOn:
     id: lock_submit_button
 - extendedWaitUntil:
-    visible:
-      id: tx_add_button
+    notVisible:
+      id: lock_password_input
     timeout: 20000
 # تنضيف: إلغاء القفل
 - openLink: exp://127.0.0.1:8081/--/settings-screens/lock
