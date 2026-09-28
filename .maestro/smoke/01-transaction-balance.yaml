@@ -39,7 +39,8 @@ appId: host.exp.exponent
 # والسحبة بتقفل الكيبورد (keyboardDismissMode) — فده نفس اللي بيحصل للمستخدم
 - hideKeyboard
 - tapOn: تجربة 1
-- tapOn: فئة أ
+# اسم الفئة بيتعرض "🏷️ فئة أ" (أيقونة + مسافة مبتتكسرش)، وMaestro بيطابق النص كله
+- tapOn: ".*فئة أ"
 - tapOn:
     id: tx_save_button
 - extendedWaitUntil:
