@@ -54,11 +54,25 @@ function resolveSentryDsn() {
   return process.env.EXPO_PUBLIC_SENTRY_DSN || undefined;
 }
 
+/**
+ * بناء التطوير (بروفايل `development` في eas.json بيحط APP_VARIANT) ليه **معرّف
+ * لوحده**: بيتثبّت جنب التطبيق الحقيقي مش مكانه، واختبار الأجهزة (Maestro)
+ * مبقاش معتمد على Expo Go — اللي بيتحدّث لوحده ويكسر توافق الـSDK، واللي على
+ * الـSamsung منه نسختين (Secure Folder)، ومبيعرضش الـsplash بتاعنا.
+ * **بناء التوزيع مبيتأثرش** — APP_VARIANT مش متحط في بروفايلاته.
+ */
+const IS_DEV_BUILD = process.env.APP_VARIANT === 'development';
+
 module.exports = ({ config }) => {
   const { versionCode, buildNumber } = resolveBuild();
   return {
     ...config,
-    android: { ...config.android, versionCode },
+    ...(IS_DEV_BUILD ? { name: 'نقطة (تطوير)' } : {}),
+    android: {
+      ...config.android,
+      versionCode,
+      ...(IS_DEV_BUILD ? { package: 'com.nuqta.app.dev' } : {}),
+    },
     extra: { ...config.extra, buildNumber, sentryDsn: resolveSentryDsn() },
   };
 };
