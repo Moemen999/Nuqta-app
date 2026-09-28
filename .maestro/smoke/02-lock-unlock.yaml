@@ -1,5 +1,5 @@
 # قفل بـ PIN ← التطبيق يروح الخلفية ويرجع ← شاشة القفل ← الـPIN بيفتح ← الرئيسية.
-# وفي الآخر بيلغي القفل عشان التشغيل الجاي يبدأ من غير قفل.
+# إلغاء القفل في lock-cleanup.yaml (من smoke.yaml) — شغّل الطقم من smoke.yaml دايمًا.
 #
 # **من غير ما يقفل التطبيق ولا يشغّله من الأول** (2026-09-28): على الـSamsung فتح
 # exp:// من البارد مبيوصلش لـExpo Go الرئيسي (فيه نسخة تانية في Secure Folder).
@@ -43,16 +43,6 @@ appId: host.exp.exponent
     notVisible:
       id: lock_forgot_button
     timeout: 20000
-# تنضيف: إلغاء القفل
-- openLink: exp://127.0.0.1:8081/--/settings-screens/lock
-- tapOn:
-    id: lock_disable_button
-- tapOn:
-    id: setlock_old_code
-- inputText: "2468"
-- tapOn:
-    id: setlock_submit
-- extendedWaitUntil:
-    visible:
-      id: lock_enable_button
-    timeout: 10000
+# إلغاء القفل مش هنا: فتح لينك إعدادات القفل والتطبيق قدام بيقفله تاني ("مع كل
+# رجوع" بمهلة 0) — lock-cleanup.yaml (onFlowComplete في smoke.yaml) بيتعامل مع ده
+# وبيلغي القفل ويتأكد، حتى لو خطوة وقعت
