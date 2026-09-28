@@ -34,6 +34,10 @@ appId: host.exp.exponent
 - tapOn:
     id: tx_amount_input
 - inputText: "100"
+# كيبورد الأرقام بيقصّ الفورم (اتقاس على الـSamsung: الشرايح من y=1251 والفورم
+# مقصوص عند 1145)، وMaestro مبيسكرولش لوحده. المستخدم بيوصلها بسحبة واحدة —
+# والسحبة بتقفل الكيبورد (keyboardDismissMode) — فده نفس اللي بيحصل للمستخدم
+- hideKeyboard
 - tapOn: تجربة 1
 - tapOn: فئة أ
 - tapOn:
