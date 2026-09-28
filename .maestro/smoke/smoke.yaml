@@ -2,7 +2,9 @@
 # 2026-09-28، حتى و"Install via USB" مفعّل) قبل أي خطوة — MIUI رفض تثبيت أداة
 # Maestro (INSTALL_FAILED_USER_RESTRICTED).
 # 2026-09-28 على الـSamsung: 00-reset عدّى، و01 وقع (لينك الجذر ما نقلش من
-# dev-seed للرئيسية) — مستني قرار قبل ما الـflow يتعدّل (TIMELINE). طريقة التشغيل هتتكتب في CLAUDE.md
+# dev-seed للرئيسية) — 01 اتصلح (رجوع + المودال). التشغيلة التانية وقعت قبل 01:
+# openLink من البارد مبيفتحش Expo Go على الـSamsung (Expo Go تاني في Secure Folder).
+# 02 هيقع بنفس السبب. مستني قرار (TIMELINE). طريقة التشغيل هتتكتب في CLAUDE.md
 # بعد أول تشغيل ينجح — مش قبل. حساب الاختبار بس: 00-reset بيقع لو مش هو.
 appId: host.exp.exponent
 ---
