@@ -12,7 +12,7 @@ import { useData } from '@/context/DataContext';
 import { AmountsMaskScope, usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -212,7 +212,7 @@ function HomeScreen() {
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
-                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: t.type === 'withdraw' ? colors.accentText : T.color }]} />
+                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}

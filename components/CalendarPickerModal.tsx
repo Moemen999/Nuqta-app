@@ -162,7 +162,7 @@ function makeStyles(c: ThemeColors) {
     navBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: 20 },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
-    label: { color: c.accent, fontSize: 15, fontWeight: '700' },
+    label: { color: c.accentText, fontSize: 15, fontWeight: '700' },
     weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
     weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: 11 },
     grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },

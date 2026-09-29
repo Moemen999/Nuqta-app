@@ -179,10 +179,10 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10, overflow: 'hidden' },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
     cardTitle: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    chevron: { color: c.accent, fontSize: 20, fontWeight: '700' },
+    chevron: { color: c.accentText, fontSize: 20, fontWeight: '700' },
     cardBody: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
     bulletRow: { flexDirection: 'row-reverse', marginBottom: 10 },
-    bulletDot: { color: c.accent, fontSize: 14, marginLeft: 8, marginTop: 1 },
+    bulletDot: { color: c.accentText, fontSize: 14, marginLeft: 8, marginTop: 1 },
     bulletText: { flex: 1, color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 21 },
     footer: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 20 },
   });

@@ -38,7 +38,8 @@ export default function TabLayout() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: colors.accent,
+          // accentText مش accent: اسم التاب المختار نص، والدهبي الفاتح على الكريمي 2.2:1
+          tabBarActiveTintColor: colors.accentText,
           tabBarInactiveTintColor: colors.textSecondary,
           tabBarStyle: { backgroundColor: colors.nav, borderTopColor: colors.border },
           headerShown: false,

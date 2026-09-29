@@ -43,6 +43,6 @@ function makeStyles(c: ThemeColors) {
     chevron: { color: c.textMuted, fontSize: 12 },
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
     name: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
-    restore: { color: c.accent, fontSize: 12.5, fontWeight: '700' },
+    restore: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
   });
 }

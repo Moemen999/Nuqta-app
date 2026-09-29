@@ -282,6 +282,15 @@ export const TYPE_LABELS: Record<string, { label: string; color: string; sign: s
   withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
 };
 
+/**
+ * لون مبلغ العملية. السحب دهبي — ولازم ييجي من الثيم (`accentText`): الدهبي
+ * الثابت على الكريمي في الفاتح 2.2:1 (2026-09-29). المصروف والدخل لسه ثابتين
+ * (TIMELINE — متأجل). مكان واحد عشان الرئيسية والأرشيف ميبعدوش عن بعض.
+ */
+export function transactionAmountColor(type: string, colors: { accentText: string }): string {
+  return type === 'withdraw' ? colors.accentText : (TYPE_LABELS[type]?.color ?? colors.accentText);
+}
+
 export function debtGrandTotal(d: Debt) {
   return d.totalAmount + (d.increases || []).reduce((s, e) => s + e.amount, 0);
 }

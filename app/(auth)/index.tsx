@@ -202,7 +202,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.bg },
     container: { flexGrow: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 12 },
-    title: { color: c.accent, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
+    title: { color: c.accentText, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
     tagline: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 18 },
     subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 4 },
     googleBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },

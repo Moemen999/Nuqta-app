@@ -93,3 +93,19 @@ describe('accentText — الدهبي كنص', () => {
     expect(DARK.accentText).toBe(DARK.accent);
   });
 });
+
+/**
+ * حارس المصدر: الدهبي **كنص** بـ`accentText` بس. `accent` للتعبئة والإطار
+ * والأيقونة — كنص على الكريمي 2.2:1. اتلقى في 15 مكان بعد ما اتصلح في 3.
+ */
+it('مفيش color: accent في app/ وcomponents/ — النص الدهبي accentText', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..', '..');
+  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e: any) =>
+    e.isDirectory() ? (e.name === '__tests__' ? [] : walk(path.join(d, e.name))) : e.name.endsWith('.tsx') ? [path.join(d, e.name)] : []);
+  const offenders = ['app', 'components'].flatMap(d => walk(path.join(root, d)))
+    .filter(f => /color: (c|colors).accent/.test(fs.readFileSync(f, 'utf8')))
+    .map(f => path.relative(root, f));
+  expect(offenders).toEqual([]);
+});
