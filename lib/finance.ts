@@ -607,6 +607,46 @@ export function pinInstallmentAmount(d: Debt): { installmentAmount: number } | n
   return value && value > PIASTRE_EPS ? { installmentAmount: value } : null;
 }
 
+/**
+ * زيادة فتحت دين أقساط كان اتسدد ← معاد القسط الجاي لازم يتقدّم (2026-09-29).
+ *
+ * الدفعة اللي بتخلّص الدين بتسيب `dueDate` زي ما هو (معاد آخر قسط —
+ * `addDebtPayment`). لو بعدها جت زيادة، الدين اتفتح والمعاد لسه قديم فات،
+ * فالتذكير كان بيترجع على يوم عدّى. دلوقتي: أول معاد شهري (نفس يوم الشهر)
+ * بعد المعاد القديم ومش قبل النهارده ولا يوم الزيادة.
+ *
+ * **دين الأقساط بس:** المعاد فيه معناه "القسط الجاي" وبيتقدّم شهر بشهر أصلاً.
+ * الدين العادي معاده متفق عليه مع الشخص — منخترعش معاد جديد.
+ *
+ * كل مرشّح بيتحسب من المعاد الأصلي (`addMonths(due, k)`) مش من اللي قبله —
+ * عشان 31 يناير ميبقاش 28 في كل الشهور اللي بعد فبراير.
+ *
+ * `null` = المعاد مبيتغيّرش: مش قسط، مفيش معاد، الدين مكانش متسدد، الزيادة مش
+ * فلوس، **الدين لسه متسدد بعد الزيادة** (كان مدفوع زيادة أكتر منها — money-reviewer
+ * + silent-failure-hunter)، أو تاريخ متخزّن مش بشكل YYYY-MM-DD (`parseDateStr`
+ * كانت هتحوّله 1970 ونخترع معاد).
+ */
+export function reopenedDueDate(d: Debt, increaseAmount: number, increaseDate: string, today: string): string | null {
+  if (!d.isInstallment || !d.dueDate) return null;
+  if (!isDateStr(d.dueDate) || !isDateStr(increaseDate) || !isDateStr(today)) return null;
+  if (!(increaseAmount > PIASTRE_EPS)) return null;
+  const remaining = debtRemaining(d);
+  if (remaining > PIASTRE_EPS) return null;
+  if (!(remaining + increaseAmount > PIASTRE_EPS)) return null;
+  const from = increaseDate > today ? increaseDate : today;
+  // 1200 شهر سقف أمان (100 سنة) — تاريخ متخزّن بايظ ميعملش لفة للأبد
+  for (let k = 1; k <= 1200; k++) {
+    const next = addMonths(d.dueDate, k);
+    if (next >= from) return next;
+  }
+  return null;
+}
+
+/** "2026-09-29" بالظبط — مش أي نص `parseDateStr` هتحوّله تاريخ */
+export function isDateStr(x: unknown): x is string {
+  return typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
+}
+
 export type InstallmentProgress = { current: number; total: number };
 
 /**

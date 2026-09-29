@@ -6,7 +6,7 @@ import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, pinInstallmentAmount,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
@@ -1536,6 +1536,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
         const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
+        // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
+        // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
+        const nextDue = reopenedDueDate(debt, amount, date, todayStr());
+        if (nextDue) patch.dueDate = nextDue;
+        else if (debt.isInstallment && debt.dueDate && !isDateStr(debt.dueDate)) {
+          // المعاد المتخزّن بايظ ← سايبينه زي ما هو بدل ما نخترع واحد. المعرّف بس (sentryScrub)
+          console.warn('[debt] stored dueDate is not YYYY-MM-DD, left as is', debtId);
+        }
         const recount = installmentCountFor({ ...debt, increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
         if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
