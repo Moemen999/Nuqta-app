@@ -1303,8 +1303,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * فرق تقريب متخزّن واتجاهل (بتاع قسط تاني من نسخة قديمة، أو بايظ) — العدد
    * بيرجع للقاعدة القديمة وده آمن، بس منسيبوش ساكت. المعرّف بس (sentryScrub).
    */
+  // مرة لكل دين في الجلسة: الفرق المتجاهَل مبيتصلحش لوحده، و`runTransaction`
+  // بتعيد الـcallback لما تتصادم — من غيرها نفس السطر كان هيتكرر مع كل دفعة
+  const ignoredResidueNoted = useRef(new Set<string>());
   function noteIgnoredResidue(debt: Debt) {
-    if (installmentResidueIgnored(debt)) console.warn('[debt] installmentResidue ignored, old count rule used', debt.id);
+    if (ignoredResidueNoted.current.has(debt.id) || !installmentResidueIgnored(debt)) return;
+    ignoredResidueNoted.current.add(debt.id);
+    console.warn('[debt] installmentResidue ignored, old count rule used', debt.id);
   }
 
   async function addDebt(data: {
@@ -1335,6 +1340,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const plan = data.isInstallment && data.installmentCount
       ? planInstallments(data.totalAmount, data.installmentCount)
       : null;
+    // المودال بيرفض ده قبل ما يوصل هنا؛ أي نادي تاني (dev-seed) منسيبوش ساكت —
+    // الدين بيتسجل بالعدد والقاعدة القديمة. من غير أرقام (sentryScrub)
+    if (data.isInstallment && data.installmentCount && !plan) {
+      console.warn('[debt] installment plan not possible, saved without installmentAmount');
+    }
     const installmentAmount = plan?.value;
     const installmentResidue = plan ? { amount: plan.residue, forInstallment: plan.value } : undefined;
     const clean = Object.fromEntries(Object.entries({

@@ -816,11 +816,18 @@ export function installmentResidueOf(d: Debt): number | null {
   return r.amount > 0 ? r.amount : 0;
 }
 
-/** أكبر فرق تقريب ممكن للقسط ده (شوف `installmentResidueOf`) */
+/**
+ * أكبر فرق تقريب ممكن للقسط ده (شوف `installmentResidueOf`). عدد الأقساط اللي
+ * الفرق اتحسب عليه ≤ الأكبر من: الإجمالي ÷ (القسط − نص قرش)، والعدد المتخزّن —
+ * التاني عشان زيادة اتمسحت بعد تعديل العدد بتصغّر الإجمالي من غير ما تصغّر
+ * الخطة (1000.29 + 2000 على 60 = قسط 50 وفرق 0.29، والإجمالي بعد المسح
+ * 1000.29 لوحده كان هيرفضه ويقلب العدد — money-reviewer الجولة 2).
+ */
 function residueCeiling(d: Debt, value: number): number {
   if (value <= PIASTRE_EPS) return PIASTRE_EPS;
-  const most = Math.max(debtGrandTotal(d), d.totalAmount || 0);
-  return PIASTRE_EPS * (most / (value - PIASTRE_EPS) + 1) + PIASTRE_EPS;
+  const byTotal = Math.max(debtGrandTotal(d), d.totalAmount || 0) / (value - PIASTRE_EPS);
+  const stored = typeof d.installmentCount === 'number' && Number.isFinite(d.installmentCount) ? d.installmentCount : 0;
+  return PIASTRE_EPS * (Math.max(byTotal, stored) + 1) + PIASTRE_EPS;
 }
 
 /**
@@ -1014,7 +1021,7 @@ export function installmentCountTooLowMessage(paidCount: number) {
 }
 
 export const INSTALLMENT_VALUE_TOO_SMALL = 'كده القسط هيبقى أقل من قرش، اختار عدد أقل.';
-export const INSTALLMENT_DEBT_SETTLED = 'الدين ده اتسدد خلاص، مفيش أقساط تتقسّم.';
+export const INSTALLMENT_DEBT_SETTLED = 'الدين ده اتسدد خلاص، مفيش فلوس فاضلة تتقسّم على أقساط.';
 export const INSTALLMENT_COUNT_NOT_SAVED = 'مقدرناش نحفظ عدد الأقساط، جرّب تاني.';
 
 /**

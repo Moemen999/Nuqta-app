@@ -385,3 +385,19 @@ describe('المراجعة (الجولة 1)', () => {
     expect(r.note).toContain('الأقساط بقت 13');
   });
 });
+
+describe('المراجعة (الجولة 2)', () => {
+  it('زيادة اتمسحت بعد تعديل العدد ← الفرق لسه مقبول والعدد مبيتقلبش', () => {
+    // 1000.29 + زيادة 2000، العدد اتعدّل لـ60: باقي 3000.29 ÷ 60 = 50.00، فرق 0.29
+    let d = base({ totalAmount: 1000.29, installmentCount: 1, installmentAmount: 1000.29,
+      increases: [{ id: 'big', date: '2026-02-01', amount: 2000 }] as never });
+    d = edited(d, 60);
+    expect(d.installmentResidue).toEqual({ amount: 0.29, forInstallment: 50 });
+    const plan = debtEntryDeletePlan(d, 'increase', 'big')!;
+    // باقي 1000.29 = 20 × 50 + 0.29 ← 20 قسط (آخرها 50.29)، مش 21 بقسط 0.29
+    expect(plan.countAfter).toBe(20);
+    const after = { ...d, increases: [] } as Debt;
+    expect(installmentResidueOf(after)).toBe(0.29);
+    expect(installmentResidueIgnored(after)).toBe(false);
+  });
+});
