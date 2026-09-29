@@ -1,5 +1,6 @@
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
+import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
@@ -21,7 +22,9 @@ const BUCKET_META = [
 export default function ShakhbataView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents } = useData();
+  const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas } = useData();
+  // السلفة والجمعية مش مصروف (خطوة 8) — حتى لو اتعدّلت واتدّت فئة
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
   // المؤرشفة مش بتتوزّع على الدلاء — هي مش جزء من خطة الشهر الجاي
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
@@ -99,13 +102,13 @@ export default function ShakhbataView() {
     const map = new Map<string, number>();
     BUCKET_META.forEach(b => {
       const ids = categories.filter(c => c.bucket === b.key).map(c => c.id);
-      const total = transactions
-        .filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth && ids.includes(t.categoryId || ''))
+      const total = spendingExpenses(transactions, transfers)
+        .filter(t => t.date.slice(0, 7) === nowMonth && ids.includes(t.categoryId || ''))
         .reduce((s, t) => s + t.amount, 0);
       map.set(b.key, total);
     });
     return map;
-  }, [categories, transactions, nowMonth]);
+  }, [categories, transactions, transfers, nowMonth]);
 
   const unassigned = categories.filter(c => !c.bucket);
 

@@ -11,6 +11,7 @@ import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
@@ -89,7 +90,7 @@ export default function DebtsTabScreen() {
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { debts, wallets, categories, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const { debts, wallets, categories, transactions, loadErrors, figuresPending, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
@@ -117,10 +118,24 @@ function DebtsContent() {
   const totalOwedToMe = owedToMe.reduce((s, d) => s + Math.max(0, remainingOf(d)), 0);
   const totalIOwe = iOwe.reduce((s, d) => s + Math.max(0, remainingOf(d)), 0);
 
+  /**
+   * المسح بيشيل كل عمليات الدين ومبيعملش تسوية، فلو واحدة منهم على محفظة
+   * مؤرشفة بنقول قبل التأكيد (`cascadeDeleteBlock`). `deleteDebt` بيفحص تاني
+   * لحظة الدوسة، ورسالته بتظهر لو اتمنع هناك.
+   */
   function confirmDeleteDebt(d: Debt) {
-    Alert.alert('حذف الدين', `متأكد إنك عايز تمسح دين "${d.personName}"؟ (كل العمليات المرتبطة بيه هتتمسح كمان)`, [
+    const txIds = debtTransactionIds(d);
+    const blocked = cascadeDeleteBlock({ kind: 'debt', name: d.personName, txIds, transactions, wallets, loadErrors, loading: figuresPending });
+    if (blocked) { notice(blocked.title, blocked.body); return; }
+    const { title, body } = cascadeDeleteConfirm('debt', d.personName, linkedTransactions(txIds, transactions).length);
+    Alert.alert(title, body, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, () => deleteDebt(d.id)) },
+      {
+        text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, async () => {
+          const result = await deleteDebt(d.id);
+          if (result.outcome === 'blocked') notice(result.title, result.body);
+        }),
+      },
     ]);
   }
 

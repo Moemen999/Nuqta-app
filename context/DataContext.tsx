@@ -1,11 +1,15 @@
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
-import { settlementNote } from '@/lib/archiving';
+import {
+  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds,
+  type CascadeDeleteBlock, type CascadeKind,
+} from '@/lib/archiving';
+import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
@@ -97,30 +101,30 @@ export type Settlement = {
  * الرمي هو الطريقة الوحيدة لإلغاء `runTransaction` — والنتيجة إن مفيش أي
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
-class WalletMissingError extends Error {}
+class WalletMissingError extends Error { name = 'WalletMissingError'; }
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
  * جهاز تاني، يا إما لسه ما وصلش (وده اللي `waitForOurWritesToLand` بيمنعه).
  * الرمي بيلغي العملية كلها، فمفيش عملية يتيمة بتتكتب لدين مش موجود.
  */
-class DebtMissingError extends Error {}
+class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
 /**
  * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
  * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
  * والفحص ده جوه الذرة للي اتأرشف من جهاز تاني بين الدوسة والمسح.
  */
-class WalletArchivedError extends Error {}
+class WalletArchivedError extends Error { name = 'WalletArchivedError'; }
 
 /** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
-class IncomeMissingError extends Error {}
+class IncomeMissingError extends Error { name = 'IncomeMissingError'; }
 
 /** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
-class ChargeMissingError extends Error {}
+class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
-class IncomeHasRecordsError extends Error {}
+class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -146,6 +150,13 @@ async function walletUsable(t: FirestoreTransaction, walletRef: DocumentReferenc
 export type FeedbackOutcome = 'sent' | 'pending' | 'failed';
 
 export type PayOutcome = 'done' | 'no-connection' | 'failed' | 'wallet-missing';
+
+/**
+ * نتيجة مسح دين/اشتراك/جمعية بعملياته. `blocked` = ما اتمسحش حاجة خالص،
+ * والرسالة جاهزة للشاشة (`cascadeDeleteBlock`): عملية منهم على محفظة
+ * مؤرشفة، أو بيانات المحافظ/العمليات ما وصلتش فمش هنقدر نتأكد.
+ */
+export type CascadeDeleteResult = { outcome: 'done' } | ({ outcome: 'blocked' } & CascadeDeleteBlock);
 
 /** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
 export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
@@ -398,6 +409,8 @@ type DataContextType = {
    * قديمة" بس — مبيدخلش في أي حساب.
    */
   figuresFromServer: boolean;
+  /** المحافظ/العمليات اللي لسه مرمتش أول snapshot — مسح السجل بعملياته بيستناهم */
+  figuresPending: ListenerName[];
   /**
    * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
    * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
@@ -436,7 +449,7 @@ type DataContextType = {
     dueDate?: string; reminderDaysBefore?: number;
   }) => Promise<void>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
-  deleteDebt: (id: string) => Promise<void>;
+  deleteDebt: (id: string) => Promise<CascadeDeleteResult>;
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
@@ -448,7 +461,7 @@ type DataContextType = {
     chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
-  deleteSubscription: (id: string) => Promise<void>;
+  deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
@@ -456,7 +469,7 @@ type DataContextType = {
     chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
-  deleteGamiya: (id: string) => Promise<void>;
+  deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
   recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
@@ -567,11 +580,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // snapshot (مجموعة فاضية ممكن متبعتش خالص) — فمبيمنعش "اتحدّثت"
   const figuresCache = useRef<{ wallets: boolean | null; transactions: boolean | null }>({ wallets: null, transactions: null });
   const [figuresFromServer, setFiguresFromServer] = useState(false);
+  const [figuresPending, setFiguresPending] = useState<ListenerName[]>(['wallets', 'transactions']);
+  function pendingFigures(): ListenerName[] {
+    return (['wallets', 'transactions'] as const).filter(n => figuresCache.current[n] === null);
+  }
   function noteFigures(name: 'wallets' | 'transactions', fromCache: boolean) {
     figuresCache.current[name] = fromCache;
     const { wallets: w, transactions: t } = figuresCache.current;
     const fresh = figuresFresh(w, t);
     setFiguresFromServer(prev => (prev === fresh ? prev : fresh));
+    const pending = pendingFigures();
+    setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
@@ -637,9 +656,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بنكتب اسم العملية بس — مفيش أسامي ولا مبالغ. الـconsole بيتحوّل
    * breadcrumbs في Sentry، وقسم Sentry في CLAUDE.md بيقول مفيش ولا رقم من
    * فلوس المستخدم يخرج (و`sentryScrub` بيشيل الـbreadcrumbs دي أصلاً).
+   *
+   * وعشان كده الـconsole لوحده مكانش بيوصل Sentry خالص: `reportAtomicFailure`
+   * بيبعت حدث باسم العملية وكود الخطأ بس (مش الرسالة ولا الكائن).
    */
-  function noteAtomicFailure(op: string, e: unknown) {
+  function noteAtomicFailure(op: AtomicOp, e: unknown) {
     console.warn('عملية ذرية فشلت', op, e);
+    reportAtomicFailure(op, e);
   }
 
   function countPending<T>(p: Promise<T>): Promise<T> {
@@ -698,6 +721,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       serverReachableRef.current = false;
       figuresCache.current = { wallets: null, transactions: null };
       setFiguresFromServer(false);
+      setFiguresPending(['wallets', 'transactions']);
       return;
     }
 
@@ -1012,8 +1036,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * دلوقتي: دفعة واحدة، بتتكتب محليًا على طول، والـ`onSnapshot` بيرد فورًا،
    * والرفع بيحصل لوحده أول ما النت يرجع — قاعدة 7 بالحرف.
    */
-  function deleteWithTransactions(recordRef: DocumentReference, txIds: string[], label?: string) {
-    if (!uid) return;
+  /**
+   * آخر حالة للمحافظ والعمليات، لفحص المسح لحظة الدوسة. `deleteDebt` اللي
+   * الـAlert بيناديه هو نسخة الـrender اللي فتح التأكيد، فلو قرا الـstate
+   * مباشرة كان هيشوف نفس اللي الشاشة شافته قبل التأكيد — والفحص التاني
+   * مبيعملش حاجة (money-reviewer + silent-failure-hunter).
+   */
+  const cascadeInputs = useRef({ wallets, transactions, loadErrors });
+  cascadeInputs.current = { wallets, transactions, loadErrors };
+
+  function deleteWithTransactions(
+    kind: CascadeKind, name: string, recordRef: DocumentReference, txIds: string[], label?: string,
+  ): CascadeDeleteResult {
+    if (!uid) return { outcome: 'done' };
+    // **المسح مبيعملش تسوية.** عملية منهم على محفظة مؤرشفة كانت بتتمسح
+    // والرصيد المؤرشف يبعد عن الصفر ساكت (المؤرشفة برّه الإجمالي). الشاشة
+    // بتفحص قبل التأكيد؛ الفحص هنا لحظة الدوسة، لو المحفظة اتأرشفت (من الجهاز
+    // ده أو من جهاز تاني ووصل الـlistener) والتأكيد مفتوح — عشان كده بيقرا
+    // `cascadeInputs` (آخر render) مش الـstate اللي في الـclosure.
+    //
+    // **وده مش جوه ذرة:** المسح دفعة بتشتغل أوفلاين عن قصد (فوق)، فمبتقراش
+    // من السيرفر. أرشفة من جهاز تاني لسه ما وصلتش الـlistener مش هتتمسك هنا.
+    const blocked = cascadeDeleteBlock({ kind, name, txIds, ...cascadeInputs.current, loading: pendingFigures() });
+    if (blocked) return { outcome: 'blocked', ...blocked };
     // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك
     // شهري لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض.
     //
@@ -1036,6 +1081,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // اللوج — التنبيه للمستخدم واحد بس في الجلسة، فاللوج هو اللي بيفرّق
       track(batch.commit(), chunks.length > 1 ? `${label} (دفعة ${idx + 1} من ${chunks.length})` : label);
     });
+    return { outcome: 'done' };
   }
 
   /**
@@ -1074,6 +1120,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const payments = d.payments.filter(p => p.transactionId !== txId);
         // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
         // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
+        // من غير pinInstallmentAmount هنا عن قصد: الدفعة دي من حالة الرياكت مش من
+        // قراية ذرية، فقيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب فوقها (silent-failure-hunter)
         const patch: Record<string, unknown> = { payments };
         const recount = installmentCountFor({ ...d, payments });
         if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
@@ -1301,15 +1349,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(updateDoc(doc(db, 'users', uid, 'debts', id), patch), namedLabel('تعديل الدين', data.personName?.trim() || debts.find(d => d.id === id)?.personName));
   }
 
-  async function deleteDebt(id: string) {
-    if (!uid) return;
+  async function deleteDebt(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const debt = debts.find(d => d.id === id);
-    const txIds = debt ? [
-      debt.initialTransactionId,
-      ...(debt.payments || []).map(p => p.transactionId),
-      ...(debt.increases || []).map(inc => inc.transactionId),
-    ].filter((x): x is string => !!x) : [];
-    deleteWithTransactions(doc(db, 'users', uid, 'debts', id), txIds, namedLabel('حذف الدين', debt?.personName));
+    return deleteWithTransactions('debt', debt?.personName ?? '', doc(db, 'users', uid, 'debts', id),
+      debtTransactionIds(debt), namedLabel('حذف الدين', debt?.personName));
   }
   /**
    * **دفعة الدين بقت عملية ذرية** — قبل كده كانت بتقرا `debt.payments` من حالة
@@ -1371,6 +1415,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (nextCount !== null && nextCount !== debt.installmentCount) {
           patch.installmentCount = nextCount;
         }
+        // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت في نفس الكتابة
+        Object.assign(patch, pinInstallmentAmount(debt));
 
         /**
          * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
@@ -1465,7 +1511,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
         // حسابه 6.
-        const patch: Record<string, unknown> = { payments };
+        const patch: Record<string, unknown> = { payments, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, payments });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
@@ -1526,7 +1572,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
+        // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
+        // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
+        const nextDue = reopenedDueDate(debt, amount, date, todayStr());
+        if (nextDue) patch.dueDate = nextDue;
+        else if (debt.isInstallment && debt.dueDate && !isDateStr(debt.dueDate)) {
+          // المعاد المتخزّن بايظ ← سايبينه زي ما هو بدل ما نخترع واحد. المعرّف بس (sentryScrub)
+          console.warn('[debt] stored dueDate is not YYYY-MM-DD, left as is', debtId);
+        }
         const recount = installmentCountFor({ ...debt, increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
         if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
@@ -1567,7 +1621,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletArchivedError();
         }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, increases });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
@@ -1603,11 +1657,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
   }
-  async function deleteSubscription(id: string) {
-    if (!uid) return;
+  async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const sub = subscriptions.find(s => s.id === id);
-    const txIds = (sub?.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
-    deleteWithTransactions(doc(db, 'users', uid, 'subscriptions', id), txIds, namedLabel('حذف الاشتراك', sub?.name));
+    return deleteWithTransactions('subscription', sub?.name ?? '', doc(db, 'users', uid, 'subscriptions', id),
+      subscriptionTransactionIds(sub), namedLabel('حذف الاشتراك', sub?.name));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -2071,11 +2125,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
   }
-  async function deleteGamiya(id: string) {
-    if (!uid) return;
+  async function deleteGamiya(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const g = gamiyas.find(x => x.id === id);
-    const txIds = (g?.months || []).map(m => m.transactionId).filter((x): x is string => !!x);
-    deleteWithTransactions(doc(db, 'users', uid, 'gamiyas', id), txIds, namedLabel('حذف الجمعية', g?.name));
+    return deleteWithTransactions('gamiya', g?.name ?? '', doc(db, 'users', uid, 'gamiyas', id),
+      gamiyaTransactionIds(g), namedLabel('حذف الجمعية', g?.name));
   }
   /**
    * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
@@ -2129,7 +2183,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

@@ -6,7 +6,11 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { transactionsPhrase } from '@/lib/archiving';
+import { periodPresets } from '@/lib/periodPresets';
+import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { selectionStyle } from '@/lib/selection';
+import { MIN_TOUCH } from '@/lib/tokens';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
@@ -20,7 +24,9 @@ export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, pendingTxIds, serverReachable } = useData();
+  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable } = useData();
+  // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
@@ -54,8 +60,7 @@ export default function ArchiveScreen() {
       });
   }, [transactions, range]);
 
-  const totalIn = filtered.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-  const totalOut = filtered.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+  const { income: totalIn, expense: totalOut, transfers: transfersInPeriod } = cashTotals(filtered, transfers);
 
   async function handleExport() {
     if (filtered.length === 0) return;
@@ -111,16 +116,10 @@ export default function ArchiveScreen() {
       </View>
 
       <View style={styles.presetRow}>
-        {[
-          { key: 'thisMonth', label: 'هذا الشهر' },
-          { key: 'last7', label: 'آخر 7 أيام' },
-          { key: 'lastMonth', label: 'الشهر الماضي' },
-          { key: 'all', label: 'كل الوقت' },
-          { key: 'custom', label: 'مخصص' },
-        ].map(p => (
+        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
           <TouchableOpacity key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
+            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -130,9 +129,8 @@ export default function ArchiveScreen() {
           <TouchableOpacity testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary }}>إلى</Text>
           <TouchableOpacity testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>إلى: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -147,6 +145,9 @@ export default function ArchiveScreen() {
           <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />
         </View>
       </View>
+      {transfersInPeriod > 0 && (
+        <Text testID="archive_transfers_note" style={styles.transfersNote}>{TRANSFERS_NOTE}</Text>
+      )}
 
       <TouchableOpacity
         testID="archive_export_button"
@@ -154,7 +155,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({filtered.length} عملية)</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
 
@@ -203,7 +204,8 @@ function makeStyles(c: ThemeColors) {
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+    transfersNote: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: -6, marginBottom: 10 },
+    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
