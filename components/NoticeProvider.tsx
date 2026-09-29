@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { Alert, Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 /**
  * رسالة نتيجة بزرار واحد ("تمام") بشكل التطبيق نفسه — بديل `Alert.alert` في
@@ -66,7 +66,9 @@ export function spoken({ title, body }: Notice): string {
 function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss: (shown: Notice) => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { height } = useWindowDimensions();
+  // Dimensions مش useWindowDimensions: الرسالة قصيرة العمر، والهوك كان بيكسر
+  // اختبار الـsplash اللي بيعمل mock لجزء من react-native
+  const height = Dimensions.get('window').height;
   const dismiss = () => { if (notice) onDismiss(notice); };
 
   // قارئ الشاشة: الـModal شباك لوحده، فالـTalkBack بيدخله لوحده ويقرا أول عنصر.
