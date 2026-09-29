@@ -5,10 +5,11 @@ import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds,
   type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
+import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
@@ -100,30 +101,30 @@ export type Settlement = {
  * الرمي هو الطريقة الوحيدة لإلغاء `runTransaction` — والنتيجة إن مفيش أي
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
-class WalletMissingError extends Error {}
+class WalletMissingError extends Error { name = 'WalletMissingError'; }
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
  * جهاز تاني، يا إما لسه ما وصلش (وده اللي `waitForOurWritesToLand` بيمنعه).
  * الرمي بيلغي العملية كلها، فمفيش عملية يتيمة بتتكتب لدين مش موجود.
  */
-class DebtMissingError extends Error {}
+class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
 /**
  * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
  * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
  * والفحص ده جوه الذرة للي اتأرشف من جهاز تاني بين الدوسة والمسح.
  */
-class WalletArchivedError extends Error {}
+class WalletArchivedError extends Error { name = 'WalletArchivedError'; }
 
 /** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
-class IncomeMissingError extends Error {}
+class IncomeMissingError extends Error { name = 'IncomeMissingError'; }
 
 /** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
-class ChargeMissingError extends Error {}
+class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
-class IncomeHasRecordsError extends Error {}
+class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -655,9 +656,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بنكتب اسم العملية بس — مفيش أسامي ولا مبالغ. الـconsole بيتحوّل
    * breadcrumbs في Sentry، وقسم Sentry في CLAUDE.md بيقول مفيش ولا رقم من
    * فلوس المستخدم يخرج (و`sentryScrub` بيشيل الـbreadcrumbs دي أصلاً).
+   *
+   * وعشان كده الـconsole لوحده مكانش بيوصل Sentry خالص: `reportAtomicFailure`
+   * بيبعت حدث باسم العملية وكود الخطأ بس (مش الرسالة ولا الكائن).
    */
-  function noteAtomicFailure(op: string, e: unknown) {
+  function noteAtomicFailure(op: AtomicOp, e: unknown) {
     console.warn('عملية ذرية فشلت', op, e);
+    reportAtomicFailure(op, e);
   }
 
   function countPending<T>(p: Promise<T>): Promise<T> {
@@ -1115,6 +1120,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const payments = d.payments.filter(p => p.transactionId !== txId);
         // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
         // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
+        // من غير pinInstallmentAmount هنا عن قصد: الدفعة دي من حالة الرياكت مش من
+        // قراية ذرية، فقيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب فوقها (silent-failure-hunter)
         const patch: Record<string, unknown> = { payments };
         const recount = installmentCountFor({ ...d, payments });
         if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
@@ -1408,6 +1415,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (nextCount !== null && nextCount !== debt.installmentCount) {
           patch.installmentCount = nextCount;
         }
+        // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت في نفس الكتابة
+        Object.assign(patch, pinInstallmentAmount(debt));
 
         /**
          * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
@@ -1502,7 +1511,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
         // حسابه 6.
-        const patch: Record<string, unknown> = { payments };
+        const patch: Record<string, unknown> = { payments, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, payments });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
@@ -1563,7 +1572,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
+        // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
+        // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
+        const nextDue = reopenedDueDate(debt, amount, date, todayStr());
+        if (nextDue) patch.dueDate = nextDue;
+        else if (debt.isInstallment && debt.dueDate && !isDateStr(debt.dueDate)) {
+          // المعاد المتخزّن بايظ ← سايبينه زي ما هو بدل ما نخترع واحد. المعرّف بس (sentryScrub)
+          console.warn('[debt] stored dueDate is not YYYY-MM-DD, left as is', debtId);
+        }
         const recount = installmentCountFor({ ...debt, increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
         if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
@@ -1604,7 +1621,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletArchivedError();
         }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, increases });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));

@@ -138,7 +138,9 @@ it('دين قديم من غير installmentAmount (القسط = الإجمالي
   await harness.waitForData(api => api.debts[0].installmentAmount === undefined);
   await increase(debtId, 2000, walletId);
   expect(debt().installmentCount).toBe(8);
-  expect(debt().installmentAmount).toBeUndefined();
+  // من خطوة 6 (2026-09-29): أول ما دين قديم يتلمس، القسط بالعدد القديم بيتثبّت
+  // في نفس الكتابة — فمبقاش undefined، ولسه 1000 (مش 6000 ÷ 8 = 750)
+  expect(debt().installmentAmount).toBe(1000);
 });
 
 it('العدد المتخزّن قديم/غلط ← الزيادة بتكتب العدد الصح', async () => {

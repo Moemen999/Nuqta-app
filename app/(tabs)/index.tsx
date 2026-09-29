@@ -9,6 +9,7 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
+import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
 import { AmountsMaskScope, usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
@@ -40,7 +41,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable, figuresFromServer } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
 
@@ -92,15 +93,16 @@ function HomeScreen() {
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
   const lowWallets = activeWallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
+  // السلفة والجمعية مش مصروف (خطوة 8) — لا في الفئة ولا في الإجمالي
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const budgetAlerts = activeCategories
     .filter(c => budgets[c.id] > 0)
-    .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth), limit: budgets[c.id] }))
+    .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
     .filter(b => b.spend / b.limit >= 0.8);
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
-  const totalMonthSpend = transactions
-    .filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth)
-    .reduce((s, t) => s + t.amount, 0);
+  // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
+  const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
   const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= 0.8;
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
