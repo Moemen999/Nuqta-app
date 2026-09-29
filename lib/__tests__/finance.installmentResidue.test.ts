@@ -110,7 +110,7 @@ describe('planInstallments — القسط وفرق تقريبه', () => {
     [1000, 12, 83.33, 0.04], //  12 × 83.33 = 999.96
     [6000, 6, 1000, 0],
   ])('%p على %p ← قسط %p وفرق %p', (total, n, value, residue) => {
-    expect(planInstallments(total, n)).toEqual({ value, residue });
+    expect(planInstallments(total, n)).toEqual({ value, residue, over: n });
   });
 
   it('قسط أقل من قرش، أو عدد مش صحيح، أو مبلغ مش رقم ← null', () => {
@@ -299,7 +299,8 @@ describe('installmentResidueOf — الفرق بيتقري بس لو بتاع ا
     ['مش رقم', { amount: NaN, forInstallment: 83.33, over: 12 }, null],
     ['لا نهائي', { amount: Infinity, forInstallment: 83.33, over: 12 }, null],
     ['نص', { amount: '0.04', forInstallment: 83.33, over: 12 }, null],
-    ['كسر حقيقي مش تقريب (0.10 على 12 > 0.06) ← 0', { amount: 0.1, forInstallment: 83.33, over: 12 }, 0],
+    ['كسر حقيقي مش تقريب (−0.10 على 12، أكبر من 0.06) ← 0', { amount: -0.1, forInstallment: 83.33, over: 12 }, 0],
+    ['الخطة أكبر من الإجمالي (over بايظ) ← مش معروف', { amount: 0.04, forInstallment: 83.33, over: 13 }, null],
     ['من غير over (شكل قبل 2026-09-30) ← مش معروف', { amount: 0.04, forInstallment: 83.33 }, null],
     ['over مش صحيح', { amount: 0.04, forInstallment: 83.33, over: 12.5 }, null],
     ['مش object', 0.04, null],
@@ -444,7 +445,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
   });
 
   it('...ونفس الحالة لو اتعملت كده من الأول: 1500 على 18 ← نفس القسط والفرق', () => {
-    expect(planInstallments(1500, 18)).toEqual({ value: 83.33, residue: 0.06 });
+    expect(planInstallments(1500, 18)).toEqual({ value: 83.33, residue: 0.06, over: 18 });
     expect(increased(created(1000, 12), 500).installmentResidue).toEqual(created(1500, 18).installmentResidue);
   });
 
@@ -551,6 +552,62 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
       const r = d.installmentResidue!;
       expect([i, roundMoney(r.over * r.forInstallment + r.amount)]).toEqual([i, roundMoney(1000 + rest)]);
       expect([i, d.installmentResidue]).toEqual([i, increased(created(1000, 12), roundMoney(rest)).installmentResidue]);
+    }
+  });
+});
+
+describe('مراجعة الزيادات (الجولة 1)', () => {
+  it('نص قسط بالظبط: الترتيب مالوش دعوة (كان بيغلط بقسط كامل بالكسور)', () => {
+    // money-reviewer: 3193.45 على 38 (84.04) وزيادات معينة ← 95.23 بدل 5.36
+    const xs = [1321.48, 277.5, 2.47, 877.8, 1734.01, 1254.77];
+    let one = created(3193.45, 38);
+    xs.forEach(x => { one = increased(one, x); });
+    const sum = increased(created(3193.45, 38), roundMoney(xs.reduce((a, b) => a + b, 0)));
+    const reversed = [...xs].reverse().reduce((d, x) => increased(d, x), created(3193.45, 38));
+    expect(one.installmentResidue).toEqual(sum.installmentResidue);
+    expect(reversed.installmentResidue).toEqual(sum.installmentResidue);
+    expect(one.installmentResidue).toEqual({ amount: 5.36, forInstallment: 84.04, over: 103 });
+  });
+
+  it('زيادة نص قسط بالظبط وبعدين مسحها ← نفس الحالة', () => {
+    // 84.04 على 1 (فرق 0) + 42.02 (نص قسط) ← النص لفوق: over 2 وamount −42.02
+    const d = increased(created(84.04, 1), 42.02, 'h');
+    expect(d.installmentResidue).toEqual({ amount: -42.02, forInstallment: 84.04, over: 2 });
+    expect(withoutIncrease(d, 'h').installmentResidue).toEqual({ amount: 0, forInstallment: 84.04, over: 1 });
+  });
+
+  it('مسح زيادة كبيرة قبل تعديل العدد ← over ممكن يبقى 0، بيتقري كسر حقيقي', () => {
+    // 100 + زيادة 900، العدد اتعدّل لـ3: 1000 ÷ 3 = 333.33، فرق 0.01
+    let d = edited(increased(created(100, 1), 900, 'big'), 3);
+    expect(d.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33, over: 3 });
+    d = withoutIncrease(d, 'big');
+    // 0.01 − 900 = −3 × 333.33 + 100 ← over 0، الباقي 100 كسر
+    expect(d.installmentResidue).toEqual({ amount: 100, forInstallment: 333.33, over: 0 });
+    expect(installmentResidueOf(d)).toBe(0);
+    expect(d.installmentCount).toBe(1);
+    expect(suggestedInstallmentPayment(d)).toBe(100);
+  });
+
+  it('خاصية: زيادات ومسح عشوائي ← زوّد وامسح بيرجّع نفس الحالة، والخطة = المبلغ', () => {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let t = 0; t < 300; t++) {
+      const total = roundMoney(1 + rnd() * 20000);
+      const n = 1 + Math.floor(rnd() * 60);
+      if (!planInstallments(total, n)) continue;
+      let d = created(total, n);
+      let sum = total;
+      for (let k = 0; k < 5; k++) {
+        const x = roundMoney(0.01 + rnd() * 3000);
+        const before = d.installmentResidue;
+        const up = increased(d, x, `z${t}_${k}`);
+        expect(withoutIncrease(up, `z${t}_${k}`).installmentResidue).toEqual(before);
+        d = up;
+        sum = roundMoney(sum + x);
+        const r = d.installmentResidue!;
+        expect(roundMoney(r.over * r.forInstallment + r.amount)).toBe(sum);
+        expect(Math.abs(r.amount)).toBeLessThanOrEqual(r.forInstallment + PIASTRE_EPS * n);
+      }
     }
   });
 });

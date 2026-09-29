@@ -635,7 +635,9 @@ export function pinInstallmentAmount(d: Debt): { installmentAmount: number; inst
   // تقريب للإجمالي مش لخطة حقيقية — صغير (≤ نص قرش لكل قسط) ومبيخبّيش فلوس:
   // المتبقي بيتعرض زي ما هو، والفرق بيتحط على القسط الأخير بس
   const residue = residueOf(d.totalAmount, value, count);
-  if (residue === null) return null;
+  // القيمة القديمة = الأصل ÷ العدد مقرّبة، فالفرق ≤ نص قرش × العدد بالتعريف —
+  // أكبر من كده يبقى بيانات بايظة ومنكتبهاش (silent-failure-hunter)
+  if (residue === null || Math.abs(residue) > PIASTRE_EPS * count + 1e-9) return null;
   // والزيادات اللي عليه من قبل التثبيت بتدخل الخطة (2026-09-30): الفرق لازم يبقى
   // هو هو اللي كان هيتحسب لو الدين اتعمل بحالته دي، وإلا مسح زيادة قديمة بعدين
   // كان هيطرح من خطة عمرها ما شالتها
@@ -784,13 +786,13 @@ function residueOf(base: number, value: number, n: number): number | null {
  * `null` لو القسط هيطلع أقل من قرش — قسط 0 كان هيتقري "مفيش قسط متخزّن"
  * ويرجع للحسبة القديمة، والقواعد بترفضه أصلاً.
  */
-export function planInstallments(base: number, n: number): { value: number; residue: number } | null {
+export function planInstallments(base: number, n: number): { value: number; residue: number; over: number } | null {
   if (!Number.isFinite(base) || base <= PIASTRE_EPS) return null;
   if (!Number.isInteger(n) || n <= 0) return null;
   const value = roundMoney(base / n);
   if (!(value > PIASTRE_EPS)) return null;
   const residue = residueOf(base, value, n);
-  return residue === null ? null : { value, residue };
+  return residue === null ? null : { value, residue, over: n };
 }
 
 /**
@@ -836,11 +838,10 @@ function storedResidue(d: Debt): InstallmentResidue | null {
   if (typeof r.forInstallment !== 'number' || Math.abs(r.forInstallment - value) > MONEY_EPS) return null;
   if (typeof r.amount !== 'number' || !Number.isFinite(r.amount)) return null;
   if (typeof r.over !== 'number' || !Number.isInteger(r.over)) return null;
-  // السقف: التقريب ≤ نص قرش لكل قسط ممكن؛ والكسر الحقيقي من الزيادة ≤ نص قسط فوق
-  // إزاحة الإنشاء (`shiftInstallmentResidue` بيرجّعه لأقرب قسط) — فأي حاجة أكبر
-  // (1e6) بيانات بايظة ← القاعدة القديمة ومتعلَّم إنه اتجاهل
-  const ceiling = residueCeiling(d, value);
-  if (Math.abs(r.amount) > (isRoundingResidue(r) ? ceiling : ceiling + value)) return null;
+  // الخطة نفسها بتتفحص (type-design-analyzer): `over × القسط + amount` هو المبلغ
+  // اللي بيتقسّم = الإجمالي ناقص اللي اتدفع قبل الخطة، فعمره ما يعدّي الإجمالي.
+  // أكبر من كده (1e6، أو over بايظ) = بيانات بايظة ← القاعدة القديمة ومتعلَّم إنه اتجاهل
+  if (r.over * value + r.amount > Math.max(debtGrandTotal(d), d.totalAmount || 0) + PIASTRE_EPS) return null;
   return r;
 }
 
@@ -865,26 +866,20 @@ export function foldInstallmentResidue(d: Debt, delta: number): InstallmentResid
 }
 
 function shiftInstallmentResidue(r: InstallmentResidue, delta: number): InstallmentResidue | null {
-  const v = r.forInstallment;
-  if (!Number.isFinite(delta) || !(v > PIASTRE_EPS)) return null;
-  const shift = Math.round((r.amount + delta) / v) - Math.round(r.amount / v);
-  const amount = roundMoney(r.amount + delta - shift * v);
-  if (!Number.isFinite(amount) || !Number.isInteger(r.over + shift)) return null;
-  return { amount: amount === 0 ? 0 : amount, forInstallment: v, over: r.over + shift };
-}
-
-/**
- * أكبر فرق تقريب ممكن للقسط ده (شوف `installmentResidueOf`). عدد الأقساط اللي
- * الفرق اتحسب عليه ≤ الأكبر من: الإجمالي ÷ (القسط − نص قرش)، والعدد المتخزّن —
- * التاني عشان زيادة اتمسحت بعد تعديل العدد بتصغّر الإجمالي من غير ما تصغّر
- * الخطة (1000.29 + 2000 على 60 = قسط 50 وفرق 0.29، والإجمالي بعد المسح
- * 1000.29 لوحده كان هيرفضه ويقلب العدد — money-reviewer الجولة 2).
- */
-function residueCeiling(d: Debt, value: number): number {
-  if (value <= PIASTRE_EPS) return PIASTRE_EPS;
-  const byTotal = Math.max(debtGrandTotal(d), d.totalAmount || 0) / (value - PIASTRE_EPS);
-  const stored = typeof d.installmentCount === 'number' && Number.isFinite(d.installmentCount) ? d.installmentCount : 0;
-  return PIASTRE_EPS * (Math.max(byTotal, stored) + 1) + PIASTRE_EPS;
+  // **بالقروش الصحيحة** (money-reviewer): بالكسور، (amount+δ)/v ممكن تطلع 0.4999…
+  // وamount/v تطلع 0.5 بالظبط لنفس النص قسط، فالإزاحة بتغلط بقسط كامل والترتيب
+  // بيفرق (3193.45 على 38 وزيادات معينة ← 95.23 بدل 5.36). بالقروش التقريب لنص
+  // واحد في الاتنين
+  const vc = Math.round(r.forInstallment * 100);
+  const ac = Math.round(r.amount * 100);
+  const dc = Math.round(delta * 100);
+  if (!Number.isFinite(dc) || !Number.isFinite(ac) || !(vc >= 1)) return null;
+  const nearest = (x: number) => Math.floor((2 * x + vc) / (2 * vc)); // لأقرب قسط، النص لفوق
+  const shift = nearest(ac + dc) - nearest(ac);
+  const amountCents = ac + dc - shift * vc;
+  const over = r.over + shift;
+  if (!Number.isInteger(amountCents) || !Number.isInteger(over)) return null;
+  return { amount: amountCents === 0 ? 0 : amountCents / 100, forInstallment: r.forInstallment, over };
 }
 
 /**
@@ -892,6 +887,11 @@ function residueCeiling(d: Debt, value: number): number {
  * مسارات الكتابة تسجّل المعرّف (من غير أرقام). مش في `installmentResidueOf`
  * نفسها: دي بتتنادى في كل رندر.
  */
+/** فيه فرق متخزّن سليم (حتى لو كسر حقيقي بيتقري 0) — عشان المسار يعرف لازم يحدّثه */
+export function installmentResidueKnown(d: Debt): boolean {
+  return storedResidue(d) !== null;
+}
+
 export function installmentResidueIgnored(d: Debt): boolean {
   return d.installmentResidue !== undefined && d.installmentResidue !== null
     && typeof d.installmentAmount === 'number' && storedResidue(d) === null;
