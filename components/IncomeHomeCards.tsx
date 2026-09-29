@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -83,6 +84,7 @@ export default function IncomeHomeCards() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
+  const notice = useNotice();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
@@ -99,7 +101,7 @@ export default function IncomeHomeCards() {
     await run(`rec_${inc.id}`, async () => {
       const r = await recordIncomePeriods(inc.id, [{ key, amount }]);
       if (r.outcome !== 'done') {
-        Alert.alert(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
+        notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
         return;
       }
       ok = true;

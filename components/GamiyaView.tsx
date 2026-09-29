@@ -1,4 +1,5 @@
 import { plainAmount } from '@/lib/money';
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
@@ -17,6 +18,7 @@ export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, deleteGamiya, markGamiyaMonthDone } = useData();
+  const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
@@ -40,7 +42,7 @@ export default function GamiyaView() {
             const outcome = await markGamiyaMonthDone(g.id, monthId);
             if (outcome !== 'done') {
               const m = PAY_OUTCOME_ALERT_GAMIYA[outcome];
-              Alert.alert(m.title, m.body);
+              notice(m.title, m.body);
             }
           }),
         },

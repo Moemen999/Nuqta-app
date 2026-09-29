@@ -1,4 +1,5 @@
 import { plainAmount } from '@/lib/money';
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
@@ -19,6 +20,7 @@ export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, deleteSubscription, markSubscriptionPaid } = useData();
+  const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
@@ -42,10 +44,10 @@ export default function SubscriptionsView() {
           // نفس الرسايل بالظبط في شاشة الجمعية
           const outcome = await markSubscriptionPaid(s.id, todayStr());
           if (outcome === 'already-paid-today') {
-            Alert.alert('اتسجل النهاردة خلاص', `دفعة "${s.name}" اتسجلت النهاردة بنفس المبلغ، فما سجلناش تاني عشان ميتخصمش مرتين. لو عليه مرة متأخرة تانية، هتلاقيها في الرئيسية "اتخصم؟".`);
+            notice('اتسجل النهاردة خلاص', `دفعة "${s.name}" اتسجلت النهاردة بنفس المبلغ، فما سجلناش تاني عشان ميتخصمش مرتين. لو عليه مرة متأخرة تانية، هتلاقيها في الرئيسية "اتخصم؟".`);
           } else if (outcome !== 'done') {
             const m = PAY_OUTCOME_ALERT[outcome];
-            Alert.alert(m.title, m.body);
+            notice(m.title, m.body);
           }
         }),
       },

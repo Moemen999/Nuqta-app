@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { DebtIncreaseModal, INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
+import { NoticeProvider } from '@/components/NoticeProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import type { Debt } from '@/context/DataContext';
@@ -31,7 +32,7 @@ afterEach(() => alertSpy.mockRestore());
 async function save(result: unknown) {
   const onClose = jest.fn();
   mockData.addDebtIncrease = jest.fn(async () => result);
-  await render(<ThemeProvider><PrivacyProvider><DebtIncreaseModal debt={debt} onClose={onClose} /></PrivacyProvider></ThemeProvider>);
+  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={debt} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   await act(async () => { fireEvent.changeText(screen.getByTestId('debt_increase_amount'), '2000'); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_increase_save')); });
   expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 2000, expect.any(String), 'w1');
@@ -40,19 +41,23 @@ async function save(result: unknown) {
 
 it('العدد اتغيّر ← تنبيه "عدد الأقساط اتظبط" بالقديم والجديد، والمودال بيتقفل', async () => {
   const onClose = await save({ outcome: 'done', note: 'بعد الزيادة، الأقساط بقت 8 بدل 6.' });
-  expect(alertSpy).toHaveBeenCalledWith(INSTALLMENTS_CHANGED_TITLE, 'بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  // رسالة بشكل التطبيق (NoticeProvider) مش الـAlert الأصلي
+  expect(alertSpy).not.toHaveBeenCalled();
+  expect(screen.getByTestId('notice_title').props.children).toBe(INSTALLMENTS_CHANGED_TITLE);
+  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
   expect(onClose).toHaveBeenCalled();
 });
 
 it('العدد ما اتغيرش ← مفيش تنبيه', async () => {
   const onClose = await save({ outcome: 'done', note: null });
   expect(alertSpy).not.toHaveBeenCalled();
+  expect(screen.queryByTestId('notice_dialog')).toBeNull();
   expect(onClose).toHaveBeenCalled();
 });
 
 it('الزيادة ما اتسجلتش ← تنبيه الفشل بس، مش تنبيه الأقساط، والمودال مفتوح', async () => {
   const onClose = await save({ outcome: 'failed' });
-  expect(alertSpy).toHaveBeenCalledTimes(1);
-  expect(alertSpy.mock.calls[0][0]).not.toBe(INSTALLMENTS_CHANGED_TITLE);
+  expect(screen.getByTestId('notice_title').props.children).not.toBe(INSTALLMENTS_CHANGED_TITLE);
+  expect(screen.getByTestId('notice_title').props.children).toBe('ما اتسجلش');
   expect(onClose).not.toHaveBeenCalled();
 });

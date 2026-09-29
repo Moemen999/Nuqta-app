@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import {
   PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
@@ -142,6 +143,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
+  const notice = useNotice();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
@@ -156,13 +158,13 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
     await run(busyId(p), async () => {
       const r = await recordCharges(p.kind, p.id, [{ key: charge.key, amount }]);
       if (r.outcome !== 'done') {
-        Alert.alert(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
+        notice(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
         return;
       }
       ok = true;
       // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال
       if (r.recorded.length === 0) {
-        Alert.alert('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
+        notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
       }
       AccessibilityInfo.announceForAccessibility(`اتسجل "${p.name}"`);
@@ -179,7 +181,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         onPress: () => {
           run(busyId(p), async () => {
             const r = await skipSubscriptionCharge(p.id, charge.key);
-            if (r !== 'done') Alert.alert(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
+            if (r !== 'done') notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
             else AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
           });
         },

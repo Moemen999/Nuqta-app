@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { plainAmount, type AmountFormatter } from '@/lib/money';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -89,6 +90,7 @@ function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
   const personKeyByDebt = useMemo(() => {
@@ -131,7 +133,7 @@ function DebtsContent() {
     const plan = debtEntryDeletePlan(d, kind, entryId);
     if (!plan) return;
     const blocked = debtEntryArchivedWalletBlock(kind, plan, wallets);
-    if (blocked) { Alert.alert(blocked.title, blocked.body); return; }
+    if (blocked) { notice(blocked.title, blocked.body); return; }
     const walletName = plan.walletId ? walletHistoryName(wallets, plan.walletId) : '';
     const { title, body } = debtEntryDeleteMessage(d, kind, plan, walletName, plainAmount);
     Alert.alert(title, body, [
@@ -142,7 +144,7 @@ function DebtsContent() {
         onPress: () => runBusy(entryId, async () => {
           const outcome = await (kind === 'payment' ? deleteDebtPayment : deleteDebtIncrease)(d.id, entryId);
           if (outcome !== 'done') {
-            Alert.alert(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
+            notice(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
             return;
           }
           // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال

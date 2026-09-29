@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -30,6 +31,7 @@ export default function IncomesView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { incomes, wallets, transactions, recordIncomePeriods, setIncomeStatus, deleteIncome } = useData();
+  const notice = useNotice();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<RecurringIncome | 'new' | null>(null);
   const [showStopped, setShowStopped] = useState(false);
@@ -58,7 +60,7 @@ export default function IncomesView() {
           text: 'نزل',
           onPress: () => run(`rec_${inc.id}`, async () => {
             const r = await recordIncomePeriods(inc.id, [{ key, amount: inc.amount }]);
-            if (r.outcome !== 'done') Alert.alert(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
+            if (r.outcome !== 'done') notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
           }),
         },
       ],
@@ -91,7 +93,7 @@ export default function IncomesView() {
           style: 'destructive',
           onPress: () => run(`del_${inc.id}`, async () => {
             const r = await deleteIncome(inc.id);
-            if (r !== 'done') Alert.alert(INCOME_DELETE_ALERT[r].title, INCOME_DELETE_ALERT[r].body);
+            if (r !== 'done') notice(INCOME_DELETE_ALERT[r].title, INCOME_DELETE_ALERT[r].body);
           }),
         },
       ],

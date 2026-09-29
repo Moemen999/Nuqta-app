@@ -1,4 +1,5 @@
 import { plainAmount } from '@/lib/money';
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
@@ -35,6 +36,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, addDebtPayment } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
 
   const remaining = debtRemaining(debt);
@@ -106,12 +108,12 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       // كتابة كل حاجة
       if (result.outcome !== 'done') {
         const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        Alert.alert(alert.title, alert.body);
+        notice(alert.title, alert.body);
         return;
       }
       // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
       // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
-      if (result.note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, result.note);
+      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
@@ -184,6 +186,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addDebtIncrease } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
 
   const [amount, setAmount] = useState('');
@@ -217,12 +220,12 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
       }
       if (result.outcome !== 'done') {
         const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        Alert.alert(alert.title, alert.body);
+        notice(alert.title, alert.body);
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
       // مبيتغيّرش لوحده من غير ما حد يقول ليه
-      if (result.note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, result.note);
+      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
