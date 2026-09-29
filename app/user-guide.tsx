@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { PERIOD_PRESET_WORDS as P, PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -26,9 +27,9 @@ const SECTIONS: Section[] = [
     icon: '📈',
     title: 'التقارير',
     body: [
-      'اختار فترة (هذا الشهر، آخر 7 أيام، الشهر الماضي، أو مخصص) وشوف مصاريفك فيها.',
+      `اختار فترة (${P.thisMonth}، ${P.last7}، ${P.lastMonth}، أو ${P.custom}) وشوف مصاريفك فيها.`,
       'فلتر الفئات: دوس على فئة أو أكتر عشان تشوف مصاريفها بس. دوس تاني عشان تشيلها.',
-      'المقارنة بالفترة السابقة بتقارن تلقائيًا بنفس عدد الأيام قبلها.',
+      `"${PREVIOUS_PERIOD_LABEL}" بتتحسب لوحدها على نفس عدد الأيام اللي قبل فترتك.`,
       'كشف حساب الأشخاص: بيجمع كل تعاملاتك مع كل شخص. دوس على أي اسم تشوف كشف تفصيلي زي كشف البنك.',
     ],
   },
@@ -37,7 +38,7 @@ const SECTIONS: Section[] = [
     icon: '📊',
     title: 'التخطيط',
     body: [
-      'الميزانية: تحدد سقف إجمالي للشهر، وسقف لكل فئة. الشريط بيتلوّن أصفر لما تقرب من السقف، وأحمر لما تتجاوزه.',
+      'الميزانية: تحدد سقف إجمالي للشهر، وسقف لكل فئة. الشريط بيتلوّن أصفر لما تقرب من السقف، وأحمر لما تعدّيه.',
       'شخبطة: بتقسّم دخلك الشهري على 3 أقسام بالنسب اللي انت تحددها (مش لازم 50/30/20).',
       'عشان شخبطة تشتغل، لازم تصنّف فئاتك الأول: كل فئة تبع احتياجات ولا رفاهيات ولا خطط مستقبلية.',
     ],

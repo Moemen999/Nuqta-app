@@ -6,7 +6,10 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { transactionsPhrase } from '@/lib/archiving';
+import { periodPresets } from '@/lib/periodPresets';
 import { selectionStyle } from '@/lib/selection';
+import { MIN_TOUCH } from '@/lib/tokens';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
@@ -111,16 +114,10 @@ export default function ArchiveScreen() {
       </View>
 
       <View style={styles.presetRow}>
-        {[
-          { key: 'thisMonth', label: 'هذا الشهر' },
-          { key: 'last7', label: 'آخر 7 أيام' },
-          { key: 'lastMonth', label: 'الشهر الماضي' },
-          { key: 'all', label: 'كل الوقت' },
-          { key: 'custom', label: 'مخصص' },
-        ].map(p => (
+        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
           <TouchableOpacity key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
+            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -130,9 +127,8 @@ export default function ArchiveScreen() {
           <TouchableOpacity testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary }}>إلى</Text>
           <TouchableOpacity testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>إلى: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -154,7 +150,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({filtered.length} عملية)</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
 
@@ -203,7 +199,7 @@ function makeStyles(c: ThemeColors) {
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
