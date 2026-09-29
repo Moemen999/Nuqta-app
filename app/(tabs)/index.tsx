@@ -39,7 +39,6 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user } = useAuth();
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
@@ -119,9 +118,8 @@ function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* الهيدر الثابت = الرصيد بس (2026-09-29) */}
       <View style={styles.fixedTop}>
-        <Text style={styles.hello}>أهلًا {user?.displayName || ''}</Text>
-
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeadRow}>
             <TouchableOpacity
@@ -153,7 +151,6 @@ function HomeScreen() {
             ))}
           </View>
         </View>
-
       </View>
 
       <ScrollView
@@ -161,70 +158,17 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        {/* البانرات في السكرول مش في الهيدر الثابت (2026-09-29): الهيدر كان بيطول
-            بيها ويزق الكروت لتحت عند الزرار "+" — ودلوقتي الزرار ظاهر دايمًا، فأي
-            حاجة تحته لازم تقدر تتسكرول من تحته */}
-      <EmailVerificationBanner />
-
-      {offlineEmpty && (
-        <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-          <Text style={[styles.bannerText, { color: colors.accent }]}>
-            مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
-          </Text>
-        </View>
-      )}
-      {!hasTodayTx && !offlineEmpty && !noWallets && (
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
-        </View>
-      )}
-      {lowWallets.map(w => (
-        <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
-          <Text style={[styles.bannerText, { color: colors.danger }]}
-            accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
-            رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
-          </Text>
-        </View>
-      ))}
-      {totalBudgetAlert && (
-        <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-          <Text style={[styles.bannerText, { color: colors.accent }]}
-            accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-            الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
-          </Text>
-        </View>
-      )}
-      {budgetAlerts.map(b => (
-        <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-          <Text style={[styles.bannerText, { color: colors.accent }]}
-            accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-            ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
-          </Text>
-        </View>
-      ))}
-      {dueSubscriptions.map(s => {
-        const d = daysUntil(s.nextDueDate);
-        return (
-          <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
-              اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
+        {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده في السكرول: اللي بيقول إن
+            رقم ممكن يكون غلط أو ناقص (مفيش نت، مفيش محفظة، "ما سجلناش")، وسطر
+            "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات. تسجيل عملية هو
+            الزرار "+" الظاهر دايمًا. بانر "مقدرناش نجيب بياناتك" فوق الـStack كله */}
+        {offlineEmpty && (
+          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}>
+              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
-          </TouchableOpacity>
-        );
-      })}
-      {dueGamiyaMonths.map(({ gamiya, month }) => {
-        const d = daysUntil(month.dueDate);
-        return (
-          <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
-              جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-        {/* فوق آخر العمليات: فلوس داخلة محتاجة دوسة، مش تاريخ */}
+          </View>
+        )}
         {noWallets && (
           <View testID="home_no_wallets" style={styles.noWallets}>
             <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
@@ -273,6 +217,59 @@ function HomeScreen() {
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
               </View>
+            </TouchableOpacity>
+          );
+        })}
+        {/* تنبيهات مش مستنية رد: تحت آخر العمليات، ومش داخلة في عدّاد السطر */}
+        <EmailVerificationBanner />
+        {!hasTodayTx && !offlineEmpty && !noWallets && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
+          </View>
+        )}
+        {lowWallets.map(w => (
+          <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.danger }]}
+              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
+              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
+            </Text>
+          </View>
+        ))}
+        {totalBudgetAlert && (
+          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
+              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
+            </Text>
+          </View>
+        )}
+        {budgetAlerts.map(b => (
+          <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
+              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
+            </Text>
+          </View>
+        ))}
+        {dueSubscriptions.map(s => {
+          const d = daysUntil(s.nextDueDate);
+          return (
+            <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+              <Text style={[styles.bannerText, { color: colors.accent }]}
+                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
+                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+        {dueGamiyaMonths.map(({ gamiya, month }) => {
+          const d = daysUntil(month.dueDate);
+          return (
+            <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+              <Text style={[styles.bannerText, { color: colors.accent }]}
+                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
+                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -371,7 +368,6 @@ function makeStyles(c: ThemeColors) {
     // (2026-09-29)، فالمسافة دي هي اللي بتضمن إن أي حاجة تحته تتسكرول من تحته:
     // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
-    hello: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 12 },
     balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
@@ -389,7 +385,7 @@ function makeStyles(c: ThemeColors) {
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
     bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
     bannerActionText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 6, marginBottom: 10 },
+    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)
     noWallets: {
