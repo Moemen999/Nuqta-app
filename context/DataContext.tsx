@@ -1143,7 +1143,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // فمبيتكتبش هنا — لو متأخر عن جهاز تاني، أول عملية ذرية بتعيد العدد صح
         const patch: Record<string, unknown> = { payments };
         const recount = installmentCountFor({ ...d, payments });
-        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
+        if (recount !== null && Number.isFinite(recount) && recount !== d.installmentCount) patch.installmentCount = recount;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1160,7 +1160,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0));
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...d, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
-        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
+        if (recount !== null && Number.isFinite(recount) && recount !== d.installmentCount) patch.installmentCount = recount;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1320,10 +1320,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // مرة لكل دين في الجلسة: الفرق المتجاهَل مبيتصلحش لوحده، و`runTransaction`
   // بتعيد الـcallback لما تتصادم — من غيرها نفس السطر كان هيتكرر مع كل دفعة
   const ignoredResidueNoted = useRef(new Set<string>());
+  function noteOnce(key: string, message: string, debtId: string) {
+    if (ignoredResidueNoted.current.has(key)) return;
+    ignoredResidueNoted.current.add(key);
+    console.warn(message, debtId);
+  }
   function noteIgnoredResidue(debt: Debt) {
-    if (ignoredResidueNoted.current.has(debt.id) || !installmentResidueIgnored(debt)) return;
-    ignoredResidueNoted.current.add(debt.id);
-    console.warn('[debt] installmentResidue ignored, old count rule used', debt.id);
+    if (installmentResidueIgnored(debt)) noteOnce(`ignored:${debt.id}`, '[debt] installmentResidue ignored, old count rule used', debt.id);
+    // دين قديم (عدد من غير قسط متخزّن) والتثبيت مش ممكن (بيانات بايظة) ← القسط بيفضل
+    // يتحرك مع العدد؛ منسيبوش ساكت (silent-failure-hunter)
+    if (debt.isInstallment && typeof debt.installmentAmount !== 'number' && debt.installmentCount
+      && pinInstallmentAmount(debt) === null) {
+      noteOnce(`pin:${debt.id}`, '[debt] legacy installment could not be pinned, old rule kept', debt.id);
+    }
   }
 
   /**
@@ -1336,7 +1345,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!installmentResidueKnown(d)) return null;
     const folded = foldInstallmentResidue(d, delta);
     if (folded) return { patch: folded, forCount: folded };
-    console.warn('[debt] installmentResidue fold failed, cleared', d.id);
+    noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
     return { patch: deleteField(), forCount: undefined };
   }
 
@@ -1439,6 +1448,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     debtId: string, amount: number, walletId: string, date: string, categoryId?: string,
   ): Promise<DebtPayResult> {
     if (!uid) return { outcome: 'done' };
+    // بالقرش (money-reviewer 2026-09-30): 0.006 من الخانة كان بيتسجل كده، وخطة الأقساط
+    // والفرق شغالين بالقروش الصحيحة فكان بيبعد الخطة عن الإجمالي. اللي بيتعرض هو
+    // اللي بيتسجل
+    amount = roundMoney(amount);
+    if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1483,7 +1497,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const planned: Debt = pin ? { ...debt, ...pin } : debt;
         Object.assign(patch, pin);
         const nextCount = installmentCountAfterPayment(planned, amount);
-        if (nextCount !== null && nextCount !== debt.installmentCount) {
+        if (nextCount !== null && Number.isFinite(nextCount) && nextCount !== debt.installmentCount) {
           patch.installmentCount = nextCount;
         }
 
@@ -1588,7 +1602,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { payments, ...pin };
         const recount = installmentCountFor({ ...debt, ...pin, payments });
-        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
         t.update(debtRef, patch);
       }));
@@ -1608,6 +1622,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
     // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
     if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
+    // بالقرش زي الدفعة (شوف `addDebtPayment`)
+    amount = roundMoney(amount);
+    if (amount <= 0) return { outcome: 'failed' };
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1709,7 +1726,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const residue = residueAfterIncreaseChange({ ...debt, ...pin }, -Number(entry.amount));
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
-        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
         t.update(debtRef, patch);
       }));

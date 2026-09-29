@@ -611,3 +611,42 @@ describe('مراجعة الزيادات (الجولة 1)', () => {
     }
   });
 });
+
+describe('مراجعة الزيادات (الجولة 2)', () => {
+  it('دين قديم عليه زيادة مبلغها مش رقم ← مفيش تثبيت (مش 0 ساكت)', () => {
+    const legacy = base({ totalAmount: 1000, installmentCount: 12,
+      increases: [{ id: 'bad', date: '2025-06-01', amount: 'x' }] as never });
+    expect(pinInstallmentAmount(legacy)).toBeNull();
+  });
+
+  it('تأكيد مسح زيادة بمبلغ بايظ بيعدّ من غير الفرق — زي الكتابة اللي بتشيله', () => {
+    // 100.04 على 11 (فرق 0.05): بالفرق 11، وبالقاعدة القديمة ceil(100.04 ÷ 9.09 − 0.005) = 12
+    const d = { ...created(100.04, 11), increases: [{ id: 'bad', date: '2026-03-01', amount: 'x' }] } as unknown as Debt;
+    expect(foldInstallmentResidue(d, -Number('x'))).toBeNull();
+    // الكتابة بتشيل الفرق (residueAfterIncreaseChange) ← 12؛ التأكيد لازم يقول نفس الرقم
+    const plan = debtEntryDeletePlan(d, 'increase', 'bad')!;
+    expect([plan.countBefore, plan.countAfter]).toEqual([11, 12]);
+  });
+});
+
+describe('DataContext (المراجعة الجولة 2)', () => {
+  const { readFileSync } = require('fs');
+  const src: string = readFileSync('context/DataContext.tsx', 'utf8');
+  const body = (name: string) => {
+    const start = src.indexOf(`  async function ${name}(`);
+    expect(start).toBeGreaterThan(-1);
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  };
+
+  it.each(['addDebtPayment', 'addDebtIncrease'])('%s بيقرّب المبلغ للقرش قبل أي كتابة', (name) => {
+    const b = body(name);
+    const at = b.indexOf('amount = roundMoney(amount);');
+    expect(at).toBeGreaterThan(-1);
+    expect(at).toBeLessThan(b.indexOf('runTransaction('));
+  });
+
+  it('كل كتابة لعدد الأقساط محروسة من NaN', () => {
+    const writes = src.split('\n').filter(l => /patch\.installmentCount = (recount|nextCount)/.test(l) || /if \((recount|nextCount) !== null/.test(l));
+    for (const l of writes.filter(l => l.includes('if ('))) expect(l).toContain('Number.isFinite(');
+  });
+});

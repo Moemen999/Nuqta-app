@@ -641,7 +641,9 @@ export function pinInstallmentAmount(d: Debt): { installmentAmount: number; inst
   // والزيادات اللي عليه من قبل التثبيت بتدخل الخطة (2026-09-30): الفرق لازم يبقى
   // هو هو اللي كان هيتحسب لو الدين اتعمل بحالته دي، وإلا مسح زيادة قديمة بعدين
   // كان هيطرح من خطة عمرها ما شالتها
-  const increases = (d.increases || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  // زيادة مبلغها مش رقم ← مفيش تثبيت (زي فشل الحسبة في مسار الزيادة)، مش 0 ساكت
+  const increases = (d.increases || []).reduce((s, e) => s + Number(e.amount), 0);
+  if (!Number.isFinite(increases)) return null;
   const planned = shiftInstallmentResidue({ amount: residue, forInstallment: value, over: count }, increases);
   return planned ? { installmentAmount: value, installmentResidue: planned } : null;
 }
@@ -982,10 +984,12 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
   // قسطه وفرقه **قبل** العدّ — فالتأكيد بيقول نفس العدد اللي هيتكتب
   // ومسح الزيادة بيطرحها من الخطة (`foldInstallmentResidue`) زي `deleteDebtIncrease`
   const planned: Debt = { ...d, ...pinInstallmentAmount(d) };
-  const folded = kind === 'increase' ? foldInstallmentResidue(planned, -entry.amount) : null;
+  // نفس `residueAfterIncreaseChange`: فرق معروف والحسبة فشلت ← بيتشال، فالعدّ من غيره
+  const known = kind === 'increase' && installmentResidueKnown(planned);
+  const folded = known ? foldInstallmentResidue(planned, -Number(entry.amount)) : null;
   const recount = installmentCountFor(kind === 'payment'
     ? { ...planned, payments: payments.filter(e => e.id !== entryId) }
-    : { ...planned, ...(folded ? { installmentResidue: folded } : {}), increases: increases.filter(e => e.id !== entryId) });
+    : { ...planned, ...(known ? { installmentResidue: folded ?? undefined } : {}), increases: increases.filter(e => e.id !== entryId) });
   // العدد المتخزّن ممكن يبقى ناقص (بيانات قديمة) — ساعتها بنقارن بالمحسوب،
   // وإلا دفعة بقيمة القسط بالظبط كانت هتقول "هيرجع 6 بدل 6"
   const before = d.installmentCount ?? installmentCountFor(d);
