@@ -164,7 +164,7 @@ function HomeScreen() {
             الزرار "+" الظاهر دايمًا. بانر "مقدرناش نجيب بياناتك" فوق الـStack كله */}
         {offlineEmpty && (
           <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}>
+            <Text style={[styles.bannerText, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
           </View>
@@ -212,7 +212,7 @@ function HomeScreen() {
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
-                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
+                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: t.type === 'withdraw' ? colors.accentText : T.color }]} />
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
@@ -237,7 +237,7 @@ function HomeScreen() {
         ))}
         {totalBudgetAlert && (
           <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
+            <Text style={[styles.bannerText, { color: colors.accentText }]}
               accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
               الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
@@ -245,7 +245,7 @@ function HomeScreen() {
         )}
         {budgetAlerts.map(b => (
           <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
+            <Text style={[styles.bannerText, { color: colors.accentText }]}
               accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
               ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
             </Text>
@@ -255,7 +255,7 @@ function HomeScreen() {
           const d = daysUntil(s.nextDueDate);
           return (
             <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
                 اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
               </Text>
@@ -266,7 +266,7 @@ function HomeScreen() {
           const d = daysUntil(month.dueDate);
           return (
             <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
                 جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
               </Text>
@@ -339,7 +339,7 @@ function EmailVerificationBanner() {
 
   return (
     <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-      <Text style={[styles.bannerText, { color: colors.accent }]}>
+      <Text style={[styles.bannerText, { color: colors.accentText }]}>
         إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
       </Text>
       {sent && !error ? (
@@ -384,7 +384,7 @@ function makeStyles(c: ThemeColors) {
     banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
     bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
-    bannerActionText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
+    bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)

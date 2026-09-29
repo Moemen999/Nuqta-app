@@ -177,7 +177,7 @@ export default function ArchiveScreen() {
               <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
             </View>
             <View style={styles.txRight}>
-              <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
+              <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: t.type === 'withdraw' ? colors.accentText : T.color }]} />
               <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
               {pendingTxIds.has(t.id) && <PendingSyncMark />}
               {t.autoRecorded && <AutoRecordedMark />}

@@ -79,3 +79,17 @@ describe('اللي كان قبل الإصلاح', () => {
     expect(contrast(DARK.accent, DARK.bg)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
   });
 });
+
+/**
+ * الدهبي كنص (2026-09-29): كلام البانرات ومبلغ السحب. `accent` نفسه على الكريمي
+ * كان 2.2:1 — `accentText` لازم يعدّي حد النص على كل خلفية بيقف عليها.
+ */
+describe('accentText — الدهبي كنص', () => {
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav', (_n, c) => {
+    for (const bgc of [c.bg, c.surface, c.nav]) expect(contrast(c.accentText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+  });
+  it('مش لون جديد: في الفاتح هو selectedBorder، وفي الغامق هو accent', () => {
+    expect(LIGHT.accentText).toBe(LIGHT.selectedBorder);
+    expect(DARK.accentText).toBe(DARK.accent);
+  });
+});

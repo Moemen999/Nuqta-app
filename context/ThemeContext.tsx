@@ -18,6 +18,13 @@ export type ThemeColors = {
   success: string;
   accent: string;
   onAccent: string;
+  /**
+   * الدهبي **كنص** (2026-09-29). `accent` (#C9A961) على الكريمي في الفاتح 2.2:1
+   * بس — كلام البانرات ومبلغ السحب كانوا باهتين (اتشاف على الـRedmi). في الفاتح
+   * ده الدهبي الغامق اللي في الباليتة أصلاً (`selectedBorder`)، مش لون جديد؛
+   * في الغامق هو `accent` نفسه. النسب في theme.contrast.test.ts.
+   */
+  accentText: string;
   warnBorder: string;
   /**
    * ألوان العنصر المختار في أي مجموعة اختيار (محفظة، فئة، نوع، تاب...).
@@ -57,7 +64,7 @@ export const DARK: ThemeColors = {
   border: '#1C2530', borderStrong: '#28323F',
   text: '#F0E6D2', textSecondary: '#9CA8B8', textMuted: '#5C6A7A',
   danger: '#C1554A', dangerBorder: '#5A2E28',
-  success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14',
+  success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#C9A961',
   warnBorder: '#5A4A20',
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
@@ -70,7 +77,7 @@ export const LIGHT: ThemeColors = {
   border: '#E3D7BA', borderStrong: '#CDBB94',
   text: '#2B2416', textSecondary: '#7A6B4E', textMuted: '#A6997A',
   danger: '#C1554A', dangerBorder: '#E8C4BE',
-  success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14',
+  success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
   warnBorder: '#E3D2A0',
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',
