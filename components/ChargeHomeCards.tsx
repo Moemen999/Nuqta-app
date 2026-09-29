@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import {
   PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
@@ -18,9 +19,10 @@ import {
 } from 'react-native';
 
 /**
- * كروت "اتخصم؟" في الرئيسية — الاشتراكات وأقساط الجمعية اللي "بتأكيد"
- * (الافتراضي) ومعادها جه، + أي فترة رجعت تسأل بعد ما عمليتها اتمسحت، + شهر
- * استلام الجمعية (بيسأل دايمًا). نفس شكل كارت الدخل الثابت "نزل؟".
+ * كروت "اتخصم؟" — الاشتراكات وأقساط الجمعية اللي "بتأكيد" (الافتراضي) ومعادها
+ * جه، + أي فترة رجعت تسأل بعد ما عمليتها اتمسحت، + شهر استلام الجمعية (بيسأل
+ * دايمًا). نفس شكل كارت الدخل الثابت "نزل؟". الكروت في شيت "مستنيين ردك"
+ * (`PendingSheet`) من 2026-09-29، ورسايل التلقائي في الرئيسية نفسها.
  */
 
 export type PendingCharge = {
@@ -75,10 +77,7 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
 
 const snoozeKey = (p: PendingCharge, today: string) => `${p.id}:${p.charges[0].key}:${today}`;
 
-/**
- * اللي بيستنى تأكيد دلوقتي — مصدر واحد للكروت وللزرار العايم (بيستخبّى في
- * الرئيسية طول ما فيه كارت، زي كارت الدخل).
- */
+/** اللي بيستنى تأكيد دلوقتي — مصدر واحد للكروت ولعدّاد سطر "مستنيين ردك" */
 export function usePendingCharges(): PendingCharge[] {
   const { subscriptions, gamiyas } = useData();
   useSnoozeVersion();
@@ -98,15 +97,57 @@ function yesLabel(p: PendingCharge) {
   return p.payout ? 'استلمت' : 'اتدفع';
 }
 
-export default function ChargeHomeCards() {
+/**
+ * رسايل الخصم التلقائي ("سجلنا …" / "ما سجلناش …") — في الرئيسية على طول.
+ * هنا كمان بيشتغل الخصم التلقائي نفسه (`useChargeAutoRecord`)، فلازم يفضل
+ * متركّب في الرئيسية حتى لو الشيت مقفول.
+ */
+export function ChargeAutoNotices() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { notices, dismiss } = useChargeAutoRecord();
+
+  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
+  const announced = useRef(new Set<string>());
+  useEffect(() => {
+    notices.forEach(n => {
+      if (announced.current.has(n.id)) return;
+      announced.current.add(n.id);
+      AccessibilityInfo.announceForAccessibility(n.text);
+    });
+  }, [notices]);
+
+  if (notices.length === 0) return null;
+
+  return (
+    <View style={styles.wrap}>
+      {notices.map(n => (
+        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
+          accessibilityLiveRegion="polite">
+          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
+            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
+            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
+          </Text>
+          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
+            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
+            <Text style={styles.dismissText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** كروت "اتخصم؟"/"اتدفع؟"/"استلمت؟" — جوه شيت "مستنيين ردك". `kind` بيقسمهم مجموعات */
+export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
-  const { notices, dismiss } = useChargeAutoRecord();
+  const notice = useNotice();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
-  const pending = usePendingCharges();
+  const pending = usePendingCharges().filter(p => !kind || p.kind === kind);
 
   const alertFor = (p: PendingCharge) => (p.kind === 'gamiya' ? PAY_OUTCOME_ALERT_GAMIYA : PAY_OUTCOME_ALERT);
   const busyId = (p: PendingCharge) => `charge_${p.id}_${p.payout ? 'in' : 'out'}`;
@@ -117,13 +158,13 @@ export default function ChargeHomeCards() {
     await run(busyId(p), async () => {
       const r = await recordCharges(p.kind, p.id, [{ key: charge.key, amount }]);
       if (r.outcome !== 'done') {
-        Alert.alert(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
+        notice(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
         return;
       }
       ok = true;
       // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال
       if (r.recorded.length === 0) {
-        Alert.alert('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
+        notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
       }
       AccessibilityInfo.announceForAccessibility(`اتسجل "${p.name}"`);
@@ -140,7 +181,7 @@ export default function ChargeHomeCards() {
         onPress: () => {
           run(busyId(p), async () => {
             const r = await skipSubscriptionCharge(p.id, charge.key);
-            if (r !== 'done') Alert.alert(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
+            if (r !== 'done') notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
             else AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
           });
         },
@@ -148,34 +189,10 @@ export default function ChargeHomeCards() {
     ]);
   }
 
-  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
-  const announced = useRef(new Set<string>());
-  useEffect(() => {
-    notices.forEach(n => {
-      if (announced.current.has(n.id)) return;
-      announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
-    });
-  }, [notices]);
-
-  if (pending.length === 0 && notices.length === 0) return null;
+  if (pending.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
-      {notices.map(n => (
-        <View key={n.id} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
-          accessibilityLiveRegion="polite">
-          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
-            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
-            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
-          </Text>
-          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
-            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
-            <Text style={styles.dismissText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-
       {pending.map(p => {
         const charge = p.charges[0];
         const busy = busyKey === busyId(p);
@@ -187,7 +204,7 @@ export default function ChargeHomeCards() {
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
             </Text>
-            <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.danger }]} />
+            <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
             <View style={styles.actions}>
               <TouchableOpacity
                 testID={`charge_card_yes_${p.id}`}

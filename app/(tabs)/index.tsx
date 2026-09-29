@@ -1,8 +1,9 @@
 import { Money } from '@/components/Money';
 import { speakable } from '@/lib/money';
 import { MIN_TOUCH } from '@/lib/tokens';
-import IncomeHomeCards from '@/components/IncomeHomeCards';
-import ChargeHomeCards from '@/components/ChargeHomeCards';
+import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
+import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
+import PendingSummary from '@/components/PendingSheet';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -11,12 +12,13 @@ import { useData } from '@/context/DataContext';
 import { AmountsMaskScope, usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { TYPE_LABELS, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNoWallets } from '@/lib/useNoWallets';
+import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -38,8 +40,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user } = useAuth();
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable, figuresFromServer } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
 
@@ -71,6 +72,9 @@ function HomeScreen() {
     return () => clearTimeout(t);
   }, []);
   const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
+  // النت قطع والأرقام على الشاشة: بعد المهلة بس، ولحد ما الأرقام نفسها تتحدّث
+  // (lib/staleFigures.ts). من غير أرقام ده "مفيش نت" اللي فوق، مش ده
+  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0);
   /**
    * حساب مسح (أو أرشف) كل محافظه: مفيش شاشة تجهيز تاني (عدّاها قبل كده)، ومن غير
    * محفظة مفيش ولا عملية تتسجل — فبنقول كده وبنودّيه يضيف واحدة. بس لما نكون
@@ -118,9 +122,8 @@ function HomeScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* الهيدر الثابت = الرصيد بس (2026-09-29) */}
       <View style={styles.fixedTop}>
-        <Text style={styles.hello}>أهلًا {user?.displayName || ''}</Text>
-
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeadRow}>
             <TouchableOpacity
@@ -152,67 +155,6 @@ function HomeScreen() {
             ))}
           </View>
         </View>
-
-        <EmailVerificationBanner />
-
-        {offlineEmpty && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}>
-              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
-            </Text>
-          </View>
-        )}
-        {!hasTodayTx && !offlineEmpty && !noWallets && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
-          </View>
-        )}
-        {lowWallets.map(w => (
-          <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.danger }]}
-              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
-              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
-            </Text>
-          </View>
-        ))}
-        {totalBudgetAlert && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
-            </Text>
-          </View>
-        )}
-        {budgetAlerts.map(b => (
-          <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
-            </Text>
-          </View>
-        ))}
-        {dueSubscriptions.map(s => {
-          const d = daysUntil(s.nextDueDate);
-          return (
-            <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
-                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
-                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        {dueGamiyaMonths.map(({ gamiya, month }) => {
-          const d = daysUntil(month.dueDate);
-          return (
-            <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
-                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
-                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
       </View>
 
       <ScrollView
@@ -220,7 +162,27 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        {/* فوق آخر العمليات: فلوس داخلة محتاجة دوسة، مش تاريخ */}
+        {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده على طول **اللي بيقول إن رقم
+            على الشاشة ممكن يكون غلط أو ناقص**: مفيش نت، "النت قطع — الأرقام ممكن تكون
+            قديمة"، و"ما سجلناش" (التسجيل
+            التلقائي فشل)، وحالة "مفيش ولا محفظة". بانر "مقدرناش نجيب بياناتك"
+            (listener اترفض) أعلى من كده كمان: فوق الـStack كله، فوق الرصيد نفسه وفي
+            كل تاب. بعدهم سطر "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات
+            (مش بتقول إن رقم غلط، ومش داخلة في العدّاد). تسجيل عملية هو "+" الظاهر
+            دايمًا. الترتيب ده متثبّت في homeBannerOrder.test.tsx */}
+        {offlineEmpty && (
+          <View testID="home_banner_offline" style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accentText }]}>
+              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
+            </Text>
+          </View>
+        )}
+        {staleFigures && (
+          <View testID="home_banner_stale" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
+          </View>
+        )}
         {noWallets && (
           <View testID="home_no_wallets" style={styles.noWallets}>
             <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
@@ -236,9 +198,12 @@ function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <IncomeHomeCards />
-        <ChargeHomeCards />
-        <Text style={styles.sectionTitle}>آخر العمليات</Text>
+        {/* رسايل التسجيل التلقائي في الرئيسية نفسها ("ما سجلناش" لازم تبان)، والكروت
+            المستنية رد في شيت بيفتحه سطر واحد (2026-09-29) */}
+        <IncomeAutoNotices />
+        <ChargeAutoNotices />
+        <PendingSummary />
+        <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>
             {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
@@ -261,11 +226,64 @@ function HomeScreen() {
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
-                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: T.color }]} />
+                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
               </View>
+            </TouchableOpacity>
+          );
+        })}
+        {/* تنبيهات مش مستنية رد: تحت آخر العمليات، ومش داخلة في عدّاد السطر */}
+        <EmailVerificationBanner />
+        {!hasTodayTx && !offlineEmpty && !noWallets && (
+          <View testID="home_banner_no_tx_today" style={styles.banner}>
+            <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
+          </View>
+        )}
+        {lowWallets.map(w => (
+          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.danger }]}
+              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
+              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
+            </Text>
+          </View>
+        ))}
+        {totalBudgetAlert && (
+          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accentText }]}
+              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
+              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
+            </Text>
+          </View>
+        )}
+        {budgetAlerts.map(b => (
+          <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, { color: colors.accentText }]}
+              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
+              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
+            </Text>
+          </View>
+        ))}
+        {dueSubscriptions.map(s => {
+          const d = daysUntil(s.nextDueDate);
+          return (
+            <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
+                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
+                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+        {dueGamiyaMonths.map(({ gamiya, month }) => {
+          const d = daysUntil(month.dueDate);
+          return (
+            <TouchableOpacity key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
+                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
+                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -334,8 +352,8 @@ function EmailVerificationBanner() {
   }
 
   return (
-    <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-      <Text style={[styles.bannerText, { color: colors.accent }]}>
+    <View testID="home_banner_verify_email" style={[styles.banner, { borderColor: colors.warnBorder }]}>
+      <Text style={[styles.bannerText, { color: colors.accentText }]}>
         إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
       </Text>
       {sent && !error ? (
@@ -357,12 +375,13 @@ function EmailVerificationBanner() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    fixedTop: { paddingHorizontal: 16, paddingTop: 16 },
+    fixedTop: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6 },
     scrollArea: { flex: 1 },
     // 120 مش 40: الزرار العايم (54 على bottom 90) بيغطي ~85–95 من آخر السكرول،
-    // فآخر عملية مكانتش بتقدر تطلع من تحته (a11y-architect)
+    // فآخر عملية مكانتش بتقدر تطلع من تحته (a11y-architect). والزرار ظاهر دايمًا
+    // (2026-09-29)، فالمسافة دي هي اللي بتضمن إن أي حاجة تحته تتسكرول من تحته:
+    // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
-    hello: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 12 },
     balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
@@ -379,8 +398,8 @@ function makeStyles(c: ThemeColors) {
     banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
     bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
-    bannerActionText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 6, marginBottom: 10 },
+    bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
+    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)
     noWallets: {

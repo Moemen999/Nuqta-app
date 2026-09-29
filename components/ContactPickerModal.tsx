@@ -160,7 +160,7 @@ function makeStyles(c: ThemeColors) {
       borderWidth: 1.5, borderColor: c.accent, borderRadius: 10,
       backgroundColor: c.surface2, paddingHorizontal: 14, paddingVertical: 10,
     },
-    createBtnText: { color: c.accent, fontSize: 13, fontWeight: '700', textAlign: 'center' },
+    createBtnText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'center' },
     createBtnHint: { color: c.textMuted, fontSize: 11, textAlign: 'center', marginTop: 3 },
   });
 }

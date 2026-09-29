@@ -79,3 +79,70 @@ describe('اللي كان قبل الإصلاح', () => {
     expect(contrast(DARK.accent, DARK.bg)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
   });
 });
+
+/**
+ * الدهبي كنص (2026-09-29): كلام البانرات ومبلغ السحب. `accent` نفسه على الكريمي
+ * كان 2.2:1 — `accentText` لازم يعدّي حد النص على كل خلفية بيقف عليها.
+ */
+describe('accentText — الدهبي كنص', () => {
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav', (_n, c) => {
+    for (const bgc of [c.bg, c.surface, c.nav]) expect(contrast(c.accentText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+  });
+  it('مش لون جديد: في الفاتح هو selectedBorder، وفي الغامق هو accent', () => {
+    expect(LIGHT.accentText).toBe(LIGHT.selectedBorder);
+    expect(DARK.accentText).toBe(DARK.accent);
+  });
+});
+
+/**
+ * حارس المصدر: الدهبي **كنص** بـ`accentText` بس. `accent` للتعبئة والإطار
+ * والأيقونة — كنص على الكريمي 2.2:1. اتلقى في 15 مكان بعد ما اتصلح في 3.
+ */
+it('مفيش color: accent في app/ وcomponents/ — النص الدهبي accentText', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..', '..');
+  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e: any) =>
+    e.isDirectory() ? (e.name === '__tests__' ? [] : walk(path.join(d, e.name))) : e.name.endsWith('.tsx') ? [path.join(d, e.name)] : []);
+  const offenders = ['app', 'components'].flatMap(d => walk(path.join(root, d)))
+    .filter(f => /color: (c|colors).accent/.test(fs.readFileSync(f, 'utf8')))
+    .map(f => path.relative(root, f));
+  expect(offenders).toEqual([]);
+});
+
+/**
+ * مبالغ المصروف والدخل (2026-09-29): كانت 2.99:1 و2.59:1 في الفاتح. لازم تعدّي
+ * حد النص في الثيمين، والغامق مايتغيرش، ومن الباليتة الموجودة بس.
+ */
+describe('expenseText / incomeText — مبالغ كل سطر', () => {
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav', (_n, c) => {
+    for (const bgc of [c.bg, c.surface, c.nav]) {
+      expect(contrast(c.expenseText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(c.incomeText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+    }
+  });
+  it('مش ألوان جديدة: الفاتح من الباليتة، والغامق زي ما كان', () => {
+    expect(LIGHT.expenseText).toBe(LIGHT.selectedDangerBorder);
+    expect(LIGHT.incomeText).toBe(LIGHT.selectedSuccessBorder);
+    expect(DARK.expenseText).toBe('#D97878');
+    expect(DARK.incomeText).toBe('#7FA98F');
+  });
+  it('transactionAmountColor من الثيم للأنواع التلاتة — مش من TYPE_LABELS', () => {
+    const { transactionAmountColor } = require('@/lib/finance');
+    for (const c of [DARK, LIGHT]) {
+      expect(transactionAmountColor('expense', c)).toBe(c.expenseText);
+      expect(transactionAmountColor('income', c)).toBe(c.incomeText);
+      expect(transactionAmountColor('withdraw', c)).toBe(c.accentText);
+    }
+  });
+  it('الرئيسية والأرشيف بياخدوا لون المبلغ من transactionAmountColor بس', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const root = path.join(__dirname, '..', '..');
+    for (const f of ['app/(tabs)/index.tsx', 'app/archive.tsx']) {
+      const src = fs.readFileSync(path.join(root, f), 'utf8');
+      expect({ f, usesHelper: src.includes('transactionAmountColor(t.type, colors)'), usesConst: /\bT\.color\b/.test(src) })
+        .toEqual({ f, usesHelper: true, usesConst: false });
+    }
+  });
+});

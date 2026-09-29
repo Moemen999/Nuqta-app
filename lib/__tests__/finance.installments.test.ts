@@ -1,5 +1,5 @@
 import {
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountTooLowMessage,
+  installmentChangeMessage, installmentCountAfterPayment, installmentIncreaseMessage, installmentCountTooLowMessage,
   installmentProgress, installmentProgressLabel, installmentValue, planInstallmentCountEdit,
 } from '@/lib/finance';
 import { installmentCountFor, roundMoney } from '@/lib/finance';
@@ -278,5 +278,30 @@ describe('installmentCountFor — العدد بيرجع لما دفعة تتمس
 
   it('دين مش قسط = null', () => {
     expect(installmentCountFor(debt({ isInstallment: false }))).toBeNull();
+  });
+});
+
+/**
+ * زيادة على الدين بتعيد حساب العدد (2026-09-29) — والتغيير بيتقال بنفس طريقة
+ * الدفعة، بالعدد القديم والجديد. من غير مبلغ: المبلغ لسه المستخدم كاتبه.
+ */
+describe('رسالة الزيادة', () => {
+  it('العدد زاد ← بيتقال القديم والجديد', () => {
+    expect(installmentIncreaseMessage(6, 8)).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  });
+
+  it('العدد ما اتغيرش ← مفيش كلام', () => {
+    expect(installmentIncreaseMessage(6, 6)).toBeNull();
+  });
+
+  it('مفيش عدد قديم معروف ← مفيش كلام (مش هنقول "بدل undefined")', () => {
+    expect(installmentIncreaseMessage(undefined, 8)).toBeNull();
+    expect(installmentIncreaseMessage(0, 8)).toBeNull();
+    expect(installmentIncreaseMessage(NaN, 8)).toBeNull();
+  });
+
+  it('عدد جديد مش رقم حقيقي ← مفيش كلام', () => {
+    expect(installmentIncreaseMessage(6, NaN)).toBeNull();
+    expect(installmentIncreaseMessage(6, Infinity)).toBeNull();
   });
 });

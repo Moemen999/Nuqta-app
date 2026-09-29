@@ -1,10 +1,11 @@
 import { useAuth } from '@/context/AuthContext';
+import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
 import { settlementNote } from '@/lib/archiving';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
@@ -391,6 +392,13 @@ type DataContextType = {
   /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
   serverReachable: boolean;
   /**
+   * الأرقام اللي على الشاشة (الأرصدة) متزامنة مع السيرفر: آخر snapshot من المحافظ
+   * **ومن** العمليات جه من السيرفر مش من الكاش. أضيق من `serverReachable` (اللي
+   * أي واحد منهم بيقلبه): رجوع النت ≠ الأرقام اتحدّثت. لبانر "الأرقام ممكن تكون
+   * قديمة" بس — مبيدخلش في أي حساب.
+   */
+  figuresFromServer: boolean;
+  /**
    * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
    * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
    * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
@@ -432,7 +440,7 @@ type DataContextType = {
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
-  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<PayOutcome>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<DebtPayResult>;
   deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
@@ -555,6 +563,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
   const [serverReachable, setServerReachable] = useState(false);
   const serverReachableRef = useRef(false);
+  // آخر fromCache لكل listener من اللي الأرصدة مبنية عليهم. `null` = لسه مرماش
+  // snapshot (مجموعة فاضية ممكن متبعتش خالص) — فمبيمنعش "اتحدّثت"
+  const figuresCache = useRef<{ wallets: boolean | null; transactions: boolean | null }>({ wallets: null, transactions: null });
+  const [figuresFromServer, setFiguresFromServer] = useState(false);
+  function noteFigures(name: 'wallets' | 'transactions', fromCache: boolean) {
+    figuresCache.current[name] = fromCache;
+    const { wallets: w, transactions: t } = figuresCache.current;
+    const fresh = figuresFresh(w, t);
+    setFiguresFromServer(prev => (prev === fresh ? prev : fresh));
+  }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
@@ -678,6 +696,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
+      figuresCache.current = { wallets: null, transactions: null };
+      setFiguresFromServer(false);
       return;
     }
 
@@ -744,6 +764,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       loaded('wallets');
       setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
       noteConnection(snap.metadata.fromCache);
+      noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       loaded('categories');
@@ -761,6 +782,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
       // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
       noteConnection(snap.metadata.fromCache);
+      noteFigures('transactions', snap.metadata.fromCache);
     }, failed('transactions'));
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       loaded('budgets');
@@ -1455,15 +1477,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return e instanceof WalletArchivedError ? 'wallet-missing' : 'failed';
     }
   }
-  /** زيادة الدين — ذرية لنفس أسباب الدفعة بالظبط (شوف `addDebtPayment` فوق) */
-  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<PayOutcome> {
-    if (!uid) return 'done';
-    if (!serverReachableRef.current) return 'no-connection';
+  /**
+   * زيادة الدين — ذرية لنفس أسباب الدفعة بالظبط (شوف `addDebtPayment` فوق)،
+   * وبترجّع نفس شكل نتيجتها: `note` لو عدد الأقساط اتغيّر، والشاشة بتقوله
+   * بنفس الطريقة (2026-09-29).
+   */
+  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<DebtPayResult> {
+    if (!uid) return { outcome: 'done' };
+    // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
+    // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
+    if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
-    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    // نفس حامل `addDebtPayment`: الـcallback ممكن تتعاد، والجملة بتاعة اللفة اللي نجحت
+    const result: { note: string | null } = { note: null };
     try {
       await countPending(runTransaction(db, async (t) => {
+        result.note = null;
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
         const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
@@ -1489,12 +1521,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
           date, amount,
           ...(walletId ? { walletId, transactionId } : {}),
         };
-        t.update(debtRef, { increases: [...(debt.increases || []), entry] });
+        const increases = [...(debt.increases || []), entry];
+        // **العدد لازم يتحسب تاني** (2026-09-29): المتبقي بيشمل الزيادات، فدين
+        // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
+        // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
+        // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
+        const patch: Record<string, unknown> = { increases };
+        const recount = installmentCountFor({ ...debt, increases });
+        // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
+        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
+          patch.installmentCount = recount;
+          // null عن قصد لو العدد القديم مش معروف (دين قديم من غير عدد): العدد الصح
+          // بيتكتب، بس مفيش "بدل كام" صادقة تتقال — "بدل 0" كانت هتبقى كدب
+          result.note = installmentIncreaseMessage(debt.installmentCount, recount);
+        } else if (recount !== null && !Number.isFinite(recount)) {
+          // من غير أرقام — المعرّف بس (sentryScrub)
+          console.warn('[debt] installment recount not finite, count left as is', debtId);
+        }
+        t.update(debtRef, patch);
       }));
-      return 'done';
+      return { outcome: 'done', note: result.note };
     } catch (e) {
       noteAtomicFailure('زيادة الدين', e);
-      return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
+      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
     }
   }
   /**
@@ -2080,7 +2129,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

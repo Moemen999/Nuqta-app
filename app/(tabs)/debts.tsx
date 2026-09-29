@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { plainAmount, type AmountFormatter } from '@/lib/money';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -89,6 +90,7 @@ function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
   const personKeyByDebt = useMemo(() => {
@@ -131,7 +133,7 @@ function DebtsContent() {
     const plan = debtEntryDeletePlan(d, kind, entryId);
     if (!plan) return;
     const blocked = debtEntryArchivedWalletBlock(kind, plan, wallets);
-    if (blocked) { Alert.alert(blocked.title, blocked.body); return; }
+    if (blocked) { notice(blocked.title, blocked.body); return; }
     const walletName = plan.walletId ? walletHistoryName(wallets, plan.walletId) : '';
     const { title, body } = debtEntryDeleteMessage(d, kind, plan, walletName, plainAmount);
     Alert.alert(title, body, [
@@ -142,7 +144,7 @@ function DebtsContent() {
         onPress: () => runBusy(entryId, async () => {
           const outcome = await (kind === 'payment' ? deleteDebtPayment : deleteDebtIncrease)(d.id, entryId);
           if (outcome !== 'done') {
-            Alert.alert(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
+            notice(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
             return;
           }
           // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال
@@ -547,7 +549,7 @@ function makeStyles(c: ThemeColors) {
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: 14.5, fontWeight: '700' },
     personPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3 },
-    personNameLink: { color: c.accent, textDecorationLine: 'underline' },
+    personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
     remainingText: { fontSize: 14, fontWeight: '700' },
     noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
     dueText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
@@ -579,7 +581,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12, paddingVertical: 8,
       borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
     },
-    contactBtnText: { color: c.accent, fontSize: 12.5, fontWeight: '700' },
+    contactBtnText: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
     linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
     linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },

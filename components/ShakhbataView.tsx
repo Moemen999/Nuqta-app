@@ -130,13 +130,13 @@ export default function ShakhbataView() {
       <View style={styles.percentHead}>
         {percentDrafts ? (
           <TouchableOpacity onPress={savePercents} disabled={savingPercents}>
-            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
+            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
               {savingPercents ? '...' : 'حفظ النسب'}
             </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={startEditingPercents}>
-            <Text style={{ color: colors.accent, fontSize: 12.5, fontWeight: '700' }}>عدّل النسب</Text>
+            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700' }}>عدّل النسب</Text>
           </TouchableOpacity>
         )}
         <Text style={styles.label}>نسبك الحالية</Text>
@@ -234,7 +234,7 @@ function makeStyles(c: ThemeColors) {
     percentEditRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
     microLabel: { color: c.textMuted, fontSize: 10.5, textAlign: 'center', marginBottom: 4 },
     percentInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingVertical: 8, fontSize: 14, fontWeight: '700' },
-    warnText: { color: c.accent, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
+    warnText: { color: c.accentText, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
     bucketCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },

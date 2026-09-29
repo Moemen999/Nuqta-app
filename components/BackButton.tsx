@@ -38,6 +38,6 @@ export default function BackButton({ onPress }: { onPress?: () => void }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, minHeight: MIN_TOUCH, paddingHorizontal: 4 },
-    text: { color: c.accent, fontSize: 14 },
+    text: { color: c.accentText, fontSize: 14 },
   });
 }

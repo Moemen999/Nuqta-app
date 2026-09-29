@@ -109,7 +109,7 @@ describe('زيادة ودفعة في نفس اللحظة', () => {
       harness.api().addDebtIncrease(debtId, 250, '2026-02-01', walletId),
       harness.api().addDebtIncrease(debtId, 750, '2026-02-02', walletId),
     ]);
-    expect(outcomes).toEqual(['done', 'done']);
+    expect(outcomes.map(o => o.outcome)).toEqual(['done', 'done']);
 
     await harness.waitForData(api => (api.debts[0].increases || []).length === 2);
     // 6000 + 250 + 750

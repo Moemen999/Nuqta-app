@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { useNotice } from '@/components/NoticeProvider';
 import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -17,19 +18,16 @@ import {
 } from 'react-native';
 
 /**
- * كروت الدخل الثابت في الرئيسية:
- * - `"المرتب" نزل؟` لكل دخل بيستنى تأكيد ومعاده جه (الأقدم الأول)
- * - `سجلنا "المرتب" عن سبتمبر وأكتوبر` بعد التسجيل التلقائي
- * - "ما سجلناش …" لو التلقائي فشل — مش بيتبلع
+ * كروت الدخل الثابت:
+ * - `"المرتب" نزل؟` لكل دخل بيستنى تأكيد ومعاده جه (الأقدم الأول) — في شيت
+ *   "مستنيين ردك" (`PendingSheet`) من 2026-09-29، مش في الرئيسية نفسها
+ * - `سجلنا "المرتب" عن سبتمبر وأكتوبر` بعد التسجيل التلقائي — في الرئيسية
+ * - "ما سجلناش …" لو التلقائي فشل — في الرئيسية، مش بيتبلع ومش مستخبّي في شيت
  *
  * شكل مختلف عن بانرات التنبيه عن قصد: خط دهبي على الجنب وعنوان تقيل —
  * دي فلوس داخلة ومحتاجة دوسة، مش تحذير.
  */
-/**
- * الدخول الثابتة اللي بتستنى "نزل؟" دلوقتي. مصدر واحد للكارت وللزرار العايم:
- * الـ"+" بيستخبّى في الرئيسية طول ما فيه كارت (`app/(tabs)/_layout.tsx`)،
- * عشان كان بيقعد فوق زرار "ما نزلش".
- */
+/** الدخول الثابتة اللي بتستنى "نزل؟" دلوقتي — مصدر واحد للكروت ولعدّاد سطر "مستنيين ردك" */
 export function usePendingIncomes() {
   const { incomes } = useData();
   const today = todayStr();
@@ -39,11 +37,54 @@ export function usePendingIncomes() {
     .filter(x => x.keys.length > 0);
 }
 
+/**
+ * رسايل التسجيل التلقائي ("سجلنا …" / "ما سجلناش …") — في الرئيسية على طول.
+ * هنا كمان بيشتغل التسجيل التلقائي نفسه (`useIncomeAutoRecord`)، فالكومبوننت ده
+ * لازم يفضل متركّب في الرئيسية حتى لو الشيت مقفول.
+ */
+export function IncomeAutoNotices() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { notices, dismiss } = useIncomeAutoRecord();
+
+  // الرسايل دي نتيجة فلوس (اتسجل / ما اتسجلش) — `accessibilityLiveRegion` لوحده
+  // أندرويد بس، فVoiceOver كان هيسكت عنها خالص
+  const announced = useRef(new Set<string>());
+  useEffect(() => {
+    notices.forEach(n => {
+      if (announced.current.has(n.id)) return;
+      announced.current.add(n.id);
+      AccessibilityInfo.announceForAccessibility(n.text);
+    });
+  }, [notices]);
+
+  if (notices.length === 0) return null;
+
+  return (
+    <View style={styles.wrap}>
+      {notices.map(n => (
+        <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
+          accessibilityLiveRegion="polite">
+          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
+            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
+            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
+          </Text>
+          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
+            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
+            <Text style={styles.dismissText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** كروت "نزل؟" — جوه شيت "مستنيين ردك" */
 export default function IncomeHomeCards() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
-  const { notices, dismiss } = useIncomeAutoRecord();
+  const notice = useNotice();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
@@ -60,7 +101,7 @@ export default function IncomeHomeCards() {
     await run(`rec_${inc.id}`, async () => {
       const r = await recordIncomePeriods(inc.id, [{ key, amount }]);
       if (r.outcome !== 'done') {
-        Alert.alert(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
+        notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
         return;
       }
       ok = true;
@@ -77,35 +118,10 @@ export default function IncomeHomeCards() {
     ]);
   }
 
-  // الرسايل دي نتيجة فلوس (اتسجل / ما اتسجلش) — `accessibilityLiveRegion` لوحده
-  // أندرويد بس، فVoiceOver كان هيسكت عنها خالص
-  const announced = useRef(new Set<string>());
-  useEffect(() => {
-    notices.forEach(n => {
-      if (announced.current.has(n.id)) return;
-      announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
-    });
-  }, [notices]);
-
-  if (pending.length === 0 && notices.length === 0) return null;
+  if (pending.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
-      {notices.map(n => (
-        <View key={n.id} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
-          accessibilityLiveRegion="polite">
-          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
-            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
-            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
-          </Text>
-          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
-            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
-            <Text style={styles.dismissText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-
       {pending.map(({ inc, keys }) => {
         const key = keys[0];
         const busy = busyKey === `rec_${inc.id}`;

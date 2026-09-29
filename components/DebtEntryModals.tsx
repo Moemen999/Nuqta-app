@@ -1,4 +1,5 @@
 import { plainAmount } from '@/lib/money';
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
@@ -35,6 +36,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, addDebtPayment } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
 
   const remaining = debtRemaining(debt);
@@ -106,12 +108,12 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       // كتابة كل حاجة
       if (result.outcome !== 'done') {
         const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        Alert.alert(alert.title, alert.body);
+        notice(alert.title, alert.body);
         return;
       }
       // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
       // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
-      if (result.note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, result.note);
+      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
@@ -184,6 +186,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addDebtIncrease } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
 
   const [amount, setAmount] = useState('');
@@ -202,23 +205,27 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   async function handleSave() {
     const amt = Number(amount);
-    if (!amt || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
+    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
+    if (!Number.isFinite(amt) || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
-      let outcome: Awaited<ReturnType<typeof addDebtIncrease>>;
+      let result: Awaited<ReturnType<typeof addDebtIncrease>>;
       try {
-        outcome = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+        result = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
       } catch {
         // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
         // المتزامنة بس
         setError('حصل خطأ، جرب تاني');
         return;
       }
-      if (outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[outcome];
-        Alert.alert(alert.title, alert.body);
+      if (result.outcome !== 'done') {
+        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
+        notice(alert.title, alert.body);
         return;
       }
+      // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
+      // مبيتغيّرش لوحده من غير ما حد يقول ليه
+      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
@@ -500,7 +507,7 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
-    installmentText: { color: c.accent, fontSize: 12.5, fontWeight: '700', textAlign: 'right', marginTop: 4 },
+    installmentText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
@@ -510,7 +517,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 12, paddingVertical: 8,
       borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
     },
-    contactBtnText: { color: c.accent, fontSize: 12.5, fontWeight: '700' },
+    contactBtnText: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },

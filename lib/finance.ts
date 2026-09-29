@@ -276,11 +276,29 @@ export function buildPieSlices(
   }, ...deleted];
 }
 
+/**
+ * `color` هنا **مش للنص** (2026-09-29): على الكريمي في الفاتح 2.2–3:1. لون مبلغ
+ * العملية من `transactionAmountColor` (الثيم). فاضل للأسامي والإشارات بس.
+ */
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   expense: { label: 'مصروف', color: '#D97878', sign: '-' },
   income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
   withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
 };
+
+/**
+ * لون مبلغ العملية — **المصدر الوحيد** للرئيسية والأرشيف، وكله من الثيم
+ * (2026-09-29): السحب `accentText`، المصروف `expenseText`، الدخل `incomeText`.
+ * ألوان `TYPE_LABELS` الثابتة كانت على الكريمي في الفاتح 2.2–3:1.
+ */
+export function transactionAmountColor(
+  type: string,
+  colors: { accentText: string; expenseText: string; incomeText: string },
+): string {
+  if (type === 'expense') return colors.expenseText;
+  if (type === 'income') return colors.incomeText;
+  return colors.accentText;
+}
 
 export function debtGrandTotal(d: Debt) {
   return d.totalAmount + (d.increases || []).reduce((s, e) => s + e.amount, 0);
@@ -650,6 +668,21 @@ export function installmentChangeMessage(
   // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش إنه غيّر حاجة
   if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) return null;
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
+}
+
+/**
+ * الرسالة لما زيادة على الدين تغيّر عدد الأقساط (2026-09-29). نفس فكرة
+ * `installmentChangeMessage` للدفعة: العدد ميتغيّرش ساكت. القسط نفسه ثابت،
+ * فاللي بيتقال العدد القديم والجديد بس — من غير مبلغ.
+ *
+ * `null` لو العدد ما اتغيرش، أو القديم مش معروف (دين قديم من غير عدد —
+ * "بدل 0" كانت هتبقى كدب)، أو الجديد مش رقم حقيقي.
+ */
+export function installmentIncreaseMessage(beforeCount: number | undefined, afterCount: number): string | null {
+  if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
+  if (!Number.isFinite(afterCount) || afterCount <= 0) return null;
+  if (beforeCount === afterCount) return null;
+  return `بعد الزيادة، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
 }
 
 export type DebtEntryKind = 'payment' | 'increase';

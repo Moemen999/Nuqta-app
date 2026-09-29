@@ -323,7 +323,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, paddingHorizontal: 12, fontSize: 14,
     },
     addBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + 16, borderRadius: 10, borderWidth: 1, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-    addBtnText: { color: c.accent, fontSize: 14, fontWeight: '700' },
+    addBtnText: { color: c.accentText, fontSize: 14, fontWeight: '700' },
     error: { color: c.danger, fontSize: 13, textAlign: 'right', marginTop: 12 },
     primaryBtn: { backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
     primaryText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
