@@ -15,7 +15,7 @@ import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTra
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
-  installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
+  installmentCountEditRefusal, installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
@@ -416,7 +416,8 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
       if (!Number.isInteger(next) || next <= 0) { setError(INSTALLMENT_COUNT_INVALID); return; }
       if (next !== debt.installmentCount) {
         const done = await setInstallmentCount(debt.id, next);
-        if (!done) { setError(installmentCountTooLowMessage(debt.payments.length)); return; }
+        // السبب من نفس الحسبة: عدد أقل من الدفعات، أو قسط هيطلع أقل من قرش
+        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? installmentCountTooLowMessage(debt.payments.length)); return; }
       }
     }
     await runBusy(async () => {

@@ -623,11 +623,19 @@ export function installmentValue(d: Debt): number | null {
  *
  * `null` لو الدين مش قسط، أو القيمة متخزّنة أصلاً، أو مفيش قيمة تتحسب.
  */
-export function pinInstallmentAmount(d: Debt): { installmentAmount: number } | null {
+export function pinInstallmentAmount(d: Debt): { installmentAmount: number; installmentResidue: InstallmentResidue } | null {
   if (!d.isInstallment) return null;
   if (typeof d.installmentAmount === 'number' && d.installmentAmount > MONEY_EPS) return null;
   const value = installmentValue(d);
-  return value && value > PIASTRE_EPS ? { installmentAmount: value } : null;
+  if (!value || !Number.isFinite(value) || value <= PIASTRE_EPS) return null;
+  // فرق التقريب (2026-09-30) بنفس الأساس اللي القيمة القديمة اتحسبت منه:
+  // `totalAmount ÷ installmentCount`. لو العدد كان اتحرّك مع دفعات قديمة ده فرق
+  // تقريب للإجمالي مش لخطة حقيقية — صغير (≤ نص قرش لكل قسط) ومبيخبّيش فلوس:
+  // المتبقي بيتعرض زي ما هو، والفرق بيتحط على القسط الأخير بس
+  const residue = residueOf(d.totalAmount, value, d.installmentCount!);
+  return residue === null
+    ? null
+    : { installmentAmount: value, installmentResidue: { amount: residue, forInstallment: value } };
 }
 
 /**
@@ -716,7 +724,7 @@ export function installmentCountFor(d: Debt): number | null {
   const paidCount = (d.payments || []).length;
   if (remaining <= PIASTRE_EPS) return Math.max(paidCount, 1);
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  return paidCount + installmentsLeft(d, remaining, value);
 }
 
 export function installmentCountAfterPayment(d: Debt, paidAmount: number): number | null {
@@ -730,7 +738,85 @@ export function installmentCountAfterPayment(d: Debt, paidAmount: number): numbe
   // اتسدد بالكامل (أو زيادة): العدد بيقف عند الدفعات اللي حصلت فعلاً
   if (remaining <= PIASTRE_EPS) return paidCount;
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  return paidCount + installmentsLeft(d, remaining, value);
+}
+
+/**
+ * كام قسط فاضل على `remaining` (أكبر من نص قرش) — **المكان الوحيد** اللي
+ * القاعدة متكتوبة فيه، والعدد والاقتراح في المودال الاتنين منه (2026-09-30).
+ *
+ * - **فرق التقريب معروف** (`installmentResidueOf`): السماحية بالفلوس — نص قرش
+ *   + الفرق المتخزّن بالظبط، اللي القسط الأخير بيشيله. 1000 على 12: القسط
+ *   الأخير 83.37 مش قسط 13.
+ * - **مش معروف** (دين قبل الحقل ده): القاعدة القديمة زي ما هي، سماحية 0.5% من
+ *   القسط. تطبيق سماحية الفلوس عليه كان هيعمل قسط 13 وهمي من أول دفعة
+ *   (1000 على 12 من غير فرق متخزّن ← 12.0005 قسط)، ومنقدرش **نستنتج** الفرق
+ *   (خطوة 5 اترجعت عشان كده).
+ *
+ * وفي الحالتين **فلوس فاضلة = قسط واحد على الأقل**: القاعدة القديمة كانت بتقول
+ * 0 على 0.04 فاضلة، فالكارت يقول "القسط 12 من 12" والفلوس لسه مفتوحة.
+ */
+function installmentsLeft(d: Debt, remaining: number, value: number): number {
+  const residue = installmentResidueOf(d);
+  const k = residue === null
+    ? Math.ceil(remaining / value - PIASTRE_EPS)
+    : Math.ceil((remaining - residue - PIASTRE_EPS) / value);
+  return Math.max(1, k);
+}
+
+export type InstallmentResidue = NonNullable<Debt['installmentResidue']>;
+
+/** `base − value × n` مقرّب للقرش — `null` لو أي رقم مش حقيقي */
+function residueOf(base: number, value: number, n: number): number | null {
+  const r = roundMoney(base - value * n);
+  if (!Number.isFinite(r)) return null;
+  return r === 0 ? 0 : r; // من غير -0
+}
+
+/**
+ * القسط وفرق تقريبه لما مبلغ يتقسّم على `n` (الإنشاء وتعديل العدد).
+ * `null` لو القسط هيطلع أقل من قرش — قسط 0 كان هيتقري "مفيش قسط متخزّن"
+ * ويرجع للحسبة القديمة، والقواعد بترفضه أصلاً.
+ */
+export function planInstallments(base: number, n: number): { value: number; residue: number } | null {
+  if (!Number.isFinite(base) || base <= PIASTRE_EPS) return null;
+  if (!Number.isInteger(n) || n <= 0) return null;
+  const value = roundMoney(base / n);
+  if (!(value > PIASTRE_EPS)) return null;
+  const residue = residueOf(base, value, n);
+  return residue === null ? null : { value, residue };
+}
+
+/**
+ * الفرق اللي القسط الأخير بيشيله فوق القسط — `null` = مش معروف (القاعدة القديمة).
+ *
+ * بيتقري **بس** لو اتحسب على القسط المتخزّن نفسه (`forInstallment`): نسخة قديمة
+ * من التطبيق بتعدّل العدد بتكتب قسط جديد ومبتلمسش الفرق، فالفرق القديم مع قسط
+ * جديد كان هيبقى كدب. وبيتجاهل لو مش رقم حقيقي. **مفيش سقف بالقسط**: 1 على 24
+ * = قسط 0.04 وفرق 0.04 حقيقي (القسط الأخير 0.08). السالب (القسط الأخير أصغر)
+ * ← 0: المتبقي هيبقى أقل من قسط لوحده.
+ */
+export function installmentResidueOf(d: Debt): number | null {
+  const r = d.installmentResidue;
+  const value = d.installmentAmount;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= PIASTRE_EPS) return null;
+  if (!r || typeof r !== 'object') return null;
+  if (typeof r.forInstallment !== 'number' || Math.abs(r.forInstallment - value) > MONEY_EPS) return null;
+  if (typeof r.amount !== 'number' || !Number.isFinite(r.amount)) return null;
+  return r.amount > 0 ? r.amount : 0;
+}
+
+/**
+ * المبلغ اللي المودال بيقترحه (كان جوه `DebtEntryModals`). القسط، **إلا** لو
+ * فاضل قسط واحد بنفس قاعدة العدد (`installmentsLeft`) — ساعتها المتبقي كله.
+ * كده دفع الاقتراح عمره ما بيغيّر العدد، والقسط الأخير بيقفل الدين: قبل كده
+ * 1000 على 12 كان بيقترح 83.33 على 83.37 وبيسيب 0.04 مفتوحة.
+ */
+export function suggestedInstallmentPayment(d: Debt): number {
+  const remaining = debtRemaining(d);
+  const value = installmentValue(d);
+  if (!value || !d.isInstallment || remaining <= PIASTRE_EPS) return roundMoney(remaining);
+  return installmentsLeft(d, remaining, value) > 1 ? value : roundMoney(remaining);
 }
 
 /**
@@ -749,8 +835,12 @@ export function installmentChangeMessage(
 ): string | null {
   if (settled) return null;
   if (beforeCount === afterCount) return null;
-  // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش إنه غيّر حاجة
-  if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) return null;
+  // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش "دفعت X بدل X".
+  // بس لو العدد اتغيّر برضه (أول ما دين قديم يتثبّت قسطه وفرقه — 2026-09-30)
+  // بيتقال، مش بيتغيّر ساكت. "بدل 0" على عدد مش معروف كانت هتبقى كدب
+  if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) {
+    return beforeCount > 0 && afterCount > 0 ? `الأقساط بقت ${afterCount} بدل ${beforeCount}.` : null;
+  }
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
 }
 
@@ -873,7 +963,9 @@ export function debtEntryDeleteMessage(
  *
  * `null` معناها العدد مش مقبول.
  */
-export function planInstallmentCountEdit(d: Debt, nextTotal: number): { count: number; value: number } | null {
+export function planInstallmentCountEdit(
+  d: Debt, nextTotal: number,
+): { count: number; value: number; residue: number } | null {
   if (!Number.isInteger(nextTotal) || nextTotal <= 0) return null;
   const paidCount = (d.payments || []).length;
   if (nextTotal <= paidCount) return null;
@@ -881,11 +973,27 @@ export function planInstallmentCountEdit(d: Debt, nextTotal: number): { count: n
   const remaining = debtRemaining(d);
   if (remaining <= PIASTRE_EPS) return null;
 
-  return { count: nextTotal, value: roundMoney(remaining / (nextTotal - paidCount)) };
+  // الفرق بيتحسب على **المتبقي** اللي اتقسّم دلوقتي (2026-09-30) — وده بالظبط
+  // اللي خطوة 5 كانت بتحاول تستنتجه بعدين وغلطت فيه
+  const plan = planInstallments(remaining, nextTotal - paidCount);
+  return plan ? { count: nextTotal, value: plan.value, residue: plan.residue } : null;
 }
 
 export function installmentCountTooLowMessage(paidCount: number) {
   return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
+}
+
+export const INSTALLMENT_VALUE_TOO_SMALL = 'كده القسط هيبقى أقل من قرش، اختار عدد أقل.';
+
+/**
+ * ليه تعديل العدد اترفض — للشاشة. `null` = مقبول. العدد اللي مش رقم صحيح
+ * موجب ليه رسالته في الشاشة نفسها (`INSTALLMENT_COUNT_INVALID`) قبل ما توصل هنا.
+ */
+export function installmentCountEditRefusal(d: Debt, nextTotal: number): string | null {
+  if (planInstallmentCountEdit(d, nextTotal)) return null;
+  const paidCount = (d.payments || []).length;
+  if (nextTotal > paidCount && debtRemaining(d) > PIASTRE_EPS) return INSTALLMENT_VALUE_TOO_SMALL;
+  return installmentCountTooLowMessage(paidCount);
 }
 
 /** `money` بييجي من `usePrivacy()` في الشاشة — عشان الجملة تتخبّى مع المبالغ */

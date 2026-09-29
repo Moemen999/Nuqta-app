@@ -16,8 +16,14 @@ const legacy = (over: Partial<Debt> = {}) => ({
 
 describe('pinInstallmentAmount', () => {
   it('دين قديم ← القيمة بالعدد الحالي (قبل أي تغيير)', () => {
-    expect(pinInstallmentAmount(legacy())).toEqual({ installmentAmount: 1000 });
-    expect(pinInstallmentAmount(legacy({ totalAmount: 6500 }))).toEqual({ installmentAmount: 1083.33 });
+    // ومعاها فرق التقريب بنفس الأساس (2026-09-30): 6000 − 6 × 1000 = 0،
+    // و6500 − 6 × 1083.33 = 6500 − 6499.98 = 0.02
+    expect(pinInstallmentAmount(legacy())).toEqual({
+      installmentAmount: 1000, installmentResidue: { amount: 0, forInstallment: 1000 },
+    });
+    expect(pinInstallmentAmount(legacy({ totalAmount: 6500 }))).toEqual({
+      installmentAmount: 1083.33, installmentResidue: { amount: 0.02, forInstallment: 1083.33 },
+    });
   });
 
   it('قيمة متخزّنة، أو مش قسط، أو مفيش عدد ← مفيش حاجة تتكتب', () => {

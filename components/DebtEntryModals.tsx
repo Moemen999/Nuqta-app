@@ -11,7 +11,7 @@ import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContex
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, installmentProgressLabel, installmentValue,
+  categoryLabel, debtRemaining, installmentProgressLabel, suggestedInstallmentPayment,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -48,11 +48,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
    * كان لازم يمسح الرقم ويكتب قسطه كل مرة. ولسه يقدر يعدّله — الاقتراح
    * اقتراح مش قفل، ودي نص القاعدة: يدفع أقل أو أكتر والعدد يتظبط لوحده.
    */
-  const suggested = useMemo(() => {
-    const value = installmentValue(debt);
-    if (value && remaining > value + 0.005) return Math.round(value * 100) / 100;
-    return remaining;
-  }, [debt, remaining]);
+  // والقسط الأخير = المتبقي كله بنفس قاعدة العدد (`suggestedInstallmentPayment`، 2026-09-30)
+  const suggested = useMemo(() => suggestedInstallmentPayment(debt), [debt]);
   const progressLabel = installmentProgressLabel(debt);
 
   const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
