@@ -13,9 +13,15 @@ export function walletBalance(tx: Transaction[], walletId: string, opening: numb
   }, opening || 0);
 }
 
-export function monthSpend(tx: Transaction[], categoryId: string, month: string) {
+/**
+ * مصروف فئة في شهر. `transfers` (السلفة وقسط الجمعية، `lib/spending.ts`)
+ * بتتشال: عادةً ملهاش فئة، بس المستخدم يقدر يعدّل العملية ويديها فئة — ساعتها
+ * كانت هتدخل الفئة وتطلع من الإجمالي، فمجموع الفئات يعدّي الإجمالي (money-reviewer).
+ */
+export function monthSpend(tx: Transaction[], categoryId: string, month: string, transfers?: Set<string>) {
   return tx
-    .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month)
+    .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month
+      && !transfers?.has(t.id))
     .reduce((s, t) => s + t.amount, 0);
 }
 
@@ -149,6 +155,15 @@ export type PieSlice = { id: string; name: string; amount: number; color: string
 export const DELETED_SLICE_ID = '__deleted__';
 export const DELETED_SLICE_NAME = 'فئات ممسوحة';
 
+/**
+ * مصروف **عمره ما كان ليه فئة** (سداد دين من غير فئة، اشتراك من غير فئة) —
+ * شريحة لوحدها (2026-09-29). قبل كده كان بيتلمّ في "فئات ممسوحة" مع إن مفيش
+ * فئة اتمسحت، فالرسم كان بيقول حاجة مش حقيقية. السلفة وقسط الجمعية مش هنا
+ * أصلاً — مش مصروف (`lib/spending.ts`).
+ */
+export const UNCATEGORISED_SLICE_ID = '__uncategorised__';
+export const UNCATEGORISED_SLICE_NAME = 'من غير فئة';
+
 type SpendRow = { categoryId?: string; amount: number };
 
 /**
@@ -175,6 +190,7 @@ export function buildCategorySpend(
   const known = new Map(categories.map(c => [c.id, c]));
   const totals = new Map<string, number>();
   let deleted = 0;
+  let uncategorised = 0;
 
   for (const row of expenses) {
     const id = row.categoryId;
@@ -183,8 +199,10 @@ export function buildCategorySpend(
       totals.set(id, (totals.get(id) || 0) + row.amount);
       continue;
     }
-    // فئة ممسوحة (أو عملية من غير فئة خالص) — بتتلمّ مع بعض
-    if (!allowed) deleted += row.amount;
+    // فئة ممسوحة، أو عملية عمرها ما كان ليها فئة — كل واحدة في شريحتها
+    if (allowed) continue;
+    if (id) deleted += row.amount;
+    else uncategorised += row.amount;
   }
 
   const slices: PieSlice[] = [];
@@ -194,6 +212,9 @@ export function buildCategorySpend(
   }
   if (deleted > 0) {
     slices.push({ id: DELETED_SLICE_ID, name: DELETED_SLICE_NAME, amount: deleted, color: deletedColor });
+  }
+  if (uncategorised > 0) {
+    slices.push({ id: UNCATEGORISED_SLICE_ID, name: UNCATEGORISED_SLICE_NAME, amount: uncategorised, color: deletedColor });
   }
   return slices;
 }
@@ -261,8 +282,10 @@ export function buildPieSlices(
   // جوه "فئات تانية (N)" كان المستخدم هيبص على رقم مالوش تفسير خالص: لا هو
   // فئة يعرفها، ولا هو مكتوب إن فيه فلوس فئتها اتمسحت. وبتتحط آخر حاجة عشان
   // تفضل في نفس المكان مهما اتغيّرت المصاريف.
-  const deleted = byCategory.filter(c => c.id === DELETED_SLICE_ID);
-  const sorted = byCategory.filter(c => c.id !== DELETED_SLICE_ID).sort((a, b) => b.amount - a.amount);
+  // "من غير فئة" زيها بالظبط: مش فئة يتعرف مكانها، فمتتلمّش في "فئات تانية"
+  const special = new Set([DELETED_SLICE_ID, UNCATEGORISED_SLICE_ID]);
+  const deleted = byCategory.filter(c => special.has(c.id));
+  const sorted = byCategory.filter(c => !special.has(c.id)).sort((a, b) => b.amount - a.amount);
   if (sorted.length <= topN) return [...sorted, ...deleted];
 
   const top = sorted.slice(0, topN);

@@ -6,6 +6,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
 import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
+import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
@@ -21,7 +22,9 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, debts } = useData();
+  const { categories, transactions, debts, gamiyas } = useData();
+  // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
@@ -54,8 +57,8 @@ export default function ReportsScreen() {
   const visibleIds = catFilter.length > 0 ? catFilter : undefined;
 
   const periodExpenses = useMemo(
-    () => filtered.filter(t => t.type === 'expense'),
-    [filtered]
+    () => spendingExpenses(filtered, transfers),
+    [filtered, transfers]
   );
 
   const expenseByCat = useMemo(
@@ -86,11 +89,11 @@ export default function ReportsScreen() {
     // نفس قاعدة الفترة الحالية بالظبط. قبل كده الفترة السابقة كانت بتتفلتر
     // على الفئات الموجودة حتى وإحنا مش فالتين حاجة، فالمصروف اللي فئته
     // اتمسحت كان بيتشال من فترة واحدة بس — ومقارنة بقاعدتين بتدي نسبة غلط
-    const prevExpenses = transactions
-      .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo);
+    const prevExpenses = spendingExpenses(transactions, transfers)
+      .filter(t => t.date >= prevFrom && t.date <= prevTo);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
     return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
-  }, [range, visibleIds, transactions, periodExpense]);
+  }, [range, visibleIds, transactions, transfers, periodExpense]);
 
   /**
    * الفئة المؤرشفة مالهاش لازمة في الفلتر إلا لو ليها مصروف في الفترة دي

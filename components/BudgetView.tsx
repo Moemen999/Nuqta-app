@@ -1,6 +1,7 @@
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
+import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, currentMonth, monthSpend, planBudgetCommit } from '@/lib/finance';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
@@ -12,7 +13,8 @@ const TOTAL_KEY = 'total_budget';
 export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories: allCategories, transactions, budgets, setBudget } = useData();
+  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas } = useData();
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
   // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
@@ -32,14 +34,15 @@ export default function BudgetView() {
   const allocated = categories.reduce((s, c) => s + (budgets[c.id] || 0), 0);
   const remaining = totalBudget - allocated;
   const totalMonthSpend = useMemo(
-    () => transactions.filter(t => t.type === 'expense' && t.date.slice(0, 7) === nowMonth).reduce((s, t) => s + t.amount, 0),
-    [transactions, nowMonth]
+    // من غير السلفة وقسط الجمعية (خطوة 8)، بنفس الدالة اللي الرئيسية بتستخدمها
+    () => monthSpendTotal(transactions, nowMonth, transfers),
+    [transactions, nowMonth, transfers]
   );
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
-    categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth)));
+    categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth, transfers)));
     return map;
-  }, [categories, transactions, nowMonth]);
+  }, [categories, transactions, nowMonth, transfers]);
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

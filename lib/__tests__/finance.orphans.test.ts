@@ -6,6 +6,8 @@ import {
   DELETED_SLICE_NAME,
   DELETED_WALLET_LABEL,
   GROUPED_SLICE_ID,
+  UNCATEGORISED_SLICE_ID,
+  UNCATEGORISED_SLICE_NAME,
   PIE_TOP_N,
   buildCategorySpend,
   buildPieSlices,
@@ -106,9 +108,19 @@ describe('buildCategorySpend — الفلوس مبتختفيش', () => {
     expect(deleted!.amount).toBe(100);
   });
 
-  it('عملية من غير فئة خالص بتتلمّ مع الممسوحة', () => {
-    const out = buildCategorySpend([{ amount: 25 }], CATS, opts);
-    expect(out.find(s => s.id === DELETED_SLICE_ID)?.amount).toBe(25);
+  it('عملية من غير فئة خالص ← شريحة "من غير فئة" لوحدها، مش "فئات ممسوحة" (2026-09-29)', () => {
+    const out = buildCategorySpend([{ amount: 25 }, { amount: 40, categoryId: 'gone' }], CATS, opts);
+    expect(out.find(s => s.id === UNCATEGORISED_SLICE_ID)).toMatchObject({ amount: 25, name: UNCATEGORISED_SLICE_NAME });
+    expect(out.find(s => s.id === DELETED_SLICE_ID)?.amount).toBe(40);
+    expect(UNCATEGORISED_SLICE_NAME).toBe('من غير فئة');
+  });
+
+  it('"من غير فئة" مبتتلمّش في "فئات تانية" وبتفضل في الآخر زي الممسوحة', () => {
+    const many = Array.from({ length: PIE_TOP_N + 2 }, (_, i) => ({ id: `c${i}`, name: `ف${i}`, amount: 100 - i, color: '#000' }));
+    const unc = { id: UNCATEGORISED_SLICE_ID, name: UNCATEGORISED_SLICE_NAME, amount: 1, color: '#999' };
+    const out = buildPieSlices([...many, unc], '#888');
+    expect(out[out.length - 1].id).toBe(UNCATEGORISED_SLICE_ID);
+    expect(out.find(s => s.id === GROUPED_SLICE_ID)!.amount).toBe(many.slice(PIE_TOP_N).reduce((t, s) => t + s.amount, 0));
   });
 
   it('مجموع الشرايح = إجمالي المصروف — مفيش قرش بيضيع', () => {
