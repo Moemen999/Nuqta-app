@@ -610,14 +610,60 @@ export function installmentProgressLabel(d: Debt): string | null {
 }
 
 /**
- * عدد الأقساط بعد دفعة بمبلغ معيّن.
+ * كام قسط محتاجين عشان نغطي `remaining` بقسط قيمته `value`.
  *
- * القاعدة: **الدفعات اللي اتسجلت + عدد الأقساط الباقية**، والباقي =
- * المتبقي ÷ قيمة القسط مجبور لفوق. يعني القسط ثابت والعدد هو اللي
- * بيتحرّك — اللي دفع نص قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري.
+ * **كانت:** `ceil(remaining / value − PIASTRE_EPS)` — نص القرش بيتطرح من
+ * **عدد الأقساط**، فباقي لحد 0.5% من القسط كان بيتبلع (5 ج.م على قسط 1000، و50
+ * على 10,000): فلوس حقيقية ملهاش قسط، والكارت يقول "آخر قسط" والدين لسه عليه.
  *
- * بترجّع `null` لو مفيش حاجة تتحسب (مش قسط، أو الدين خلص).
+ * **بس كانت بتعمل حاجة تانية صح:** القسط متخزّن مقرّب للقرش (6500 ÷ 6 =
+ * 1083.33، و6 × 1083.33 = 6499.98)، فآخر الدين بيفضل **فرق تقريب** (قرشين هنا)
+ * ومكانش لازم يعمل "قسط 7" وهمي (`finance.installments.test.ts`).
+ *
+ * **دلوقتي:** بنطرح فرق التقريب **الفعلي** بالجنيه — `principal − n × value`
+ * و`n = round(principal ÷ value)` = العدد الأصلي (مبيتغيّرش مع الدفعات ولا
+ * الزيادات، عكس `installmentCount` اللي بيقل بعد دفعة كبيرة — money-reviewer).
+ * ومحدود بأقصى فرق التقريب ممكن يعمله (نص قرش لكل قسط): لو المستخدم عدّل
+ * القسط بإيده والقسمة مش مظبوطة، الفرق ده مش تقريب وميتبلعش. وبعده نص قرش
+ * لكسور الحساب.
+ *
+ * **صفر مسموح:** لو اللي فاضل هو فرق التقريب بس (4 قروش بعد القسط الـ12 من
+ * 1000 على 12)، مفيش قسط تاني — والعدد بيفضل الدفعات اللي حصلت
+ * (silent-failure-hunter، الجولة التانية: `max(1)` كانت بتعمل "قسط 13" وهمي).
+ * ومش سالب أبدًا. **و`null` لو الحساب طلع مش رقم** — مفيش عدد يتكتب أحسن من
+ * رقم مخترع (كل اللي بينادوا بيفحصوا `!== null` قبل الكتابة).
  */
+function installmentsToCover(
+  remaining: number, value: number, principal: number, storedCount: number | undefined,
+): number | null {
+  const count = Math.ceil((remaining - roundingResidueOf(remaining, value, principal, storedCount) - PIASTRE_EPS) / value);
+  return Number.isFinite(count) ? Math.max(0, count) : null;
+}
+
+/**
+ * فرق تقريب القسط اللي لسه جوّه `remaining` — اللي مينفعش يعمل قسط لوحده.
+ *
+ * 1. القسط = الأصل ÷ العدد مقرّب (الإنشاء، أو دين قديم من غير `installmentAmount`):
+ *    الفرق = `principal − n × value`، و`n` العدد الأصلي.
+ * 2. **القسط اتعدّل بإيد المستخدم** (`setInstallmentCount` بيحط
+ *    `roundMoney(المتبقي ÷ العدد الجديد)`): القسمة على الأصل مبقتش بترجّع عدد
+ *    (1500 ÷ 333.33 = 4.5) — money-reviewer، الجولة التانية: كانت بتدّي 5 بدل 4.
+ *    ساعتها الفرق = باقي المتبقي على القسط. والحد = نص قرش × أكبر عدد نعرفه
+ *    (المتبقي ÷ القسط، أو العدد المتخزّن اللي التعديل كتبه) — الحد مبيقلّش مع
+ *    الدفعات، وإلا آخر قسط كان هيعمل قسط وهمي على قرش.
+ * في الحالتين: مش أكتر من نص قرش لكل قسط، ومش سالب.
+ */
+function roundingResidueOf(remaining: number, value: number, principal: number, storedCount: number | undefined): number {
+  if (Number.isFinite(principal) && principal > 0) {
+    const n = Math.max(1, Math.round(principal / value));
+    const r = principal - n * value;
+    if (Math.abs(r) <= PIASTRE_EPS * n + MONEY_EPS) return Math.max(0, r);
+  }
+  const k = Math.max(1, Math.round(remaining / value));
+  const bound = Math.max(k, Number.isFinite(storedCount) ? (storedCount as number) : 0);
+  return Math.min(Math.max(0, remaining - k * value), PIASTRE_EPS * bound);
+}
+
 /**
  * العدد اللي يوصف الدين **بحالته الحالية**: الدفعات اللي حصلت + الأقساط
  * الباقية. بتتنادى بعد الحذف كمان مش بعد الدفع بس — العدد لازم يوصف
@@ -632,9 +678,19 @@ export function installmentCountFor(d: Debt): number | null {
   const paidCount = (d.payments || []).length;
   if (remaining <= PIASTRE_EPS) return Math.max(paidCount, 1);
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  const more = installmentsToCover(remaining, value, d.totalAmount, d.installmentCount);
+  return more === null ? null : Math.max(paidCount + more, 1);
 }
 
+/**
+ * عدد الأقساط بعد دفعة بمبلغ معيّن.
+ *
+ * القاعدة: **الدفعات اللي اتسجلت + عدد الأقساط الباقية**، والباقي =
+ * المتبقي ÷ قيمة القسط مجبور لفوق. يعني القسط ثابت والعدد هو اللي
+ * بيتحرّك — اللي دفع نص قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري.
+ *
+ * بترجّع `null` لو مفيش حاجة تتحسب (مش قسط، أو الدين خلص).
+ */
 export function installmentCountAfterPayment(d: Debt, paidAmount: number): number | null {
   if (!d.isInstallment) return null;
   const value = installmentValue(d);
@@ -646,7 +702,8 @@ export function installmentCountAfterPayment(d: Debt, paidAmount: number): numbe
   // اتسدد بالكامل (أو زيادة): العدد بيقف عند الدفعات اللي حصلت فعلاً
   if (remaining <= PIASTRE_EPS) return paidCount;
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  const more = installmentsToCover(remaining, value, d.totalAmount, d.installmentCount);
+  return more === null ? null : paidCount + more;
 }
 
 /**
