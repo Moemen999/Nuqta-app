@@ -2,6 +2,7 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
 import { settlementNote } from '@/lib/archiving';
+import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
@@ -97,30 +98,30 @@ export type Settlement = {
  * الرمي هو الطريقة الوحيدة لإلغاء `runTransaction` — والنتيجة إن مفيش أي
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
-class WalletMissingError extends Error {}
+class WalletMissingError extends Error { name = 'WalletMissingError'; }
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
  * جهاز تاني، يا إما لسه ما وصلش (وده اللي `waitForOurWritesToLand` بيمنعه).
  * الرمي بيلغي العملية كلها، فمفيش عملية يتيمة بتتكتب لدين مش موجود.
  */
-class DebtMissingError extends Error {}
+class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
 /**
  * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
  * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
  * والفحص ده جوه الذرة للي اتأرشف من جهاز تاني بين الدوسة والمسح.
  */
-class WalletArchivedError extends Error {}
+class WalletArchivedError extends Error { name = 'WalletArchivedError'; }
 
 /** الدخل الثابت اتمسح من جهاز تاني وإحنا جوه الذرة */
-class IncomeMissingError extends Error {}
+class IncomeMissingError extends Error { name = 'IncomeMissingError'; }
 
 /** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
-class ChargeMissingError extends Error {}
+class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
-class IncomeHasRecordsError extends Error {}
+class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -637,9 +638,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بنكتب اسم العملية بس — مفيش أسامي ولا مبالغ. الـconsole بيتحوّل
    * breadcrumbs في Sentry، وقسم Sentry في CLAUDE.md بيقول مفيش ولا رقم من
    * فلوس المستخدم يخرج (و`sentryScrub` بيشيل الـbreadcrumbs دي أصلاً).
+   *
+   * وعشان كده الـconsole لوحده مكانش بيوصل Sentry خالص: `reportAtomicFailure`
+   * بيبعت حدث باسم العملية وكود الخطأ بس (مش الرسالة ولا الكائن).
    */
-  function noteAtomicFailure(op: string, e: unknown) {
+  function noteAtomicFailure(op: AtomicOp, e: unknown) {
     console.warn('عملية ذرية فشلت', op, e);
+    reportAtomicFailure(op, e);
   }
 
   function countPending<T>(p: Promise<T>): Promise<T> {
