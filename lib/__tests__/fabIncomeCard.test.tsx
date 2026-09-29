@@ -5,8 +5,9 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { todayStr } from '@/lib/finance';
 
 /**
- * الزرار العايم "+" كان بيقعد فوق زرار "ما نزلش" في كارت الدخل الثابت
- * (اتشاف على الجهاز 2026-09-26). بيستخبّى في الرئيسية بس، وبس طول ما فيه كارت.
+ * الزرار العايم "+" **ظاهر دايمًا** في الرئيسية والتقارير والتخطيط (2026-09-29).
+ * كان بيستخبّى طول ما فيه كارت "نزل؟"/"اتخصم؟" أو مفيش ولا محفظة، والمستخدم
+ * اللي فاتح يسجل بسرعة مكانش لاقيه. الكروت هي اللي بتتنقل، مش الزرار.
  */
 
 let mockPath = '/';
@@ -26,7 +27,7 @@ jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 
 const mount = () => render(<ThemeProvider><TabLayout /></ThemeProvider>);
 
-describe('الزرار العايم وكارت "نزل؟"', () => {
+describe('الزرار العايم "+" ظاهر دايمًا', () => {
   beforeEach(() => {
     Object.assign(mockData, {
       incomes: [], subscriptions: [], gamiyas: [], wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }],
@@ -40,50 +41,32 @@ describe('الزرار العايم وكارت "نزل؟"', () => {
     expect(screen.getByTestId('tx_add_button')).toBeTruthy();
   });
 
-  it('فيه كارت "نزل؟" ← الزرار مستخبّي في الرئيسية', async () => {
+  it('فيه كارت "نزل؟" ← الزرار لسه ظاهر في الرئيسية', async () => {
     mockData.incomes = [pendingIncome];
-    await mount();
-    expect(screen.queryByTestId('tx_add_button')).toBeNull();
-  });
-
-  it('فيه كارت، بس في التقارير ← الزرار ظاهر (الكارت في الرئيسية بس)', async () => {
-    mockData.incomes = [pendingIncome];
-    mockPath = '/reports';
     await mount();
     expect(screen.getByTestId('tx_add_button')).toBeTruthy();
   });
 
-  it('دخل "بيتسجل لوحده" مش بيطلع كارت ← الزرار ظاهر', async () => {
-    mockData.incomes = [{ ...pendingIncome, mode: 'auto' }];
+  it('فيه كارت "اتخصم؟" ← الزرار لسه ظاهر في الرئيسية', async () => {
+    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly', nextDueDate: today, active: true, history: [] }];
     await mount();
     expect(screen.getByTestId('tx_add_button')).toBeTruthy();
   });
 
-  it('مفيش ولا محفظة (متأكدين) ← الزرار مستخبّي في كل التابات', async () => {
+  it('مفيش ولا محفظة (متأكدين) ← الزرار ظاهر في الرئيسية والتقارير والتخطيط', async () => {
     mockData.wallets = [];
     for (const p of ['/', '/reports', '/planning']) {
       mockPath = p;
       await mount();
-      expect(screen.queryByTestId('tx_add_button')).toBeNull();
+      expect(screen.getByTestId('tx_add_button')).toBeTruthy();
     }
   });
 
-  it('من غير نت ومفيش محافظ لسه ← الزرار ظاهر (مش متأكدين)', async () => {
-    mockData.wallets = [];
-    mockData.serverReachable = false;
-    await mount();
-    expect(screen.getByTestId('tx_add_button')).toBeTruthy();
-  });
-
-  it('فيه كارت "اتخصم؟" (اشتراك بتأكيد معاده النهاردة) ← الزرار مستخبّي في الرئيسية', async () => {
-    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly', nextDueDate: today, active: true, history: [] }];
-    await mount();
-    expect(screen.queryByTestId('tx_add_button')).toBeNull();
-  });
-
-  it('اشتراك تلقائي معاده النهاردة ← مفيش كارت، الزرار ظاهر', async () => {
-    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly', nextDueDate: today, active: true, history: [], chargeMode: 'auto', chargeAutoSince: today }];
-    await mount();
-    expect(screen.getByTestId('tx_add_button')).toBeTruthy();
+  it('الديون والإعدادات ← مفيش زرار (ليهم زراير إضافة بتاعتهم)', async () => {
+    for (const p of ['/debts', '/settings']) {
+      mockPath = p;
+      await mount();
+      expect(screen.queryByTestId('tx_add_button')).toBeNull();
+    }
   });
 });

@@ -6,7 +6,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions, type TxChange } from '@/lib/archiving';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
-import { stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -26,6 +26,9 @@ export default function AddTransactionModal() {
   const { wallets, categories, transactions, addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning } = useData();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
   const isEdit = !!existing;
+  // الزرار "+" ظاهر دايمًا حتى من غير محفظة (2026-09-29)، فالشاشة دي هي اللي
+  // لازم توصّله لمحفظة — رسالة من غير طريق قدامها طريق مسدود
+  const noActiveWallets = !wallets.some(w => !w.archived);
 
   const [type, setType] = useState<'expense' | 'income' | 'withdraw'>('expense');
   const [amount, setAmount] = useState('');
@@ -74,7 +77,7 @@ export default function AddTransactionModal() {
   async function handleSave() {
     const amt = Number(amount);
     // مفيش ولا محفظة خالص ≠ نسي يختار واحدة — الرسالة بتقول السبب الحقيقي (a11y-architect)
-    if (!wallets.some(w => !w.archived)) { setError('مفيش ولا محفظة لسه — ضيف محفظة الأول من الإعدادات، وبعدين سجّل العملية.'); return; }
+    if (noActiveWallets) { setError('مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.'); return; }
     if (!amt || amt <= 0 || !walletId) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
     if (type === 'withdraw' && (!toWalletId || toWalletId === walletId)) {
       setError('اختار محفظة وجهة مختلفة'); return;
@@ -147,6 +150,17 @@ export default function AddTransactionModal() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <Text style={styles.title}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</Text>
+
+      {!isEdit && noActiveWallets && (
+        <View testID="tx_no_wallets" style={styles.noWallets}>
+          <Text style={styles.noWalletsText}>مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.</Text>
+          {/* replace مش push: المودال بيتقفل والرجوع من المحافظ بيودّي الرئيسية مش لفورم فاضي */}
+          <TouchableOpacity testID="tx_no_wallets_add" style={styles.noWalletsBtn}
+            onPress={() => router.replace('/settings-screens/wallets')} accessibilityRole="button">
+            <Text style={styles.noWalletsBtnText}>ضيف محفظة</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={styles.row}>
         {TYPES.map(t => (
@@ -253,6 +267,10 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: 12, padding: 14, gap: 10, marginBottom: 8 },
+    noWalletsText: { color: c.text, fontSize: 14, textAlign: 'right', lineHeight: 21 },
+    noWalletsBtn: { backgroundColor: c.accent, borderRadius: 10, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
+    noWalletsBtnText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.bg, insetBottom),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     deleteBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

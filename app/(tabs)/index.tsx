@@ -153,66 +153,6 @@ function HomeScreen() {
           </View>
         </View>
 
-        <EmailVerificationBanner />
-
-        {offlineEmpty && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}>
-              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
-            </Text>
-          </View>
-        )}
-        {!hasTodayTx && !offlineEmpty && !noWallets && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
-          </View>
-        )}
-        {lowWallets.map(w => (
-          <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.danger }]}
-              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
-              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
-            </Text>
-          </View>
-        ))}
-        {totalBudgetAlert && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
-            </Text>
-          </View>
-        )}
-        {budgetAlerts.map(b => (
-          <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accent }]}
-              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
-            </Text>
-          </View>
-        ))}
-        {dueSubscriptions.map(s => {
-          const d = daysUntil(s.nextDueDate);
-          return (
-            <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
-                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
-                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        {dueGamiyaMonths.map(({ gamiya, month }) => {
-          const d = daysUntil(month.dueDate);
-          return (
-            <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accent }]}
-                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
-                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
       </View>
 
       <ScrollView
@@ -220,6 +160,69 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
+        {/* البانرات في السكرول مش في الهيدر الثابت (2026-09-29): الهيدر كان بيطول
+            بيها ويزق الكروت لتحت عند الزرار "+" — ودلوقتي الزرار ظاهر دايمًا، فأي
+            حاجة تحته لازم تقدر تتسكرول من تحته */}
+      <EmailVerificationBanner />
+
+      {offlineEmpty && (
+        <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+          <Text style={[styles.bannerText, { color: colors.accent }]}>
+            مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
+          </Text>
+        </View>
+      )}
+      {!hasTodayTx && !offlineEmpty && !noWallets && (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
+        </View>
+      )}
+      {lowWallets.map(w => (
+        <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
+          <Text style={[styles.bannerText, { color: colors.danger }]}
+            accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
+            رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
+          </Text>
+        </View>
+      ))}
+      {totalBudgetAlert && (
+        <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+          <Text style={[styles.bannerText, { color: colors.accent }]}
+            accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
+            الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
+          </Text>
+        </View>
+      )}
+      {budgetAlerts.map(b => (
+        <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
+          <Text style={[styles.bannerText, { color: colors.accent }]}
+            accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
+            ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
+          </Text>
+        </View>
+      ))}
+      {dueSubscriptions.map(s => {
+        const d = daysUntil(s.nextDueDate);
+        return (
+          <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
+              اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+      {dueGamiyaMonths.map(({ gamiya, month }) => {
+        const d = daysUntil(month.dueDate);
+        return (
+          <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+            <Text style={[styles.bannerText, { color: colors.accent }]}
+              accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
+              جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
         {/* فوق آخر العمليات: فلوس داخلة محتاجة دوسة، مش تاريخ */}
         {noWallets && (
           <View testID="home_no_wallets" style={styles.noWallets}>
@@ -357,10 +360,12 @@ function EmailVerificationBanner() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    fixedTop: { paddingHorizontal: 16, paddingTop: 16 },
+    fixedTop: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 6 },
     scrollArea: { flex: 1 },
     // 120 مش 40: الزرار العايم (54 على bottom 90) بيغطي ~85–95 من آخر السكرول،
-    // فآخر عملية مكانتش بتقدر تطلع من تحته (a11y-architect)
+    // فآخر عملية مكانتش بتقدر تطلع من تحته (a11y-architect). والزرار ظاهر دايمًا
+    // (2026-09-29)، فالمسافة دي هي اللي بتضمن إن أي حاجة تحته تتسكرول من تحته:
+    // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
     hello: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 12 },
     balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },

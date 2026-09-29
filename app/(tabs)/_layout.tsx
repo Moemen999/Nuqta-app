@@ -3,9 +3,6 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { usePendingIncomes } from '@/components/IncomeHomeCards';
-import { usePendingCharges } from '@/components/ChargeHomeCards';
-import { useNoWallets } from '@/lib/useNoWallets';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
 
@@ -24,22 +21,18 @@ import { useTheme } from '@/context/ThemeContext';
  * الإخفاء بالشرط مش بإزاحة: الزرار `position: 'absolute'` فمش داخل في حساب
  * التخطيط أصلاً، يعني ظهوره واختفاؤه مش بيحرّك ولا عنصر في أي شاشة.
  *
- * **وبيستخبّى في الرئيسية طول ما فيه كارت "نزل؟"** (2026-09-27): كان بيقعد فوق
- * زرار "ما نزلش" لما الهيدر الثابت يطول بالبانرات. نقل الكارت للهيدر مكانش
- * هيضمن ده — الهيدر مبيسكرولش، وعلى شاشة صغيرة كان هيزق المحتوى برّه الشاشة.
- * الكارت بيتحل بدوسة واحدة والزرار بيرجع على طول، وفي التقارير والتخطيط موجود.
+ * **ومبيستخبّاش أبدًا** (2026-09-29، رجوع في قرار 2026-09-27): كان بيستخبّى طول
+ * ما فيه كارت "نزل؟"/"اتخصم؟" أو مفيش ولا محفظة — ومستخدم فاتح عشان يسجل مصروف
+ * بسرعة مكانش لاقيه. أهم فعل في التطبيق. لو قعد فوق حاجة، الحاجة هي اللي
+ * بتتنقل: الرئيسية كلها بتسكرول تحت الرصيد وفي آخرها مسافة أطول من الزرار.
+ * ومن غير محفظة شاشة العملية نفسها فيها "ضيف محفظة".
  */
 const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
 
 export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
-  // نفس الكلام لكروت "اتخصم؟" (اشتراك/جمعية) — نفس المكان ونفس الزراير
-  const pendingCharges = usePendingCharges().length > 0;
-  const incomeCardShowing = usePendingIncomes().length > 0 || pendingCharges;
-  // من غير ولا محفظة مفيش عملية تتحفظ — الرئيسية فيها "ضيف محفظة" بدل الزرار ده
-  const noWallets = useNoWallets().none;
-  const showFab = FAB_TAB_PATHS.includes(pathname) && !(pathname === '/' && incomeCardShowing) && !noWallets;
+  const showFab = FAB_TAB_PATHS.includes(pathname);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
