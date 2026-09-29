@@ -15,7 +15,7 @@ import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTra
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
-  installmentCountEditRefusal, installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
+  INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
@@ -416,8 +416,10 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
       if (!Number.isInteger(next) || next <= 0) { setError(INSTALLMENT_COUNT_INVALID); return; }
       if (next !== debt.installmentCount) {
         const done = await setInstallmentCount(debt.id, next);
-        // السبب من نفس الحسبة: عدد أقل من الدفعات، أو قسط هيطلع أقل من قرش
-        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? installmentCountTooLowMessage(debt.payments.length)); return; }
+        // السبب من نفس الحسبة (عدد أقل من الدفعات، دين متسدد، قسط أقل من قرش).
+        // ولو الحسبة هنا قابلاه والكتابة اترفضت (الدين اتمسح أو اتغيّر من جهاز
+        // تاني) ← "مقدرناش نحفظ"، مش سبب مش حقيقي
+        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
       }
     }
     await runBusy(async () => {

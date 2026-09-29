@@ -10,7 +10,7 @@ import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  installmentResidueIgnored, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -1299,6 +1299,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب شخبطة');
   }
 
+  /**
+   * فرق تقريب متخزّن واتجاهل (بتاع قسط تاني من نسخة قديمة، أو بايظ) — العدد
+   * بيرجع للقاعدة القديمة وده آمن، بس منسيبوش ساكت. المعرّف بس (sentryScrub).
+   */
+  function noteIgnoredResidue(debt: Debt) {
+    if (installmentResidueIgnored(debt)) console.warn('[debt] installmentResidue ignored, old count rule used', debt.id);
+  }
+
   async function addDebt(data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
@@ -1432,6 +1440,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت (ومعاها فرق
         // تقريبها) في نفس الكتابة — **قبل** العدّ، فالعدد بيتحسب بالخطة اللي
         // هتتكتب، مش بيتغيّر ساكت في الكتابة اللي بعدها
+        noteIgnoredResidue(debt);
         const pin = pinInstallmentAmount(debt);
         const planned: Debt = pin ? { ...debt, ...pin } : debt;
         Object.assign(patch, pin);
@@ -1537,6 +1546,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
         // حسابه 6.
+        noteIgnoredResidue(debt);
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { payments, ...pin };
         const recount = installmentCountFor({ ...debt, ...pin, payments });
@@ -1599,6 +1609,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
+        noteIgnoredResidue(debt);
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { increases, ...pin };
         // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
@@ -1649,6 +1660,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletArchivedError();
         }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
+        noteIgnoredResidue(debt);
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { increases, ...pin };
         const recount = installmentCountFor({ ...debt, ...pin, increases });

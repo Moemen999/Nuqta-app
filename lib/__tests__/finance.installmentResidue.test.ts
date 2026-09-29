@@ -1,6 +1,7 @@
 import type { Debt } from '@/context/DataContext';
 import {
-  debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentChangeMessage, installmentCountAfterPayment,
+  debtEntryDeletePlan, debtRemaining, INSTALLMENT_COUNT_NOT_SAVED, INSTALLMENT_DEBT_SETTLED,
+  installmentIncreaseMessage, installmentResidueIgnored, INSTALLMENT_VALUE_TOO_SMALL, installmentChangeMessage, installmentCountAfterPayment,
   installmentCountEditRefusal, installmentCountFor, installmentCountTooLowMessage, installmentProgressLabel,
   installmentResidueOf, PIASTRE_EPS, pinInstallmentAmount, planInstallmentCountEdit, planInstallments,
   reopenedDueDate, roundMoney, suggestedInstallmentPayment,
@@ -323,5 +324,64 @@ describe('الرسالة لما العدد يتغيّر والمبلغ هو ال
   it('العدد ما اتغيرش أو الدين خلص ← مفيش كلام (زي قبل)', () => {
     expect(installmentChangeMessage(1000, 1000, 6, 6, false)).toBeNull();
     expect(installmentChangeMessage(1000, 1000, 6, 1, true)).toBeNull();
+  });
+});
+
+describe('المراجعة (الجولة 1)', () => {
+  it('فرق فوق السقف الفيزيائي (بيانات بايظة) ← القاعدة القديمة، ومتعلَّم إنه اتجاهل', () => {
+    // 1e6 بنفس القسط كانت هتخلّي العدد "قسط واحد فاضل" على 1000
+    const bad = created(1000, 12, { installmentResidue: { amount: 1e6, forInstallment: 83.33 } });
+    expect(installmentResidueOf(bad)).toBeNull();
+    expect(installmentResidueIgnored(bad)).toBe(true);
+    expect(installmentCountFor(bad)).toBe(12);
+    // الحقيقي تحت السقف: 1000 على 12 ← 0.04 ≤ 0.005 × (1000 ÷ 83.325 + 1) + 0.005 ≈ 0.07
+    expect(installmentResidueIgnored(created(1000, 12))).toBe(false);
+    // و1 على 24 = قسط 0.04 وفرق 0.04 (السقف ≈ 0.15) ← مقبول
+    expect(installmentResidueOf(created(1, 24))).toBe(0.04);
+    // مفيش فرق خالص ← مش "متجاهَل"
+    expect(installmentResidueIgnored(base({ totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33 }))).toBe(false);
+  });
+
+  it('تعديل عدد دين متسدد، أو متبقي مش رقم ← رسالته هو', () => {
+    const settled = paid(created(1000, 4), 1000).debt;
+    expect(installmentCountEditRefusal(settled, 5)).toBe(INSTALLMENT_DEBT_SETTLED);
+    const corrupt = base({ totalAmount: NaN, installmentCount: 4, installmentAmount: 250 });
+    expect(installmentCountEditRefusal(corrupt, 5)).toBe(INSTALLMENT_COUNT_NOT_SAVED);
+  });
+
+  it('تأكيد مسح دفعة على دين قديم بيقول نفس العدد اللي هيتكتب (بالتثبيت)', () => {
+    // 6000 على 6 قديم (من غير قسط متخزّن)، دفعة قديمة 995 والعدد فضل 6، ودفعة 1000.
+    // المسح بيثبّت (قسط 1000، فرق 0) قبل العدّ: باقي 5005 ← 6 + دفعة = 7.
+    // من غير التثبيت في التأكيد كان هيقول "مفيش تغيير" والمكتوب 7
+    const legacy = base({
+      totalAmount: 6000, installmentCount: 6,
+      payments: [
+        { id: 'old', date: '2026-01-15', amount: 995, walletId: 'w' },
+        { id: 'new', date: '2026-02-15', amount: 1000, walletId: 'w' },
+      ],
+    });
+    const plan = debtEntryDeletePlan(legacy, 'payment', 'new')!;
+    expect([plan.countBefore, plan.countAfter]).toEqual([6, 7]);
+  });
+
+  it('**مقصود (مستني مؤمن):** زيادة مش مضاعف القسط ← آخر قسط صغير، والعدد بيتقال', () => {
+    // 1000 على 12 + 500: باقي 1500 = 18 × 83.33 + 0.06، والفرق المتخزّن 0.04 بس
+    // ← 19 قسط، آخرها 0.06. القاعدة القديمة كانت بتقول 18 وبعدين بتزوّد 19 وهو
+    // بيدفع. "دمج" تقريب الزيادة في الفرق = استنتاج إن الزيادة "6 أقساط" — ده
+    // اللي رجّع خطوة 5، فمش هنا
+    const d = { ...created(1000, 12), increases: [{ id: 'i', date: '2026-03-01', amount: 500 }] } as Debt;
+    expect(installmentCountFor(d)).toBe(19);
+    expect(installmentIncreaseMessage(12, 19)).toBe('بعد الزيادة، الأقساط بقت 19 بدل 12.');
+    const r = payThrough({ ...d, installmentCount: 19 });
+    expect(r.amounts).toHaveLength(19);
+    expect(r.amounts[18]).toBe(0.06);
+    expect(r.counts).toEqual(Array(19).fill(19));
+  });
+
+  it('**مقصود (بند 8):** دفع ناقص قروش ← قسط زيادة بالفلوس الفاضلة، والرسالة بتقول', () => {
+    // 1000 على 12، دفع 83.30: باقي 916.70 − 0.04 = 11 × 83.33 + 0.03 > نص قرش
+    const r = paid(created(1000, 12), 83.3);
+    expect(r.debt.installmentCount).toBe(13);
+    expect(r.note).toContain('الأقساط بقت 13');
   });
 });

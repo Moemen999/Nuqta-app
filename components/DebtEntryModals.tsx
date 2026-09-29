@@ -11,7 +11,7 @@ import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContex
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, installmentProgressLabel, suggestedInstallmentPayment,
+  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, suggestedInstallmentPayment,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -333,6 +333,8 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
       setError(INSTALLMENT_COUNT_REQUIRED);
       return;
     }
+    // قسط أقل من قرش (0.05 على 10) كان بيتسجل من غير قيمة قسط خالص
+    if (isInstallment && !planInstallments(amt, count)) { setError(INSTALLMENT_VALUE_TOO_SMALL); return; }
     await runBusy(async () => {
       try {
         await addDebt({

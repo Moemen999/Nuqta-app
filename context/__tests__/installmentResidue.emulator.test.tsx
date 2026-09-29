@@ -1,4 +1,4 @@
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, getDocFromServer, setDoc, waitForPendingWrites } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { debtRemaining, installmentCountFor, suggestedInstallmentPayment } from '@/lib/finance';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
@@ -41,6 +41,18 @@ async function makeDebt(total: number, count: number) {
   return { walletId: w.id, debtId: harness.api().debts[0].id };
 }
 
+/**
+ * الدين زي ما هو **على السيرفر** — `addDebt` و`setInstallmentCount` مبيستنوش
+ * التأكيد (`addDocNoWait`/`track`)، فالنسخة المحلية بتعدّي حتى لو القواعد
+ * رفضت الكتابة (database-reviewer).
+ */
+async function serverDebt(id: string) {
+  await waitForPendingWrites(db);
+  const snap = await getDocFromServer(doc(db, 'users', getMockUid(), 'debts', id));
+  expect(snap.exists()).toBe(true);
+  return snap.data()!;
+}
+
 /** بيدفع اقتراح المودال مرة، ويستنى الدفعة توصل */
 async function paySuggested(debtId: string, walletId: string) {
   const d = harness.api().debts.find(x => x.id === debtId)!;
@@ -54,11 +66,12 @@ async function paySuggested(debtId: string, walletId: string) {
 
 describe('الإنشاء بيكتب الفرق مع القسط', () => {
   it('1000 على 12 ← قسط 83.33 وفرق 0.04، والقواعد قابلاه', async () => {
-    await makeDebt(1000, 12);
+    const { debtId } = await makeDebt(1000, 12);
     const d = harness.api().debts[0];
-    expect(d.installmentAmount).toBe(83.33);
-    expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33 });
     expect(installmentCountFor(d)).toBe(12);
+    const server = await serverDebt(debtId);
+    expect(server.installmentAmount).toBe(83.33);
+    expect(server.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33 });
   });
 });
 
@@ -71,8 +84,10 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
     expect(await harness.api().setInstallmentCount(debtId, 4)).toBe(true);
     await harness.waitForData(api => api.debts[0].installmentCount === 4);
     // باقي 1000 على 3 = 333.33، الفرق 1000 − 999.99 = 0.01 — في نفس الكتابة
-    expect(harness.api().debts[0].installmentAmount).toBe(333.33);
-    expect(harness.api().debts[0].installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33 });
+    const server = await serverDebt(debtId);
+    expect(server.installmentCount).toBe(4);
+    expect(server.installmentAmount).toBe(333.33);
+    expect(server.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33 });
 
     const amounts: number[] = [];
     for (let i = 0; i < 3; i++) {
@@ -92,7 +107,7 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
 
     await harness.api().setInstallmentCount(debtId, 8);
     await harness.waitForData(api => api.debts[0].installmentCount === 8);
-    expect(harness.api().debts[0].installmentResidue).toEqual({ amount: 0.02, forInstallment: 107.14 });
+    expect((await serverDebt(debtId)).installmentResidue).toEqual({ amount: 0.02, forInstallment: 107.14 });
 
     const amounts: number[] = [];
     for (let i = 0; i < 7; i++) {
@@ -107,10 +122,12 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
     const { walletId, debtId } = await makeDebt(100, 1);
     await harness.api().addDebtPayment(debtId, 99.96, walletId, '2026-01-15');
     await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
-    const before = harness.api().debts[0];
+    const before = await serverDebt(debtId);
     expect(await harness.api().setInstallmentCount(debtId, 11)).toBe(false);
-    expect(harness.api().debts[0].installmentAmount).toBe(before.installmentAmount);
-    expect(harness.api().debts[0].installmentCount).toBe(before.installmentCount);
+    const after = await serverDebt(debtId);
+    expect(after.installmentAmount).toBe(before.installmentAmount);
+    expect(after.installmentCount).toBe(before.installmentCount);
+    expect(after.installmentResidue).toEqual(before.installmentResidue);
   });
 });
 
@@ -144,9 +161,40 @@ describe('ديون قبل الحقل ده', () => {
     await harness.waitForData(api => api.debts.some(d => d.personName === 'دين أقدم'));
     const w = harness.api().wallets[0];
     await paySuggested(ref.id, w.id);
-    const d = harness.api().debts.find(x => x.id === ref.id)!;
+    const d = await serverDebt(ref.id);
     expect(d.installmentAmount).toBe(83.33);
     expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33 });
     expect(d.installmentCount).toBe(12);
+  });
+
+  /**
+   * التثبيت بيتكتب جوه `t.update` في المسارات الذرية التلاتة التانية كمان —
+   * والقواعد لازم تقبل الخريطة المتداخلة فيهم (database-reviewer). الدفعة
+   * والزيادة القديمة متسجلين على الورق (من غير محفظة) عشان المسح ميلمسش رصيد.
+   */
+  it.each([
+    ['مسح دفعة', 'payment'],
+    ['زيادة', 'increase'],
+    ['مسح زيادة', 'deleteIncrease'],
+  ] as const)('%s على دين قديم ← القسط والفرق بيتثبّتوا على السيرفر', async (_, op) => {
+    const ref = doc(collection(db, 'users', getMockUid(), 'debts'));
+    await setDoc(ref, {
+      direction: 'i_owe', personName: 'دين قديم', totalAmount: 1000,
+      date: '2025-01-01', isInstallment: true, installmentCount: 12,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      payments: [{ id: 'p0', date: '2025-02-01', amount: 83.33 }],
+      increases: [{ id: 'i0', date: '2025-03-01', amount: 100 }],
+    });
+    await harness.waitForData(api => api.debts.some(d => d.id === ref.id));
+
+    let outcome: string;
+    if (op === 'payment') outcome = await harness.api().deleteDebtPayment(ref.id, 'p0');
+    else if (op === 'deleteIncrease') outcome = await harness.api().deleteDebtIncrease(ref.id, 'i0');
+    else outcome = (await harness.api().addDebtIncrease(ref.id, 50, '2026-02-01')).outcome;
+    expect(outcome).toBe('done');
+
+    const d = await serverDebt(ref.id);
+    expect(d.installmentAmount).toBe(83.33);
+    expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33 });
   });
 });
