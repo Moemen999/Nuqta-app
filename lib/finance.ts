@@ -586,6 +586,27 @@ export function installmentValue(d: Debt): number | null {
   return value > PIASTRE_EPS ? value : null;
 }
 
+/**
+ * تثبيت قيمة القسط لدين قديم (2026-09-29).
+ *
+ * الديون اللي اتعملت قبل `installmentAmount` قيمتها بتتحسب كل مرة
+ * `totalAmount ÷ installmentCount` — وكل دفعة/زيادة/مسح بيكتب عدد جديد، فالقيمة
+ * بتتحرك معاه (6000 على 6 = 1000، وبعد دفعة غيّرت العدد لـ7 = 857). وده عكس
+ * قرار "القسط ثابت والعدد هو اللي بيتحرك".
+ *
+ * فأول ما دين قديم يتلمس (دفعة، زيادة، مسح واحدة منهم)، بنكتب القيمة
+ * **المحسوبة بالعدد القديم** — نفس الرقم اللي المستخدم شايفه دلوقتي — في نفس
+ * الكتابة، فمبتتحركش تاني. مفيش رسالة: الرقم نفسه ما اتغيّرش، اتحفظ بس.
+ *
+ * `null` لو الدين مش قسط، أو القيمة متخزّنة أصلاً، أو مفيش قيمة تتحسب.
+ */
+export function pinInstallmentAmount(d: Debt): { installmentAmount: number } | null {
+  if (!d.isInstallment) return null;
+  if (typeof d.installmentAmount === 'number' && d.installmentAmount > MONEY_EPS) return null;
+  const value = installmentValue(d);
+  return value && value > PIASTRE_EPS ? { installmentAmount: value } : null;
+}
+
 export type InstallmentProgress = { current: number; total: number };
 
 /**

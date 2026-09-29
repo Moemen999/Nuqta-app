@@ -6,7 +6,7 @@ import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
-  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage,
+  installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, pinInstallmentAmount,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
 } from '@/lib/finance';
 import {
@@ -1079,6 +1079,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const payments = d.payments.filter(p => p.transactionId !== txId);
         // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
         // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
+        // من غير pinInstallmentAmount هنا عن قصد: الدفعة دي من حالة الرياكت مش من
+        // قراية ذرية، فقيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب فوقها (silent-failure-hunter)
         const patch: Record<string, unknown> = { payments };
         const recount = installmentCountFor({ ...d, payments });
         if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
@@ -1376,6 +1378,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (nextCount !== null && nextCount !== debt.installmentCount) {
           patch.installmentCount = nextCount;
         }
+        // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت في نفس الكتابة
+        Object.assign(patch, pinInstallmentAmount(debt));
 
         /**
          * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
@@ -1470,7 +1474,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
         // حسابه 6.
-        const patch: Record<string, unknown> = { payments };
+        const patch: Record<string, unknown> = { payments, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, payments });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
@@ -1531,7 +1535,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
         if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
@@ -1572,7 +1576,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletArchivedError();
         }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
-        const patch: Record<string, unknown> = { increases };
+        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
         const recount = installmentCountFor({ ...debt, increases });
         if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
