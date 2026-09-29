@@ -202,7 +202,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   async function handleSave() {
     const amt = Number(amount);
-    if (!amt || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
+    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
+    if (!Number.isFinite(amt) || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
       let outcome: Awaited<ReturnType<typeof addDebtIncrease>>;

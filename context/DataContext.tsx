@@ -1458,6 +1458,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   /** زيادة الدين — ذرية لنفس أسباب الدفعة بالظبط (شوف `addDebtPayment` فوق) */
   async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<PayOutcome> {
     if (!uid) return 'done';
+    // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
+    // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
+    if (!Number.isFinite(amount) || amount <= 0) return 'failed';
     if (!serverReachableRef.current) return 'no-connection';
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1489,7 +1492,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
           date, amount,
           ...(walletId ? { walletId, transactionId } : {}),
         };
-        t.update(debtRef, { increases: [...(debt.increases || []), entry] });
+        const increases = [...(debt.increases || []), entry];
+        // **العدد لازم يتحسب تاني** (2026-09-29): المتبقي بيشمل الزيادات، فدين
+        // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
+        // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
+        // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
+        const patch: Record<string, unknown> = { increases };
+        const recount = installmentCountFor({ ...debt, increases });
+        // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
+        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
+          patch.installmentCount = recount;
+        } else if (recount !== null && !Number.isFinite(recount)) {
+          // من غير أرقام — المعرّف بس (sentryScrub)
+          console.warn('[debt] installment recount not finite, count left as is', debtId);
+        }
+        t.update(debtRef, patch);
       }));
       return 'done';
     } catch (e) {
