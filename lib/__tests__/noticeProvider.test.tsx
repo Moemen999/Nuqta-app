@@ -80,3 +80,17 @@ it('قارئ الشاشة: العنوان والجملة من غير علاما�
   expect(spoken({ title: 'تمسحها؟', body: 'مش هترجع.' })).toBe('تمسحها؟ مش هترجع.');
   expect(spoken({ title: 'اتسجلت', body: '' })).toBe('اتسجلت');
 });
+
+it('دوستين بسرعة على "تمام" ← بتقفل الرسالة اللي اتعرضت بس، والجاية بتفضل ظاهرة', async () => {
+  await mount([['ما اتسجلش', 'جرب تاني'], ['عدد الأقساط اتظبط', 'الأقساط بقت 7']]);
+  await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
+  const ok = screen.getByTestId('notice_ok');
+  await act(async () => { fireEvent.press(ok); fireEvent.press(ok); });
+  expect(screen.getByTestId('notice_title').props.children).toBe('عدد الأقساط اتظبط');
+});
+
+it('قارئ الشاشة بيقرا العنوان والجملة عنصر واحد', async () => {
+  await mount([['ما اتسجلش', 'جرب تاني.']]);
+  await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
+  expect(screen.getByLabelText('ما اتسجلش. جرب تاني.')).toBeTruthy();
+});
