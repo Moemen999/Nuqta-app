@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
@@ -19,7 +19,7 @@ const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سن�
 export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { subscriptions, wallets, categories, deleteSubscription, markSubscriptionPaid } = useData();
+  const { subscriptions, wallets, categories, transactions, loadErrors, deleteSubscription, markSubscriptionPaid } = useData();
   const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
@@ -27,10 +27,20 @@ export default function SubscriptionsView() {
 
   const active = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
 
+  /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
+    const blocked = cascadeDeleteBlock({
+      kind: 'subscription', name: s.name, txIds: subscriptionTransactionIds(s), transactions, wallets, loadErrors,
+    });
+    if (blocked) { notice(blocked.title, blocked.body); return; }
     Alert.alert('حذف الاشتراك', `متأكد إنك عايز تمسح "${s.name}"؟`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, () => deleteSubscription(s.id)) },
+      {
+        text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, async () => {
+          const result = await deleteSubscription(s.id);
+          if (result.outcome === 'blocked') notice(result.title, result.body);
+        }),
+      },
     ]);
   }
   function confirmPay(s: Subscription) {

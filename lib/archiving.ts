@@ -1,6 +1,7 @@
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 import { fmt, walletBalance } from '@/lib/finance';
+import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
  * أرشفة المحافظ والفئات.
@@ -381,4 +382,101 @@ export function archivedWalletDeltas(
 /** ملاحظة عملية التسوية في التاريخ */
 export function settlementNote(archivedWalletName: string) {
   return `تسوية رصيد ${archivedWalletName} (مؤرشفة)`;
+}
+
+/**
+ * مسح دين/اشتراك/جمعية بيمسح معاه كل العمليات اللي اتولّدت منه
+ * (`deleteWithTransactions` في `DataContext`). المسح ده **مبيعملش تسوية**:
+ * لو عملية منهم على محفظة مؤرشفة، رصيد المؤرشفة كان بيبعد عن الصفر ومحدش
+ * شايفه (المؤرشفة برّه الإجمالي وبرّه الاختيارات). نفس قرار مسح الدفعة
+ * الواحدة (`debtEntryArchivedWalletBlock`، 2026-09-22): **بنمنع ونقول الطريق**
+ * — رجّع المحفظة الأول — لحد ما يبقى فيه تسوية حقيقية زي `ArchivedSettlement`.
+ *
+ * الدوال هنا بتتنادى مرتين: من الشاشة قبل التأكيد (عشان المستخدم يعرف قبل ما
+ * يدوس)، ومن `DataContext` لحظة المسح (لو المحفظة اتأرشفت والتأكيد مفتوح).
+ */
+export type CascadeKind = 'debt' | 'subscription' | 'gamiya';
+
+export function debtTransactionIds(d: Pick<Debt, 'initialTransactionId' | 'payments' | 'increases'> | undefined): string[] {
+  if (!d) return [];
+  return [
+    d.initialTransactionId,
+    ...(d.payments || []).map(p => p.transactionId),
+    ...(d.increases || []).map(inc => inc.transactionId),
+  ].filter((x): x is string => !!x);
+}
+
+export function subscriptionTransactionIds(s: Pick<Subscription, 'history'> | undefined): string[] {
+  return (s?.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
+}
+
+export function gamiyaTransactionIds(g: Pick<Gamiya, 'months'> | undefined): string[] {
+  return (g?.months || []).map(m => m.transactionId).filter((x): x is string => !!x);
+}
+
+/** العمليات المربوطة اللي لسه موجودة فعلاً — المعرّف ممكن يكون لعملية اتمسحت قبل كده */
+export function linkedTransactions<T extends { id: string }>(txIds: string[], transactions: T[]): T[] {
+  const wanted = new Set(txIds);
+  return transactions.filter(t => wanted.has(t.id));
+}
+
+/**
+ * المجموعات اللي الفحص محتاجها: المحافظ (مين مؤرشفة) والعمليات (على أنهي
+ * محفظة). لو واحدة منهم ما وصلتش، الفرق هيتحسب على قايمة فاضية ويطلع صفر —
+ * يعني الفحص هيعدّي والمسح يلمس مؤرشفة من غير ما حد يعرف. فبنمنع.
+ */
+const CASCADE_SOURCES: ListenerName[] = ['wallets', 'transactions'];
+
+const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; him: string; feminine: boolean }> = {
+  debt: { label: name => `دين "${name}"`, him: 'بيه', feminine: false },
+  subscription: { label: name => `الاشتراك "${name}"`, him: 'بيه', feminine: false },
+  gamiya: { label: name => `الجمعية "${name}"`, him: 'بيها', feminine: true },
+};
+
+export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing'; title: string; body: string };
+
+/**
+ * هل مسح السجل ده بعملياته هيحرّك رصيد محفظة مؤرشفة؟ `null` = المسح آمن.
+ *
+ * الحساب بالفرق مش بالوجود: قرض خرج من محفظة ورجع لنفس المحفظة (مؤرشفة) أثره
+ * صفر، ومسحهم مع بعض بيسيب رصيدها صفر زي ما هو — فمبيتمنعش.
+ */
+export function cascadeDeleteBlock(opts: {
+  kind: CascadeKind;
+  name: string;
+  txIds: string[];
+  transactions: (TxLike & { id: string })[];
+  wallets: { id: string; name: string; archived?: boolean }[];
+  loadErrors: ListenerName[];
+}): CascadeDeleteBlock | null {
+  const { kind, name, txIds, transactions, wallets, loadErrors } = opts;
+  if (txIds.length === 0) return null;
+
+  const subject = CASCADE_SUBJECT[kind];
+  const missing = loadErrors.filter(n => CASCADE_SOURCES.includes(n));
+  if (missing.length > 0) {
+    return {
+      reason: 'data-missing',
+      title: 'استنى البيانات توصل',
+      body: `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش هنقدر نتأكد إن مسح ${subject.label(name)} مش هيلمس محفظة مؤرشفة. دوس "${LOAD_ERROR_RETRY}" فوق، وجرّب تاني بعد ما البيانات توصل.`,
+    };
+  }
+
+  const archived = wallets.filter(w => w.archived);
+  if (archived.length === 0) return null;
+  const linked = linkedTransactions(txIds, transactions);
+  const deltas = archivedWalletDeltas(linked.map(before => ({ before })), archived);
+  if (deltas.length === 0) return null;
+
+  const names = deltas.map(d => `"${d.name}"`).join(' و');
+  const one = deltas.length === 1;
+  const itsDeletion = subject.feminine ? 'ومسحها' : 'ومسحه';
+  const has = subject.feminine ? 'ليها' : 'ليه';
+  return {
+    reason: 'wallet-archived',
+    title: one ? 'المحفظة دي مؤرشفة' : 'المحافظ دي مؤرشفة',
+    body: one
+      ? `${subject.label(name)} ${has} عمليات على محفظة ${names} وهي مؤرشفة، ${itsDeletion} هيغيّر رصيدها من غير ما يبان في أي مكان. رجّع المحفظة الأول من الإعدادات ← المحافظ، وبعدين امسح.`
+      : `${subject.label(name)} ${has} عمليات على محافظ ${names} وهي مؤرشفة، ${itsDeletion} هيغيّر أرصدتها من غير ما يبان في أي مكان. رجّع المحافظ دي الأول من الإعدادات ← المحافظ، وبعدين امسح.`,
+  };
 }

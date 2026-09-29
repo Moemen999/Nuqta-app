@@ -1,7 +1,10 @@
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
-import { settlementNote } from '@/lib/archiving';
+import {
+  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds,
+  type CascadeDeleteBlock, type CascadeKind,
+} from '@/lib/archiving';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
@@ -146,6 +149,13 @@ async function walletUsable(t: FirestoreTransaction, walletRef: DocumentReferenc
 export type FeedbackOutcome = 'sent' | 'pending' | 'failed';
 
 export type PayOutcome = 'done' | 'no-connection' | 'failed' | 'wallet-missing';
+
+/**
+ * نتيجة مسح دين/اشتراك/جمعية بعملياته. `blocked` = ما اتمسحش حاجة خالص،
+ * والرسالة جاهزة للشاشة (`cascadeDeleteBlock`): عملية منهم على محفظة
+ * مؤرشفة، أو بيانات المحافظ/العمليات ما وصلتش فمش هنقدر نتأكد.
+ */
+export type CascadeDeleteResult = { outcome: 'done' } | ({ outcome: 'blocked' } & CascadeDeleteBlock);
 
 /** الرسايل في مكان واحد عشان شاشة الاشتراكات وشاشة الجمعية يقولوا نفس الكلام */
 export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: string; body: string }> = {
@@ -436,7 +446,7 @@ type DataContextType = {
     dueDate?: string; reminderDaysBefore?: number;
   }) => Promise<void>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
-  deleteDebt: (id: string) => Promise<void>;
+  deleteDebt: (id: string) => Promise<CascadeDeleteResult>;
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
@@ -448,7 +458,7 @@ type DataContextType = {
     chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
-  deleteSubscription: (id: string) => Promise<void>;
+  deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
@@ -456,7 +466,7 @@ type DataContextType = {
     chargeMode?: ChargeMode;
   }) => Promise<void>;
   updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
-  deleteGamiya: (id: string) => Promise<void>;
+  deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
   recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
@@ -1012,8 +1022,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * دلوقتي: دفعة واحدة، بتتكتب محليًا على طول، والـ`onSnapshot` بيرد فورًا،
    * والرفع بيحصل لوحده أول ما النت يرجع — قاعدة 7 بالحرف.
    */
-  function deleteWithTransactions(recordRef: DocumentReference, txIds: string[], label?: string) {
-    if (!uid) return;
+  function deleteWithTransactions(
+    kind: CascadeKind, name: string, recordRef: DocumentReference, txIds: string[], label?: string,
+  ): CascadeDeleteResult {
+    if (!uid) return { outcome: 'done' };
+    // **المسح مبيعملش تسوية.** عملية منهم على محفظة مؤرشفة كانت بتتمسح
+    // والرصيد المؤرشف يبعد عن الصفر ساكت (المؤرشفة برّه الإجمالي). الشاشة
+    // بتفحص قبل التأكيد؛ الفحص هنا لحظة الدوسة، لو المحفظة اتأرشفت (من الجهاز
+    // ده أو من جهاز تاني ووصل الـlistener) والتأكيد مفتوح.
+    //
+    // **وده مش جوه ذرة:** المسح دفعة بتشتغل أوفلاين عن قصد (فوق)، فمبتقراش
+    // من السيرفر. أرشفة من جهاز تاني لسه ما وصلتش الـlistener مش هتتمسك هنا.
+    const blocked = cascadeDeleteBlock({ kind, name, txIds, transactions, wallets, loadErrors });
+    if (blocked) return { outcome: 'blocked', ...blocked };
     // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك
     // شهري لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض.
     //
@@ -1036,6 +1057,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // اللوج — التنبيه للمستخدم واحد بس في الجلسة، فاللوج هو اللي بيفرّق
       track(batch.commit(), chunks.length > 1 ? `${label} (دفعة ${idx + 1} من ${chunks.length})` : label);
     });
+    return { outcome: 'done' };
   }
 
   /**
@@ -1301,15 +1323,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(updateDoc(doc(db, 'users', uid, 'debts', id), patch), namedLabel('تعديل الدين', data.personName?.trim() || debts.find(d => d.id === id)?.personName));
   }
 
-  async function deleteDebt(id: string) {
-    if (!uid) return;
+  async function deleteDebt(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const debt = debts.find(d => d.id === id);
-    const txIds = debt ? [
-      debt.initialTransactionId,
-      ...(debt.payments || []).map(p => p.transactionId),
-      ...(debt.increases || []).map(inc => inc.transactionId),
-    ].filter((x): x is string => !!x) : [];
-    deleteWithTransactions(doc(db, 'users', uid, 'debts', id), txIds, namedLabel('حذف الدين', debt?.personName));
+    return deleteWithTransactions('debt', debt?.personName ?? '', doc(db, 'users', uid, 'debts', id),
+      debtTransactionIds(debt), namedLabel('حذف الدين', debt?.personName));
   }
   /**
    * **دفعة الدين بقت عملية ذرية** — قبل كده كانت بتقرا `debt.payments` من حالة
@@ -1603,11 +1621,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
   }
-  async function deleteSubscription(id: string) {
-    if (!uid) return;
+  async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const sub = subscriptions.find(s => s.id === id);
-    const txIds = (sub?.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
-    deleteWithTransactions(doc(db, 'users', uid, 'subscriptions', id), txIds, namedLabel('حذف الاشتراك', sub?.name));
+    return deleteWithTransactions('subscription', sub?.name ?? '', doc(db, 'users', uid, 'subscriptions', id),
+      subscriptionTransactionIds(sub), namedLabel('حذف الاشتراك', sub?.name));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -2071,11 +2089,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
   }
-  async function deleteGamiya(id: string) {
-    if (!uid) return;
+  async function deleteGamiya(id: string): Promise<CascadeDeleteResult> {
+    if (!uid) return { outcome: 'done' };
     const g = gamiyas.find(x => x.id === id);
-    const txIds = (g?.months || []).map(m => m.transactionId).filter((x): x is string => !!x);
-    deleteWithTransactions(doc(db, 'users', uid, 'gamiyas', id), txIds, namedLabel('حذف الجمعية', g?.name));
+    return deleteWithTransactions('gamiya', g?.name ?? '', doc(db, 'users', uid, 'gamiyas', id),
+      gamiyaTransactionIds(g), namedLabel('حذف الجمعية', g?.name));
   }
   /**
    * زي markSubscriptionPaid: عملية ذرية بتقرا الجمعية من السيرفر وبتتأكد إن
