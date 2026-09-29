@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, gamiyaTransactionIds, selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
@@ -26,11 +26,12 @@ export default function GamiyaView() {
 
   /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
-    const blocked = cascadeDeleteBlock({
-      kind: 'gamiya', name: g.name, txIds: gamiyaTransactionIds(g), transactions, wallets, loadErrors,
-    });
+    const txIds = gamiyaTransactionIds(g);
+    const blocked = cascadeDeleteBlock({ kind: 'gamiya', name: g.name, txIds, transactions, wallets, loadErrors });
     if (blocked) { notice(blocked.title, blocked.body); return; }
-    Alert.alert('حذف الجمعية', `متأكد إنك عايز تمسح "${g.name}"؟`, [
+    // الشهور المتسددة والاستلام بيتمسحوا معاها والرصيد بيتحرك — التأكيد لازم يقول كده
+    const { title, body } = cascadeDeleteConfirm('gamiya', g.name, linkedTransactions(txIds, transactions).length);
+    Alert.alert(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, async () => {

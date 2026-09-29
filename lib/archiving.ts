@@ -427,10 +427,10 @@ export function linkedTransactions<T extends { id: string }>(txIds: string[], tr
  */
 const CASCADE_SOURCES: ListenerName[] = ['wallets', 'transactions'];
 
-const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; him: string; feminine: boolean }> = {
-  debt: { label: name => `دين "${name}"`, him: 'بيه', feminine: false },
-  subscription: { label: name => `الاشتراك "${name}"`, him: 'بيه', feminine: false },
-  gamiya: { label: name => `الجمعية "${name}"`, him: 'بيها', feminine: true },
+const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; withIt: string; feminine: boolean }> = {
+  debt: { label: name => `دين "${name}"`, withIt: 'معاه', feminine: false },
+  subscription: { label: name => `الاشتراك "${name}"`, withIt: 'معاه', feminine: false },
+  gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
 export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing'; title: string; body: string };
@@ -458,7 +458,7 @@ export function cascadeDeleteBlock(opts: {
     return {
       reason: 'data-missing',
       title: 'استنى البيانات توصل',
-      body: `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش هنقدر نتأكد إن مسح ${subject.label(name)} مش هيلمس محفظة مؤرشفة. دوس "${LOAD_ERROR_RETRY}" فوق، وجرّب تاني بعد ما البيانات توصل.`,
+      body: `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش قادرين نعرف هل مسح ${subject.label(name)} هيلمس محفظة مؤرشفة. دوس "${LOAD_ERROR_RETRY}" فوق، وأول ما البيانات توصل امسح.`,
     };
   }
 
@@ -478,5 +478,30 @@ export function cascadeDeleteBlock(opts: {
     body: one
       ? `${subject.label(name)} ${has} عمليات على محفظة ${names} وهي مؤرشفة، ${itsDeletion} هيغيّر رصيدها من غير ما يبان في أي مكان. رجّع المحفظة الأول من الإعدادات ← المحافظ، وبعدين امسح.`
       : `${subject.label(name)} ${has} عمليات على محافظ ${names} وهي مؤرشفة، ${itsDeletion} هيغيّر أرصدتها من غير ما يبان في أي مكان. رجّع المحافظ دي الأول من الإعدادات ← المحافظ، وبعدين امسح.`,
+  };
+}
+const CASCADE_TITLE: Record<CascadeKind, string> = {
+  debt: 'مسح الدين',
+  subscription: 'مسح الاشتراك',
+  gamiya: 'مسح الجمعية',
+};
+
+/**
+ * تأكيد مسح السجل. نفس شكل تأكيد الدين القديم («متأكد إنك عايز تمسح …؟» وبعده
+ * سطر بين قوسين)، بس بيقول **العدد** و**إن الرصيد هيتغيّر** — قبل كده تأكيد
+ * الاشتراك والجمعية كان سؤال بس، والمسح بيشيل كل الدفعات والرصيد بيتحرك.
+ * `txCount` = العمليات الموجودة فعلاً (`linkedTransactions`)؛ صفر = السؤال لوحده.
+ */
+export function cascadeDeleteConfirm(kind: CascadeKind, name: string, txCount: number): { title: string; body: string } {
+  const subject = CASCADE_SUBJECT[kind];
+  const question = kind === 'debt'
+    ? `متأكد إنك عايز تمسح دين "${name}"؟`
+    : `متأكد إنك عايز تمسح "${name}"؟`;
+  if (txCount <= 0) return { title: CASCADE_TITLE[kind], body: question };
+  // الفعل قبل العدد ("هيتمسح معاه 5 عمليات") عشان مفيش توافق يتلخبط بين
+  // المفرد والمثنى والجمع (arabic-copy-reviewer)
+  return {
+    title: CASCADE_TITLE[kind],
+    body: `${question} (هيتمسح ${subject.withIt} ${transactionsPhrase(txCount)} كمان، وده هيغيّر أرصدة المحافظ المرتبطة)`,
   };
 }

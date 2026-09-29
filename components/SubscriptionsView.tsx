@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
@@ -29,11 +29,12 @@ export default function SubscriptionsView() {
 
   /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
-    const blocked = cascadeDeleteBlock({
-      kind: 'subscription', name: s.name, txIds: subscriptionTransactionIds(s), transactions, wallets, loadErrors,
-    });
+    const txIds = subscriptionTransactionIds(s);
+    const blocked = cascadeDeleteBlock({ kind: 'subscription', name: s.name, txIds, transactions, wallets, loadErrors });
     if (blocked) { notice(blocked.title, blocked.body); return; }
-    Alert.alert('حذف الاشتراك', `متأكد إنك عايز تمسح "${s.name}"؟`, [
+    // المسح بيشيل كل الدفعات اللي اتسجلت والرصيد بيتحرك — التأكيد لازم يقول كده
+    const { title, body } = cascadeDeleteConfirm('subscription', s.name, linkedTransactions(txIds, transactions).length);
+    Alert.alert(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, async () => {

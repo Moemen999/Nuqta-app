@@ -11,7 +11,7 @@ import SubscriptionsView from '@/components/SubscriptionsView';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, debtTransactionIds } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
@@ -124,11 +124,11 @@ function DebtsContent() {
    * لحظة الدوسة، ورسالته بتظهر لو اتمنع هناك.
    */
   function confirmDeleteDebt(d: Debt) {
-    const blocked = cascadeDeleteBlock({
-      kind: 'debt', name: d.personName, txIds: debtTransactionIds(d), transactions, wallets, loadErrors,
-    });
+    const txIds = debtTransactionIds(d);
+    const blocked = cascadeDeleteBlock({ kind: 'debt', name: d.personName, txIds, transactions, wallets, loadErrors });
     if (blocked) { notice(blocked.title, blocked.body); return; }
-    Alert.alert('حذف الدين', `متأكد إنك عايز تمسح دين "${d.personName}"؟ (كل العمليات المرتبطة بيه هتتمسح كمان)`, [
+    const { title, body } = cascadeDeleteConfirm('debt', d.personName, linkedTransactions(txIds, transactions).length);
+    Alert.alert(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, async () => {
