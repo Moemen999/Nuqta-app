@@ -433,10 +433,19 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
   gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
-export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing'; title: string; body: string };
+export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading'; title: string; body: string };
 
 /**
  * هل مسح السجل ده بعملياته هيحرّك رصيد محفظة مؤرشفة؟ `null` = المسح آمن.
+ *
+ * `loading` = المجموعات اللي لسه مرمتش أول snapshot (`figuresPending` في
+ * `DataContext`). من غيره، أول ثواني بعد الفتح (الديون وصلت والعمليات لسه)
+ * القوايم فاضية فالفرق صفر والمسح كان هيعدّي — والدفعة بتمسح بالمعرّف من
+ * السيرفر برضه (silent-failure-hunter + money-reviewer).
+ *
+ * **حدود:** عملية معرّفها في السجل ومش في القايمة المحمّلة بتتحسب صفر — صح
+ * النهارده (listener العمليات بيجيب المجموعة كلها، فاللي مش موجود اتمسح فعلاً).
+ * لو اتعمل windowing (TIMELINE 2026-09-14) الافتراض ده بيقع ولازم يترجعله.
  *
  * الحساب بالفرق مش بالوجود: قرض خرج من محفظة ورجع لنفس المحفظة (مؤرشفة) أثره
  * صفر، ومسحهم مع بعض بيسيب رصيدها صفر زي ما هو — فمبيتمنعش.
@@ -448,8 +457,9 @@ export function cascadeDeleteBlock(opts: {
   transactions: (TxLike & { id: string })[];
   wallets: { id: string; name: string; archived?: boolean }[];
   loadErrors: ListenerName[];
+  loading?: ListenerName[];
 }): CascadeDeleteBlock | null {
-  const { kind, name, txIds, transactions, wallets, loadErrors } = opts;
+  const { kind, name, txIds, transactions, wallets, loadErrors, loading = [] } = opts;
   if (txIds.length === 0) return null;
 
   const subject = CASCADE_SUBJECT[kind];
@@ -459,6 +469,15 @@ export function cascadeDeleteBlock(opts: {
       reason: 'data-missing',
       title: 'استنى البيانات توصل',
       body: `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش قادرين نعرف هل مسح ${subject.label(name)} هيلمس محفظة مؤرشفة. دوس "${LOAD_ERROR_RETRY}" فوق، وأول ما البيانات توصل امسح.`,
+    };
+  }
+
+  const pending = loading.filter(n => CASCADE_SOURCES.includes(n) && !missing.includes(n));
+  if (pending.length > 0) {
+    return {
+      reason: 'data-loading',
+      title: 'استنى البيانات توصل',
+      body: `بيانات ${listenerNamesPhrase(pending)} لسه بتوصل، فمش قادرين نعرف هل مسح ${subject.label(name)} هيلمس محفظة مؤرشفة. استنى ثواني لحد ما البيانات توصل وبعدين امسح تاني.`,
     };
   }
 

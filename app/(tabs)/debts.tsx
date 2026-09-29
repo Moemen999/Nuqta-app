@@ -90,7 +90,7 @@ export default function DebtsTabScreen() {
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { debts, wallets, categories, transactions, loadErrors, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const { debts, wallets, categories, transactions, loadErrors, figuresPending, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
@@ -125,7 +125,7 @@ function DebtsContent() {
    */
   function confirmDeleteDebt(d: Debt) {
     const txIds = debtTransactionIds(d);
-    const blocked = cascadeDeleteBlock({ kind: 'debt', name: d.personName, txIds, transactions, wallets, loadErrors });
+    const blocked = cascadeDeleteBlock({ kind: 'debt', name: d.personName, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     const { title, body } = cascadeDeleteConfirm('debt', d.personName, linkedTransactions(txIds, transactions).length);
     Alert.alert(title, body, [

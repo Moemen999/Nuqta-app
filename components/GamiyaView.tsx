@@ -17,7 +17,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Scroll
 export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { gamiyas, wallets, transactions, loadErrors, deleteGamiya, markGamiyaMonthDone } = useData();
+  const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
@@ -27,7 +27,7 @@ export default function GamiyaView() {
   /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
     const txIds = gamiyaTransactionIds(g);
-    const blocked = cascadeDeleteBlock({ kind: 'gamiya', name: g.name, txIds, transactions, wallets, loadErrors });
+    const blocked = cascadeDeleteBlock({ kind: 'gamiya', name: g.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // الشهور المتسددة والاستلام بيتمسحوا معاها والرصيد بيتحرك — التأكيد لازم يقول كده
     const { title, body } = cascadeDeleteConfirm('gamiya', g.name, linkedTransactions(txIds, transactions).length);

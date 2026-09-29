@@ -408,6 +408,8 @@ type DataContextType = {
    * قديمة" بس — مبيدخلش في أي حساب.
    */
   figuresFromServer: boolean;
+  /** المحافظ/العمليات اللي لسه مرمتش أول snapshot — مسح السجل بعملياته بيستناهم */
+  figuresPending: ListenerName[];
   /**
    * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
    * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
@@ -577,11 +579,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // snapshot (مجموعة فاضية ممكن متبعتش خالص) — فمبيمنعش "اتحدّثت"
   const figuresCache = useRef<{ wallets: boolean | null; transactions: boolean | null }>({ wallets: null, transactions: null });
   const [figuresFromServer, setFiguresFromServer] = useState(false);
+  const [figuresPending, setFiguresPending] = useState<ListenerName[]>(['wallets', 'transactions']);
+  function pendingFigures(): ListenerName[] {
+    return (['wallets', 'transactions'] as const).filter(n => figuresCache.current[n] === null);
+  }
   function noteFigures(name: 'wallets' | 'transactions', fromCache: boolean) {
     figuresCache.current[name] = fromCache;
     const { wallets: w, transactions: t } = figuresCache.current;
     const fresh = figuresFresh(w, t);
     setFiguresFromServer(prev => (prev === fresh ? prev : fresh));
+    const pending = pendingFigures();
+    setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
@@ -708,6 +716,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       serverReachableRef.current = false;
       figuresCache.current = { wallets: null, transactions: null };
       setFiguresFromServer(false);
+      setFiguresPending(['wallets', 'transactions']);
       return;
     }
 
@@ -1022,6 +1031,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * دلوقتي: دفعة واحدة، بتتكتب محليًا على طول، والـ`onSnapshot` بيرد فورًا،
    * والرفع بيحصل لوحده أول ما النت يرجع — قاعدة 7 بالحرف.
    */
+  /**
+   * آخر حالة للمحافظ والعمليات، لفحص المسح لحظة الدوسة. `deleteDebt` اللي
+   * الـAlert بيناديه هو نسخة الـrender اللي فتح التأكيد، فلو قرا الـstate
+   * مباشرة كان هيشوف نفس اللي الشاشة شافته قبل التأكيد — والفحص التاني
+   * مبيعملش حاجة (money-reviewer + silent-failure-hunter).
+   */
+  const cascadeInputs = useRef({ wallets, transactions, loadErrors });
+  cascadeInputs.current = { wallets, transactions, loadErrors };
+
   function deleteWithTransactions(
     kind: CascadeKind, name: string, recordRef: DocumentReference, txIds: string[], label?: string,
   ): CascadeDeleteResult {
@@ -1029,11 +1047,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // **المسح مبيعملش تسوية.** عملية منهم على محفظة مؤرشفة كانت بتتمسح
     // والرصيد المؤرشف يبعد عن الصفر ساكت (المؤرشفة برّه الإجمالي). الشاشة
     // بتفحص قبل التأكيد؛ الفحص هنا لحظة الدوسة، لو المحفظة اتأرشفت (من الجهاز
-    // ده أو من جهاز تاني ووصل الـlistener) والتأكيد مفتوح.
+    // ده أو من جهاز تاني ووصل الـlistener) والتأكيد مفتوح — عشان كده بيقرا
+    // `cascadeInputs` (آخر render) مش الـstate اللي في الـclosure.
     //
     // **وده مش جوه ذرة:** المسح دفعة بتشتغل أوفلاين عن قصد (فوق)، فمبتقراش
     // من السيرفر. أرشفة من جهاز تاني لسه ما وصلتش الـlistener مش هتتمسك هنا.
-    const blocked = cascadeDeleteBlock({ kind, name, txIds, transactions, wallets, loadErrors });
+    const blocked = cascadeDeleteBlock({ kind, name, txIds, ...cascadeInputs.current, loading: pendingFigures() });
     if (blocked) return { outcome: 'blocked', ...blocked };
     // حد الدفعة في فايرستور 500 عملية. سجل بأكتر من كده مش واقعي (اشتراك
     // شهري لـ40 سنة)، بس لو حصل بنقسّم بدل ما الدفعة كلها تترفض.
@@ -2147,7 +2166,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

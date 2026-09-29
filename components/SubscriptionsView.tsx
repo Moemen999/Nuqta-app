@@ -19,7 +19,7 @@ const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سن�
 export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { subscriptions, wallets, categories, transactions, loadErrors, deleteSubscription, markSubscriptionPaid } = useData();
+  const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid } = useData();
   const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
@@ -30,7 +30,7 @@ export default function SubscriptionsView() {
   /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
     const txIds = subscriptionTransactionIds(s);
-    const blocked = cascadeDeleteBlock({ kind: 'subscription', name: s.name, txIds, transactions, wallets, loadErrors });
+    const blocked = cascadeDeleteBlock({ kind: 'subscription', name: s.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // المسح بيشيل كل الدفعات اللي اتسجلت والرصيد بيتحرك — التأكيد لازم يقول كده
     const { title, body } = cascadeDeleteConfirm('subscription', s.name, linkedTransactions(txIds, transactions).length);
