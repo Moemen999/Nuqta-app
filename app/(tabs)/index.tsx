@@ -1,8 +1,9 @@
 import { Money } from '@/components/Money';
 import { speakable } from '@/lib/money';
 import { MIN_TOUCH } from '@/lib/tokens';
-import IncomeHomeCards from '@/components/IncomeHomeCards';
-import ChargeHomeCards from '@/components/ChargeHomeCards';
+import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
+import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
+import PendingSummary from '@/components/PendingSheet';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -239,8 +240,11 @@ function HomeScreen() {
             </TouchableOpacity>
           </View>
         )}
-        <IncomeHomeCards />
-        <ChargeHomeCards />
+        {/* رسايل التسجيل التلقائي في الرئيسية نفسها ("ما سجلناش" لازم تبان)، والكروت
+            المستنية رد في شيت بيفتحه سطر واحد (2026-09-29) */}
+        <IncomeAutoNotices />
+        <ChargeAutoNotices />
+        <PendingSummary />
         <Text style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>

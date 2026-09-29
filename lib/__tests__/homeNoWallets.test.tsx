@@ -13,8 +13,9 @@ import { ThemeProvider } from '@/context/ThemeContext';
 const mockPush = jest.fn();
 jest.mock('expo-router', () => ({ router: { push: (...a: unknown[]) => mockPush(...a) } }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
-jest.mock('@/components/IncomeHomeCards', () => ({ __esModule: true, default: () => null }));
-jest.mock('@/components/ChargeHomeCards', () => ({ __esModule: true, default: () => null }));
+jest.mock('@/components/IncomeHomeCards', () => ({ __esModule: true, default: () => null, IncomeAutoNotices: () => null }));
+jest.mock('@/components/ChargeHomeCards', () => ({ __esModule: true, default: () => null, ChargeAutoNotices: () => null }));
+jest.mock('@/components/PendingSheet', () => ({ __esModule: true, default: () => null }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'u1', displayName: 'تجربة', emailVerified: true, providerData: [], reload: async () => {} } }),
 }));

@@ -18,9 +18,10 @@ import {
 } from 'react-native';
 
 /**
- * كروت "اتخصم؟" في الرئيسية — الاشتراكات وأقساط الجمعية اللي "بتأكيد"
- * (الافتراضي) ومعادها جه، + أي فترة رجعت تسأل بعد ما عمليتها اتمسحت، + شهر
- * استلام الجمعية (بيسأل دايمًا). نفس شكل كارت الدخل الثابت "نزل؟".
+ * كروت "اتخصم؟" — الاشتراكات وأقساط الجمعية اللي "بتأكيد" (الافتراضي) ومعادها
+ * جه، + أي فترة رجعت تسأل بعد ما عمليتها اتمسحت، + شهر استلام الجمعية (بيسأل
+ * دايمًا). نفس شكل كارت الدخل الثابت "نزل؟". الكروت في شيت "مستنيين ردك"
+ * (`PendingSheet`) من 2026-09-29، ورسايل التلقائي في الرئيسية نفسها.
  */
 
 export type PendingCharge = {
@@ -75,10 +76,7 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
 
 const snoozeKey = (p: PendingCharge, today: string) => `${p.id}:${p.charges[0].key}:${today}`;
 
-/**
- * اللي بيستنى تأكيد دلوقتي — مصدر واحد للكروت وللزرار العايم (بيستخبّى في
- * الرئيسية طول ما فيه كارت، زي كارت الدخل).
- */
+/** اللي بيستنى تأكيد دلوقتي — مصدر واحد للكروت ولعدّاد سطر "مستنيين ردك" */
 export function usePendingCharges(): PendingCharge[] {
   const { subscriptions, gamiyas } = useData();
   useSnoozeVersion();
@@ -98,15 +96,56 @@ function yesLabel(p: PendingCharge) {
   return p.payout ? 'استلمت' : 'اتدفع';
 }
 
-export default function ChargeHomeCards() {
+/**
+ * رسايل الخصم التلقائي ("سجلنا …" / "ما سجلناش …") — في الرئيسية على طول.
+ * هنا كمان بيشتغل الخصم التلقائي نفسه (`useChargeAutoRecord`)، فلازم يفضل
+ * متركّب في الرئيسية حتى لو الشيت مقفول.
+ */
+export function ChargeAutoNotices() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { notices, dismiss } = useChargeAutoRecord();
+
+  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
+  const announced = useRef(new Set<string>());
+  useEffect(() => {
+    notices.forEach(n => {
+      if (announced.current.has(n.id)) return;
+      announced.current.add(n.id);
+      AccessibilityInfo.announceForAccessibility(n.text);
+    });
+  }, [notices]);
+
+  if (notices.length === 0) return null;
+
+  return (
+    <View style={styles.wrap}>
+      {notices.map(n => (
+        <View key={n.id} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
+          accessibilityLiveRegion="polite">
+          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
+            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
+            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
+          </Text>
+          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
+            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
+            <Text style={styles.dismissText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** كروت "اتخصم؟"/"اتدفع؟"/"استلمت؟" — جوه شيت "مستنيين ردك". `kind` بيقسمهم مجموعات */
+export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
-  const { notices, dismiss } = useChargeAutoRecord();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
-  const pending = usePendingCharges();
+  const pending = usePendingCharges().filter(p => !kind || p.kind === kind);
 
   const alertFor = (p: PendingCharge) => (p.kind === 'gamiya' ? PAY_OUTCOME_ALERT_GAMIYA : PAY_OUTCOME_ALERT);
   const busyId = (p: PendingCharge) => `charge_${p.id}_${p.payout ? 'in' : 'out'}`;
@@ -148,34 +187,10 @@ export default function ChargeHomeCards() {
     ]);
   }
 
-  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
-  const announced = useRef(new Set<string>());
-  useEffect(() => {
-    notices.forEach(n => {
-      if (announced.current.has(n.id)) return;
-      announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
-    });
-  }, [notices]);
-
-  if (pending.length === 0 && notices.length === 0) return null;
+  if (pending.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
-      {notices.map(n => (
-        <View key={n.id} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
-          accessibilityLiveRegion="polite">
-          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
-            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
-            {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
-          </Text>
-          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
-            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
-            <Text style={styles.dismissText}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
-
       {pending.map(p => {
         const charge = p.charges[0];
         const busy = busyKey === busyId(p);
