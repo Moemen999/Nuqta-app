@@ -18,6 +18,7 @@ import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, AppState, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useNoWallets } from '@/lib/useNoWallets';
+import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -39,7 +40,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, pendingTxIds, serverReachable, figuresFromServer } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
 
@@ -71,6 +72,9 @@ function HomeScreen() {
     return () => clearTimeout(t);
   }, []);
   const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
+  // النت قطع والأرقام على الشاشة: بعد المهلة بس، ولحد ما الأرقام نفسها تتحدّث
+  // (lib/staleFigures.ts). من غير أرقام ده "مفيش نت" اللي فوق، مش ده
+  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0);
   /**
    * حساب مسح (أو أرشف) كل محافظه: مفيش شاشة تجهيز تاني (عدّاها قبل كده)، ومن غير
    * محفظة مفيش ولا عملية تتسجل — فبنقول كده وبنودّيه يضيف واحدة. بس لما نكون
@@ -159,7 +163,8 @@ function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده على طول **اللي بيقول إن رقم
-            على الشاشة ممكن يكون غلط أو ناقص**: مفيش نت، و"ما سجلناش" (التسجيل
+            على الشاشة ممكن يكون غلط أو ناقص**: مفيش نت، "النت قطع — الأرقام ممكن تكون
+            قديمة"، و"ما سجلناش" (التسجيل
             التلقائي فشل)، وحالة "مفيش ولا محفظة". بانر "مقدرناش نجيب بياناتك"
             (listener اترفض) أعلى من كده كمان: فوق الـStack كله، فوق الرصيد نفسه وفي
             كل تاب. بعدهم سطر "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات
@@ -170,6 +175,12 @@ function HomeScreen() {
             <Text style={[styles.bannerText, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
+          </View>
+        )}
+        {staleFigures && (
+          <View testID="home_banner_stale" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
           </View>
         )}
         {noWallets && (

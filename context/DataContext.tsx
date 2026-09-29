@@ -1,4 +1,5 @@
 import { useAuth } from '@/context/AuthContext';
+import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
 import { settlementNote } from '@/lib/archiving';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
@@ -391,6 +392,13 @@ type DataContextType = {
   /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
   serverReachable: boolean;
   /**
+   * الأرقام اللي على الشاشة (الأرصدة) متزامنة مع السيرفر: آخر snapshot من المحافظ
+   * **ومن** العمليات جه من السيرفر مش من الكاش. أضيق من `serverReachable` (اللي
+   * أي واحد منهم بيقلبه): رجوع النت ≠ الأرقام اتحدّثت. لبانر "الأرقام ممكن تكون
+   * قديمة" بس — مبيدخلش في أي حساب.
+   */
+  figuresFromServer: boolean;
+  /**
    * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
    * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
    * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
@@ -555,6 +563,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
   const [serverReachable, setServerReachable] = useState(false);
   const serverReachableRef = useRef(false);
+  // آخر fromCache لكل listener من اللي الأرصدة مبنية عليهم. `null` = لسه مرماش
+  // snapshot (مجموعة فاضية ممكن متبعتش خالص) — فمبيمنعش "اتحدّثت"
+  const figuresCache = useRef<{ wallets: boolean | null; transactions: boolean | null }>({ wallets: null, transactions: null });
+  const [figuresFromServer, setFiguresFromServer] = useState(false);
+  function noteFigures(name: 'wallets' | 'transactions', fromCache: boolean) {
+    figuresCache.current[name] = fromCache;
+    const { wallets: w, transactions: t } = figuresCache.current;
+    const fresh = figuresFresh(w, t);
+    setFiguresFromServer(prev => (prev === fresh ? prev : fresh));
+  }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
@@ -678,6 +696,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
+      figuresCache.current = { wallets: null, transactions: null };
+      setFiguresFromServer(false);
       return;
     }
 
@@ -744,6 +764,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       loaded('wallets');
       setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
       noteConnection(snap.metadata.fromCache);
+      noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       loaded('categories');
@@ -761,6 +782,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
       // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
       noteConnection(snap.metadata.fromCache);
+      noteFigures('transactions', snap.metadata.fromCache);
     }, failed('transactions'));
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       loaded('budgets');
@@ -2107,7 +2129,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
