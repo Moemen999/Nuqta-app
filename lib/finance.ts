@@ -652,6 +652,21 @@ export function installmentChangeMessage(
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
 }
 
+/**
+ * الرسالة لما زيادة على الدين تغيّر عدد الأقساط (2026-09-29). نفس فكرة
+ * `installmentChangeMessage` للدفعة: العدد ميتغيّرش ساكت. القسط نفسه ثابت،
+ * فاللي بيتقال العدد القديم والجديد بس — من غير مبلغ.
+ *
+ * `null` لو العدد ما اتغيرش، أو القديم مش معروف (دين قديم من غير عدد —
+ * "بدل 0" كانت هتبقى كدب)، أو الجديد مش رقم حقيقي.
+ */
+export function installmentIncreaseMessage(beforeCount: number | undefined, afterCount: number): string | null {
+  if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
+  if (!Number.isFinite(afterCount) || afterCount <= 0) return null;
+  if (beforeCount === afterCount) return null;
+  return `بعد الزيادة، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
+}
+
 export type DebtEntryKind = 'payment' | 'increase';
 
 export type DebtEntryDeletePlan = {

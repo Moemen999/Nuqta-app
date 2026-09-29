@@ -49,8 +49,10 @@ async function makeDebt(over: Partial<{ isInstallment: boolean; installmentCount
 
 async function increase(debtId: string, amount: number, walletId?: string) {
   const before = (debt().increases || []).length;
-  expect(await harness.api().addDebtIncrease(debtId, amount, '2026-02-01', walletId)).toBe('done');
+  const result = await harness.api().addDebtIncrease(debtId, amount, '2026-02-01', walletId);
+  expect(result.outcome).toBe('done');
   await harness.waitForData(api => (api.debts[0].increases || []).length === before + 1);
+  return result.note;
 }
 
 async function pay(debtId: string, amount: number, walletId: string) {
@@ -151,9 +153,54 @@ it('العدد المتخزّن قديم/غلط ← الزيادة بتكتب ا
 it('مبلغ مش رقم حقيقي (Infinity) ← بيترفض ومفيش حاجة بتتكتب', async () => {
   const { debtId, walletId } = await makeDebt();
   const txBefore = harness.api().transactions.length;
-  expect(await harness.api().addDebtIncrease(debtId, Infinity, '2026-02-01', walletId)).toBe('failed');
-  expect(await harness.api().addDebtIncrease(debtId, NaN, '2026-02-01', walletId)).toBe('failed');
+  expect((await harness.api().addDebtIncrease(debtId, Infinity, '2026-02-01', walletId)).outcome).toBe('failed');
+  expect((await harness.api().addDebtIncrease(debtId, NaN, '2026-02-01', walletId)).outcome).toBe('failed');
   expect(debt().increases || []).toHaveLength(0);
   expect(debt().installmentCount).toBe(6);
   expect(harness.api().transactions.length).toBe(txBefore);
+});
+
+/**
+ * التغيير بيتقال (2026-09-29) — نفس `note` الدفعة، بالعدد القديم والجديد، ولو
+ * العدد اتحرك بس.
+ */
+describe('الرسالة', () => {
+  it('6 ← 8 ← "بعد الزيادة، الأقساط بقت 8 بدل 6."', async () => {
+    const { debtId, walletId } = await makeDebt();
+    expect(await increase(debtId, 2000, walletId)).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  });
+
+  it('العدد ما اتحركش ← مفيش رسالة', async () => {
+    const { debtId, walletId } = await makeDebt();
+    await pay(debtId, 700, walletId); // 1 + ceil(5300/1000) = 7
+    expect(debt().installmentCount).toBe(7);
+    // 5300 + 200 = 5500 ← لسه 1 + 6 = 7
+    expect(await increase(debtId, 200, walletId)).toBeNull();
+    expect(debt().installmentCount).toBe(7);
+  });
+
+  it('دين اتسدد واتفتح تاني ← بيقول العدد المتخزّن والجديد', async () => {
+    const { debtId, walletId } = await makeDebt();
+    await pay(debtId, 6000, walletId);
+    expect(await increase(debtId, 1500, walletId)).toBe('بعد الزيادة، الأقساط بقت 3 بدل 1.');
+  });
+
+  it('زيادة على الورق بتقول برضه', async () => {
+    const { debtId } = await makeDebt();
+    expect(await increase(debtId, 500)).toBe('بعد الزيادة، الأقساط بقت 7 بدل 6.');
+  });
+
+  it('العدد القديم مش متخزّن ← العدد الصح بيتكتب، ومن غير رسالة (مفيش "بدل كام" صادقة)', async () => {
+    const { debtId, walletId } = await makeDebt();
+    await updateDoc(doc(db, 'users', getMockUid(), 'debts', debtId), { installmentCount: deleteField() });
+    await harness.waitForData(api => api.debts[0].installmentCount === undefined);
+    // القسط متخزّن 1000، فالعدد بيتحسب من غير العدد القديم: 8000 ÷ 1000
+    expect(await increase(debtId, 2000, walletId)).toBeNull();
+    expect(debt().installmentCount).toBe(8);
+  });
+
+  it('دين مش بالقسط ← مفيش رسالة', async () => {
+    const { debtId, walletId } = await makeDebt({ isInstallment: false });
+    expect(await increase(debtId, 2000, walletId)).toBeNull();
+  });
 });

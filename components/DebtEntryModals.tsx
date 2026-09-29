@@ -206,20 +206,23 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
     if (!Number.isFinite(amt) || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
-      let outcome: Awaited<ReturnType<typeof addDebtIncrease>>;
+      let result: Awaited<ReturnType<typeof addDebtIncrease>>;
       try {
-        outcome = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+        result = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
       } catch {
         // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
         // المتزامنة بس
         setError('حصل خطأ، جرب تاني');
         return;
       }
-      if (outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[outcome];
+      if (result.outcome !== 'done') {
+        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
         Alert.alert(alert.title, alert.body);
         return;
       }
+      // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
+      // مبيتغيّرش لوحده من غير ما حد يقول ليه
+      if (result.note) Alert.alert(INSTALLMENTS_CHANGED_TITLE, result.note);
       onClose();
     });
   }
