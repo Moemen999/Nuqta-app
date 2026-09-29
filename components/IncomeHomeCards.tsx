@@ -63,7 +63,7 @@ export function IncomeAutoNotices() {
   return (
     <View style={styles.wrap}>
       {notices.map(n => (
-        <View key={n.id} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
+        <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
           accessibilityLiveRegion="polite">
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}

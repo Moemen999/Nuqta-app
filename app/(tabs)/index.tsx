@@ -158,12 +158,15 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده في السكرول: اللي بيقول إن
-            رقم ممكن يكون غلط أو ناقص (مفيش نت، مفيش محفظة، "ما سجلناش")، وسطر
-            "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات. تسجيل عملية هو
-            الزرار "+" الظاهر دايمًا. بانر "مقدرناش نجيب بياناتك" فوق الـStack كله */}
+        {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده على طول **اللي بيقول إن رقم
+            على الشاشة ممكن يكون غلط أو ناقص**: مفيش نت، و"ما سجلناش" (التسجيل
+            التلقائي فشل)، وحالة "مفيش ولا محفظة". بانر "مقدرناش نجيب بياناتك"
+            (listener اترفض) أعلى من كده كمان: فوق الـStack كله، فوق الرصيد نفسه وفي
+            كل تاب. بعدهم سطر "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات
+            (مش بتقول إن رقم غلط، ومش داخلة في العدّاد). تسجيل عملية هو "+" الظاهر
+            دايمًا. الترتيب ده متثبّت في homeBannerOrder.test.tsx */}
         {offlineEmpty && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+          <View testID="home_banner_offline" style={[styles.banner, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
@@ -189,7 +192,7 @@ function HomeScreen() {
         <IncomeAutoNotices />
         <ChargeAutoNotices />
         <PendingSummary />
-        <Text style={styles.sectionTitle}>آخر العمليات</Text>
+        <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>
             {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
@@ -223,12 +226,12 @@ function HomeScreen() {
         {/* تنبيهات مش مستنية رد: تحت آخر العمليات، ومش داخلة في عدّاد السطر */}
         <EmailVerificationBanner />
         {!hasTodayTx && !offlineEmpty && !noWallets && (
-          <View style={styles.banner}>
+          <View testID="home_banner_no_tx_today" style={styles.banner}>
             <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
           </View>
         )}
         {lowWallets.map(w => (
-          <View key={w.id} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
+          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
             <Text style={[styles.bannerText, { color: colors.danger }]}
               accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
               رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
@@ -265,7 +268,7 @@ function HomeScreen() {
         {dueGamiyaMonths.map(({ gamiya, month }) => {
           const d = daysUntil(month.dueDate);
           return (
-            <TouchableOpacity key={month.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
+            <TouchableOpacity key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
               <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
                 جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
@@ -338,7 +341,7 @@ function EmailVerificationBanner() {
   }
 
   return (
-    <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
+    <View testID="home_banner_verify_email" style={[styles.banner, { borderColor: colors.warnBorder }]}>
       <Text style={[styles.bannerText, { color: colors.accentText }]}>
         إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
       </Text>
