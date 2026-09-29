@@ -140,11 +140,11 @@ export default function ArchiveScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          <Money value={totalIn} style={[styles.metricValue, { color: colors.success }]} />
+          <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
-          <Money value={totalOut} style={[styles.metricValue, { color: colors.danger }]} />
+          <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />
         </View>
       </View>
 

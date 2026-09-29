@@ -276,6 +276,10 @@ export function buildPieSlices(
   }, ...deleted];
 }
 
+/**
+ * `color` هنا **مش للنص** (2026-09-29): على الكريمي في الفاتح 2.2–3:1. لون مبلغ
+ * العملية من `transactionAmountColor` (الثيم). فاضل للأسامي والإشارات بس.
+ */
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   expense: { label: 'مصروف', color: '#D97878', sign: '-' },
   income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
@@ -283,12 +287,17 @@ export const TYPE_LABELS: Record<string, { label: string; color: string; sign: s
 };
 
 /**
- * لون مبلغ العملية. السحب دهبي — ولازم ييجي من الثيم (`accentText`): الدهبي
- * الثابت على الكريمي في الفاتح 2.2:1 (2026-09-29). المصروف والدخل لسه ثابتين
- * (TIMELINE — متأجل). مكان واحد عشان الرئيسية والأرشيف ميبعدوش عن بعض.
+ * لون مبلغ العملية — **المصدر الوحيد** للرئيسية والأرشيف، وكله من الثيم
+ * (2026-09-29): السحب `accentText`، المصروف `expenseText`، الدخل `incomeText`.
+ * ألوان `TYPE_LABELS` الثابتة كانت على الكريمي في الفاتح 2.2–3:1.
  */
-export function transactionAmountColor(type: string, colors: { accentText: string }): string {
-  return type === 'withdraw' ? colors.accentText : (TYPE_LABELS[type]?.color ?? colors.accentText);
+export function transactionAmountColor(
+  type: string,
+  colors: { accentText: string; expenseText: string; incomeText: string },
+): string {
+  if (type === 'expense') return colors.expenseText;
+  if (type === 'income') return colors.incomeText;
+  return colors.accentText;
 }
 
 export function debtGrandTotal(d: Debt) {

@@ -204,7 +204,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
             </Text>
-            <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.danger }]} />
+            <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
             <View style={styles.actions}>
               <TouchableOpacity
                 testID={`charge_card_yes_${p.id}`}
