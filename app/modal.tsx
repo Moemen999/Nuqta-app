@@ -172,7 +172,11 @@ export default function AddTransactionModal() {
       </View>
 
       <Text style={styles.label}>المبلغ</Text>
+      {/* "+" بيودّي على كتابة الرقم على طول (2026-09-29): الكيبورد بيفتح لوحده في عملية
+          جديدة. مش في التعديل (جه يبص الأول)، ولا من غير محفظة (الكيبورد كان هيغطي
+          "ضيف محفظة" عشان رقم مش هيتحفظ). زرار الحفظ في فوتر لاصق فوق الكيبورد */}
       <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={setAmount}
+        autoFocus={!id && !noActiveWallets}
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
       <AmountPreview amount={amount} projections={projections} />
 
