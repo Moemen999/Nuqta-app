@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
@@ -17,17 +17,28 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Scroll
 export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { gamiyas, wallets, deleteGamiya, markGamiyaMonthDone } = useData();
+  const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
-    Alert.alert('حذف الجمعية', `متأكد إنك عايز تمسح "${g.name}"؟`, [
+    const txIds = gamiyaTransactionIds(g);
+    const blocked = cascadeDeleteBlock({ kind: 'gamiya', name: g.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
+    if (blocked) { notice(blocked.title, blocked.body); return; }
+    // الشهور المتسددة والاستلام بيتمسحوا معاها والرصيد بيتحرك — التأكيد لازم يقول كده
+    const { title, body } = cascadeDeleteConfirm('gamiya', g.name, linkedTransactions(txIds, transactions).length);
+    Alert.alert(title, body, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, () => deleteGamiya(g.id)) },
+      {
+        text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, async () => {
+          const result = await deleteGamiya(g.id);
+          if (result.outcome === 'blocked') notice(result.title, result.body);
+        }),
+      },
     ]);
   }
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {

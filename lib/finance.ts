@@ -13,9 +13,15 @@ export function walletBalance(tx: Transaction[], walletId: string, opening: numb
   }, opening || 0);
 }
 
-export function monthSpend(tx: Transaction[], categoryId: string, month: string) {
+/**
+ * مصروف فئة في شهر. `transfers` (السلفة وقسط الجمعية، `lib/spending.ts`)
+ * بتتشال: عادةً ملهاش فئة، بس المستخدم يقدر يعدّل العملية ويديها فئة — ساعتها
+ * كانت هتدخل الفئة وتطلع من الإجمالي، فمجموع الفئات يعدّي الإجمالي (money-reviewer).
+ */
+export function monthSpend(tx: Transaction[], categoryId: string, month: string, transfers?: Set<string>) {
   return tx
-    .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month)
+    .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month
+      && !transfers?.has(t.id))
     .reduce((s, t) => s + t.amount, 0);
 }
 
@@ -149,6 +155,15 @@ export type PieSlice = { id: string; name: string; amount: number; color: string
 export const DELETED_SLICE_ID = '__deleted__';
 export const DELETED_SLICE_NAME = 'فئات ممسوحة';
 
+/**
+ * مصروف **عمره ما كان ليه فئة** (سداد دين من غير فئة، اشتراك من غير فئة) —
+ * شريحة لوحدها (2026-09-29). قبل كده كان بيتلمّ في "فئات ممسوحة" مع إن مفيش
+ * فئة اتمسحت، فالرسم كان بيقول حاجة مش حقيقية. السلفة وقسط الجمعية مش هنا
+ * أصلاً — مش مصروف (`lib/spending.ts`).
+ */
+export const UNCATEGORISED_SLICE_ID = '__uncategorised__';
+export const UNCATEGORISED_SLICE_NAME = 'من غير فئة';
+
 type SpendRow = { categoryId?: string; amount: number };
 
 /**
@@ -175,6 +190,7 @@ export function buildCategorySpend(
   const known = new Map(categories.map(c => [c.id, c]));
   const totals = new Map<string, number>();
   let deleted = 0;
+  let uncategorised = 0;
 
   for (const row of expenses) {
     const id = row.categoryId;
@@ -183,8 +199,10 @@ export function buildCategorySpend(
       totals.set(id, (totals.get(id) || 0) + row.amount);
       continue;
     }
-    // فئة ممسوحة (أو عملية من غير فئة خالص) — بتتلمّ مع بعض
-    if (!allowed) deleted += row.amount;
+    // فئة ممسوحة، أو عملية عمرها ما كان ليها فئة — كل واحدة في شريحتها
+    if (allowed) continue;
+    if (id) deleted += row.amount;
+    else uncategorised += row.amount;
   }
 
   const slices: PieSlice[] = [];
@@ -194,6 +212,9 @@ export function buildCategorySpend(
   }
   if (deleted > 0) {
     slices.push({ id: DELETED_SLICE_ID, name: DELETED_SLICE_NAME, amount: deleted, color: deletedColor });
+  }
+  if (uncategorised > 0) {
+    slices.push({ id: UNCATEGORISED_SLICE_ID, name: UNCATEGORISED_SLICE_NAME, amount: uncategorised, color: deletedColor });
   }
   return slices;
 }
@@ -261,8 +282,10 @@ export function buildPieSlices(
   // جوه "فئات تانية (N)" كان المستخدم هيبص على رقم مالوش تفسير خالص: لا هو
   // فئة يعرفها، ولا هو مكتوب إن فيه فلوس فئتها اتمسحت. وبتتحط آخر حاجة عشان
   // تفضل في نفس المكان مهما اتغيّرت المصاريف.
-  const deleted = byCategory.filter(c => c.id === DELETED_SLICE_ID);
-  const sorted = byCategory.filter(c => c.id !== DELETED_SLICE_ID).sort((a, b) => b.amount - a.amount);
+  // "من غير فئة" زيها بالظبط: مش فئة يتعرف مكانها، فمتتلمّش في "فئات تانية"
+  const special = new Set([DELETED_SLICE_ID, UNCATEGORISED_SLICE_ID]);
+  const deleted = byCategory.filter(c => special.has(c.id));
+  const sorted = byCategory.filter(c => !special.has(c.id)).sort((a, b) => b.amount - a.amount);
   if (sorted.length <= topN) return [...sorted, ...deleted];
 
   const top = sorted.slice(0, topN);
@@ -584,6 +607,67 @@ export function installmentValue(d: Debt): number | null {
   // قديم فيه زيادة كان هياخد قسط مختلف عن دين جديد مطابق له بالظبط.
   const value = roundMoney(d.totalAmount / count);
   return value > PIASTRE_EPS ? value : null;
+}
+
+/**
+ * تثبيت قيمة القسط لدين قديم (2026-09-29).
+ *
+ * الديون اللي اتعملت قبل `installmentAmount` قيمتها بتتحسب كل مرة
+ * `totalAmount ÷ installmentCount` — وكل دفعة/زيادة/مسح بيكتب عدد جديد، فالقيمة
+ * بتتحرك معاه (6000 على 6 = 1000، وبعد دفعة غيّرت العدد لـ7 = 857). وده عكس
+ * قرار "القسط ثابت والعدد هو اللي بيتحرك".
+ *
+ * فأول ما دين قديم يتلمس (دفعة، زيادة، مسح واحدة منهم)، بنكتب القيمة
+ * **المحسوبة بالعدد القديم** — نفس الرقم اللي المستخدم شايفه دلوقتي — في نفس
+ * الكتابة، فمبتتحركش تاني. مفيش رسالة: الرقم نفسه ما اتغيّرش، اتحفظ بس.
+ *
+ * `null` لو الدين مش قسط، أو القيمة متخزّنة أصلاً، أو مفيش قيمة تتحسب.
+ */
+export function pinInstallmentAmount(d: Debt): { installmentAmount: number } | null {
+  if (!d.isInstallment) return null;
+  if (typeof d.installmentAmount === 'number' && d.installmentAmount > MONEY_EPS) return null;
+  const value = installmentValue(d);
+  return value && value > PIASTRE_EPS ? { installmentAmount: value } : null;
+}
+
+/**
+ * زيادة فتحت دين أقساط كان اتسدد ← معاد القسط الجاي لازم يتقدّم (2026-09-29).
+ *
+ * الدفعة اللي بتخلّص الدين بتسيب `dueDate` زي ما هو (معاد آخر قسط —
+ * `addDebtPayment`). لو بعدها جت زيادة، الدين اتفتح والمعاد لسه قديم فات،
+ * فالتذكير كان بيترجع على يوم عدّى. دلوقتي: أول معاد شهري (نفس يوم الشهر)
+ * بعد المعاد القديم ومش قبل النهارده ولا يوم الزيادة.
+ *
+ * **دين الأقساط بس:** المعاد فيه معناه "القسط الجاي" وبيتقدّم شهر بشهر أصلاً.
+ * الدين العادي معاده متفق عليه مع الشخص — منخترعش معاد جديد.
+ *
+ * كل مرشّح بيتحسب من المعاد الأصلي (`addMonths(due, k)`) مش من اللي قبله —
+ * عشان 31 يناير ميبقاش 28 في كل الشهور اللي بعد فبراير.
+ *
+ * `null` = المعاد مبيتغيّرش: مش قسط، مفيش معاد، الدين مكانش متسدد، الزيادة مش
+ * فلوس، **الدين لسه متسدد بعد الزيادة** (كان مدفوع زيادة أكتر منها — money-reviewer
+ * + silent-failure-hunter)، أو تاريخ متخزّن مش بشكل YYYY-MM-DD (`parseDateStr`
+ * كانت هتحوّله 1970 ونخترع معاد).
+ */
+export function reopenedDueDate(d: Debt, increaseAmount: number, increaseDate: string, today: string): string | null {
+  if (!d.isInstallment || !d.dueDate) return null;
+  if (!isDateStr(d.dueDate) || !isDateStr(increaseDate) || !isDateStr(today)) return null;
+  if (!(increaseAmount > PIASTRE_EPS)) return null;
+  const remaining = debtRemaining(d);
+  if (remaining > PIASTRE_EPS) return null;
+  if (!(remaining + increaseAmount > PIASTRE_EPS)) return null;
+  const from = increaseDate > today ? increaseDate : today;
+  // 1200 شهر سقف أمان (100 سنة) — تاريخ متخزّن بايظ ميعملش لفة للأبد
+  for (let k = 1; k <= 1200; k++) {
+    const next = addMonths(d.dueDate, k);
+    if (next >= from) return next;
+  }
+  return null;
+}
+
+/** "2026-09-29" بالظبط — مش أي نص `parseDateStr` هتحوّله تاريخ */
+export function isDateStr(x: unknown): x is string {
+  return typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x);
 }
 
 export type InstallmentProgress = { current: number; total: number };

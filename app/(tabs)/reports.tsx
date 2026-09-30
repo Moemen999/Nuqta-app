@@ -5,7 +5,10 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
+import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
+import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { selectionStyle } from '@/lib/selection';
+import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -19,7 +22,9 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, debts } = useData();
+  const { categories, transactions, debts, gamiyas } = useData();
+  // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
+  const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
@@ -52,8 +57,8 @@ export default function ReportsScreen() {
   const visibleIds = catFilter.length > 0 ? catFilter : undefined;
 
   const periodExpenses = useMemo(
-    () => filtered.filter(t => t.type === 'expense'),
-    [filtered]
+    () => spendingExpenses(filtered, transfers),
+    [filtered, transfers]
   );
 
   const expenseByCat = useMemo(
@@ -84,11 +89,11 @@ export default function ReportsScreen() {
     // نفس قاعدة الفترة الحالية بالظبط. قبل كده الفترة السابقة كانت بتتفلتر
     // على الفئات الموجودة حتى وإحنا مش فالتين حاجة، فالمصروف اللي فئته
     // اتمسحت كان بيتشال من فترة واحدة بس — ومقارنة بقاعدتين بتدي نسبة غلط
-    const prevExpenses = transactions
-      .filter(t => t.type === 'expense' && t.date >= prevFrom && t.date <= prevTo);
+    const prevExpenses = spendingExpenses(transactions, transfers)
+      .filter(t => t.date >= prevFrom && t.date <= prevTo);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
     return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
-  }, [range, visibleIds, transactions, periodExpense]);
+  }, [range, visibleIds, transactions, transfers, periodExpense]);
 
   /**
    * الفئة المؤرشفة مالهاش لازمة في الفلتر إلا لو ليها مصروف في الفترة دي
@@ -151,16 +156,11 @@ export default function ReportsScreen() {
       <Text style={styles.title}>التقارير</Text>
 
       <View style={styles.presetRow}>
-        {[
-          { key: 'thisMonth', label: 'هذا الشهر' },
-          { key: 'last7', label: 'آخر 7 أيام' },
-          { key: 'lastMonth', label: 'الشهر الماضي' },
-          { key: 'custom', label: 'مخصص' },
-        ].map(p => (
+        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'custom']).map(p => (
           <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
             testID={`reports_preset_${p.key}`}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
+            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -170,9 +170,8 @@ export default function ReportsScreen() {
           <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary }}>إلى</Text>
           <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>إلى: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -183,7 +182,7 @@ export default function ReportsScreen() {
           <Money value={periodExpense} style={styles.metricValue} />
         </View>
         <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>مقارنة بالفترة السابقة</Text>
+          <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
           <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.danger : colors.success }]}>
             {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
           </Text>
@@ -275,7 +274,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 14 },
     presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
+    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
