@@ -10,7 +10,7 @@ import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  foldInstallmentResidue, installmentResidueIgnored, installmentResidueKnown, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  foldInstallmentResidue, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -1143,7 +1143,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // فمبيتكتبش هنا — لو متأخر عن جهاز تاني، أول عملية ذرية بتعيد العدد صح
         const patch: Record<string, unknown> = { payments };
         const recount = installmentCountFor({ ...d, payments });
-        if (recount !== null && Number.isFinite(recount) && recount !== d.installmentCount) patch.installmentCount = recount;
+        const count = countToWrite(recount, d.installmentCount, d.id);
+        if (count !== undefined) patch.installmentCount = count;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1160,7 +1161,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0));
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...d, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
-        if (recount !== null && Number.isFinite(recount) && recount !== d.installmentCount) patch.installmentCount = recount;
+        const count = countToWrite(recount, d.installmentCount, d.id);
+        if (count !== undefined) patch.installmentCount = count;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1325,6 +1327,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     ignoredResidueNoted.current.add(key);
     console.warn(message, debtId);
   }
+  /**
+   * العدد الجديد لو ينفع يتكتب ومختلف — غير كده `undefined`. عدد مش صالح (NaN، أو
+   * أكبر من اللي بيتخزّن بدقة) مبيتكتبش، والعدد القديم بيفضل، وبنسجّل المعرّف مرة
+   * (silent-failure-hunter الجولة 3) بدل ما يتخطى ساكت.
+   */
+  function countToWrite(next: number | null, current: number | undefined, debtId: string): number | undefined {
+    if (next === null) return undefined;
+    if (!storableCount(next)) {
+      noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
+      return undefined;
+    }
+    return next !== current ? next : undefined;
+  }
+
   function noteIgnoredResidue(debt: Debt) {
     if (installmentResidueIgnored(debt)) noteOnce(`ignored:${debt.id}`, '[debt] installmentResidue ignored, old count rule used', debt.id);
     // دين قديم (عدد من غير قسط متخزّن) والتثبيت مش ممكن (بيانات بايظة) ← القسط بيفضل
@@ -1355,6 +1371,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     dueDate?: string; reminderDaysBefore?: number;
   }) {
     if (!uid) return;
+    // مبلغ الدين بالقرش ولازم رقم حقيقي (2026-09-30): "1e999" كان بيعدّي من المودال
+    // ويتكتب دين وعملية Infinity. الرفض بيوصل المودال كخطأ ("حصل خطأ، جرب تاني")
+    const total = toMoneyAmount(data.totalAmount);
+    if (total === null) throw new Error('invalid debt amount');
+    data = { ...data, totalAmount: total };
     let initialTransactionId: string | undefined;
     if (data.walletId) {
       const type = data.direction === 'owed_to_me' ? 'expense' : 'income';
@@ -1451,8 +1472,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بالقرش (money-reviewer 2026-09-30): 0.006 من الخانة كان بيتسجل كده، وخطة الأقساط
     // والفرق شغالين بالقروش الصحيحة فكان بيبعد الخطة عن الإجمالي. اللي بيتعرض هو
     // اللي بيتسجل
-    amount = roundMoney(amount);
-    if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
+    const money = toMoneyAmount(amount);
+    if (money === null) return { outcome: 'failed' };
+    amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1497,9 +1519,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const planned: Debt = pin ? { ...debt, ...pin } : debt;
         Object.assign(patch, pin);
         const nextCount = installmentCountAfterPayment(planned, amount);
-        if (nextCount !== null && Number.isFinite(nextCount) && nextCount !== debt.installmentCount) {
-          patch.installmentCount = nextCount;
-        }
+        const count = countToWrite(nextCount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
 
         /**
          * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
@@ -1523,7 +1544,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           amount,
           installmentValue(planned) === null ? amount : suggestedInstallmentPayment(planned),
           debt.installmentCount ?? 0,
-          nextCount ?? debt.installmentCount ?? 0,
+          // العدد اللي اتكتب فعلاً — مش NaN في الرسالة (`??` مبيمسكش NaN)
+          count ?? debt.installmentCount ?? 0,
           debtRemaining(debt) - amount <= PIASTRE_EPS,
         );
       }));
@@ -1602,7 +1624,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { payments, ...pin };
         const recount = installmentCountFor({ ...debt, ...pin, payments });
-        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) patch.installmentCount = recount;
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
         t.update(debtRef, patch);
       }));
@@ -1621,10 +1644,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return { outcome: 'done' };
     // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
     // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
-    if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
-    // بالقرش زي الدفعة (شوف `addDebtPayment`)
-    amount = roundMoney(amount);
-    if (amount <= 0) return { outcome: 'failed' };
+    // بالقرش زي الدفعة، **والفحص بعد التقريب** (`toMoneyAmount`): 1e307 كان بيعدّي
+    // `isFinite` وبعدين `roundMoney` تطلعه Infinity ويتكتب
+    const money = toMoneyAmount(amount);
+    if (money === null) return { outcome: 'failed' };
+    amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1681,14 +1705,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
-        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
-          patch.installmentCount = recount;
+        // عدد مش صالح (NaN، أو أكبر من اللي بيتخزّن بدقة) ← العدد القديم بيفضل وسطر بالمعرّف
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) {
+          patch.installmentCount = count;
           // null عن قصد لو العدد القديم مش معروف (دين قديم من غير عدد): العدد الصح
           // بيتكتب، بس مفيش "بدل كام" صادقة تتقال — "بدل 0" كانت هتبقى كدب
-          result.note = installmentIncreaseMessage(debt.installmentCount, recount);
-        } else if (recount !== null && !Number.isFinite(recount)) {
-          // من غير أرقام — المعرّف بس (sentryScrub)
-          console.warn('[debt] installment recount not finite, count left as is', debtId);
+          result.note = installmentIncreaseMessage(debt.installmentCount, count);
         }
         t.update(debtRef, patch);
       }));
@@ -1726,7 +1749,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const residue = residueAfterIncreaseChange({ ...debt, ...pin }, -Number(entry.amount));
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
-        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) patch.installmentCount = recount;
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
         t.update(debtRef, patch);
       }));

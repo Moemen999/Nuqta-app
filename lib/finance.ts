@@ -356,6 +356,28 @@ export function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * مبلغ فلوس جاي من المستخدم (خانة أو دالة كتابة) — مقرّب للقرش، أو `null` لو
+ * مينفعش يتسجل (2026-09-30). **التقريب الأول وبعدين الفحص:** `roundMoney` بتضرب
+ * في 100، فـ1e307 بيعدّي فحص `isFinite` ويطلع Infinity بعد التقريب — وده اللي كان
+ * بيتكتب في الزيادة. وأقل من نص قرش (0.004) بيطلع 0 فمرفوض هنا، مش في الداتا برسالة
+ * "اتأكد من النت". NaN وInfinity والسالب والصفر مرفوضين.
+ */
+export function toMoneyAmount(value: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const rounded = roundMoney(value);
+  return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
+}
+
+/**
+ * عدد أقساط ينفع يتكتب: صحيح موجب وآمن (≤ 2^53 − 1). NaN وInfinity، وأي عدد أكبر
+ * من كده (زيادة 1e300 على قسط 83.33) مبيتخزّنش — فايرستور كان هيرفضه كـint أو
+ * يخزّنه بغير قيمته.
+ */
+export function storableCount(n: unknown): n is number {
+  return typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
+}
+
 /** المتبقي على الدين. بيطلع بالسالب لو اتدفع أكتر من الإجمالي. */
 export function debtRemaining(d: Debt) {
   return debtGrandTotal(d) - debtPaid(d);
@@ -790,7 +812,7 @@ function residueOf(base: number, value: number, n: number): number | null {
  */
 export function planInstallments(base: number, n: number): { value: number; residue: number; over: number } | null {
   if (!Number.isFinite(base) || base <= PIASTRE_EPS) return null;
-  if (!Number.isInteger(n) || n <= 0) return null;
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
   const value = roundMoney(base / n);
   if (!(value > PIASTRE_EPS)) return null;
   const residue = residueOf(base, value, n);
@@ -880,7 +902,8 @@ function shiftInstallmentResidue(r: InstallmentResidue, delta: number): Installm
   const shift = nearest(ac + dc) - nearest(ac);
   const amountCents = ac + dc - shift * vc;
   const over = r.over + shift;
-  if (!Number.isInteger(amountCents) || !Number.isInteger(over)) return null;
+  // بالقروش الصحيحة الآمنة: مبلغ أو عدد أقساط ضخم كان هيفقد دقته ← فشل صريح (بيتشال)
+  if (!Number.isSafeInteger(ac) || !Number.isSafeInteger(dc) || !Number.isSafeInteger(amountCents) || !Number.isSafeInteger(over)) return null;
   return { amount: amountCents === 0 ? 0 : amountCents / 100, forInstallment: r.forInstallment, over };
 }
 
@@ -1066,7 +1089,7 @@ export function debtEntryDeleteMessage(
 export function planInstallmentCountEdit(
   d: Debt, nextTotal: number,
 ): { count: number; value: number; residue: number; over: number } | null {
-  if (!Number.isInteger(nextTotal) || nextTotal <= 0) return null;
+  if (!Number.isSafeInteger(nextTotal) || nextTotal <= 0) return null;
   const paidCount = (d.payments || []).length;
   if (nextTotal <= paidCount) return null;
 

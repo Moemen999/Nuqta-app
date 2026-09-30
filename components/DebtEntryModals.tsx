@@ -11,7 +11,7 @@ import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContex
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, suggestedInstallmentPayment,
+  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -61,7 +61,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
   // السداد بيولّد عملية فعلية: إيراد لو الدين ليك، مصروف لو عليك
   const projections = useMemo(() => projectBalances({
-    transactions, wallets, amount: Number(amount), walletId,
+    transactions, wallets, amount: toMoneyAmount(Number(amount)) ?? 0, walletId,
     type: debt.direction === 'owed_to_me' ? 'income' : 'expense',
   }), [transactions, wallets, amount, walletId, debt.direction]);
 
@@ -86,8 +86,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   }
 
   async function handleSave() {
-    const amt = Number(amount);
-    if (!amt || amt <= 0 || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
+    // مقرّب للقرش ورقم حقيقي (`toMoneyAmount`): "1e999" وInfinity و0.004 بيترفضوا هنا
+    // برسالتهم، وفحص الزيادة عن المتبقي على نفس المبلغ اللي هيتسجل
+    const amt = toMoneyAmount(Number(amount));
+    if (amt === null || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
     const check = overpayCheck(amt, remaining);
     if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
@@ -195,15 +197,16 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
   const projections = useMemo(() => projectBalances({
-    transactions, wallets, amount: Number(amount),
+    transactions, wallets, amount: toMoneyAmount(Number(amount)) ?? 0,
     walletId: linkedToWallet ? walletId : undefined,
     type: debt.direction === 'owed_to_me' ? 'expense' : 'income',
   }), [transactions, wallets, amount, walletId, linkedToWallet, debt.direction]);
 
   async function handleSave() {
-    const amt = Number(amount);
-    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
-    if (!Number.isFinite(amt) || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
+    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)،
+    // والتقريب قبل الفحص: 1e307 بيطلع Infinity بعد التقريب، و0.004 بيطلع 0 (`toMoneyAmount`)
+    const amt = toMoneyAmount(Number(amount));
+    if (amt === null) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtIncrease>>;
@@ -323,8 +326,9 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(null);
 
   async function handleSave() {
-    const amt = Number(totalAmount);
-    if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
+    // "1e999" كان بيعدّي من فحص الصفر لوحده ويتسجل دين Infinity (`toMoneyAmount`)
+    const amt = toMoneyAmount(Number(totalAmount));
+    if (!personName.trim() || amt === null) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.

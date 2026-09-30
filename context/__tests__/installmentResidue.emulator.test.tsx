@@ -245,3 +245,42 @@ describe('زيادة بتسيب تقريب بس (قرار مؤمن 2026-09-29)',
     expect(server.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
   });
 });
+
+/**
+ * مبالغ مينفعش تتسجل (2026-09-30): مفيش ولا حاجة توصل السيرفر، والنتيجة 'failed'.
+ * **اتكتبت في جلسة سحابية وما اتشغلتش.**
+ */
+describe('مبالغ مش صالحة مبتوصلش فايرستور', () => {
+  it('زيادة 1e307 (Infinity بعد التقريب) ← failed، والدين والعمليات زي ما هم', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const before = await serverDebt(debtId);
+    const txBefore = harness.api().transactions.length;
+    const res = await harness.api().addDebtIncrease(debtId, 1e307, '2026-02-01', walletId);
+    expect(res.outcome).toBe('failed');
+    const after = await serverDebt(debtId);
+    expect(after.increases).toEqual(before.increases);
+    expect(after.installmentCount).toBe(before.installmentCount);
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+
+  it.each([Number('1e999'), NaN, 0.004, -5])('دفعة %p ← failed ومفيش دفعة ولا عملية', async (amount) => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const txBefore = harness.api().transactions.length;
+    const res = await harness.api().addDebtPayment(debtId, amount, walletId, '2026-02-01');
+    expect(res.outcome).toBe('failed');
+    expect((await serverDebt(debtId)).payments).toEqual([]);
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+
+  it('دين بمبلغ Infinity ← بيرمي، ومفيش دين ولا عملية', async () => {
+    const w = harness.api().wallets[0];
+    const txBefore = harness.api().transactions.length;
+    await expect(harness.api().addDebt({
+      direction: 'owed_to_me', personName: 'مبلغ بايظ', totalAmount: Number('1e999'),
+      isInstallment: false, walletId: w.id, date: '2026-01-01',
+    })).rejects.toThrow();
+    await waitForPendingWrites(db);
+    expect(harness.api().debts).toHaveLength(0);
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+});

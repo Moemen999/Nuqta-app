@@ -640,13 +640,14 @@ describe('DataContext (المراجعة الجولة 2)', () => {
 
   it.each(['addDebtPayment', 'addDebtIncrease'])('%s بيقرّب المبلغ للقرش قبل أي كتابة', (name) => {
     const b = body(name);
-    const at = b.indexOf('amount = roundMoney(amount);');
+    // بقى `toMoneyAmount` (التقريب وبعدين الفحص — finance.moneyInput.test)
+    const at = b.indexOf('const money = toMoneyAmount(amount);');
     expect(at).toBeGreaterThan(-1);
     expect(at).toBeLessThan(b.indexOf('runTransaction('));
   });
 
-  it('كل كتابة لعدد الأقساط محروسة من NaN', () => {
-    const writes = src.split('\n').filter(l => /patch\.installmentCount = (recount|nextCount)/.test(l) || /if \((recount|nextCount) !== null/.test(l));
-    for (const l of writes.filter(l => l.includes('if ('))) expect(l).toContain('Number.isFinite(');
+  it('كل كتابة لعدد الأقساط محروسة (countToWrite ← storableCount)', () => {
+    expect(src).not.toMatch(/patch\.installmentCount = (recount|nextCount)/);
+    expect(src).toMatch(/if \(!storableCount\(next\)\) \{\n\s+noteOnce\(`count:/);
   });
 });
