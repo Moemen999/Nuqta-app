@@ -70,7 +70,11 @@ function DevSeed() {
     linkedStarted.current = true;
     SEED_WALLETS.forEach(w => data.updateWallet(ids.wallets[w.name], { openingBalance: w.openingBalance, lowAlert: w.lowAlert }));
     seedTransactions(ids, today).forEach(tx => data.addTransaction(tx));
-    seedDebts(ids, today).forEach(d => data.addDebt(d));
+    // `addDebt` بيرمي لو المبلغ أو العدد مش صالح — منسيبوش رفض من غير ما حد يمسكه
+    seedDebts(ids, today).forEach(d => data.addDebt(d).catch(() => {
+      setPhase('failed');
+      setStatus('دين من ديون التجربة ما اتسجلش — المبلغ أو عدد الأقساط مش صالح.');
+    }));
     data.addSubscription(seedSubscription(ids, today));
     data.addGamiya(seedGamiya(ids, today));
     data.addIncome(seedIncome(ids, today));

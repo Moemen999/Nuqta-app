@@ -11,7 +11,7 @@ import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContex
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, suggestedInstallmentPayment, toMoneyAmount,
+  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -333,7 +333,8 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
     const count = isInstallment ? Number(installmentCount) : 0;
-    if (isInstallment && (!Number.isInteger(count) || count <= 0)) {
+    // آمن مش صحيح بس (`storableCount`) — نفس فحص تعديل العدد
+    if (isInstallment && !storableCount(count)) {
       setError(INSTALLMENT_COUNT_REQUIRED);
       return;
     }

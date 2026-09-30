@@ -272,6 +272,18 @@ describe('مبالغ مش صالحة مبتوصلش فايرستور', () => {
     expect(harness.api().transactions.length).toBe(txBefore);
   });
 
+  it('دين أقساط بعدد 1e20 (مبيتخزّنش) ← بيرمي قبل العملية المالية، ومفيش عملية يتيمة', async () => {
+    const w = harness.api().wallets[0];
+    const txBefore = harness.api().transactions.length;
+    await expect(harness.api().addDebt({
+      direction: 'owed_to_me', personName: 'عدد بايظ', totalAmount: 1000,
+      isInstallment: true, installmentCount: 1e20, walletId: w.id, date: '2026-01-01',
+    })).rejects.toThrow();
+    await waitForPendingWrites(db);
+    expect(harness.api().debts).toHaveLength(0);
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+
   it('دين بمبلغ Infinity ← بيرمي، ومفيش دين ولا عملية', async () => {
     const w = harness.api().wallets[0];
     const txBefore = harness.api().transactions.length;

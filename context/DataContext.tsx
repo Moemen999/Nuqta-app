@@ -1376,6 +1376,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const total = toMoneyAmount(data.totalAmount);
     if (total === null) throw new Error('invalid debt amount');
     data = { ...data, totalAmount: total };
+    // وعدد الأقساط زي أي كتابة عدد (`storableCount`) وخطته ممكنة — **قبل** العملية
+    // المالية، وإلا كانت هتفضل عملية يتيمة في المحفظة (money-reviewer 2026-09-30)
+    const plan = data.isInstallment ? planInstallments(total, data.installmentCount ?? NaN) : null;
+    if (data.isInstallment && (!storableCount(data.installmentCount) || !plan)) {
+      throw new Error('invalid installment plan');
+    }
     let initialTransactionId: string | undefined;
     if (data.walletId) {
       const type = data.direction === 'owed_to_me' ? 'expense' : 'income';
@@ -1395,14 +1401,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // مختلفين. اللي بيتخزّن هو اللي بيتعرض.
     // ومعاها فرق التقريب (2026-09-30) — القسط الأخير بيشيله، فـ1000 على 12
     // بيخلص في 12 قسط مش 13
-    const plan = data.isInstallment && data.installmentCount
-      ? planInstallments(data.totalAmount, data.installmentCount)
-      : null;
-    // المودال بيرفض ده قبل ما يوصل هنا؛ أي نادي تاني (dev-seed) منسيبوش ساكت —
-    // الدين بيتسجل بالعدد والقاعدة القديمة. من غير أرقام (sentryScrub)
-    if (data.isInstallment && data.installmentCount && !plan) {
-      console.warn('[debt] installment plan not possible, saved without installmentAmount');
-    }
     const installmentAmount = plan?.value;
     const installmentResidue = plan ? { amount: plan.residue, forInstallment: plan.value, over: plan.over } : undefined;
     const clean = Object.fromEntries(Object.entries({
@@ -1473,7 +1471,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // والفرق شغالين بالقروش الصحيحة فكان بيبعد الخطة عن الإجمالي. اللي بيتعرض هو
     // اللي بيتسجل
     const money = toMoneyAmount(amount);
-    if (money === null) return { outcome: 'failed' };
+    if (money === null) {
+      // المودال بيرفضه قبل كده برسالته؛ نادي تاني هيشوف "ما اتسجلش"، فالسبب هنا (المعرّف بس)
+      console.warn('[debt] payment amount refused (not a valid money amount)', debtId);
+      return { outcome: 'failed' };
+    }
     amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
@@ -1647,7 +1649,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بالقرش زي الدفعة، **والفحص بعد التقريب** (`toMoneyAmount`): 1e307 كان بيعدّي
     // `isFinite` وبعدين `roundMoney` تطلعه Infinity ويتكتب
     const money = toMoneyAmount(amount);
-    if (money === null) return { outcome: 'failed' };
+    if (money === null) {
+      console.warn('[debt] increase amount refused (not a valid money amount)', debtId);
+      return { outcome: 'failed' };
+    }
     amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);

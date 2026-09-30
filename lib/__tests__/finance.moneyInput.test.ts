@@ -115,3 +115,31 @@ describe('كل مدخل بيكتب مبلغ أو عدد بيعدّي على ال
     expect(screen).toMatch(/if \(!storableCount\(next\)\) \{ setError\(INSTALLMENT_COUNT_INVALID\)/);
   });
 });
+
+describe('مراجعة الجولة 1 (faee1ff)', () => {
+  const ctx = readFileSync('context/DataContext.tsx', 'utf8');
+  const addDebt = ctx.slice(ctx.indexOf('  async function addDebt('), ctx.indexOf('\n  }\n', ctx.indexOf('  async function addDebt(')));
+
+  it('addDebt بيفحص عدد الأقساط (storableCount) وخطته قبل العملية المالية — مفيش عملية يتيمة', () => {
+    const guard = addDebt.indexOf("throw new Error('invalid installment plan')");
+    expect(guard).toBeGreaterThan(-1);
+    expect(addDebt).toMatch(/!storableCount\(data\.installmentCount\) \|\| !plan/);
+    expect(guard).toBeLessThan(addDebt.indexOf('addTransaction('));
+    // ومفيش "اتسجل من غير قسط" بعد كده
+    expect(addDebt).not.toContain('installment plan not possible');
+  });
+
+  it('المبلغ المرفوض في الدفعة والزيادة بيتسجل سببه (المعرّف بس)', () => {
+    expect(ctx).toMatch(/console\.warn\('\[debt\] payment amount refused \(not a valid money amount\)', debtId\)/);
+    expect(ctx).toMatch(/console\.warn\('\[debt\] increase amount refused \(not a valid money amount\)', debtId\)/);
+  });
+
+  it('dev-seed بيمسك رفض addDebt (مش رفض من غير ماسك)', () => {
+    const seed = readFileSync('app/dev-seed.tsx', 'utf8');
+    expect(seed).toMatch(/data\.addDebt\(d\)\.catch\(/);
+  });
+
+  it('مودال الدين الجديد بيفحص العدد بـstorableCount زي التعديل', () => {
+    expect(readFileSync('components/DebtEntryModals.tsx', 'utf8')).toMatch(/if \(isInstallment && !storableCount\(count\)\)/);
+  });
+});
