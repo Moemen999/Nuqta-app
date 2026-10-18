@@ -14,8 +14,9 @@ import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 /**
  * كروت الدخل الثابت:

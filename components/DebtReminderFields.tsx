@@ -3,7 +3,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /** الاختيارات الجاهزة للتذكير — بالأيام قبل المعاد */
 const DAYS_OPTIONS = [

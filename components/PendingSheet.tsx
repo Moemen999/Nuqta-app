@@ -4,7 +4,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { pendingSummaryPhrase } from '@/lib/pendingSummary';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * سطر "عندك … مستنيين ردك" في الرئيسية + الشيت اللي بيفتحه (2026-09-29).

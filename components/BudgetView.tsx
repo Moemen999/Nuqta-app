@@ -6,7 +6,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, currentMonth, monthSpend, planBudgetCommit } from '@/lib/finance';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 const TOTAL_KEY = 'total_budget';
 
