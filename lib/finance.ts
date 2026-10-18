@@ -389,6 +389,17 @@ export function overpayCheck(amount: number, remaining: number): OverpayCheck {
 }
 
 /**
+ * مبلغ دين (دفعة، زيادة، دين جديد) ينفع يتسجّل: رقم محدود وأكبر من صفر.
+ *
+ * `!amt || amt <= 0` كان بيعدّي "1e999" (= Infinity) فيتكتب Infinity في الدين
+ * ورصيد المحفظة. مودال الزيادة بس كان فيه `isFinite`، فالفحص بقى هنا عشان
+ * التلاتة ميختلفوش تاني.
+ */
+export function isValidDebtAmount(amount: number): boolean {
+  return Number.isFinite(amount) && amount > 0;
+}
+
+/**
  * سطر "اتسدد كذا من كذا".
  *
  * لو فيه زيادة، الكسر بيبقى كلام فارغ ("اتسدد 35,630 من 550")، فبنقول

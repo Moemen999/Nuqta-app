@@ -12,7 +12,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import {
   categoryLabel, debtRemaining, installmentProgressLabel, installmentValue,
-  overpayCheck, projectBalances, todayStr, type DebtPrefill,
+  isValidDebtAmount, overpayCheck, projectBalances, todayStr, type DebtPrefill,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -90,7 +90,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
   async function handleSave() {
     const amt = Number(amount);
-    if (!amt || amt <= 0 || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
+    if (!isValidDebtAmount(amt) || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
     const check = overpayCheck(amt, remaining);
     if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
@@ -205,8 +205,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   async function handleSave() {
     const amt = Number(amount);
-    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
-    if (!Number.isFinite(amt) || amt <= 0) { setError('دخّل مبلغ صحيح'); return; }
+    // isFinite جوه isValidDebtAmount: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
+    if (!isValidDebtAmount(amt)) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtIncrease>>;
@@ -327,7 +327,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
 
   async function handleSave() {
     const amt = Number(totalAmount);
-    if (!personName.trim() || !amt || amt <= 0) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
+    if (!personName.trim() || !isValidDebtAmount(amt)) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
@@ -410,11 +410,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput testID="debt_add_person" style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
+          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           {linkedToWallet && (
