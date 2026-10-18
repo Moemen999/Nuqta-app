@@ -4,11 +4,16 @@ import { StyleSheet, type StyleProp, type TextStyle } from 'react-native';
  * أسامي ملفات الخط — المصدر الوحيد. الغلاف (`components/AppText.tsx`) بيختار منها،
  * و`useFonts` في `app/_layout.tsx` بيحمّل بنفس الأسامي (`APP_FONT_SOURCES`) —
  * فمفيش اسم يتكتب في مكان ومايتحمّلش في التاني (أندرويد بيرجع لخط النظام ساكت).
+ *
+ * IBM Plex Sans Arabic مش Tajawal (قرار مؤمن 2026-10-18): أرقامه اللاتيني بعرض
+ * واحد (600) في كل وزن، فالمبالغ بتقف تحت بعض من غير ما تعتمد على tnum —
+ * Tajawal مفيهوش tnum وأرقامه مش متساوية. وتغطية العربي 252/256 مقابل 67/256.
+ * الاختبار appFontDigits بيقرا ملف الخط نفسه ويتأكد من ده.
  */
 export const APP_FONT = {
-  regular: 'Tajawal_400Regular',
-  medium: 'Tajawal_500Medium',
-  bold: 'Tajawal_700Bold',
+  regular: 'IBMPlexSansArabic_400Regular',
+  medium: 'IBMPlexSansArabic_500Medium',
+  bold: 'IBMPlexSansArabic_700Bold',
 } as const;
 
 export type AppFontFamily = (typeof APP_FONT)[keyof typeof APP_FONT];

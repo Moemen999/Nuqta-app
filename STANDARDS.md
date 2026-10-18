@@ -85,7 +85,7 @@
 | 3.2 | **الشكل من `lib/tokens.ts`**: `sheetStyle`، `overlayStyle`، `sheetTitleStyle`، `stickyFooterStyle`، `MIN_TOUCH` — مش أبعاد منسوخة بالإيد | visual-identity-reviewer (2) | `tokens.test.ts` · `visual-identity-reviewer` |
 | 3.3 | زرار الحفظ **برّه** الـ`ScrollView` في فوتر لاصق، وأي `TextInput` جوه `KeyboardAvoidingView` | CLAUDE.md قاعدة 5 و"زرار الحفظ تحت الكيبورد" | `stickyFooterModals.test.ts` (بيمسح التطبيق كله) · على الجهاز: **يدوي** (اتفحص 2026-09-28: خانة الملاحظة فوق الكيبورد) |
 | 3.4 | **RTL كامل:** كل صف `flexDirection: 'row-reverse'`، والنص `textAlign: 'right'`، والأسهم بتتعكس | CLAUDE.md قاعدة 2 | `visual-identity-reviewer` · `arabic-copy-reviewer` (7) — **مفيش اختبار عام** |
-| 3.5 | خط Tajawal متطبّق **عالميًا** (`applyGlobalFont`) — مفيش `fontFamily` يدوي | CLAUDE.md قاعدة 4 | **يدوي** |
+| 3.5 | **خط واحد (IBM Plex Sans Arabic) من الغلاف** `components/AppText` — مفيش `Text`/`TextInput` من `react-native` ولا `fontFamily` يدوي برّه `lib/appFont.ts`، والوزن بيتشال بعد ما الملف يتختار؛ وأرقام الخط اللاتيني بعرض واحد (المبالغ تحت بعض) | CLAUDE.md قاعدة 4، TIMELINE 2026-10-18 | `appFont.test.tsx` (جرد + الوزن + الأسامي)، `appFontDigits.test.ts` (عرض الأرقام من ملف الخط) · **يدوي:** إن الخط اترسم فعلاً على الجهاز |
 | 3.6 | ألوان الرسوم من `useChartColors` بس — نفس الفئة نفس اللون في كل شاشة | visual-identity-reviewer (7) | `theme.chart.test.ts`، `finance.chartColors.test.ts` |
 | 3.7 | المكوّنات المشتركة بدل نسخ جديدة: `ListEmptyState`، `AmountPreview`، `PendingSyncMark`، `AutoRecordedMark`، `CalendarPickerModal`، `BackButton`، `useAmountDrafts` (نسخة واحدة، الفرق بارامتر) | CLAUDE.md "components/"، TIMELINE "نسخة واحدة لمنطق المسوّدات" | `visual-identity-reviewer` · `code-reviewer` — **يدوي** |
 | 3.8 | نفس الفكرة بنفس الكلمة: وضعا التسجيل "بيسألك الأول" / "بيتسجل لوحده" للدخل والاشتراك والجمعية من مصدر واحد | TIMELINE 2026-09-28 | `autoCharge.test.ts` ("أسامي الوضعين") |
@@ -167,7 +167,7 @@
 
 - **فلوس:** 1.10 (رقم التأكيد = المكتوب)، 1.15–1.17 (المراجعون الإجباريين)
 - **حالات:** 2.3 على بناء حقيقي، 2.4 (بانر النت ومدته)، 2.5 و2.6 (الأربع حالات على كل شاشة)
-- **اتساق:** 3.1 (hex — أمر بس)، 3.4 (RTL)، 3.5 (الخط)، 3.7 (المكوّنات المشتركة)
+- **اتساق:** 3.1 (hex — أمر بس)، 3.4 (RTL)، 3.5 (الخط اترسم على الجهاز — الاختبارات بتثبت الطلب مش الرسم)، 3.7 (المكوّنات المشتركة)
 - **وصولية:** 4.2 (44)، 4.3 (الإعلانات)، 4.4، 4.5
 - **نصوص:** 5.1، 5.3–5.5 (مراجع بس)، 5.6 عمومًا، 5.9 للعرض، 5.10 (الدليل)
 - **خصوصية:** 6.2، 6.3، 6.4 (التأكد قبل التشغيل)، 6.6، 6.8

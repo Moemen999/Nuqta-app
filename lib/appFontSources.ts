@@ -1,6 +1,6 @@
-import { Tajawal_400Regular } from '@expo-google-fonts/tajawal/400Regular';
-import { Tajawal_500Medium } from '@expo-google-fonts/tajawal/500Medium';
-import { Tajawal_700Bold } from '@expo-google-fonts/tajawal/700Bold';
+import { IBMPlexSansArabic_400Regular } from '@expo-google-fonts/ibm-plex-sans-arabic/400Regular';
+import { IBMPlexSansArabic_500Medium } from '@expo-google-fonts/ibm-plex-sans-arabic/500Medium';
+import { IBMPlexSansArabic_700Bold } from '@expo-google-fonts/ibm-plex-sans-arabic/700Bold';
 import { APP_FONT } from '@/lib/appFont';
 
 /**
@@ -12,7 +12,7 @@ import { APP_FONT } from '@/lib/appFont';
  * `expo-font` كله، واحنا بنستخدم `useFonts` من `expo-font` مباشرة.
  */
 export const APP_FONT_SOURCES = {
-  [APP_FONT.regular]: Tajawal_400Regular,
-  [APP_FONT.medium]: Tajawal_500Medium,
-  [APP_FONT.bold]: Tajawal_700Bold,
+  [APP_FONT.regular]: IBMPlexSansArabic_400Regular,
+  [APP_FONT.medium]: IBMPlexSansArabic_500Medium,
+  [APP_FONT.bold]: IBMPlexSansArabic_700Bold,
 };

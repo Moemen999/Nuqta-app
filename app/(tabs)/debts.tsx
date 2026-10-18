@@ -589,7 +589,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
+    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 17 },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
     labelInRow: { color: c.textSecondary, fontSize: 12, textAlign: 'right' },
     contactBtn: {
