@@ -92,10 +92,14 @@ export default function WalletsScreen() {
     updateWallet(id, { name });
   }
 
-  function showBlock(block: ArchiveBlock, name: string) {
+  function showBlock(block: ArchiveBlock, name: string, action: 'archive' | 'delete') {
     if (block.kind === 'last-active') {
+      // المسح بيقترح "رجّع واحدة من المؤرشفة" — اللي عنده مؤرشفة مش محتاج يعمل
+      // جديدة. في الأرشفة الكلام ده مالوش معنى، فكل واحد ليه جملته
       Alert.alert('دي آخر محفظة شغالة',
-        'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
+        action === 'delete'
+          ? 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.'
+          : 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
         [{ text: 'تمام' }]);
       return;
     }
@@ -114,7 +118,7 @@ export default function WalletsScreen() {
   function blockedAsLastActive(id: string, name: string) {
     const block = walletDeleteBlock(id, latestWallets.current);
     if (!block) return false;
-    showBlock(block, name);
+    showBlock(block, name, 'delete');
     return true;
   }
 
@@ -176,7 +180,7 @@ export default function WalletsScreen() {
     const refs = refsFor(id);
     const others = activeWallets.filter(x => x.id !== id);
     const block = archiveBlockFor(id);
-    if (block) { showBlock(block, name); return; }
+    if (block) { showBlock(block, name, 'archive'); return; }
 
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
@@ -214,7 +218,7 @@ export default function WalletsScreen() {
       return;
     }
     const block = archiveBlockFor(sheet.id);
-    if (block) { setSheet(null); showBlock(block, sheet.name); return; }
+    if (block) { setSheet(null); showBlock(block, sheet.name, 'archive'); return; }
     // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
     // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
     // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني

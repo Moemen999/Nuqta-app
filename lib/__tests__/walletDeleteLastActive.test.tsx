@@ -45,11 +45,13 @@ warmUp(() => { seed([cash, bank]); return ui(); });
 const lastButtons = () => alertSpy.mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
 const press = async (text: string) => { await act(async () => { lastButtons().find(b => b.text === text)!.onPress!(); }); };
 const pressDelete = async (id: string) => { await act(async () => { fireEvent.press(screen.getByTestId(`wallet_delete_${id}`)); }); };
-const expectLastActiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(
-  'دي آخر محفظة شغالة',
-  'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
-  [{ text: 'تمام' }],
-);
+// المسح والأرشفة نفس العنوان وجملتين مختلفتين: "رجّع واحدة من المؤرشفة" مالهاش
+// معنى وانت بتأرشف. الاتنين متثبّتين هنا بالحرف عشان ميرجعوش يتلخبطوا في بعض
+const LAST_ACTIVE_TITLE = 'دي آخر محفظة شغالة';
+const DELETE_BODY = 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.';
+const ARCHIVE_BODY = 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.';
+const expectLastActiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY, [{ text: 'تمام' }]);
+const expectArchiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY, [{ text: 'تمام' }]);
 
 describe('walletDeleteBlock', () => {
   it('آخر شغالة ← ممنوع، سواء فيه مؤرشفة ولا لأ', () => {
@@ -128,5 +130,27 @@ describe('شاشة المحافظ', () => {
     await press('حذف');
     expectLastActiveRefusal();
     expect(mockData.deleteWallet).not.toHaveBeenCalled();
+  });
+
+  it('الأرشفة: الشيت مفتوح والمحفظة التانية اتمسحت ← رسالة الأرشفة زي ما هي، مش رسالة المسح', async () => {
+    seed([cash, bank]);
+    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true }];
+    await render(ui());
+    await pressDelete('w1');
+    await press('أرشفها');
+    await act(async () => { fireEvent.press(screen.getByText('البنك')); });
+    mockData.wallets = [cash];
+    await screen.rerender(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('archive_sheet_confirm')); });
+    expectArchiveRefusal();
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY, expect.anything());
+    expect(mockData.archiveWallet).not.toHaveBeenCalled();
+  });
+
+  it('المسح مبيطلعش رسالة الأرشفة', async () => {
+    seed([cash, savings]);
+    await render(ui());
+    await pressDelete('w1');
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY, expect.anything());
   });
 });
