@@ -7,13 +7,13 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import {
-  roundedWalletBalance, walletArchiveBlock, walletDeleteConsequences, walletHasHistory,
+  roundedWalletBalance, walletArchiveBlock, walletDeleteBlock, walletDeleteConsequences, walletHasHistory,
   walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -56,6 +56,10 @@ export default function WalletsScreen() {
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
+  // آخر نسخة من المحافظ لفحص المسح **لحظة الدوسة**: زرار الـAlert بينادي
+  // نسخة الـrender اللي فتحته، فلو قرا `wallets` كان هيشوف اللي قبل التأكيد
+  const latestWallets = useRef(wallets);
+  latestWallets.current = wallets;
 
   /** لو بيانات الرصيد ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
   function blockedByMissingData() {
@@ -88,10 +92,14 @@ export default function WalletsScreen() {
     updateWallet(id, { name });
   }
 
-  function showBlock(block: ArchiveBlock, name: string) {
+  function showBlock(block: ArchiveBlock, name: string, action: 'archive' | 'delete') {
     if (block.kind === 'last-active') {
+      // المسح بيقترح "رجّع واحدة من المؤرشفة" — اللي عنده مؤرشفة مش محتاج يعمل
+      // جديدة. في الأرشفة الكلام ده مالوش معنى، فكل واحد ليه جملته
       Alert.alert('دي آخر محفظة شغالة',
-        'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
+        action === 'delete'
+          ? 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.'
+          : 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
         [{ text: 'تمام' }]);
       return;
     }
@@ -106,13 +114,28 @@ export default function WalletsScreen() {
       [{ text: 'تمام' }]);
   }
 
+  /** آخر محفظة شغالة مبتتمسحش أبدًا — بيقول كده وبيرجّع true */
+  function blockedAsLastActive(id: string, name: string) {
+    const block = walletDeleteBlock(id, latestWallets.current);
+    if (!block) return false;
+    showBlock(block, name, 'delete');
+    return true;
+  }
+
+  /** المسح نفسه، بعد فحص أخير لحظة الدوسة (المحافظ ممكن تكون اتغيّرت والتأكيد مفتوح) */
+  function deleteNow(id: string, name: string) {
+    if (blockedAsLastActive(id, name)) return;
+    runDelete(id, () => deleteWallet(id));
+  }
+
   function confirmDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (blockedAsLastActive(id, name)) return;
     const refs = refsFor(id);
     if (!walletHasHistory(refs)) {
       Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'حذف', style: 'destructive', onPress: () => runDelete(id, () => deleteWallet(id)) },
+        { text: 'حذف', style: 'destructive', onPress: () => deleteNow(id, name) },
       ]);
       return;
     }
@@ -128,12 +151,13 @@ export default function WalletsScreen() {
   /** التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي */
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (blockedAsLastActive(id, name)) return;
     const w = wallets.find(x => x.id === id);
     if (!w) return;
     const balance = roundedWalletBalance(transactions, id, w.openingBalance);
     Alert.alert('مسح نهائي', walletDeleteConsequences({ balance, refs: refsFor(id) }).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
-      { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(id, () => deleteWallet(id)) },
+      { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
     ]);
   }
 
@@ -156,7 +180,7 @@ export default function WalletsScreen() {
     const refs = refsFor(id);
     const others = activeWallets.filter(x => x.id !== id);
     const block = archiveBlockFor(id);
-    if (block) { showBlock(block, name); return; }
+    if (block) { showBlock(block, name, 'archive'); return; }
 
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
@@ -194,7 +218,7 @@ export default function WalletsScreen() {
       return;
     }
     const block = archiveBlockFor(sheet.id);
-    if (block) { setSheet(null); showBlock(block, sheet.name); return; }
+    if (block) { setSheet(null); showBlock(block, sheet.name, 'archive'); return; }
     // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
     // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
     // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني
