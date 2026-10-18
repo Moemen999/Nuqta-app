@@ -77,7 +77,13 @@ export default function AddTransactionModal() {
   async function handleSave() {
     const amt = Number(amount);
     // مفيش ولا محفظة خالص ≠ نسي يختار واحدة — الرسالة بتقول السبب الحقيقي (a11y-architect)
-    if (noActiveWallets) { setError('مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.'); return; }
+    // التعديل هنا معناه إن المحافظ كلها اتأرشفت أو اتمسحت — "لسه" و"سجّل" غلط ليه
+    if (noActiveWallets) {
+      setError(isEdit
+        ? 'مفيش ولا محفظة شغالة دلوقتي، فمش هينفع نحفظ التعديل. رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة، وبعدين عدّل تاني.'
+        : 'مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.');
+      return;
+    }
     if (!amt || amt <= 0 || !walletId) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
     if (type === 'withdraw' && (!toWalletId || toWalletId === walletId)) {
       setError('اختار محفظة وجهة مختلفة'); return;
