@@ -3,7 +3,8 @@ import { Money } from '@/components/Money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { type BalanceProjection } from '@/lib/finance';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * سطر صغير تحت خانة المبلغ: الرقم بفواصل، والرصيد رايح فين لو حفظت.

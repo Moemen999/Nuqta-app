@@ -2,7 +2,8 @@ import BackButton from '@/components/BackButton';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 

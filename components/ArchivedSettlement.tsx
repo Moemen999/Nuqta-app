@@ -6,7 +6,8 @@ import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/a
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
 

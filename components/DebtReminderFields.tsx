@@ -3,7 +3,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /** الاختيارات الجاهزة للتذكير — بالأيام قبل المعاد */
 const DAYS_OPTIONS = [
@@ -95,6 +96,6 @@ function makeStyles(c: ThemeColors) {
     clearText: { color: c.danger, fontSize: 12, fontWeight: '700' },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 16 },
+    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
   });
 }

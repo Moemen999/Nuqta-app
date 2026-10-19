@@ -19,7 +19,7 @@
 - **Firebase JS SDK v12** — `firebase/auth` (مع `getReactNativePersistence` عشان تسجيل الدخول يفضل محفوظ) و`firebase/firestore`
 - **AsyncStorage** لحاجات محلية بسيطة (تفضيل الثيم، حالة الـ onboarding)
 - **expo-secure-store** + **expo-crypto** لتخزين قفل التطبيق (PIN/باسورد) بشكل آمن
-- **@expo-google-fonts/tajawal** لخط Tajawal
+- **@expo-google-fonts/ibm-plex-sans-arabic** لخط IBM Plex Sans Arabic (400/500/700) — كان Tajawal لحد 2026-10-18 وعمره ما اتطبّق فعلاً
 - **expo-contacts** لاختيار شخص من جهات الاتصال في شاشة الديون
 - **expo-file-system** + **expo-sharing** + **xlsx** لتصدير الأرشيف إكسيل
 - **react-native-chart-kit** + **react-native-svg** للرسوم في التقارير
@@ -28,7 +28,7 @@
 ## البنية (إيه اللي في كل فولدر)
 
 ### `app/` — الشاشات (Expo Router)
-- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `AppLockProvider` → `AuthProvider` → `DataProvider` → `NotificationsProvider`)، بيحمّل خطوط Tajawal ويطبّقها عالميًا، وبيشغّل `initSentry()` وقت تحميل الموديول (برّه الكومبوننت عن قصد — الأخطاء اللي بتحصل في أول render مبتتلقطش لو التهيئة جوه `useEffect`)، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context.
+- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `AppLockProvider` → `AuthProvider` → `DataProvider` → `NotificationsProvider`)، بيحمّل خط التطبيق (`useFonts(APP_FONT_SOURCES)`) ويقول للغلاف اتحمّل ولا لأ (`setAppFontReady`) قبل أول رسمة — وفشل التحميل بيروح Sentry، وبيشغّل `initSentry()` وقت تحميل الموديول (برّه الكومبوننت عن قصد — الأخطاء اللي بتحصل في أول render مبتتلقطش لو التهيئة جوه `useEffect`)، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context.
   **ترتيب الـ Providers مش شكلي:** `NotificationsProvider` **جوّه** `DataProvider` لأنه بينادي `useData()` عشان يراقب الاشتراكات والجمعيات
 - `(auth)/` — شاشة تسجيل الدخول/التسجيل (`index.tsx`) و`_layout.tsx` بتاعها
 - `(tabs)/` — التابات الخمسة الأساسية:
@@ -73,6 +73,7 @@
 - `NoticeProvider.tsx` — رسالة نتيجة بزرار "تمام" بشكل التطبيق (RTL، الثيمين) بدل `Alert.alert` في **مسارات الفلوس** (2026-09-29): `const notice = useNotice(); notice(عنوان، جملة)`. في الجذر عشان تفضل بعد ما المودال يتقفل، وبتتصف، ومن غير Provider بترجع للأصلي. التأكيدات اللي فيها اختيار (امسح/إلغاء) لسه `Alert` — نمط تاني
 - `ChargeModePicker.tsx` — اختيار "بيسألك الأول" (الافتراضي) / "بيتسجل لوحده" في فورم الاشتراك والجمعية — نفس أسامي الدخل الثابت من مصدر واحد (`CHARGE_MODE_LABEL`)
 - `BackButton.tsx` — زرار الرجوع في الشاشات الجوّه
+- `AppText.tsx` — `Text` و`TextInput` بخط التطبيق **بنفس الأسامي**: كل الشاشات بتستورد منه مش من `react-native` (اختبار الجرد `appFont.test.tsx` بيرفض غير كده)
 
 **الكود الميت من قالب Expo اتشال** (2026-09-27، تنضيفة Antigravity — `4350d29`):
 `external-link`, `hello-wave`, `parallax-scroll-view`, `themed-text`,
@@ -94,7 +95,7 @@
 - **`NotificationsContext.tsx`** — بيدير حالة إشعارات النظام (مفعّلة أو لأ، التذكير اليومي ومعاده)، محفوظة في AsyncStorage. بيراقب `subscriptions` و`gamiyas` من `DataContext` وكل ما تتغيّر بيعيد جدولة كل التذكيرات من الأول عبر `lib/scheduleAllReminders.ts`
 
 ### `lib/`
-- `applyGlobalFont.ts` — بتـpatch كومبوننتس `Text` و`TextInput` من react-native عشان تطبّق خط Tajawal على **كل** نص في التطبيق تلقائيًا (تختار الوزن المناسب حسب `fontWeight`)، بدل ما تحط `fontFamily` يدوي في كل ملف
+- `appFont.ts` + `appFontSources.ts` — أسامي ملفات الخط (`APP_FONT`، مصدر واحد للغلاف و`useFonts`)، والوزن ← الملف (700+/bold ← عريض، 500/600 ← متوسط، غير كده ← عادي)، و**شيل `fontWeight`** من الاستايل: `expo-font` بيسجّل كل ملف "عادي" بس، ولو فضل وزن 700 أندرويد بيرسم بخط النظام ساكت. النص جوه نص بيورث الوزن، ولو الخط ما اتحمّلش الاستايل بيعدّي زي ما هو (خط النظام بأوزانه). اسم التاب برّه الغلاف: `tabLabelStyle()`
 - `finance.ts` — دوال حسابية مشتركة: `walletBalance` (رصيد محفظة من كل العمليات)، `monthSpend`، `fmt` (تنسيق أرقام)، `todayStr`، `formatTime` (12 ساعة بصيغة ص/م)، `categoryLabel`، وقائمة `CATEGORY_ICONS`
 - `archiving.ts` — **نموذج الأرشفة مقابل الحذف كله**: مين مربوط بمين (`walletReferences`/`categoryReferences`)، إيه اللي بيمنع الأرشفة (`walletArchiveBlock`)، إيه اللي هيضيع لو مسحت (`walletDeleteConsequences`)، وتسوية رصيد المحفظة المؤرشفة (`archivedWalletDeltas`, `settlementNote`). وكمان صيغ العدّ بالعربي (`walletsPhrase`, `transactionsPhrase`...) — فيها حالة صفر ("مفيش محافظ") مش رقم في جملة
 - `tokens.ts` — **مصدر التصميم**: المسافات، الزوايا، شكل الورقة المنسدلة (`sheetStyle`)، والفوتر اللاصق (`stickyFooterStyle`) اللي بيمنع زرار الحفظ يضيع تحت الكيبورد
@@ -277,7 +278,7 @@ breadcrumbs الـconsole بالكامل، و`extra`، و`request`، وكل `con
 1. **كل النصوص عربي مصري عامي واضح** — مش فصحى، ومش عامية مبالغ فيها أو ألفاظ غريبة. لو بتكتب رسالة خطأ أو تسمية زرار، اكتبها زي ما حد بيتكلم عادي
 2. **كل الواجهات RTL بالكامل** — أي `View` فيه صف أفقي لازم `flexDirection: 'row-reverse'`. راجع أي كومبوننت جديد وتأكد الترتيب البصري من اليمين للشمال
 3. **الألوان دايمًا من `ThemeContext`** — استخدم `const { colors } = useTheme()` واستخدم `colors.bg`, `colors.text`, `colors.accent`... إلخ. ممنوع تحط لون hex مباشر في `StyleSheet` إلا لو لون وظيفي ثابت مش جزء من الثيم (زي ألوان التصنيف في `TYPE_LABELS`)
-4. **خط Tajawal مطبق عالميًا** — `lib/applyGlobalFont.ts` بيتنادى مرة واحدة في `app/_layout.tsx` بعد ما الخطوط تحمّل. منعندناش داعي نحط `fontFamily: 'Tajawal...'` يدوي في كل `Text` — ده بيتطبق أوتوماتيك حسب `fontWeight`
+4. **الخط من الغلاف: `Text` و`TextInput` من `@/components/AppText` مش من `react-native`** — الخط IBM Plex Sans Arabic بيتحط من هناك حسب `fontWeight`، وممنوع `fontFamily` يدوي برّه `lib/appFont.ts` (اختبار الجرد بيرفض الاتنين). **ليه مش patch عالمي:** `applyGlobalFont` القديم كان بيلف `Text.render`، وفي RN 0.81 `Text` دالة عادية مالهاش `render` — فالخط عمره ما اتطبّق من 2026-09-04 والاختبارات خضرا (TIMELINE 2026-09-21 و2026-10-18). **والاختبارات متقدرش تثبت إن الخط اترسم على الموبايل** — ده بالعين على الـSamsung
 5. **أي شاشة/مودال فيها إدخال (TextInput) لازم يكون فيها `KeyboardAvoidingView`** (مع `Platform.OS === 'ios' ? 'padding' : undefined` غالبًا) — عشان الكيبورد ميغطيش الحقول. ده باگ اتصلح قبل كده وميتكررش (شوف تحت)
 6. **قواعد Firestore بتتحقق من الحقول المطلوبة بس — مش من شكل المستند كله.**
    `firestore.rules` بتتأكد إن الحقول المطلوبة موجودة وأنواعها صح،

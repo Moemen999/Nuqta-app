@@ -1,5 +1,6 @@
 import { useTheme } from '@/context/ThemeContext';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet} from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * علامة جنب تاريخ العملية معناها إنها **اتسجلت لوحدها** (دخل ثابت أو اشتراك أو

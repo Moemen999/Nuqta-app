@@ -7,8 +7,9 @@ import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
+  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 export const ICON_PICKER_TITLE = 'اختار أيقونة';
 export const ICON_PICKER_HINT = 'الأيقونة بتظهر جنب اسم الفئة في كل مكان — العمليات والتقارير والميزانية.';

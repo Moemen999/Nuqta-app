@@ -1,7 +1,8 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * رسالة نتيجة بزرار واحد ("تمام") بشكل التطبيق نفسه — بديل `Alert.alert` في

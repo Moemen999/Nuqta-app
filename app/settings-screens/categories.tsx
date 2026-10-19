@@ -14,7 +14,8 @@ import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } fr
 import { categoryIcon } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** إدارة الفئات — اتنقلت من شاشة الإعدادات بنفس منطق الحفظ بالحرف */

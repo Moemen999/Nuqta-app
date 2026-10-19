@@ -1,10 +1,12 @@
 import { router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useTheme } from '@/context/ThemeContext';
+import { tabLabelStyle } from '@/lib/appFont';
 
 /**
  * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
@@ -44,7 +46,7 @@ export default function TabLayout() {
           tabBarStyle: { backgroundColor: colors.nav, borderTopColor: colors.border },
           headerShown: false,
           tabBarButton: HapticTab,
-          tabBarLabelStyle: { fontSize: 10 },
+          tabBarLabelStyle: tabLabelStyle(),
         }}>
         <Tabs.Screen
           name="index"

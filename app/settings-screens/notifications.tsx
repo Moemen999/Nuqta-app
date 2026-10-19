@@ -5,7 +5,8 @@ import { hourLabel } from '@/lib/notificationStatus';
 import { selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';

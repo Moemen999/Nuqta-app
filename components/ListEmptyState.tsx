@@ -1,7 +1,8 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 export const EMPTY_OFFLINE_NOTE =
   'وإحنا مش شايفين نت دلوقتي، فيمكن تكون لسه ما وصلتش — مش ضايعة.';

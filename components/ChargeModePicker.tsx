@@ -1,7 +1,8 @@
 import { useTheme } from '@/context/ThemeContext';
 import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
 import { selectionStyle } from '@/lib/selection';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * "بيسألك الأول" (الافتراضي — أي حاجة بتخصم فلوس) أو "بيتسجل لوحده". نفس شكل اختيار
