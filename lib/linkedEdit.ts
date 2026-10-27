@@ -21,6 +21,20 @@ import type { RecurringIncome } from '@/lib/recurringIncome';
  * الفلوس من `direction`، والجمعية من `isPayoutMonth` — قلب النوع كان هيعكسهم.
  */
 
+/**
+ * المبلغ زي ما هيتخزّن (مقرّب للقرش)، أو `null` لو مينفعش يتخزّن.
+ *
+ * **التقريب الأول وبعدين الفحص:** "1e307" رقم محدود فكان بيعدّي `isFinite`، وبعد
+ * `roundMoney` (`× 100`) بيبقى Infinity ويتكتب على العملية والدين. و0.004 كانت
+ * بتعدّي `> 0` وتتخزّن 0. نفس الدالة بتدّي المبلغ اللي بيتخزّن والمبلغ اللي
+ * التسوية بتتحسب منه، فمبيختلفوش.
+ */
+export function storableAmount(value: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const rounded = roundMoney(value);
+  return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
+}
+
 export type LinkKind = 'debt' | 'subscription' | 'gamiya' | 'income';
 
 export function transactionLinkKind(txId: string, src: {

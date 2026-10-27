@@ -1,6 +1,6 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
-import { debtLinkedEditPlan, installmentEditMessage, transactionLinkKind } from '@/lib/linkedEdit';
+import { debtLinkedEditPlan, installmentEditMessage, storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
 
 /**
  * تعديل عملية مربوطة بدين (2026-10-27): الرصيد كان بيتحرك والدين فاضل على
@@ -172,5 +172,14 @@ describe('transactionLinkKind', () => {
     ['tx_sub', 'subscription'], ['tx_gam', 'gamiya'], ['tx_inc', 'income'], ['tx_free', null],
   ])('%s ← %s', (id, kind) => {
     expect(transactionLinkKind(id, sources)).toBe(kind);
+  });
+});
+
+describe('storableAmount — التقريب الأول وبعدين الفحص (R1)', () => {
+  it.each([1e307, 1e308, Infinity, -Infinity, NaN, 0, -5, 0.004])('%s ← null', v => {
+    expect(storableAmount(v)).toBeNull();
+  });
+  it.each([[0.01, 0.01], [100, 100], [250.5, 250.5], [1.005, 1], [100.125, 100.13]])('%s ← %s', (v, out) => {
+    expect(storableAmount(v)).toBe(out);
   });
 });

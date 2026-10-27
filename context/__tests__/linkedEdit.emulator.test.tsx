@@ -101,11 +101,16 @@ it('العملية اتعدّلت من جهاز تاني بعد ما المود�
   expect(harness.api().debts[0].payments[0].amount).toBe(100);
 });
 
-it('مبلغ مش محدود ← failed ومفيش كتابة', async () => {
+it.each([Infinity, 1e307, 1e308])('مبلغ %s ← failed ومفيش كتابة ولا عملية يتيمة', async (amount) => {
+  // 1e307 محدود، بس بعد التقريب (× 100) بيبقى Infinity — الفحص لازم يبقى بعد التقريب (R1)
   const { w, payTxId } = await debtWithPayment();
-  const r = await harness.api().updateDebtLinkedTransaction(payTxId, { amount: Infinity, walletId: w.id, date: '2026-03-20' }, paid(w.id));
+  const before = harness.api().transactions.length;
+  const r = await harness.api().updateDebtLinkedTransaction(payTxId, { amount, walletId: w.id, date: '2026-03-20' }, paid(w.id));
   expect(r.outcome).toBe('failed');
-  expect(harness.api().debts[0].payments[0].amount).toBe(100);
+  const api = harness.api();
+  expect(api.debts[0].payments[0].amount).toBe(100);
+  expect(api.transactions.find(t => t.id === payTxId)!.amount).toBe(100);
+  expect(api.transactions.length).toBe(before);
 });
 
 it('كسر أصغر من القرش ← العملية والدفعة بنفس الرقم المقرّب', async () => {

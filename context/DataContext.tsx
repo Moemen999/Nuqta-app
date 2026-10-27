@@ -7,7 +7,7 @@ import {
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
-import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, type LinkedEditNext } from '@/lib/linkedEdit';
+import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
@@ -1084,11 +1084,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     settlements: Settlement[] = [],
   ): Promise<TxEditResult> {
     if (!uid) return { outcome: 'failed' };
-    // نفس حارس مودالات الدين (`isValidDebtAmount`): "1e999" = Infinity كان هيوصل الدين
-    if (!Number.isFinite(edit.amount) || edit.amount <= 0) return { outcome: 'failed' };
-    // العملية والدين بنفس الرقم بالظبط — من غير التقريب هنا 100.125 كان هيتكتب
-    // على العملية و100.13 على الدفعة
-    const tx = { ...edit, amount: roundMoney(edit.amount) };
+    // التقريب الأول وبعدين الفحص (`storableAmount`): "1e307" كان بيعدّي `isFinite`
+    // ويتقرّب لـInfinity ويتكتب على العملية والدين. والعملية والدين بنفس الرقم
+    // المقرّب بالظبط — نفس الرقم اللي التسوية في المودال بتتحسب منه
+    const amount = storableAmount(edit.amount);
+    if (amount === null) return { outcome: 'failed' };
+    const tx = { ...edit, amount };
     const debtId = debts.find(d => debtRoleOf(d, txId))?.id;
     if (!debtId) {
       noteAtomicFailure('تعديل عملية الدين', new LinkedTxMissingError());

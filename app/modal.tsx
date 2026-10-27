@@ -5,7 +5,9 @@ import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
 import { TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
-import { debtLinkedEditPlan, debtRoleOf, transactionLinkKind, type LinkKind, type LinkedEditNext } from '@/lib/linkedEdit';
+import {
+  debtLinkedEditPlan, debtRoleOf, storableAmount, transactionLinkKind, type LinkKind, type LinkedEditNext,
+} from '@/lib/linkedEdit';
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions, type TxChange } from '@/lib/archiving';
@@ -119,8 +121,8 @@ export default function AddTransactionModal() {
         : 'مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.');
       return;
     }
-    // `isFinite`: "1e999" = Infinity كان بيعدّي (نفس تصليح مودالات الدين ea47f3e)
-    if (!amt || amt <= 0 || !Number.isFinite(amt) || !walletId) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
+    // الفحص على المبلغ **بعد** التقريب: "1e307" محدود بس بيبقى Infinity لما يتقرّب
+    if (storableAmount(amt) === null || !walletId) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
     if (type === 'withdraw' && (!toWalletId || toWalletId === walletId)) {
       setError('اختار محفظة وجهة مختلفة'); return;
     }
