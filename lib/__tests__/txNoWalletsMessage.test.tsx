@@ -29,7 +29,7 @@ const tx = { id: 't1', type: 'expense', amount: 50, walletId: 'w1', date: '2026-
 
 function seed(wallets: object[]) {
   Object.assign(mockData, {
-    wallets, categories: [], transactions: [tx],
+    wallets, categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], linkSourcesReady: true, loadErrors: [], retryLoad: jest.fn(), transactions: [tx],
     addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(), transactionLinkWarning: () => null,
   });
 }

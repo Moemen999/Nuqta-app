@@ -7,6 +7,7 @@ import {
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
+import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
@@ -110,6 +111,18 @@ class WalletMissingError extends Error { name = 'WalletMissingError'; }
  */
 class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
+const LINK_SOURCES: ListenerName[] = ['transactions', 'debts', 'subscriptions', 'gamiyas', 'incomes'];
+
+/**
+ * نتيجة تعديل عملية مربوطة بدين. `gone` = العملية أو الدين أو الربط بينهم
+ * اتغيّروا من جهاز تاني — "جرب تاني" مش هتنفع، لازم تقفل وتفتح من جديد.
+ */
+export type TxEditOutcome = PayOutcome | 'gone';
+export type TxEditResult = { outcome: TxEditOutcome; note?: string | null };
+
+/** العملية اتمسحت، أو اتفكّت من الدين، من جهاز تاني وإحنا بنعدّلها */
+class LinkedTxMissingError extends Error { name = 'LinkedTxMissingError'; }
+
 /**
  * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
  * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
@@ -195,6 +208,29 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * تعديل عملية مربوطة بدين (`updateDebtLinkedTransaction`). مش "خصم": المستخدم
+ * بيعدّل حاجة موجودة، فاللي محتاج يعرفه إن **ولا العملية ولا الدين** اتغيّروا.
+ */
+export const TX_EDIT_OUTCOME_ALERT: Record<Exclude<TxEditOutcome, 'done'>, { title: string; body: string }> = {
+  gone: {
+    title: 'العملية اتغيّرت',
+    body: 'العملية دي أو الدين بتاعها اتغيّروا من جهاز تاني، فمفيش حاجة اتحفظت. شوفها في الرئيسية أو الأرشيف وافتحها تاني لو لسه موجودة.',
+  },
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'التعديل ما اتحفظش. العملية دي مربوطة بدين، فلازم تتأكد من السيرفر عشان الدين والرصيد يفضلوا متطابقين — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتحفظش',
+    body: 'مفيش حاجة اتغيّرت، لا في العملية ولا في الدين. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'wallet-missing': {
+    title: 'محتاج محفظة تانية',
+    body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فمفيش حاجة اتغيّرت. اختار محفظة شغالة وجرب تاني.',
   },
 };
 
@@ -417,6 +453,11 @@ type DataContextType = {
    * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
    */
   loadErrors: ListenerName[];
+  /**
+   * العمليات والسجلات اللي ممكن تكون مربوطة بيها (ديون، اشتراكات، جمعيات، دخل)
+   * وصلوا كلهم ومفيش منهم مرفوض. قبلها مودال العملية مبيعرفش هي مربوطة ولا لأ
+   */
+  linkSourcesReady: boolean;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -438,6 +479,11 @@ type DataContextType = {
   restoreCategory: (id: string) => Promise<void>;
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
+  /** تعديل عملية مربوطة بدين — العملية والدين في ذرة واحدة (`lib/linkedEdit.ts`) */
+  updateDebtLinkedTransaction: (
+    txId: string, tx: Partial<Transaction> & LinkedEditNext, expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>,
+    settlements?: Settlement[],
+  ) => Promise<TxEditResult>;
   deleteTransaction: (id: string, settlements?: Settlement[]) => Promise<void>;
   transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
@@ -593,6 +639,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
+  // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
+  // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
+  const [delivered, setDelivered] = useState<Set<ListenerName>>(() => new Set());
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
@@ -716,6 +766,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]); setIncomes([]);
+      setDelivered(new Set());
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
@@ -781,8 +832,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
      * فاضية لحد ما السيرفر يرد (silent-failure-hunter). بيرجّع نفس الـstate لو
      * الاسم مش موجود، فمفيش render زيادة مع كل snapshot عادي.
      */
-    const loaded = (name: ListenerName) =>
+    const loaded = (name: ListenerName) => {
       setLoadErrors(prev => (prev.includes(name) ? prev.filter(n => n !== name) : prev));
+      setDelivered(prev => (prev.has(name) ? prev : new Set(prev).add(name)));
+    };
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
@@ -1013,6 +1066,74 @@ export function DataProvider({ children }: { children: ReactNode }) {
     stageSettlements(batch, settlements);
     track(batch.commit());
   }
+
+  /**
+   * تعديل عملية مربوطة بدين (أصله، دفعة، زيادة) — العملية والدين مع بعض في
+   * ذرة واحدة (بند 14، 2026-10-27). قبل كده `updateTransaction` كان بيعدّل
+   * العملية بس، فالرصيد يتحرك والمتبقي وعدد الأقساط يفضلوا على الرقم القديم.
+   *
+   * **ذرية مش batch من حالة الرياكت** لنفس سبب `addDebtPayment`: مصفوفة
+   * الدفعات بتتقري من السيرفر، فدفعة نزلت من جهاز تاني متتمسحش وإحنا بنكتب
+   * المصفوفة. والتمن نفسه: محتاجة نت (قاعدة 7) ونتيجة قاطعة.
+   *
+   * المحفظة الجديدة لازم تكون شغالة؛ لو المحفظة ما اتغيّرتش وهي مؤرشفة، التسوية
+   * (`settlements`) هي اللي بتغطيها في نفس الذرة — زي التعديل العادي بالظبط.
+   */
+  async function updateDebtLinkedTransaction(
+    txId: string, edit: Partial<Transaction> & LinkedEditNext, expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>,
+    settlements: Settlement[] = [],
+  ): Promise<TxEditResult> {
+    if (!uid) return { outcome: 'failed' };
+    // التقريب الأول وبعدين الفحص (`storableAmount`): "1e307" كان بيعدّي `isFinite`
+    // ويتقرّب لـInfinity ويتكتب على العملية والدين. والعملية والدين بنفس الرقم
+    // المقرّب بالظبط — نفس الرقم اللي التسوية في المودال بتتحسب منه
+    const amount = storableAmount(edit.amount);
+    if (amount === null) return { outcome: 'failed' };
+    const tx = { ...edit, amount };
+    const debtId = debts.find(d => debtRoleOf(d, txId))?.id;
+    if (!debtId) {
+      noteAtomicFailure('تعديل عملية الدين', new LinkedTxMissingError());
+      return { outcome: 'gone' };
+    }
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    const txRef = doc(db, 'users', uid, 'transactions', txId);
+    const result: { note: string | null } = { note: null };
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const debtSnap = await t.get(debtRef);
+        if (!debtSnap.exists()) throw new DebtMissingError();
+        const txSnap = await t.get(txRef);
+        if (!txSnap.exists()) throw new LinkedTxMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(debtSnap.data() as any) } as Debt;
+        const current = txSnap.data() as Transaction;
+        // اتعدّلت من جهاز تاني بعد ما المودال اتفتح: التسوية (`settlements`)
+        // اتحسبت على الأرقام القديمة، فالكتابة كانت هتسوّي برقم غلط
+        if (current.amount !== expected.amount || current.walletId !== expected.walletId || current.type !== expected.type) {
+          throw new LinkedTxMissingError();
+        }
+        const plan = debtLinkedEditPlan(debt, txId, tx, todayStr());
+        if (!plan) throw new LinkedTxMissingError();
+        if (tx.walletId !== current.walletId
+          && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', tx.walletId)))) {
+          throw new WalletMissingError();
+        }
+        // كل القرايات خلصت — من هنا كتابات بس
+        const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+        t.update(txRef, clean);
+        t.update(debtRef, plan.patch);
+        stageSettlements(t, settlements);
+        result.note = installmentEditMessage(plan.countBefore, plan.countAfter);
+      }));
+      return { outcome: 'done', note: result.note };
+    } catch (e) {
+      noteAtomicFailure('تعديل عملية الدين', e);
+      if (e instanceof WalletMissingError) return { outcome: 'wallet-missing' };
+      if (e instanceof LinkedTxMissingError || e instanceof DebtMissingError) return { outcome: 'gone' };
+      return { outcome: 'failed' };
+    }
+  }
   /**
    * حذف سجل (دين/اشتراك/جمعية) **بكل العمليات المالية المولّدة منه**، في دفعة
    * واحدة بتتبعت من غير انتظار.
@@ -1198,13 +1319,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * في الرئيسية، شخبطة، وإجماليات الأرشيف — كلهم بيفلتروا على النوع صراحةً).
    * يعني التسوية بتصحّح الأرصدة من غير ما تلوّث ولا تقرير.
    */
-  function stageSettlements(batch: WriteBatch, settlements: Settlement[]) {
+  function stageSettlements(batch: Pick<WriteBatch, 'set'> | FirestoreTransaction, settlements: Settlement[]) {
     if (!uid) return;
     settlements.forEach(st => {
       const amount = Math.abs(st.delta);
       if (amount === 0) return;
       const ref = doc(collection(db, 'users', uid, 'transactions'));
-      batch.set(ref, {
+      // الاتنين ليهم نفس `set` — النوع بس اللي مبيتجمعش من غير cast
+      (batch as Pick<WriteBatch, 'set'>).set(ref, {
         type: 'withdraw',
         amount,
         // موجب = المؤرشفة زادت، فالزيادة تخرج منها للمحفظة الشغالة
@@ -2185,10 +2307,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
+        linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
-        addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
+        addTransaction, updateTransaction, updateDebtLinkedTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         setInstallmentCount,

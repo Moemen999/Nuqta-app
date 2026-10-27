@@ -200,6 +200,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
+  'app/modal.tsx': { count: 1, why: 'تأكيد قبل حفظ تعديل بيخلّي المدفوع أكتر من الدين' },
 };
 
 /** الشاشات اللي بتعرض مبالغ — كل واحدة لازم فيها `<Money` أو `money(` */
