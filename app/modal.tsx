@@ -6,7 +6,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
-  debtLinkedEditPlan, debtRoleOf, storableAmount, transactionLinkKind, type LinkKind, type LinkedEditNext,
+  debtLinkedEditPlan, debtRoleOf, storableAmount, storedEditChange, transactionLinkKind, type LinkKind, type LinkedEditNext,
 } from '@/lib/linkedEdit';
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -142,13 +142,20 @@ export default function AddTransactionModal() {
           after: { type, amount: amt, walletId, toWalletId: type === 'withdraw' ? toWalletId : undefined },
         }];
         if (linkKind === 'debt') {
+          // الدين بيخزّن المبلغ مقرّب (`updateDebtLinkedTransaction`)، فالتسوية لازم
+          // تتحسب من نفس المقرّب — وإلا رصيد المؤرشفة يفضل قرش مش صفر (R2)
+          const change = storedEditChange(existing, changes[0].after!);
+          if (!change) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
+          const stored = change.after!.amount;
           const debt = debts.find(d => debtRoleOf(d, existing.id));
-          const plan = debt && debtLinkedEditPlan(debt, existing.id, { amount: amt, walletId, date, categoryId: payload.categoryId });
+          const plan = debt && debtLinkedEditPlan(debt, existing.id, { amount: stored, walletId, date, categoryId: payload.categoryId });
           if (plan && plan.excessAfter > plan.excessBefore && !(await confirmDebtOverpay(debt!.personName, plan.excessAfter))) return;
           // اللي الفورم اتملى بيه، مش النسخة الحية: لو اتعدّلت من جهاز تاني بعد الفتح،
           // الفورم قدامه أرقام قديمة والذرة بترفض ('gone') بدل ما تحفظ فوقها
           const expected = opened.current ?? { amount: existing.amount, walletId: existing.walletId, type: existing.type };
-          settle.request(changes, settlements => { void saveDebtLinked(existing.id, { ...payload, walletId, date }, expected, settlements); });
+          settle.request([change], settlements => {
+            void saveDebtLinked(existing.id, { ...payload, amount: stored, walletId, date }, expected, settlements);
+          });
           return;
         }
         settle.request(changes, settlements => {

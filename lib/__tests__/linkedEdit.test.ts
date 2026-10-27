@@ -1,6 +1,6 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
-import { debtLinkedEditPlan, installmentEditMessage, storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
+import { debtLinkedEditPlan, installmentEditMessage, storableAmount, storedEditChange, transactionLinkKind } from '@/lib/linkedEdit';
 
 /**
  * تعديل عملية مربوطة بدين (2026-10-27): الرصيد كان بيتحرك والدين فاضل على
@@ -181,5 +181,15 @@ describe('storableAmount — التقريب الأول وبعدين الفحص (
   });
   it.each([[0.01, 0.01], [100, 100], [250.5, 250.5], [1.005, 1], [100.125, 100.13]])('%s ← %s', (v, out) => {
     expect(storableAmount(v)).toBe(out);
+  });
+});
+
+describe('storedEditChange — التسوية من المبلغ المتخزّن (R2)', () => {
+  const before = { type: 'income', amount: 100, walletId: 'a' };
+  it('1.005 ← التغيير بـ1 (المتخزّن)، مش 1.005', () => {
+    expect(storedEditChange(before, { type: 'income', amount: 1.005, walletId: 'a' })!.after!.amount).toBe(1);
+  });
+  it('مبلغ مينفعش يتخزّن ← null', () => {
+    expect(storedEditChange(before, { type: 'income', amount: 1e307, walletId: 'a' })).toBeNull();
   });
 });

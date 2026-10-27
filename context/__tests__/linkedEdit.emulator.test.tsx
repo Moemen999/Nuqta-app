@@ -1,4 +1,6 @@
+import { archivedWalletDeltas } from '@/lib/archiving';
 import { debtRemaining, walletBalance } from '@/lib/finance';
+import { storedEditChange } from '@/lib/linkedEdit';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
@@ -124,4 +126,40 @@ it('كسر أصغر من القرش ← العملية والدفعة بنفس �
 it('حساب من غير ديون ولا اشتراكات ← linkSourcesReady بتبقى true (المجموعة الفاضية بتبعت snapshot)', async () => {
   await harness.waitForData(api => api.linkSourcesReady);
   expect(harness.api().debts).toEqual([]);
+});
+
+it('R2: مبلغ بكسور كتير على محفظة مؤرشفة ← بعد التعديل والتسوية رصيد المؤرشفة صفر بالظبط', async () => {
+  const w = harness.api().wallets[0];
+  await harness.api().addWallet('مؤرشفة');
+  await harness.waitForData(api => api.wallets.some(x => x.name === 'مؤرشفة'));
+  const a = harness.api().wallets.find(x => x.name === 'مؤرشفة')!;
+
+  await harness.api().addDebt({
+    direction: 'owed_to_me', personName: 'صاحبي', totalAmount: 1000,
+    isInstallment: false, walletId: w.id, date: '2026-03-10',
+  });
+  await harness.waitForData(api => api.debts.length === 1);
+  await harness.api().addDebtPayment(harness.api().debts[0].id, 100, a.id, '2026-03-20');
+  await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+  const payTxId = harness.api().debts[0].payments[0].transactionId!;
+  // الـ100 اللي دخلت المؤرشفة خرجت منها ← رصيدها صفر قبل الأرشفة
+  await harness.api().addTransaction({ type: 'expense', amount: 100, walletId: a.id, date: '2026-03-21' });
+  await harness.waitForData(api => api.transactions.length === 3);
+  await harness.api().archiveWallet(a.id, {});
+  await harness.waitForData(api => !!api.wallets.find(x => x.id === a.id)?.archived);
+  expect(walletBalance(harness.api().transactions, a.id, 0)).toBe(0);
+
+  // نفس اللي المودال بيعمله: التغيير بالمبلغ المتخزّن، والفرق منه، والتسوية للمحفظة الشغالة
+  const payTx = harness.api().transactions.find(t => t.id === payTxId)!;
+  const change = storedEditChange(payTx, { type: 'income', amount: 1.005, walletId: a.id })!;
+  const settlements = archivedWalletDeltas([change], [{ id: a.id, name: 'مؤرشفة' }]).map(d => ({
+    archivedWalletId: d.walletId, archivedWalletName: d.name, targetWalletId: w.id, delta: d.delta,
+  }));
+  const r = await harness.api().updateDebtLinkedTransaction(payTxId,
+    { amount: change.after!.amount, walletId: a.id, date: '2026-03-20' },
+    { amount: 100, walletId: a.id, type: 'income' }, settlements);
+  expect(r.outcome).toBe('done');
+  await harness.waitForData(api => api.transactions.length === 4 && api.debts[0].payments[0].amount !== 100);
+
+  expect(walletBalance(harness.api().transactions, a.id, 0)).toBe(0);
 });

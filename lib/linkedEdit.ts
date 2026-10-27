@@ -2,6 +2,7 @@ import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import {
   debtExcess, debtRemaining, installmentCountFor, pinInstallmentAmount, reopenedDueDate, roundMoney, todayStr,
 } from '@/lib/finance';
+import type { TxChange } from '@/lib/archiving';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
 /**
@@ -33,6 +34,18 @@ export function storableAmount(value: number): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const rounded = roundMoney(value);
   return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
+}
+
+/**
+ * التغيير اللي تسوية المحفظة المؤرشفة بتتحسب منه في تعديل عملية دين — **بنفس
+ * المبلغ اللي هيتخزّن** (`storableAmount`)، مش اللي اتكتب (R2، 2026-10-28).
+ *
+ * قبل كده الفرق كان بيتحسب من المكتوب والمتخزّن مقرّب: 100 ← 1.005 بيتخزّن 1
+ * (الفرق −99) والتسوية اتحسبت −98.99، فرصيد المؤرشفة كان بيفضل قرش مش صفر.
+ */
+export function storedEditChange(before: TxChange['before'], after: NonNullable<TxChange['after']>): TxChange | null {
+  const amount = storableAmount(after.amount);
+  return amount === null ? null : { before, after: { ...after, amount } };
 }
 
 export type LinkKind = 'debt' | 'subscription' | 'gamiya' | 'income';
