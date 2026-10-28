@@ -4,7 +4,9 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { hourLabel } from '@/lib/notificationStatus';
 import { selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
-import { useMemo } from 'react';
+import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
+import { useBannerDismiss } from '@/lib/useBannerDismiss';
+import { useMemo, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +27,9 @@ export const OPEN_SETTINGS_LABEL = 'افتح الإعدادات';
  * شكله حذف لحاجة بترجع بضغطة. و"من غير تذكير يومي" بقت وضع المفتاح.)
  */
 export const STATUS_ON = 'الإشعارات مفعّلة';
+
+/** testID بحروف صغيرة وشرطة (testIdConvention): noTxToday ← no_tx_today */
+const snake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
 export const STATUS_OFF = 'الإشعارات مقفولة';
 
 /**
@@ -42,6 +47,8 @@ export default function NotificationsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notifs = useNotifications();
+  const banners = useBannerDismiss();
+  const [showRoutine, setShowRoutine] = useState(false);
   const { busy, run } = useBusy();
 
   function toggle(next: boolean) {
@@ -116,24 +123,71 @@ export default function NotificationsScreen() {
             </View>
           </View>
 
-          {notifs.dailyEnabled && (
-            <>
-              <Text style={[styles.hint, { marginTop: 12 }]}>التذكير اليومي الساعة كام؟</Text>
+        </View>
+      )}
+
+      {/* الساعة برّه كارت الإشعارات (2026-10-28): بتتحكم في بانر "لسه ما سجلتش" في الرئيسية
+          كمان، فلازم تتظبط حتى والإشعارات مقفولة. أي ساعة من 24 بدل 4 اختيارات */}
+      <View style={styles.card}>
+        <Text style={styles.switchLabel}>الساعة كام نفكّرك تسجّل مصاريف النهاردة؟</Text>
+        <Text style={styles.hint}>
+          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من الساعة دي. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
+        </Text>
+        <View style={[styles.row, { alignItems: 'center' }]}>
+          <TouchableOpacity testID="notifications_hour_later" style={styles.stepBtn}
+            onPress={() => notifs.setDailyHour((notifs.dailyHour + 1) % 24)}
+            accessibilityRole="button" accessibilityLabel="زوّد ساعة التذكير">
+            <Text style={styles.stepText}>+</Text>
+          </TouchableOpacity>
+          <Text testID="notifications_hour_value" style={styles.hourValue}
+            accessibilityRole="adjustable" accessibilityLabel="ساعة التذكير"
+            accessibilityValue={{ text: hourLabel(notifs.dailyHour) }} accessibilityLiveRegion="polite"
+            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+            onAccessibilityAction={e => notifs.setDailyHour((notifs.dailyHour + (e.nativeEvent.actionName === 'increment' ? 1 : 23)) % 24)}>
+            {hourLabel(notifs.dailyHour)}
+          </Text>
+          <TouchableOpacity testID="notifications_hour_earlier" style={styles.stepBtn}
+            onPress={() => notifs.setDailyHour((notifs.dailyHour + 23) % 24)}
+            accessibilityRole="button" accessibilityLabel="نقّص ساعة التذكير">
+            <Text style={styles.stepText}>−</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* مدة رجوع كل بانر بعد الـ✕ (قرار مؤمن 2026-10-28) — على الجهاز ده بس */}
+      <View style={styles.card}>
+        <Text style={styles.switchLabel}>التنبيه اللي تقفله يرجع بعد قد إيه؟</Text>
+        <Text style={styles.hint}>
+          لما تقفل تنبيه في الرئيسية بالـ✕، بيرجع بعد المدة دي لو المشكلة لسه موجودة. تحذيرات الأرقام مددها أقصر، عشان رقم ممكن يكون غلط ميتخبّاش وقت طويل.
+        </Text>
+        {/* مجموعتين (visual-identity-reviewer: 10 صفوف بتطوّل الشاشة): التحذيرات مفتوحة دايمًا،
+            والباقي مطوي لحد ما المستخدم يفتحه */}
+        <Text style={[styles.groupLabel, { marginTop: 12 }]}>تحذيرات الأرقام</Text>
+        {[...WARNING_BANNERS, ...(showRoutine ? BANNER_TYPES.filter(t => !WARNING_BANNERS.includes(t)) : [])].map((type, i) => {
+          const chosen = intervalMs(type, banners.intervals);
+          return (
+            <View key={type} style={{ marginTop: 12 }}>
+              {i === WARNING_BANNERS.length && <Text style={[styles.groupLabel, { marginBottom: 6 }]}>باقي التنبيهات</Text>}
+              <Text style={styles.typeLabel}>{BANNER_LABELS[type]}</Text>
               <View style={styles.row}>
-                {[14, 18, 20, 22].map(h => (
-                  <TouchableOpacity
-                    key={h}
-                    testID={`notifications_hour_${h}`}
-                    onPress={() => notifs.setDailyHour(h)}
-                    style={[styles.graceBtn, selectionStyle(colors, notifs.dailyHour === h)]}>
-                    <Text style={{ color: colors.text, fontSize: 11.5 }}>{hourLabel(h)}</Text>
+                {intervalOptions(type).map(o => (
+                  <TouchableOpacity key={o.id} testID={`banner_interval_${snake(type)}_${o.id}`}
+                    onPress={() => banners.setInterval(type, o.id)}
+                    accessibilityRole="button" accessibilityState={{ selected: chosen === o.ms }}
+                    accessibilityLabel={`${BANNER_LABELS[type]}: يرجع بعد ${o.label}`}
+                    style={[styles.graceBtn, selectionStyle(colors, chosen === o.ms)]}>
+                    <Text style={{ color: colors.text, fontSize: 11.5 }}>{o.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </>
-          )}
-        </View>
-      )}
+            </View>
+          );
+        })}
+        <TouchableOpacity testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
+          accessibilityRole="button" accessibilityState={{ expanded: showRoutine }}>
+          <Text style={styles.toggleText}>{showRoutine ? 'اخفي باقي التنبيهات' : `اظهر باقي التنبيهات (${BANNER_TYPES.length - WARNING_BANNERS.length})`}</Text>
+        </TouchableOpacity>
+      </View>
     </ScrollView>
   );
 }
@@ -150,6 +204,13 @@ function makeStyles(c: ThemeColors) {
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3, lineHeight: 17 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 18, borderWidth: 1, borderColor: c.border },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
-    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 9 },
+    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: 44 },
+    stepBtn: { width: 44, height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
+    stepText: { color: c.text, fontSize: 20, fontWeight: '700' },
+    hourValue: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+    typeLabel: { color: c.text, fontSize: 13, textAlign: 'right' },
+    groupLabel: { color: c.textSecondary, fontSize: 12, fontWeight: '700', textAlign: 'right' },
+    toggleRow: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
+    toggleText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'right' },
   });
 }

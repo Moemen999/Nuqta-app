@@ -6,7 +6,7 @@ import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataCon
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
-import { parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
+import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
@@ -321,7 +321,11 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(sub.chargeMode ?? 'confirm');
   const [showPicker, setShowPicker] = useState(false);
-  const [error, setError] = useState('');
+  // C2: قيمة قديمة برّه الحدود ← رسالتها بتبان من أول ما التعديل يتفتح
+  const [error, setError] = useState(() => legacyNote(subscriptionEntryProblem({
+    amount: sub.amount, frequency: sub.frequency, customDays: sub.frequency === 'custom' ? sub.customDays : undefined,
+    reminderDaysBefore: sub.reminderDaysBefore ?? 0,
+  })));
 
   async function handleSave() {
     // بعد التقريب مش قبله: "1e999" و"1e307" كانوا بيتخزّنوا Infinity (بند 15)

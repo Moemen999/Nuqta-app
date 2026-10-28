@@ -11,12 +11,17 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
+import { useDailyReminderHour } from '@/context/NotificationsContext';
+import DismissButton from '@/components/DismissButton';
+import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
+import { useBannerDismiss } from '@/lib/useBannerDismiss';
+import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, AppState, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useNoWallets } from '@/lib/useNoWallets';
@@ -45,6 +50,9 @@ function HomeScreen() {
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
+  const { hidden, dismiss, clear } = useBannerDismiss();
+  const dailyHour = useDailyReminderHour();
+  const nowHour = useCurrentHour();
 
   // المؤرشفة بتختفي من الرئيسية بالكامل: الشرايح والإجمالي والتنبيهات.
   // شرط الأرشفة إن رصيدها صفر، فشيلها من الإجمالي مبيغيّرش رقم — والتنبيه
@@ -83,6 +91,19 @@ function HomeScreen() {
    * متأكدين من السيرفر: من غير نت ده بانر "مفيش نت" اللي فوق، ولو listener المحافظ
    * اترفض ده بانر "مقدرناش نجيب بياناتك" — مش "مفيش محافظ".
    */
+  // تحذيرات الأرقام: الحالة خلصت ← القفل بيتشال، فانقطاع جديد بيظهر (silent-failure-hunter).
+  // بس لما الحالة **كانت موجودة في الجلسة دي وخلصت** — الحالتين بيبدأوا false في كل فتحة،
+  // والمسح ساعتها كان بيشيل ✕ الجلسة اللي فاتت (الجولة التانية)
+  const wasOffline = useRef(false);
+  const wasStale = useRef(false);
+  useEffect(() => {
+    if (offlineEmpty) wasOffline.current = true;
+    else if (wasOffline.current) { wasOffline.current = false; clear('offline'); }
+  }, [offlineEmpty, clear]);
+  useEffect(() => {
+    if (staleFigures) wasStale.current = true;
+    else if (wasStale.current) { wasStale.current = false; clear('stale'); }
+  }, [staleFigures, clear]);
   const noWalletsState = useNoWallets();
   const noWallets = loadWindowPassed && noWalletsState.none;
   const onlyArchived = loadWindowPassed && noWalletsState.onlyArchived;
@@ -165,25 +186,26 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        {/* الترتيب (2026-09-29): الرصيد ثابت فوق — وبعده على طول **اللي بيقول إن رقم
-            على الشاشة ممكن يكون غلط أو ناقص**: مفيش نت، "النت قطع — الأرقام ممكن تكون
-            قديمة"، و"ما سجلناش" (التسجيل
-            التلقائي فشل)، وحالة "مفيش ولا محفظة". بانر "مقدرناش نجيب بياناتك"
-            (listener اترفض) أعلى من كده كمان: فوق الـStack كله، فوق الرصيد نفسه وفي
-            كل تاب. بعدهم سطر "مستنيين ردك"، وآخر العمليات، وبعدين باقي التنبيهات
-            (مش بتقول إن رقم غلط، ومش داخلة في العدّاد). تسجيل عملية هو "+" الظاهر
-            دايمًا. الترتيب ده متثبّت في homeBannerOrder.test.tsx */}
-        {offlineEmpty && (
-          <View testID="home_banner_offline" style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accentText }]}>
+        {/* الترتيب (قرار مؤمن 2026-10-28، رجوع عن 2026-09-29): الرصيد ثابت فوق، وبعده
+            **كل** التنبيهات، وبعدين آخر العمليات. السبب: مؤمن بطّل ياخد باله من البانرات
+            وهي تحت القايمة. جوه التنبيهات: اللي بيقول إن رقم ممكن يكون غلط الأول (مفيش
+            نت، "الأرقام ممكن تكون قديمة"، "ما سجلناش"، "مفيش ولا محفظة")، وبعده سطر
+            "مستنيين ردك"، وبعده الباقي. "مقدرناش نجيب بياناتك" فوق الـStack كله. كل بانر
+            ليه ✕ وبيرجع بعد المدة اللي المستخدم اختارها (lib/bannerDismiss.ts).
+            متثبّت في homeBannerOrder.test.tsx */}
+        {offlineEmpty && !hidden('offline') && (
+          <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
+            <DismissButton testID="home_banner_dismiss_offline" onPress={() => dismiss('offline')} hint={DISMISS_HINT} label={dismissLabel('offline')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
-        {staleFigures && (
-          <View testID="home_banner_stale" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+        {staleFigures && !hidden('stale') && (
+          <View testID="home_banner_stale" style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
-            <Text style={[styles.bannerText, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
+            <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
         {noWallets && (
@@ -206,6 +228,73 @@ function HomeScreen() {
         <IncomeAutoNotices />
         <ChargeAutoNotices />
         <PendingSummary />
+        {/* باقي التنبيهات (2026-10-28): فوق آخر العمليات كمان — مش تحتها */}
+        <EmailVerificationBanner />
+        {/* بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي) */}
+        {!hasTodayTx && !offlineEmpty && !noWallets && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
+          <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
+            <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
+            <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />
+          </View>
+        )}
+        {lowWallets.filter(w => !hidden('lowBalance', w.id)).map(w => (
+          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.danger }]}
+              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
+              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
+            </Text>
+            <DismissButton testID={`home_banner_dismiss_low_balance_${w.id}`} onPress={() => dismiss('lowBalance', w.id)} hint={DISMISS_HINT} label={dismissLabel('lowBalance', w.name)} announce={DISMISSED_ANNOUNCEMENT} />
+          </View>
+        ))}
+        {/* المفتاح بالدرجة (silent-failure-hunter): ✕ على "قربت تخلص" ميخبّيش "خلصت" */}
+        {totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`) && (
+          <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
+              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
+              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
+            </Text>
+            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
+          </View>
+        )}
+        {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)).map(b => (
+          <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
+              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
+              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
+            </Text>
+            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
+          </View>
+        ))}
+        {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
+        {dueSubscriptions.filter(s => !hidden('subscriptionDue', `${s.id}@${s.nextDueDate}`)).map(s => {
+          const d = daysUntil(s.nextDueDate);
+          return (
+            // الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش (a11y-architect)
+            <View key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
+                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
+                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
+              </Text>
+              </TouchableOpacity>
+              <DismissButton testID={`home_banner_dismiss_sub_${s.id}`} onPress={() => dismiss('subscriptionDue', `${s.id}@${s.nextDueDate}`)} hint={DISMISS_HINT} label={dismissLabel('subscriptionDue', s.name)} announce={DISMISSED_ANNOUNCEMENT} />
+            </View>
+          );
+        })}
+        {dueGamiyaMonths.filter(({ month }) => !hidden('gamiyaDue', month.id)).map(({ gamiya, month }) => {
+          const d = daysUntil(month.dueDate);
+          return (
+            <View key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
+                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
+                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
+              </Text>
+              </TouchableOpacity>
+              <DismissButton testID={`home_banner_dismiss_gamiya_${month.id}`} onPress={() => dismiss('gamiyaDue', month.id)} hint={DISMISS_HINT} label={dismissLabel('gamiyaDue', gamiya.name)} announce={DISMISSED_ANNOUNCEMENT} />
+            </View>
+          );
+        })}
         <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && (
           <Text style={styles.emptyState}>
@@ -240,59 +329,6 @@ function HomeScreen() {
             </TouchableOpacity>
           );
         })}
-        {/* تنبيهات مش مستنية رد: تحت آخر العمليات، ومش داخلة في عدّاد السطر */}
-        <EmailVerificationBanner />
-        {!hasTodayTx && !offlineEmpty && !noWallets && (
-          <View testID="home_banner_no_tx_today" style={styles.banner}>
-            <Text style={styles.bannerText}>لسه ما سجلتش مصاريف النهاردة</Text>
-          </View>
-        )}
-        {lowWallets.map(w => (
-          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.danger }]}
-              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
-              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
-            </Text>
-          </View>
-        ))}
-        {totalBudgetAlert && (
-          <View style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
-            </Text>
-          </View>
-        )}
-        {budgetAlerts.map(b => (
-          <View key={b.cat.id} style={[styles.banner, { borderColor: colors.warnBorder }]}>
-            <Text style={[styles.bannerText, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
-            </Text>
-          </View>
-        ))}
-        {dueSubscriptions.map(s => {
-          const d = daysUntil(s.nextDueDate);
-          return (
-            <TouchableOpacity key={s.id} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accentText }]}
-                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
-                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-        {dueGamiyaMonths.map(({ gamiya, month }) => {
-          const d = daysUntil(month.dueDate);
-          return (
-            <TouchableOpacity key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, { color: colors.accentText }]}
-                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
-                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
       </ScrollView>
     </View>
   );
@@ -320,6 +356,7 @@ function EmailVerificationBanner() {
   const [verified, setVerified] = useState(true);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const { hidden, dismiss } = useBannerDismiss();
 
   const usesPassword = !!user?.providerData?.some(p => p.providerId === 'password');
 
@@ -341,7 +378,7 @@ function EmailVerificationBanner() {
     return () => sub.remove();
   }, [refresh]);
 
-  if (!user || !usesPassword || verified) return null;
+  if (!user || !usesPassword || verified || hidden('verifyEmail')) return null;
 
   function handleResend() {
     setError('');
@@ -359,9 +396,12 @@ function EmailVerificationBanner() {
 
   return (
     <View testID="home_banner_verify_email" style={[styles.banner, { borderColor: colors.warnBorder }]}>
-      <Text style={[styles.bannerText, { color: colors.accentText }]}>
-        إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
-      </Text>
+      <View style={styles.bannerRow}>
+        <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
+          إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
+        </Text>
+        <DismissButton testID="home_banner_dismiss_verify_email" onPress={() => dismiss('verifyEmail')} hint={DISMISS_HINT} label={dismissLabel('verifyEmail')} announce={DISMISSED_ANNOUNCEMENT} />
+      </View>
       {sent && !error ? (
         <Text style={styles.bannerText}>بعتنالك رسالة تأكيد جديدة، شوف إيميلك</Text>
       ) : (
@@ -402,6 +442,9 @@ function makeStyles(c: ThemeColors) {
     walletChipVal: { color: c.textSecondary, fontSize: 12 },
     dot: { width: 8, height: 8, borderRadius: 4 },
     banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
+    // بانر فيه ✕: النص يمين والـ✕ شمال (RTL)
+    bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
+    bannerFlex: { flex: 1 },
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
     bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
     bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },

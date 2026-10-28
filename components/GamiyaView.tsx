@@ -6,7 +6,7 @@ import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataCo
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
-import { ENTRY_MESSAGES, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
+import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
@@ -328,7 +328,9 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
   const [walletId, setWalletId] = useState(gamiya.walletId);
   const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(gamiya.chargeMode ?? 'confirm');
-  const [error, setError] = useState('');
+  // C2: تذكير قديم برّه الحدود ← رسالته بتبان من أول ما التعديل يتفتح
+  const [error, setError] = useState(() =>
+    validReminderDays(gamiya.reminderDaysBefore ?? 0) ? '' : `${LEGACY_VALUE_NOTE} ${ENTRY_MESSAGES.reminderDays}`);
 
   const doneCount = gamiya.months.filter(m => m.status === 'done').length;
 
