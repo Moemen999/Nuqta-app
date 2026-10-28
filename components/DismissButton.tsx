@@ -32,6 +32,7 @@ export default function DismissButton({ onPress, testID, label, hint, announce }
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     btn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-    x: { color: c.textMuted, fontSize: 14 },
+    // textSecondary مش textMuted (visual-identity-reviewer): الباهت كان ~2.8:1 في الفاتح، تحت 3:1 لرمز واجهة
+    x: { color: c.textSecondary, fontSize: 14 },
   });
 }
