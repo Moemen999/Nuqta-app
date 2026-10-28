@@ -1800,7 +1800,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { outcome: 'done' };
   }
   async function updateSubscription(id: string, data: Partial<Subscription>): Promise<EntrySaveResult> {
-    const invalid = subscriptionEntryProblem(data);
+    // "مخصص" من غير `customDays` في التعديل ← بيتفحص على المتخزّن (tdd-guide): الشرط
+    // إن المخصص ليه أيام صحيحة، مش إن كل تعديل يبعتها تاني
+    const stored = subscriptions.find(s => s.id === id);
+    const invalid = subscriptionEntryProblem(
+      data.frequency === 'custom' && data.customDays === undefined ? { ...data, customDays: stored?.customDays } : data,
+    );
     if (invalid) return invalid;
     if (!uid) return { outcome: 'done' };
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
