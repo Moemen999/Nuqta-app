@@ -268,6 +268,20 @@ describe('جرد الإخفاء في كل الشاشات', () => {
     expect(users).toEqual(['app/(tabs)/index.tsx']);
   });
 
+  /**
+   * العين للأرصدة (قرار مؤمن 2026-10-28): جوه الرئيسية مبلغ العملية بس اللي بيطلع
+   * من القناع — `AmountsUnmaskedScope` حوالين `<Money value={t.amount}` في صف
+   * "آخر العمليات" ومفيش في أي مكان تاني (البانرات والكروت والرصيد فاضلين مخفيين).
+   */
+  it('الاستثناء جوه الرئيسية: مبلغ صف العملية بس', () => {
+    const users = files.filter(f => /<AmountsUnmaskedScope>/.test(fs.readFileSync(f, 'utf8'))).map(rel);
+    expect(users).toEqual(['app/(tabs)/index.tsx']);
+    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
+    const scopes = home.match(/<AmountsUnmaskedScope>[\s\S]*?<\/AmountsUnmaskedScope>/g) ?? [];
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0]).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
+  });
+
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {
     const src = fs.readFileSync(path.join(ROOT, 'app', 'archive.tsx'), 'utf8');
     expect(src).toMatch(/Amount: t\.amount,/);

@@ -10,7 +10,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
-import { AmountsMaskScope, usePrivacy } from '@/context/PrivacyContext';
+import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
@@ -135,8 +135,8 @@ function HomeScreen() {
               hitSlop={13}
               testID="home_hide_amounts_toggle"
               accessibilityRole="switch"
-              accessibilityLabel="إخفاء المبالغ"
-              accessibilityHint="بيخبّي أرقام الرئيسية بس"
+              accessibilityLabel="إخفاء الأرصدة والمبالغ"
+              accessibilityHint="في الرئيسية بس — مبالغ آخر العمليات بتفضل ظاهرة"
               accessibilityState={{ checked: amountsHidden }}>
               <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -229,7 +229,10 @@ function HomeScreen() {
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
-                <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
+                {/* العين للأرصدة بس — مبلغ العملية ظاهر زي الأرشيف (قرار مؤمن 2026-10-28) */}
+                <AmountsUnmaskedScope>
+                  <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
+                </AmountsUnmaskedScope>
                 <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
