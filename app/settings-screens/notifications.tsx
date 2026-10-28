@@ -34,11 +34,11 @@ const snake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
 export const STATUS_OFF = 'الإشعارات مقفولة';
 
 export const EXACT_ALARM_TITLE = 'التذكيرات ممكن توصل متأخر';
-export const EXACT_ALARM_BODY = 'أندرويد بيأخّر التذكيرات لحد ساعة لو إذن "المنبهات والتذكيرات" مقفول لنقطة. افتح الإعداد وفعّله لنقطة عشان التذكير يوصل في معاده.';
+export const EXACT_ALARM_BODY = 'من غير إذن "المنبهات والتذكيرات" أندرويد ممكن يأخّر التذكير عن معاده. افتح الإعداد، ودوّر على نقطة في القايمة وفعّلها.';
 export const EXACT_ALARM_STATUS_UNKNOWN = 'مش قادرين نعرف من جوه التطبيق هو مفعّل ولا لأ. لو لقيت نقطة في القايمة ومفتاحها مفعّل، يبقى تمام.';
 export const EXACT_ALARM_BUTTON = 'افتح إعداد المنبهات والتذكيرات';
 export const EXACT_ALARM_FAILED_TITLE = 'مقدرناش نفتح الإعداد';
-export const EXACT_ALARM_FAILED_BODY = 'افتح إعدادات الموبايل، وبعدين التطبيقات، وبعدين نقطة، وفعّل "المنبهات والتذكيرات".';
+export const EXACT_ALARM_FAILED_BODY = 'دوّر في إعدادات الموبايل على "المنبهات والتذكيرات"، وفعّلها لنقطة.';
 
 /**
  * إعدادات الإشعارات.

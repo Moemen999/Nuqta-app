@@ -1,4 +1,5 @@
 import { Linking } from 'react-native';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 /**
  * إذن "المنبهات والتذكيرات" (SCHEDULE_EXACT_ALARM) — 2026-10-28.
@@ -39,7 +40,9 @@ export async function openExactAlarmSettings(): Promise<boolean> {
   try {
     await Linking.sendIntent(EXACT_ALARM_ACTION);
     return true;
-  } catch {
+  } catch (e) {
+    // الاحتياطي كان بيخبّي إن الأكشن نفسه مش شغال على جهاز معيّن (silent-failure-hunter) — Sentry بالكود بس
+    reportAtomicFailure('فتح إعداد المنبهات', e);
     try {
       await Linking.openSettings();
       return true;

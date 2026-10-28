@@ -2,6 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { Linking } from 'react-native';
 import { EXACT_ALARM_ACTION, exactAlarmStatus, openExactAlarmSettings } from '@/lib/exactAlarm';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
+
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: jest.fn() }));
 
 /**
  * إذن "المنبهات والتذكيرات" (2026-10-28): أندرويد 12+ من غيره التذكير تقريبي.
@@ -38,11 +41,12 @@ describe('openExactAlarmSettings', () => {
     expect(EXACT_ALARM_ACTION).toBe('android.settings.REQUEST_SCHEDULE_EXACT_ALARM');
     expect(settings).not.toHaveBeenCalled();
   });
-  it('الأكشن اترفض ← تفاصيل التطبيق', async () => {
+  it('الأكشن اترفض ← تفاصيل التطبيق، والرفض بيوصل Sentry (silent-failure-hunter)', async () => {
     jest.spyOn(Linking, 'sendIntent').mockRejectedValue(new Error('no activity'));
     const settings = jest.spyOn(Linking, 'openSettings').mockResolvedValue();
     expect(await openExactAlarmSettings()).toBe(true);
     expect(settings).toHaveBeenCalled();
+    expect(reportAtomicFailure).toHaveBeenCalledWith('فتح إعداد المنبهات', expect.any(Error));
   });
   it('الاتنين اترفضوا ← false من غير رمي', async () => {
     jest.spyOn(Linking, 'sendIntent').mockRejectedValue(new Error('x'));
