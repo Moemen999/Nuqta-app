@@ -613,6 +613,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const creationTime = user?.metadata?.creationTime;
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  // آخر محافظ وصلت — حارس آخر محفظة شغالة (بند 13) بيقرا منه مش من الـclosure:
+  // الشاشة بتنادي المسح/الأرشفة من زرار Alert اتعمل في render قديم، فالـclosure
+  // كان هيشوف محافظ قديمة (money-reviewer + silent-failure-hunter)
+  const latestWallets = useRef(wallets);
+  latestWallets.current = wallets;
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budgets>({});
@@ -937,7 +942,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // كمان، فالمتصل اللي نسي الفحص بيترفض بدل ما المستخدم يفضل من غير محفظة.
     // **حد:** من المحافظ اللي وصلت النسخة دي — جهازين كل واحد بيمسح واحدة من آخر
     // اتنين لسه ممكن يوصلوا لصفر (محتاج مستند عدّاد أو قاعدة، والقواعد برّه الجولة)
-    const block = walletDeleteBlock(id, wallets);
+    const block = walletDeleteBlock(id, latestWallets.current);
     if (block) return { outcome: 'blocked', block };
     track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
     return { outcome: 'done' };
@@ -963,7 +968,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return { outcome: 'done' };
     // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
     // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
-    if (wallets.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
+    if (latestWallets.current.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
     const batch = writeBatch(db);
     // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
     // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.

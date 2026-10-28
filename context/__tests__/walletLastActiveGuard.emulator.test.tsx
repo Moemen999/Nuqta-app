@@ -67,3 +67,16 @@ it('فيه شغالة تانية ← المسح والأرشفة ماشيين ز
   await harness.waitForData(api => !api.wallets.some(w => w.id === b.id));
   expect(active()).toHaveLength(1);
 });
+
+/**
+ * الشاشة بتنادي المسح/الأرشفة من زرار Alert اتعمل في render قديم — يعني دوال من
+ * `api` قديم. الحارس لازم يشوف آخر محافظ وصلت، مش اللي كانت وقت الـrender ده.
+ */
+it('دالة من render قديم (المحافظ اتغيّرت بعدها) ← بتشوف المحافظ الجديدة وبترفض', async () => {
+  const stale = harness.api();
+  const { keep } = await leaveOneActive();
+  expect(await stale.deleteWallet(keep.id)).toEqual({ outcome: 'blocked', block: { kind: 'last-active' } });
+  expect(await stale.archiveWallet(keep.id, {})).toEqual({ outcome: 'blocked', block: { kind: 'last-active' } });
+  const onServer = await serverWallets();
+  expect(onServer.find(w => w.id === keep.id)?.archived).toBeFalsy();
+});

@@ -129,8 +129,13 @@ export default function WalletsScreen() {
     // DataContext بيرفض هو كمان (بند 13) — لو المحافظ اتغيّرت بين الفحص والكتابة
     // الرفض بيرجع هنا ويتقال بنفس الرسالة
     runDelete(id, async () => {
-      const result = await deleteWallet(id);
-      if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
+      try {
+        const result = await deleteWallet(id);
+        if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
+      } catch {
+        // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection
+        Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش.`, [{ text: 'تمام' }]);
+      }
     });
   }
 
@@ -205,8 +210,14 @@ export default function WalletsScreen() {
 
   /** الأرشفة نفسها — DataContext بيرفض آخر محفظة شغالة هو كمان (بند 13)، والرفض بيتقال بنفس الرسالة */
   async function archiveNow(id: string, name: string, reassign: Parameters<typeof archiveWallet>[1]) {
-    const result = await archiveWallet(id, reassign);
-    if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
+    try {
+      const result = await archiveWallet(id, reassign);
+      if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
+    } catch {
+      // فشل الكتابة نفسها بيتقال من `track` باسم المحفظة؛ ده للي بيترمي قبلها
+      // (تجهيز الدفعة) — كان هيبقى unhandled rejection والشيت اتقفل (silent-failure-hunter)
+      Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش.`, [{ text: 'تمام' }]);
+    }
   }
 
   function confirmRestore(id: string, name: string) {

@@ -202,3 +202,22 @@ describe('رفض DataContext بيوصل للشاشة', () => {
     expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, expect.anything(), expect.anything());
   });
 });
+
+describe('رمي قبل الكتابة مبيتبلعش', () => {
+  it('المسح رمى ← "حصل خطأ" باسم المحفظة', async () => {
+    mockData.deleteWallet = jest.fn(async () => { throw new Error('x'); });
+    await render(ui());
+    await pressDelete('w1');
+    await press('حذف');
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش.', [{ text: 'تمام' }]);
+  });
+  it('الأرشفة رمت ← "حصل خطأ" باسم المحفظة', async () => {
+    mockData.archiveWallet = jest.fn(async () => { throw new Error('x'); });
+    mockData.transactions = [{ id: 't1', type: 'income', amount: 0, walletId: 'w1', date: '2026-09-01' }];
+    await render(ui());
+    await pressDelete('w1');
+    await press('أرشفها');
+    await press('أرشفها');
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتأرشفتش.', [{ text: 'تمام' }]);
+  });
+});
