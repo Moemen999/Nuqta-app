@@ -30,8 +30,10 @@ describe('hiddenUntil / isHidden', () => {
     expect(isHidden(d, 'lowBalance', { lowBalance: '7d' }, T + 2 * 24 * H)).toBe(true);
     expect(isHidden(d, 'lowBalance', { lowBalance: '1h' }, T + 2 * 24 * H)).toBe(false);
   });
-  it('الساعة رجعت لورا (وقت الـ✕ في المستقبل) ← مبيفضلش مقفول أكتر من المدة', () => {
-    expect(hiddenUntil({ offline: T + 10 * H }, 'offline', { offline: '1h' }, T)).toBe(T + H);
+  it('الساعة رجعت لورا (وقت الـ✕ في المستقبل) ← ظاهر، وبيتشال من التخزين (silent-failure-hunter)', () => {
+    const d = { offline: T + 10 * H };
+    expect(hiddenUntil(d, 'offline', { offline: '1h' }, T)).toBeNull();
+    expect(pruneExpired(d, { offline: '1h' }, T)).toEqual({});
   });
   it('اختيار مش معروف أو بايظ ← الافتراضي', () => {
     expect(intervalMs('offline', { offline: 'zzz' })).toBe(H);

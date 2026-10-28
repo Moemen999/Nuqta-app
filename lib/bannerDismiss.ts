@@ -66,12 +66,13 @@ export type Dismissals = Record<string, number>;
 
 /**
  * لحد امتى البانر مقفول، أو \`null\` لو ظاهر. الساعة اترجعت لورا (وقت القفل في
- * المستقبل) ← بيتحسب من دلوقتي، فمبيفضلش مقفول أكتر من المدة (tdd-guide).
+ * المستقبل) ← ظاهر (silent-failure-hunter): الحساب من "دلوقتي" كان بيخلّيه دلوقتي +
+ * المدة في كل مرة، فيفضل مقفول طول ما الساعة متأخرة ومبيتشالش من التخزين أبدًا.
  */
 export function hiddenUntil(d: Dismissals, key: string, chosen: Record<string, string> | undefined, now: number): number | null {
   const at = d[key];
-  if (typeof at !== 'number' || !Number.isFinite(at)) return null;
-  const until = Math.min(at, now) + intervalMs(typeOfKey(key), chosen);
+  if (typeof at !== 'number' || !Number.isFinite(at) || at > now) return null;
+  const until = at + intervalMs(typeOfKey(key), chosen);
   return now < until ? until : null;
 }
 
