@@ -39,7 +39,9 @@ export default function PendingSummary() {
     if (count === 0 && open) setOpen(false);
   }, [count, open]);
 
-  if (!phrase || hidden('pending')) return null;
+  // المفتاح بالعدد (silent-failure-hunter): السطر ده الطريق الوحيد للكروت، فحاجة جديدة
+  // مستنية رد بترجّعه حتى لو اللي قبلها اتقفل
+  if (!phrase || hidden('pending', String(count))) return null;
 
   return (
     <>
@@ -54,7 +56,7 @@ export default function PendingSummary() {
         <Text style={styles.lineText}>{phrase}</Text>
         <Text style={styles.chevron} accessible={false}>‹</Text>
       </TouchableOpacity>
-      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending')} hint={DISMISS_HINT}
+      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending', String(count))} hint={DISMISS_HINT}
         label={dismissLabel('pending')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
 
