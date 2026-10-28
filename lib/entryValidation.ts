@@ -95,7 +95,7 @@ export function gamiyaEntryProblem(data: {
  * تتصلح (قرار مؤمن: الغلط بيترفض برسالة، ومبيتغيّرش ساكت)، بس الرسالة بتبان **أول ما
  * التعديل يتفتح** مش بعد "احفظ" — فالمستخدم اللي جاي يغيّر الاسم بس يعرف من الأول ليه.
  */
-export const LEGACY_VALUE_NOTE = 'فيه خانة متسجّلة من نسخة قديمة وبقت برّه الحدود الجديدة، فلازم تتصلح قبل الحفظ.';
+export const LEGACY_VALUE_NOTE = 'فيه قيمة قديمة برّه الحدود الجديدة. صلّحها قبل ما تحفظ:';
 export const legacyNote = (problem: EntryInvalid | null) => (problem ? `${LEGACY_VALUE_NOTE} ${problem.message}` : '');
 
 export { storableAmount };

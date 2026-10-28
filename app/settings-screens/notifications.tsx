@@ -148,7 +148,7 @@ export default function NotificationsScreen() {
           </Text>
           <TouchableOpacity testID="notifications_hour_earlier" style={styles.stepBtn}
             onPress={() => notifs.setDailyHour((notifs.dailyHour + 23) % 24)}
-            accessibilityRole="button" accessibilityLabel="قلّل ساعة التذكير">
+            accessibilityRole="button" accessibilityLabel="نقّص ساعة التذكير">
             <Text style={styles.stepText}>−</Text>
           </TouchableOpacity>
         </View>

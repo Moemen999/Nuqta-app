@@ -139,4 +139,4 @@ export const dismissLabel = (type: BannerType, name?: string) =>
   name ? `اقفل تنبيه ${BANNER_LABELS[type]}: ${name}` : `اقفل تنبيه ${BANNER_LABELS[type]}`;
 
 /** بيتقال بعد الـ✕ — البانر بيختفي من الشجرة والتركيز بيضيع من غيرها */
-export const DISMISSED_ANNOUNCEMENT = 'اتقفل التنبيه، وهيرجع بعد المدة اللي اخترتها لو المشكلة لسه موجودة';
+export const DISMISSED_ANNOUNCEMENT = 'اتقفل التنبيه، وهيرجع بعد المدة المضبوطة في الإعدادات لو المشكلة لسه موجودة';
