@@ -85,6 +85,21 @@ export function dismissBanner(type: BannerType, instance?: string) {
   saveAfterLoad(DISMISS_KEY, () => state.dismissals);
 }
 
+/**
+ * الحالة خلصت ← القفل بيتشال (silent-failure-hunter): لتحذيرات الأرقام، انقطاع جديد بعد
+ * ما النت رجع لازم يظهر حتى لو اللي قبله اتقفل من دقايق. بعد القراية عشان القديم
+ * المتخزّن ميرجعش بالدمج.
+ */
+export function clearBanner(type: BannerType, instance?: string) {
+  const key = bannerKey(type, instance);
+  void load().then(() => {
+    if (!(key in state.dismissals)) return;
+    const { [key]: _gone, ...rest } = state.dismissals;
+    emit({ dismissals: rest });
+    save(DISMISS_KEY, rest);
+  });
+}
+
 export function setBannerInterval(type: BannerType, id: string) {
   const intervals = { ...state.intervals, [type]: id };
   emit({ intervals, dismissals: pruneExpired(state.dismissals, intervals, Date.now()) });
@@ -101,7 +116,7 @@ export function useBannerDismiss() {
     (type: BannerType, instance?: string) => hiddenUntil(s.dismissals, bannerKey(type, instance), s.intervals, Date.now()) !== null,
     [s],
   );
-  return { hidden, dismiss: dismissBanner, intervals: s.intervals, setInterval: setBannerInterval, loaded: s.loaded };
+  return { hidden, dismiss: dismissBanner, clear: clearBanner, intervals: s.intervals, setInterval: setBannerInterval, loaded: s.loaded };
 }
 
 /** للاختبارات بس */

@@ -268,3 +268,30 @@ it('الساعة اترجعت لورا والمؤقّت اشتغل بدري ← 
   await advance(64_000); // 20:00:01
   expect(shown('home_banner_no_tx_today')).toBe(true);
 });
+
+/** silent-failure-hunter: انقطاع جديد بعد ما الأول خلص بيظهر حتى جوه المدة */
+describe('تحذيرات الأرقام: الحالة خلصت ← القفل اتشال', () => {
+  const ui = () => <ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>;
+  it('مفيش نت ← ✕ ← النت رجع ← قطع تاني بعد 10 دقايق ← البانر ظاهر', async () => {
+    setData({ wallets: [], serverReachable: false });
+    const r = await mount();
+    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_offline')); });
+    setData({ wallets: [], serverReachable: true });
+    await r.rerender(ui());
+    await advance(5 * 60_000);
+    setData({ wallets: [], serverReachable: false });
+    await r.rerender(ui());
+    await advance(5 * 60_000);
+    expect(shown('home_banner_offline')).toBe(true);
+  });
+  it('مقدرناش نجيب بياناتك: listener تاني وقع بعد الـ✕ ← البانر ظاهر', async () => {
+    setData({ loadErrors: ['wallets'] });
+    const r = await render(<ThemeProvider><DataLoadErrorBanner /></ThemeProvider>);
+    await act(async () => {});
+    await act(async () => { fireEvent.press(screen.getByTestId('data_load_error_dismiss')); });
+    expect(shown('data_load_error_banner')).toBe(false);
+    setData({ loadErrors: ['wallets', 'debts'] });
+    await r.rerender(<ThemeProvider><DataLoadErrorBanner /></ThemeProvider>);
+    expect(shown('data_load_error_banner')).toBe(true);
+  });
+});

@@ -50,7 +50,7 @@ function HomeScreen() {
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
-  const { hidden, dismiss } = useBannerDismiss();
+  const { hidden, dismiss, clear } = useBannerDismiss();
   const dailyHour = useDailyReminderHour();
   const nowHour = useCurrentHour();
 
@@ -91,6 +91,9 @@ function HomeScreen() {
    * متأكدين من السيرفر: من غير نت ده بانر "مفيش نت" اللي فوق، ولو listener المحافظ
    * اترفض ده بانر "مقدرناش نجيب بياناتك" — مش "مفيش محافظ".
    */
+  // تحذيرات الأرقام: الحالة خلصت ← القفل بيتشال، فانقطاع جديد بيظهر (silent-failure-hunter)
+  useEffect(() => { if (loadWindowPassed && !offlineEmpty) clear('offline'); }, [loadWindowPassed, offlineEmpty, clear]);
+  useEffect(() => { if (!staleFigures) clear('stale'); }, [staleFigures, clear]);
   const noWalletsState = useNoWallets();
   const noWallets = loadWindowPassed && noWalletsState.none;
   const onlyArchived = loadWindowPassed && noWalletsState.onlyArchived;

@@ -1,7 +1,7 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/listenerErrors';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
@@ -24,17 +24,21 @@ export default function DataLoadErrorBanner() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { hidden, dismiss } = useBannerDismiss();
+  const { hidden, dismiss, clear } = useBannerDismiss();
+  // المفتاح بأسامي اللي وقعوا (silent-failure-hunter): listener تاني وقع بعد الـ✕ ← بانر
+  // جديد (وزرار "جرّب تاني" معاه). ولما كله يرجع، القفل بيتشال
+  const instance = [...loadErrors].sort().join(',');
+  useEffect(() => { if (loadErrors.length === 0) clear('loadError'); }, [loadErrors.length, clear]);
 
   // الـ✕ (قرار مؤمن 2026-10-28): بيتقفل ويرجع بعد المدة — والحالة نفسها (البيانات ما وصلتش)
   // فاضلة، فلو لسه موجودة بعد المدة البانر بيرجع
-  if (loadErrors.length === 0 || hidden('loadError')) return null;
+  if (loadErrors.length === 0 || hidden('loadError', instance)) return null;
 
   return (
     <View testID="data_load_error_banner" style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="alert">
       <View style={styles.titleRow}>
         <Text style={[styles.title, styles.titleFlex]}>{LOAD_ERROR_TITLE}</Text>
-        <DismissButton testID="data_load_error_dismiss" onPress={() => dismiss('loadError')} hint={DISMISS_HINT}
+        <DismissButton testID="data_load_error_dismiss" onPress={() => dismiss('loadError', instance)} hint={DISMISS_HINT}
           label={dismissLabel('loadError')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
       <Text testID="data_load_error_body" style={styles.body}>{loadErrorBody(loadErrors)}</Text>
