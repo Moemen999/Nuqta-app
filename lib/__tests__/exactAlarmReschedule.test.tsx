@@ -69,3 +69,16 @@ it('الجدولة وقعت ← بتوصل Sentry (اسم العملية بس)',
   await mount();
   expect(reportAtomicFailure).toHaveBeenCalledWith('جدولة التذكيرات', expect.any(Error));
 });
+
+/** react-reviewer: العلامة قبل الفتح — رجوع للتطبيق والـpromise لسه مخلصش ← الجدولة بتتعاد برضه */
+it('رجع للتطبيق قبل ما فتح الإعداد يخلص ← الجدولة بتتعاد', async () => {
+  const { openExactAlarmSettings } = jest.requireMock('@/lib/exactAlarm');
+  let resolve!: (v: boolean) => void;
+  openExactAlarmSettings.mockImplementationOnce(() => new Promise<boolean>(r => { resolve = r; }));
+  const before = await mount();
+  let pending!: Promise<boolean>;
+  await act(async () => { pending = api.openExactAlarmSettings(); });
+  await active();
+  await act(async () => { resolve(true); await pending; });
+  expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before + 1);
+});

@@ -101,11 +101,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       if (state !== 'active') return;
-      refreshPermission();
-      if (rescheduleOnReturn.current) {
-        rescheduleOnReturn.current = false;
-        setRescheduleTick(t => t + 1);
-      }
+      const reschedule = rescheduleOnReturn.current;
+      rescheduleOnReturn.current = false;
+      // الجدولة بعد ما الإذن يتقري تاني (react-reviewer): لو الإشعارات اتقفلت من الموبايل
+      // في النص، الـeffect يشوف enabled الجديد مش القديم
+      void refreshPermission().then(() => { if (reschedule) setRescheduleTick(t => t + 1); });
     });
     return () => sub.remove();
   }, [refreshPermission]);
@@ -130,8 +130,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
 
   async function openExactAlarmSettings() {
+    // العلامة **قبل** الفتح (react-reviewer): لو الـpromise خلص متأخر والتطبيق كان راح ورجع،
+    // العلامة كانت بتتحط بعد الرجوع والجدولة بتتفوّت
+    rescheduleOnReturn.current = true;
     const opened = await openExactAlarmSettingsRaw();
-    if (opened) rescheduleOnReturn.current = true;
+    if (!opened) rescheduleOnReturn.current = false;
     return opened;
   }
 
