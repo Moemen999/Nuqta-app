@@ -325,3 +325,11 @@ it('مقدرناش نجيب بياناتك: ✕ ← كله رجع ← نفس ا�
   await advance(10);
   expect(shown('data_load_error_banner')).toBe(true);
 });
+
+/** silent-failure-hunter (الجولة التانية): فتحة جديدة للتطبيق متمسحش ✕ الجلسة اللي فاتت */
+it('فتحة جديدة والحالة مش موجودة ← قفل "الأرقام ممكن تكون قديمة" المتخزّن فاضل', async () => {
+  await AsyncStorage.setItem(DISMISS_KEY, JSON.stringify({ stale: Date.now() - 10 * 60_000 }));
+  await mount();
+  await advance(1000);
+  expect(JSON.parse((await AsyncStorage.getItem(DISMISS_KEY)) ?? '{}')).toHaveProperty('stale');
+});

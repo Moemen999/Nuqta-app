@@ -21,7 +21,7 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, AppState, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useNoWallets } from '@/lib/useNoWallets';
@@ -91,9 +91,19 @@ function HomeScreen() {
    * متأكدين من السيرفر: من غير نت ده بانر "مفيش نت" اللي فوق، ولو listener المحافظ
    * اترفض ده بانر "مقدرناش نجيب بياناتك" — مش "مفيش محافظ".
    */
-  // تحذيرات الأرقام: الحالة خلصت ← القفل بيتشال، فانقطاع جديد بيظهر (silent-failure-hunter)
-  useEffect(() => { if (loadWindowPassed && !offlineEmpty) clear('offline'); }, [loadWindowPassed, offlineEmpty, clear]);
-  useEffect(() => { if (!staleFigures) clear('stale'); }, [staleFigures, clear]);
+  // تحذيرات الأرقام: الحالة خلصت ← القفل بيتشال، فانقطاع جديد بيظهر (silent-failure-hunter).
+  // بس لما الحالة **كانت موجودة في الجلسة دي وخلصت** — الحالتين بيبدأوا false في كل فتحة،
+  // والمسح ساعتها كان بيشيل ✕ الجلسة اللي فاتت (الجولة التانية)
+  const wasOffline = useRef(false);
+  const wasStale = useRef(false);
+  useEffect(() => {
+    if (offlineEmpty) wasOffline.current = true;
+    else if (wasOffline.current) { wasOffline.current = false; clear('offline'); }
+  }, [offlineEmpty, clear]);
+  useEffect(() => {
+    if (staleFigures) wasStale.current = true;
+    else if (wasStale.current) { wasStale.current = false; clear('stale'); }
+  }, [staleFigures, clear]);
   const noWalletsState = useNoWallets();
   const noWallets = loadWindowPassed && noWalletsState.none;
   const onlyArchived = loadWindowPassed && noWalletsState.onlyArchived;
