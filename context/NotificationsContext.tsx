@@ -53,6 +53,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // إعادة جدولة بعد الرجوع من إعداد المنبّهات (tdd-guide: setEnabled(true) وهي true مبيعيدش الـeffect)
   const [rescheduleTick, setRescheduleTick] = useState(0);
   const rescheduleOnReturn = useRef(false);
+  const scheduleChain = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     (async () => {
@@ -115,7 +116,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // مستنيين تفضيل الإخفاء كمان: من غيره أول جدولة كانت ممكن تحط المبالغ
     // في إشعارات مستخدم مختار يخبّيها
     if (loading || !enabled || !privacyLoaded) return;
-    scheduleAllReminders({
+    // ورا بعض مش مع بعض (react-reviewer): كل جدولة "امسح الكل وبعدين جدول"، فاتنين متداخلين
+    // كانوا ممكن يسيبوا تذكيرات مكررة أو ناقصة
+    const opts = {
       subscriptions,
       gamiyas,
       debts,
@@ -124,9 +127,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dailyMinute: 0,
       hideAmounts: amountsHidden,
       incomes,
-      // كانت `.catch(() => {})` (silent-failure-hunter): الجدولة بعد إذن المنبهات هي اللي بتحوّل
-      // التذكير من تقريبي لبالظبط، وفشلها كان بيعدّي ساكت. Sentry بالكود بس، من غير أسامي ولا مبالغ
-    }).catch(e => reportAtomicFailure('جدولة التذكيرات', e));
+    };
+    // كانت `.catch(() => {})` (silent-failure-hunter): الجدولة بعد إذن المنبهات هي اللي بتحوّل
+    // التذكير من تقريبي لبالظبط، وفشلها كان بيعدّي ساكت. Sentry بالكود بس، من غير أسامي ولا مبالغ
+    scheduleChain.current = scheduleChain.current
+      .then(() => scheduleAllReminders(opts))
+      .catch(e => reportAtomicFailure('جدولة التذكيرات', e));
   }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
 
   async function openExactAlarmSettings() {

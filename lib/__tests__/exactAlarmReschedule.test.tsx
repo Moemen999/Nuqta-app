@@ -82,3 +82,16 @@ it('رجع للتطبيق قبل ما فتح الإعداد يخلص ← الج�
   await act(async () => { resolve(true); await pending; });
   expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before + 1);
 });
+
+/** react-reviewer: جدولتين متداخلين ("امسح الكل وجدول") ← ورا بعض مش مع بعض */
+it('جدولة جديدة مبتبدأش قبل ما اللي قبلها تخلص', async () => {
+  let release!: () => void;
+  (scheduleAllReminders as jest.Mock).mockImplementationOnce(() => new Promise<void>(r => { release = r; }));
+  const before = await mount(); // الأولى لسه شغالة
+  await act(async () => { await api.openExactAlarmSettings(); });
+  await active(); // تانية مطلوبة
+  expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before);
+  await act(async () => { release(); });
+  await act(async () => {});
+  expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before + 1);
+});
