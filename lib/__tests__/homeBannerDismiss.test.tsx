@@ -173,3 +173,29 @@ describe('بانر "مقدرناش نجيب بياناتك" (فوق كل الت�
     expect(shown('data_load_error_banner')).toBe(true);
   });
 });
+
+/**
+ * a11y-architect (BLOCKER): الـ✕ مينفعش يبقى جوه عنصر قابل للمس — قارئ الشاشة بيدمج
+ * الأب وولاده في عنصر واحد فالـ✕ مبيتوصلش. الـ✕ لازم يبقى أخ للجزء اللي بيتداس.
+ */
+describe('الـ✕ مش جوه زرار تاني', () => {
+  it('بانر الاشتراك والجمعية', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000);
+    const iso = `${soon.getFullYear()}-${String(soon.getMonth() + 1).padStart(2, '0')}-${String(soon.getDate()).padStart(2, '0')}`;
+    setData({
+      subscriptions: [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true, nextDueDate: iso, reminderDaysBefore: 3 }],
+      gamiyas: [{ id: 'g1', name: 'العيلة', walletId: 'w1', reminderDaysBefore: 3,
+        months: [{ id: 'm2', monthIndex: 2, dueDate: iso, isPayoutMonth: false, amount: 500, status: 'pending' }] }],
+    });
+    await mount();
+    for (const id of ['home_banner_dismiss_sub_s1', 'home_banner_dismiss_gamiya_m2']) {
+      let p = screen.getByTestId(id).parent;
+      const pressableAncestors: string[] = [];
+      while (p) {
+        if (p.props?.accessible === true || typeof p.props?.onClick === 'function') pressableAncestors.push(p.props?.testID ?? '?');
+        p = p.parent;
+      }
+      expect({ id, pressableAncestors }).toEqual({ id, pressableAncestors: [] });
+    }
+  });
+});

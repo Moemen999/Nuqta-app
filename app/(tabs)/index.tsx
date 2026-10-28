@@ -255,25 +255,30 @@ function HomeScreen() {
         {dueSubscriptions.filter(s => !hidden('subscriptionDue', `${s.id}@${s.nextDueDate}`)).map(s => {
           const d = daysUntil(s.nextDueDate);
           return (
-            <TouchableOpacity key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
+            // الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش (a11y-architect)
+            <View key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
                 اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
               </Text>
+              </TouchableOpacity>
               <DismissButton testID={`home_banner_dismiss_sub_${s.id}`} onPress={() => dismiss('subscriptionDue', `${s.id}@${s.nextDueDate}`)} hint={DISMISS_HINT} />
-            </TouchableOpacity>
+            </View>
           );
         })}
         {dueGamiyaMonths.filter(({ month }) => !hidden('gamiyaDue', month.id)).map(({ gamiya, month }) => {
           const d = daysUntil(month.dueDate);
           return (
-            <TouchableOpacity key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]} onPress={() => router.push('/(tabs)/debts')}>
-              <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
+            <View key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
+              <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
                 جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
               </Text>
+              </TouchableOpacity>
               <DismissButton testID={`home_banner_dismiss_gamiya_${month.id}`} onPress={() => dismiss('gamiyaDue', month.id)} hint={DISMISS_HINT} />
-            </TouchableOpacity>
+            </View>
           );
         })}
         <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
