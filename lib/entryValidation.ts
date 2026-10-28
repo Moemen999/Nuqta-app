@@ -90,4 +90,12 @@ export function gamiyaEntryProblem(data: {
   return null;
 }
 
+/**
+ * قيمة متخزّنة من نسخة قديمة وبقت برّه الحدود (C2، 2026-10-28): الحفظ لسه بيترفض لحد ما
+ * تتصلح (قرار مؤمن: الغلط بيترفض برسالة، ومبيتغيّرش ساكت)، بس الرسالة بتبان **أول ما
+ * التعديل يتفتح** مش بعد "احفظ" — فالمستخدم اللي جاي يغيّر الاسم بس يعرف من الأول ليه.
+ */
+export const LEGACY_VALUE_NOTE = 'فيه خانة متسجّلة من نسخة قديمة وبقت برّه الحدود الجديدة، فلازم تتصلح قبل الحفظ.';
+export const legacyNote = (problem: EntryInvalid | null) => (problem ? `${LEGACY_VALUE_NOTE} ${problem.message}` : '');
+
 export { storableAmount };
