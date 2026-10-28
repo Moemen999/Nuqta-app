@@ -255,3 +255,16 @@ describe('"لسه ما سجلتش" قبل ما الإعداد يتقري', () =>
     expect(shown('home_banner_no_tx_today')).toBe(true);
   });
 });
+
+/** silent-failure-hunter: المؤقّت اشتغل بدري والساعة زي ما هي ← بيتعاد ومبيقفش */
+it('الساعة اترجعت لورا والمؤقّت اشتغل بدري ← البانر لسه بيظهر الساعة 8', async () => {
+  const n = new Date();
+  jest.setSystemTime(new Date(n.getFullYear(), n.getMonth(), n.getDate(), 19, 59, 0));
+  setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 0 }], transactions: [] });
+  await mount(); // الساعة بقت 19:59:03، والمؤقّت على 20:00
+  jest.setSystemTime(new Date(n.getFullYear(), n.getMonth(), n.getDate(), 19, 58, 0));
+  await advance(57_000); // المؤقّت بيشتغل والساعة 19:58:57 — لسه 7
+  expect(shown('home_banner_no_tx_today')).toBe(false);
+  await advance(64_000); // 20:00:01
+  expect(shown('home_banner_no_tx_today')).toBe(true);
+});
