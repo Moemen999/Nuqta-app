@@ -6,6 +6,7 @@ import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataCo
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
+import { ENTRY_MESSAGES, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
@@ -174,22 +175,24 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   }
 
   async function handleSave() {
-    const monthly = Number(monthlyAmount);
-    const total = Number(totalMonths);
-    const payoutIdx = Number(payoutMonthIndex);
-    const payout = Number(payoutAmount);
-    if (!name.trim() || !monthly || monthly <= 0 || !total || total <= 0 || !payoutIdx || payoutIdx < 1 || payoutIdx > total || !payout || payout <= 0 || !walletId) {
+    if (!name.trim() || !walletId) {
       setError('راجع البيانات — تأكد إن شهر الاستلام رقم صحيح ضمن عدد الشهور');
       return;
     }
+    // بند 15: كل قيمة غلط بتترفض برسالتها (نفس الفحص جوه DataContext) — المبالغ
+    // Infinity، والشهور كسور أو برّه 1..60، والتذكير `Number(x) || 0` الساكت
+    const data = {
+      name: name.trim(), monthlyAmount: parseEntryNumber(monthlyAmount), totalMonths: parseEntryNumber(totalMonths),
+      payoutMonthIndex: parseEntryNumber(payoutMonthIndex), payoutAmount: parseEntryNumber(payoutAmount), walletId, startDate,
+      reminderDaysBefore: parseEntryNumber(reminderDays),
+      chargeMode,
+    };
+    const problem = gamiyaEntryProblem(data);
+    if (problem) { setError(problem.message); return; }
     await runBusy(async () => {
       try {
-        await addGamiya({
-          name: name.trim(), monthlyAmount: monthly, totalMonths: total,
-          payoutMonthIndex: payoutIdx, payoutAmount: payout, walletId, startDate,
-          reminderDaysBefore: Number(reminderDays) || 0,
-          chargeMode,
-        });
+        const result = await addGamiya(data);
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
@@ -333,14 +336,13 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
   async function handleSave() {
     if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
+    // `Number(x) || 0` كان بيحوّل الغلط لصفر ساكت ويقبل Infinity والسالب (بند 15)
+    const reminderDaysBefore = parseEntryNumber(reminderDays);
+    if (!validReminderDays(reminderDaysBefore)) { setError(ENTRY_MESSAGES.reminderDays); return; }
     await runBusy(async () => {
       try {
-        await updateGamiya(gamiya.id, {
-          name: name.trim(),
-          walletId,
-          reminderDaysBefore: Number(reminderDays) || 0,
-          chargeMode,
-        });
+        const result = await updateGamiya(gamiya.id, { name: name.trim(), walletId, reminderDaysBefore, chargeMode });
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون

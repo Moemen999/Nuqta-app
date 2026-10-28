@@ -9,6 +9,9 @@ import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
 import {
+  gamiyaEntryProblem, invalidEntry, subscriptionEntryProblem, validReminderDays, type EntrySaveResult,
+} from '@/lib/entryValidation';
+import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
   installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
@@ -505,16 +508,16 @@ type DataContextType = {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) => Promise<void>;
-  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
+  }) => Promise<EntrySaveResult>;
+  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) => Promise<void>;
-  updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
+  }) => Promise<EntrySaveResult>;
+  updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
@@ -1760,24 +1763,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) {
-    if (!uid) return;
+  }): Promise<EntrySaveResult> {
+    if (!uid) return { outcome: 'done' };
+    // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
+    const invalid = subscriptionEntryProblem(data);
+    if (invalid) return invalid;
     const { chargeMode, ...rest } = data;
+    rest.amount = storableAmount(rest.amount)!;
     const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     addDocNoWait('subscriptions', {
       ...clean, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()),
       active: true, history: [], closed: {}, createdAt: new Date().toISOString(),
     }, namedLabel('الاشتراك', data.name));
+    return { outcome: 'done' };
   }
-  async function updateSubscription(id: string, data: Partial<Subscription>) {
-    if (!uid) return;
+  async function updateSubscription(id: string, data: Partial<Subscription>): Promise<EntrySaveResult> {
+    if (!uid) return { outcome: 'done' };
+    const invalid = subscriptionEntryProblem(data);
+    if (invalid) return invalid;
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
     const current = subscriptions.find(s => s.id === id);
     const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    if (rest.amount !== undefined) rest.amount = storableAmount(rest.amount)!;
     const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     // "تلقائي" من النهاردة بس — مش من أول ما الاشتراك اتعمل (`chargeModePatch`)
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
+    return { outcome: 'done' };
   }
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
@@ -2220,8 +2232,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) {
-    if (!uid) return;
+  }): Promise<EntrySaveResult> {
+    if (!uid) return { outcome: 'done' };
+    // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
+    const invalid = gamiyaEntryProblem(data);
+    if (invalid) return invalid;
+    const monthlyAmount = storableAmount(data.monthlyAmount)!;
+    const payoutAmount = storableAmount(data.payoutAmount)!;
     const months: GamiyaMonth[] = Array.from({ length: data.totalMonths }, (_, i) => {
       const monthIndex = i + 1;
       const isPayoutMonth = monthIndex === data.payoutMonthIndex;
@@ -2230,22 +2247,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
         monthIndex,
         dueDate: addMonths(data.startDate, i),
         isPayoutMonth,
-        amount: isPayoutMonth ? data.payoutAmount : data.monthlyAmount,
+        amount: isPayoutMonth ? payoutAmount : monthlyAmount,
         status: 'pending',
       };
     });
     const { chargeMode, ...rest } = data;
     addDocNoWait('gamiyas', {
-      ...rest, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()), months, createdAt: new Date().toISOString(),
+      ...rest, monthlyAmount, payoutAmount, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()), months, createdAt: new Date().toISOString(),
     }, namedLabel('الجمعية', data.name));
+    return { outcome: 'done' };
   }
-  async function updateGamiya(id: string, data: Partial<Gamiya>) {
-    if (!uid) return;
+  async function updateGamiya(id: string, data: Partial<Gamiya>): Promise<EntrySaveResult> {
+    if (!uid) return { outcome: 'done' };
+    // التعديل مبيلمسش مبالغ (الشهور اتولّدت خلاص) — التذكير بس (بند 15)
+    if (data.reminderDaysBefore !== undefined && !validReminderDays(data.reminderDaysBefore)) return invalidEntry('reminderDays');
     const current = gamiyas.find(x => x.id === id);
     const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
     const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
+    return { outcome: 'done' };
   }
   async function deleteGamiya(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
