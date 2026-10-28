@@ -98,3 +98,19 @@ it('جمعية جديدة: تذكير 366 ← مرفوض', async () => {
   expect(mockData.addGamiya).not.toHaveBeenCalled();
   expect(screen.getByText(ENTRY_MESSAGES.reminderDays)).toBeTruthy();
 });
+
+describe('D-B: رسايل الجمعية', () => {
+  it('اسم فاضي ← رسالة الاسم والمحفظة، مش شهر الاستلام', async () => {
+    await render(wrap(<GamiyaView />));
+    await press(screen.getByTestId('gamiya_add_button'));
+    await type(screen.getByPlaceholderText('0'), '1000');
+    await press(screen.getByTestId('gamiya_add_save'));
+    expect(screen.getByText('دخّل اسم ومحفظة صحيحين')).toBeTruthy();
+    expect(screen.queryByText(ENTRY_MESSAGES.payoutMonth)).toBeNull();
+    expect(mockData.addGamiya).not.toHaveBeenCalled();
+  });
+  it('رسالة شهر الاستلام بتقول تعمل إيه', () => {
+    expect(ENTRY_MESSAGES.payoutMonth).toContain('اكتب رقم الشهر');
+    expect(ENTRY_MESSAGES.payoutMonth).not.toContain('راجع البيانات');
+  });
+});

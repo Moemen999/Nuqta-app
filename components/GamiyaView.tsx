@@ -175,10 +175,8 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   }
 
   async function handleSave() {
-    if (!name.trim() || !walletId) {
-      setError('راجع البيانات — تأكد إن شهر الاستلام رقم صحيح ضمن عدد الشهور');
-      return;
-    }
+    // D-B: كانت بتقول "شهر الاستلام" والمشكلة اسم أو محفظة — نفس رسالة تعديل الجمعية
+    if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
     // بند 15: كل قيمة غلط بتترفض برسالتها (نفس الفحص جوه DataContext) — المبالغ
     // Infinity، والشهور كسور أو برّه 1..60، والتذكير `Number(x) || 0` الساكت
     const data = {
