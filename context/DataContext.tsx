@@ -2285,8 +2285,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (data.reminderDaysBefore !== undefined && !validReminderDays(data.reminderDaysBefore)) return invalidEntry('reminderDays');
     if (!uid) return { outcome: 'done' };
     const current = gamiyas.find(x => x.id === id);
-    const { chargeMode, ...rest } = data;
-    const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    const { chargeMode } = data;
+    // قايمة مسموحة وقت التشغيل مش النوع بس (typescript-reviewer): `GamiyaEdit` مبيمنعش
+    // مفتاح زيادة لو حد بعت متغيّر (`{ ...gamiya }`)، فالمبالغ والشهور و`chargeAutoSince`
+    // كانوا هيتكتبوا من غير فحص
+    const clean: Record<string, unknown> = Object.fromEntries(
+      (['name', 'walletId', 'reminderDaysBefore'] as const)
+        .filter(k => data[k] !== undefined).map(k => [k, data[k]]),
+    );
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
     return { outcome: 'done' };

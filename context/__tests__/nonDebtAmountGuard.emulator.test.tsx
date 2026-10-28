@@ -112,3 +112,16 @@ describe('جمعية', () => {
     expect((await getDoc(doc(col('gamiyas'), id))).data()).toMatchObject({ reminderDaysBefore: 3 });
   });
 });
+
+it('تعديل جمعية بمتغيّر فيه مفاتيح زيادة ← المبالغ والشهور مبتتكتبش (قايمة مسموحة)', async () => {
+  await harness.api().addGamiya(gam());
+  await harness.waitForData(api => api.gamiyas.length === 1);
+  const g = harness.api().gamiyas[0];
+  const sneaky = { name: 'جمعية 3', monthlyAmount: Infinity, totalMonths: 999, chargeAutoSince: '2000-01-01' } as unknown as { name: string };
+  expect(await harness.api().updateGamiya(g.id, sneaky)).toEqual({ outcome: 'done' });
+  await harness.waitForData(api => api.gamiyas[0]?.name === 'جمعية 3');
+  const stored = (await getDoc(doc(col('gamiyas'), g.id))).data()!;
+  expect(stored.monthlyAmount).toBe(1000);
+  expect(stored.totalMonths).toBe(10);
+  expect(stored.chargeAutoSince).not.toBe('2000-01-01');
+});
