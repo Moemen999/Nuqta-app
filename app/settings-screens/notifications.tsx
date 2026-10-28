@@ -140,14 +140,16 @@ export default function NotificationsScreen() {
           الحالة مبتتقريش من التطبيق (lib/exactAlarm.ts) فالكارت ظاهر طول ما الإشعارات شغالة */}
       {notifs.enabled && alarmStatus !== 'not-needed' && (
         <View testID="exact_alarm_card" style={styles.card}>
-          <Text style={styles.switchLabel}>{EXACT_ALARM_TITLE}</Text>
-          <Text style={styles.hint}>{EXACT_ALARM_BODY}</Text>
-          <Text testID="exact_alarm_status" style={[styles.hint, { marginTop: 6 }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
+          <Text style={styles.switchLabel} accessibilityRole="header">{EXACT_ALARM_TITLE}</Text>
+          {/* alarmText مش hint (a11y-architect): textMuted 11.5 كان تحت 4.5:1 في الثيمين، والسطرين دول الإرشاد الوحيد */}
+          <Text style={styles.alarmText}>{EXACT_ALARM_BODY}</Text>
+          <Text testID="exact_alarm_status" style={[styles.alarmText, { marginTop: 6 }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
           <TouchableOpacity testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
             onPress={() => runOpenAlarm(async () => {
               if (!(await notifs.openExactAlarmSettings())) Alert.alert(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
             })}
-            accessibilityRole="button" accessibilityLabel={EXACT_ALARM_BUTTON} accessibilityState={{ busy: openingAlarm }}>
+            accessibilityRole="button" accessibilityLabel={EXACT_ALARM_BUTTON} accessibilityHint="بيفتح إعدادات الموبايل"
+            accessibilityState={{ busy: openingAlarm, disabled: openingAlarm }}>
             <Text style={styles.alarmBtnText}>{EXACT_ALARM_BUTTON}</Text>
           </TouchableOpacity>
         </View>
@@ -236,6 +238,7 @@ function makeStyles(c: ThemeColors) {
     stepText: { color: c.text, fontSize: 20, fontWeight: '700' },
     hourValue: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: 13, textAlign: 'right' },
+    alarmText: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
     alarmBtn: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 12 },
     alarmBtnText: { color: c.accentText, fontSize: 13.5, fontWeight: '700' },
     groupLabel: { color: c.textSecondary, fontSize: 12, fontWeight: '700', textAlign: 'right' },

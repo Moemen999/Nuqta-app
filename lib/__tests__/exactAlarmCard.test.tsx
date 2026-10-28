@@ -85,3 +85,14 @@ describe('الزرار', () => {
     expect(mockNotifs.openExactAlarmSettings).toHaveBeenCalledTimes(1);
   });
 });
+
+/** a11y-architect: نص الكارت مقروء (مش textMuted)، والزرار بيقول إنه بيخرج للإعدادات، والعنوان header */
+it('الوصولية: لون النص وشرح الزرار والعنوان', async () => {
+  setPlatform('android', 34);
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'app', 'settings-screens', 'notifications.tsx'), 'utf8');
+  expect(src).toMatch(/alarmText: \{ color: c\.textSecondary/);
+  await mount();
+  const btn = screen.getByTestId('exact_alarm_open');
+  expect(btn.props.accessibilityHint).toBe('بيفتح إعدادات الموبايل');
+  expect(screen.getByText(EXACT_ALARM_BODY).props.style).not.toEqual(expect.objectContaining({ fontSize: 11.5 }));
+});
