@@ -12,6 +12,15 @@ const K_ENABLED = 'nuqta_notifs_enabled';
 const K_DAILY = 'nuqta_notifs_daily';
 const K_DAILY_HOUR = 'nuqta_notifs_daily_hour';
 
+/** سقف جدولة واحدة — بعده بتتعتبر فشلت والجاية تبدأ */
+export const SCHEDULE_TIMEOUT_MS = 20_000;
+class ScheduleTimeoutError extends Error { name = 'ScheduleTimeoutError'; }
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { t = setTimeout(() => reject(new ScheduleTimeoutError()), ms); });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t));
+}
+
 /** ساعة التذكير اليومي لو مفيش اختيار — نفس الافتراضي من الأول (20) */
 export const DEFAULT_DAILY_HOUR = 20;
 /** ساعة صالحة 0–23؛ غير كده ← الافتراضي. `Number(x) || 20` كان بيقلب 0 (12 بالليل) لـ20 */
@@ -130,8 +139,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     };
     // كانت `.catch(() => {})` (silent-failure-hunter): الجدولة بعد إذن المنبهات هي اللي بتحوّل
     // التذكير من تقريبي لبالظبط، وفشلها كان بيعدّي ساكت. Sentry بالكود بس، من غير أسامي ولا مبالغ
+    // بسقف (silent-failure-hunter، الجولة التانية): نداء native علّق كان هيوقف كل جدولة بعده
+    // ساكت. بعد السقف بيتبلّغ والسلسلة بتكمّل
     scheduleChain.current = scheduleChain.current
-      .then(() => scheduleAllReminders(opts))
+      .then(() => withTimeout(scheduleAllReminders(opts), SCHEDULE_TIMEOUT_MS))
       .catch(e => reportAtomicFailure('جدولة التذكيرات', e));
   }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
 

@@ -95,3 +95,21 @@ it('جدولة جديدة مبتبدأش قبل ما اللي قبلها تخل�
   await act(async () => {});
   expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before + 1);
 });
+
+/** silent-failure-hunter (الجولة التانية): جدولة علّقت ← بعد السقف بتتبلّغ واللي بعدها بتشتغل */
+it('جدولة علّقت للأبد ← بعد 20 ثانية بتتبلّغ والجاية بتبدأ', async () => {
+  jest.useFakeTimers();
+  try {
+    const { reportAtomicFailure } = jest.requireMock('@/lib/atomicFailure');
+    reportAtomicFailure.mockClear();
+    (scheduleAllReminders as jest.Mock).mockImplementationOnce(() => new Promise<void>(() => {}));
+    const before = await mount();
+    await act(async () => { await api.openExactAlarmSettings(); });
+    await active();
+    expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before);
+    await act(async () => { jest.advanceTimersByTime(20_000); });
+    await act(async () => {});
+    expect(reportAtomicFailure).toHaveBeenCalledWith('جدولة التذكيرات', expect.objectContaining({ name: 'ScheduleTimeoutError' }));
+    expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before + 1);
+  } finally { jest.useRealTimers(); }
+});
