@@ -219,3 +219,14 @@ describe('اسم الـ✕ وإعلانه', () => {
     spy.mockRestore();
   });
 });
+
+/** react-reviewer: ✕ أو مدة قبل ما التخزين يتقري متمسحش اللي كان متخزّن */
+it('✕ قبل القراية ← القديم والجديد الاتنين في التخزين', async () => {
+  await AsyncStorage.setItem(DISMISS_KEY, JSON.stringify({ 'lowBalance:w2': Date.now() - H }));
+  await AsyncStorage.setItem(INTERVALS_KEY, JSON.stringify({ offline: '15m' }));
+  const { dismissBanner } = jest.requireActual('@/lib/useBannerDismiss');
+  await act(async () => { dismissBanner('lowBalance', 'w1'); setBannerInterval('stale', '3h'); });
+  const d = JSON.parse((await AsyncStorage.getItem(DISMISS_KEY))!);
+  expect(Object.keys(d).sort()).toEqual(['lowBalance:w1', 'lowBalance:w2']);
+  expect(JSON.parse((await AsyncStorage.getItem(INTERVALS_KEY))!)).toEqual({ offline: '15m', stale: '3h' });
+});

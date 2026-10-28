@@ -72,16 +72,23 @@ function subscribe(l: () => void) {
   return () => { listeners.delete(l); };
 }
 
+/**
+ * الحفظ بعد ما المتخزّن يتقري (react-reviewer): ✕ أو مدة اتغيّرت قبل القراية كانت
+ * بتكتب الجديد لوحده فوق القديم. القراية بتدمج القديم تحت الجديد، وبعدها بنحفظ الكل
+ */
+function saveAfterLoad(key: string, pick: () => unknown) {
+  void load().then(() => save(key, pick()));
+}
+
 export function dismissBanner(type: BannerType, instance?: string) {
-  const dismissals = { ...state.dismissals, [bannerKey(type, instance)]: Date.now() };
-  emit({ dismissals });
-  save(DISMISS_KEY, dismissals);
+  emit({ dismissals: { ...state.dismissals, [bannerKey(type, instance)]: Date.now() } });
+  saveAfterLoad(DISMISS_KEY, () => state.dismissals);
 }
 
 export function setBannerInterval(type: BannerType, id: string) {
   const intervals = { ...state.intervals, [type]: id };
   emit({ intervals, dismissals: pruneExpired(state.dismissals, intervals, Date.now()) });
-  save(INTERVALS_KEY, intervals);
+  saveAfterLoad(INTERVALS_KEY, () => state.intervals);
 }
 
 /**
