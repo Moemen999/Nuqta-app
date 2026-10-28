@@ -295,3 +295,18 @@ describe('تحذيرات الأرقام: الحالة خلصت ← القفل ا
     expect(shown('data_load_error_banner')).toBe(true);
   });
 });
+
+/** silent-failure-hunter: ✕ على "قربت تخلص" ميخبّيش "خلصت" */
+it('ميزانية: ✕ على "قربت تخلص" ← الصرف عدّى الحد ← البانر ظاهر', async () => {
+  const today = day(at9pm());
+  const tx = (id: string, amount: number) => ({ id, type: 'expense', amount, walletId: 'w1', categoryId: 'c1', date: today });
+  const data = (txs: object[]) => setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 0 }],
+    categories: [{ id: 'c1', name: 'أكل' }], budgets: { c1: 100 }, transactions: txs });
+  data([tx('a', 85)]);
+  const r = await mount();
+  await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_c1')); });
+  expect(shown('home_banner_budget_c1')).toBe(false);
+  data([tx('a', 85), tx('b', 30)]);
+  await r.rerender(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
+  expect(shown('home_banner_budget_c1')).toBe(true);
+});

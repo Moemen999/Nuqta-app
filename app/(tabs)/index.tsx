@@ -236,22 +236,23 @@ function HomeScreen() {
             <DismissButton testID={`home_banner_dismiss_low_balance_${w.id}`} onPress={() => dismiss('lowBalance', w.id)} hint={DISMISS_HINT} label={dismissLabel('lowBalance', w.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
-        {totalBudgetAlert && !hidden('budget', 'total') && (
+        {/* المفتاح بالدرجة (silent-failure-hunter): ✕ على "قربت تخلص" ميخبّيش "خلصت" */}
+        {totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`) && (
           <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
               accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
               الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
-            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', 'total')} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
+            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
-        {budgetAlerts.filter(b => !hidden('budget', b.cat.id)).map(b => (
+        {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)).map(b => (
           <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
               accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
               ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
             </Text>
-            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', b.cat.id)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
+            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
