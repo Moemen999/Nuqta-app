@@ -27,8 +27,8 @@ function seed(wallets: object[], transactions: object[] = []) {
   Object.assign(mockData, {
     wallets, categories: [], transactions, budgets: {}, debts: [],
     subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
-    updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
-    archiveWallet: jest.fn(), restoreWallet: jest.fn(),
+    updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
+    archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   });
 }
 
@@ -152,5 +152,53 @@ describe('شاشة المحافظ', () => {
     await render(ui());
     await pressDelete('w1');
     expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY, expect.anything());
+  });
+});
+
+/**
+ * بند 13 (2026-10-28): `deleteWallet`/`archiveWallet` في DataContext بيرفضوا هما كمان
+ * ويرجّعوا `blocked`. لو الشاشة شافت محفظتين (حالتها اتأخرت) والدالة شافت واحدة،
+ * الرفض بيتقال بنفس الرسالة الموجودة — مش بيتبلع.
+ */
+describe('رفض DataContext بيوصل للشاشة', () => {
+  const blocked = async () => ({ outcome: 'blocked', block: { kind: 'last-active' } });
+
+  it('المسح اترفض جوه DataContext ← رسالة آخر محفظة بتاعة المسح', async () => {
+    mockData.deleteWallet = jest.fn(blocked);
+    await render(ui());
+    await pressDelete('w1');
+    await press('حذف');
+    expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');
+    expectLastActiveRefusal();
+  });
+
+  it('الأرشفة اترفضت جوه DataContext ← رسالة آخر محفظة بتاعة الأرشفة', async () => {
+    mockData.archiveWallet = jest.fn(blocked);
+    mockData.transactions = [{ id: 't1', type: 'income', amount: 0, walletId: 'w1', date: '2026-09-01' }];
+    await render(ui());
+    await pressDelete('w1');
+    await press('أرشفها');
+    await press('أرشفها');
+    expect(mockData.archiveWallet).toHaveBeenCalledWith('w1', {});
+    expectArchiveRefusal();
+  });
+
+  it('الأرشفة من الشيت اترفضت ← نفس رسالة الأرشفة', async () => {
+    mockData.archiveWallet = jest.fn(blocked);
+    mockData.subscriptions = [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true }];
+    await render(ui());
+    await pressDelete('w1');
+    await press('أرشفها');
+    await act(async () => { fireEvent.press(screen.getByText('البنك')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('archive_sheet_confirm')); });
+    expect(mockData.archiveWallet).toHaveBeenCalled();
+    expectArchiveRefusal();
+  });
+
+  it('done ← مفيش رسالة رفض', async () => {
+    await render(ui());
+    await pressDelete('w1');
+    await press('حذف');
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, expect.anything(), expect.anything());
   });
 });

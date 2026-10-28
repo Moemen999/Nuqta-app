@@ -5,10 +5,10 @@ import { db } from '@/firebaseConfig';
 import { walletBalance } from '@/lib/finance';
 import { maskedAmount, plainAmount } from '@/lib/money';
 import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
-import { setMockUid } from '@/test-utils/mockAuth';
+import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
-import { doc, getDocFromServer } from 'firebase/firestore';
+import { deleteDoc, doc, getDocFromServer } from 'firebase/firestore';
 import React from 'react';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -69,8 +69,13 @@ async function archivedWalletWithHistory(amount = 500) {
   return { arch, others, expenseId };
 }
 
+/**
+ * مسح مباشر في فايرستور مش `deleteWallet`: من بند 13 الدالة بترفض آخر محفظة شغالة،
+ * والحالة دي ("مفيش ولا محفظة شغالة") لسه ممكنة بجهازين مع بعض أو نسخة قديمة —
+ * وهي اللي الاختبارات دي بتفحص التطبيق فيها
+ */
 async function deleteWallets(ids: string[]) {
-  for (const id of ids) await harness.api().deleteWallet(id);
+  for (const id of ids) await deleteDoc(doc(db, 'users', getMockUid(), 'wallets', id));
   await harness.waitForData(api => ids.every(id => !api.wallets.some(w => w.id === id)));
 }
 

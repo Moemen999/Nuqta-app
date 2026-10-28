@@ -2,8 +2,8 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
 import {
-  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds,
-  type CascadeDeleteBlock, type CascadeKind,
+  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
@@ -141,6 +141,9 @@ class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
 class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
+
+/** نتيجة `deleteWallet`/`archiveWallet` — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
+export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -469,10 +472,10 @@ type DataContextType = {
   completeSetup: (choice: SetupChoice) => Promise<SetupOutcome>;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
-  deleteWallet: (id: string) => Promise<void>;
+  deleteWallet: (id: string) => Promise<WalletWriteResult>;
   archiveWallet: (id: string, reassign: {
     subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string>;
-  }) => Promise<void>;
+  }) => Promise<WalletWriteResult>;
   restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
@@ -925,9 +928,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     track(updateDoc(doc(db, 'users', uid, 'wallets', id), data));
   }
-  async function deleteWallet(id: string) {
-    if (!uid) return;
+  async function deleteWallet(id: string): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // بند 13: آخر محفظة شغالة مبتتمسحش — نفس حظر الشاشة (`walletDeleteBlock`) هنا
+    // كمان، فالمتصل اللي نسي الفحص بيترفض بدل ما المستخدم يفضل من غير محفظة.
+    // **حد:** من المحافظ اللي وصلت النسخة دي — جهازين كل واحد بيمسح واحدة من آخر
+    // اتنين لسه ممكن يوصلوا لصفر (محتاج مستند عدّاد أو قاعدة، والقواعد برّه الجولة)
+    const block = walletDeleteBlock(id, wallets);
+    if (block) return { outcome: 'blocked', block };
     track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
+    return { outcome: 'done' };
   }
 
   /**
@@ -946,8 +956,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function archiveWallet(
     id: string,
     reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string> },
-  ) {
-    if (!uid) return;
+  ): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
+    // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
+    if (wallets.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
     const batch = writeBatch(db);
     // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
     // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
@@ -973,6 +986,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       archived: true, archivedAt: new Date().toISOString(),
     });
     track(batch.commit(), namedLabel('أرشفة المحفظة', wallets.find(w => w.id === id)?.name));
+    return { outcome: 'done' };
   }
 
   async function restoreWallet(id: string) {

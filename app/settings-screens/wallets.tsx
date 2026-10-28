@@ -126,7 +126,12 @@ export default function WalletsScreen() {
   /** المسح نفسه، بعد فحص أخير لحظة الدوسة (المحافظ ممكن تكون اتغيّرت والتأكيد مفتوح) */
   function deleteNow(id: string, name: string) {
     if (blockedAsLastActive(id, name)) return;
-    runDelete(id, () => deleteWallet(id));
+    // DataContext بيرفض هو كمان (بند 13) — لو المحافظ اتغيّرت بين الفحص والكتابة
+    // الرفض بيرجع هنا ويتقال بنفس الرسالة
+    runDelete(id, async () => {
+      const result = await deleteWallet(id);
+      if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
+    });
   }
 
   function confirmDelete(id: string, name: string) {
@@ -191,11 +196,17 @@ export default function WalletsScreen() {
     if (items.length === 0) {
       Alert.alert('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'أرشفها', onPress: () => archiveWallet(id, {}) },
+        { text: 'أرشفها', onPress: () => { void archiveNow(id, name, {}); } },
       ]);
       return;
     }
     setSheet({ id, name, items, targets: others.map(x => ({ id: x.id, name: x.name })) });
+  }
+
+  /** الأرشفة نفسها — DataContext بيرفض آخر محفظة شغالة هو كمان (بند 13)، والرفض بيتقال بنفس الرسالة */
+  async function archiveNow(id: string, name: string, reassign: Parameters<typeof archiveWallet>[1]) {
+    const result = await archiveWallet(id, reassign);
+    if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
   }
 
   function confirmRestore(id: string, name: string) {
@@ -243,7 +254,7 @@ export default function WalletsScreen() {
       else if (kind === 'دخل ثابت') incomesMap[itemId] = target;
       else gamiyasMap[itemId] = target;
     });
-    archiveWallet(sheet.id, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
+    void archiveNow(sheet.id, sheet.name, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
     setSheet(null);
   }
 
