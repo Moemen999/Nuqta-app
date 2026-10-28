@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useSyncExternalStore } from 'react';
 import {
-  MAX_TIMER_MS, bannerKey, hiddenUntil, nextReturnAt, parseDismissals, parseIntervals, pruneExpired,
+  MAX_TIMER_MS, bannerKey, hiddenUntil, typeOfKey, nextReturnAt, parseDismissals, parseIntervals, pruneExpired,
   type BannerType, type Dismissals,
 } from '@/lib/bannerDismiss';
 
@@ -91,10 +91,15 @@ export function dismissBanner(type: BannerType, instance?: string) {
  * المتخزّن ميرجعش بالدمج.
  */
 export function clearBanner(type: BannerType, instance?: string) {
-  const key = bannerKey(type, instance);
+  // من غير instance ← كل مفاتيح النوع (silent-failure-hunter BLOCKER): الـ✕ بتاع
+  // "مقدرناش نجيب بياناتك" بيتحفظ بأسامي اللي وقعوا، والمسح بالنوع لوحده مكانش بيلمسه
+  const match = (k: string) => (instance === undefined ? typeOfKey(k) === type : k === bannerKey(type, instance));
+  // اللي اتقفل **قبل** النداء بس: ✕ جديد حصل والقراية لسه مخلصتش ميتمسحش (silent-failure-hunter)
+  const calledAt = Date.now();
   void load().then(() => {
-    if (!(key in state.dismissals)) return;
-    const { [key]: _gone, ...rest } = state.dismissals;
+    const gone = Object.keys(state.dismissals).filter(k => match(k) && state.dismissals[k] <= calledAt);
+    if (gone.length === 0) return;
+    const rest = Object.fromEntries(Object.entries(state.dismissals).filter(([k]) => !gone.includes(k)));
     emit({ dismissals: rest });
     save(DISMISS_KEY, rest);
   });

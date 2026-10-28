@@ -310,3 +310,18 @@ it('ميزانية: ✕ على "قربت تخلص" ← الصرف عدّى ال�
   await r.rerender(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   expect(shown('home_banner_budget_c1')).toBe(true);
 });
+
+/** silent-failure-hunter (BLOCKER، الجولة التانية): المسح بالنوع كان مبيلمسش مفتاح "loadError:<أسامي>" */
+it('مقدرناش نجيب بياناتك: ✕ ← كله رجع ← نفس الـlistener وقع تاني جوه الساعة ← البانر ظاهر', async () => {
+  setData({ loadErrors: ['wallets'] });
+  const r = await render(<ThemeProvider><DataLoadErrorBanner /></ThemeProvider>);
+  await act(async () => {});
+  await act(async () => { fireEvent.press(screen.getByTestId('data_load_error_dismiss')); });
+  setData({ loadErrors: [] });
+  await r.rerender(<ThemeProvider><DataLoadErrorBanner /></ThemeProvider>);
+  await advance(60_000);
+  setData({ loadErrors: ['wallets'] });
+  await r.rerender(<ThemeProvider><DataLoadErrorBanner /></ThemeProvider>);
+  await advance(10);
+  expect(shown('data_load_error_banner')).toBe(true);
+});
