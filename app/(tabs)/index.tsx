@@ -218,7 +218,7 @@ function HomeScreen() {
         {/* باقي التنبيهات (2026-10-28): فوق آخر العمليات كمان — مش تحتها */}
         <EmailVerificationBanner />
         {/* بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي) */}
-        {!hasTodayTx && !offlineEmpty && !noWallets && nowHour >= dailyHour && !hidden('noTxToday') && (
+        {!hasTodayTx && !offlineEmpty && !noWallets && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
           <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
             <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
             <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />

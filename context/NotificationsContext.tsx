@@ -31,7 +31,8 @@ type NotificationsContextType = {
   refreshPermission: () => Promise<void>;
 };
 
-const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
+/** مُصدَّر للاختبارات بس (قيمة جاهزة من غير Provider حقيقي) */
+export const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { subscriptions, gamiyas, debts, incomes } = useData();
@@ -133,7 +134,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   async function setDailyHour(h: number) {
     const hour = parseDailyHour(h);
     setDailyHourState(hour);
-    await AsyncStorage.setItem(K_DAILY_HOUR, String(hour));
+    // الحفظ وقع: الساعة متطبقة لحد ما التطبيق يتقفل، وبترجع للمتخزّن بعدها — مش رمي
+    // من غير حد يمسكه من زرار المقبض (react-reviewer)
+    await AsyncStorage.setItem(K_DAILY_HOUR, String(hour)).catch(() => {});
   }
 
   return (
@@ -151,9 +154,12 @@ export function useNotifications() {
 }
 
 /**
- * ساعة التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية — من غير ما يرمي لو مفيش
- * Provider (اختبارات الشاشة)، ساعتها الافتراضي
+ * ساعة التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية — `null` لحد ما الإعداد يتقري
+ * (react-reviewer): الافتراضي (8 م) قبل القراية كان بيطلّع البانر للي اختار 10 م، أو
+ * يخبّيه عن اللي اختار 2 الضهر. من غير Provider (اختبارات الشاشة) ← الافتراضي.
  */
-export function useDailyReminderHour() {
-  return useContext(NotificationsContext)?.dailyHour ?? DEFAULT_DAILY_HOUR;
+export function useDailyReminderHour(): number | null {
+  const ctx = useContext(NotificationsContext);
+  if (!ctx) return DEFAULT_DAILY_HOUR;
+  return ctx.loading ? null : ctx.dailyHour;
 }

@@ -230,3 +230,28 @@ it('✕ قبل القراية ← القديم والجديد الاتنين ف�
   expect(Object.keys(d).sort()).toEqual(['lowBalance:w1', 'lowBalance:w2']);
   expect(JSON.parse((await AsyncStorage.getItem(INTERVALS_KEY))!)).toEqual({ offline: '15m', stale: '3h' });
 });
+
+/** react-reviewer: قبل ما ساعة التذكير تتقري البانر مبيظهرش بالافتراضي (8 م) */
+describe('"لسه ما سجلتش" قبل ما الإعداد يتقري', () => {
+  const { NotificationsContext } = jest.requireActual('@/context/NotificationsContext');
+  const wrapWith = (value: object) => (
+    <NotificationsContext.Provider value={value}><ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider></NotificationsContext.Provider>
+  );
+  const base = { enabled: false, dailyEnabled: true, enableNotifications: jest.fn(), disableNotifications: jest.fn(),
+    setDailyEnabled: jest.fn(), setDailyHour: jest.fn(), refreshPermission: jest.fn() };
+  const noTx = () => setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 0 }], transactions: [] });
+  it('لسه بيتقري (الساعة 9 م) ← مش ظاهر', async () => {
+    noTx();
+    await render(wrapWith({ ...base, loading: true, dailyHour: 20 }));
+    await advance(3000);
+    expect(shown('home_banner_no_tx_today')).toBe(false);
+  });
+  it('اتقري واختار 10 م ← مش ظاهر الساعة 9؛ واختار 8 م ← ظاهر', async () => {
+    noTx();
+    const r = await render(wrapWith({ ...base, loading: false, dailyHour: 22 }));
+    await advance(3000);
+    expect(shown('home_banner_no_tx_today')).toBe(false);
+    await r.rerender(wrapWith({ ...base, loading: false, dailyHour: 20 }));
+    expect(shown('home_banner_no_tx_today')).toBe(true);
+  });
+});
