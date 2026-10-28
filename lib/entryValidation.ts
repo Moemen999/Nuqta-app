@@ -13,12 +13,22 @@ import { storableAmount } from '@/lib/linkedEdit';
 /** أقصى عدد شهور للجمعية (قرار مؤمن 2026-10-28) */
 export const GAMIYA_MAX_MONTHS = 60;
 
+/**
+ * أقصى "كل كام يوم" (D-A، 2026-10-28): 1096 = 3 سنين بيوم كبيسة. أوسع حد عند خدمة دفع
+ * كبيرة (Stripe: "Maximum of three years interval")؛ متاجر التطبيقات سنة بالكتير.
+ * فوقه مالوش استخدام، و2,914,000 يوم فوق بيطلّع سنة من 5 أرقام فمقارنة التواريخ
+ * كنص بتبوظ ("10005-…" < "2026-…")، و99,979,246 فوق التاريخ بيبقى NaN.
+ */
+export const CUSTOM_DAYS_MAX = 1096;
+/** أقصى أيام تذكير قبل المعاد (D-A): سنة — تذكير أبعد من دورة سنوية مالوش معنى */
+export const REMINDER_DAYS_MAX = 365;
+
 export const ENTRY_MESSAGES = {
   amount: 'المبلغ لازم يبقى أكبر من صفر. اكتبه بالأرقام، زي 150 أو 99.5.',
   monthlyAmount: 'القسط الشهري لازم يبقى مبلغ أكبر من صفر. اكتبه بالأرقام، زي 1000.',
   payoutAmount: 'مبلغ الاستلام لازم يبقى مبلغ أكبر من صفر. اكتبه بالأرقام، زي 12000.',
-  customDays: 'خانة "كل كام يوم" لازم يبقى فيها رقم صحيح، 1 أو أكتر، من غير كسور. اكتب عدد الأيام، زي 30.',
-  reminderDays: 'عدد أيام التذكير لازم يبقى رقم صحيح، 0 أو أكتر، من غير كسور. اكتب 0 لو مش عايز تذكير قبل المعاد.',
+  customDays: `خانة "كل كام يوم" لازم يبقى فيها رقم صحيح بين 1 و${CUSTOM_DAYS_MAX} (يعني 3 سنين بالكتير)، من غير كسور. اكتب عدد الأيام، زي 30.`,
+  reminderDays: `عدد أيام التذكير لازم يبقى رقم صحيح بين 0 و${REMINDER_DAYS_MAX} (يعني سنة بالكتير)، من غير كسور. اكتب 0 لو مش عايز تذكير قبل المعاد.`,
   // مش جديدة: نفس رسالة فورم الجمعية من قبل البند
   payoutMonth: 'راجع البيانات — تأكد إن شهر الاستلام رقم صحيح ضمن عدد الشهور',
   totalMonths: `"عدد الشهور الكلي" لازم يبقى رقم صحيح بين 1 و${GAMIYA_MAX_MONTHS}. اكتب عدد شهور الجمعية، زي 12.`,
@@ -44,8 +54,8 @@ export function parseEntryNumber(text: string): number {
   return /^\s*[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?\s*$/i.test(text) ? Number(text) : NaN;
 }
 
-export const validCustomDays = (v: number) => wholeNumberIn(v, 1);
-export const validReminderDays = (v: number) => wholeNumberIn(v, 0);
+export const validCustomDays = (v: number) => wholeNumberIn(v, 1, CUSTOM_DAYS_MAX);
+export const validReminderDays = (v: number) => wholeNumberIn(v, 0, REMINDER_DAYS_MAX);
 export const validGamiyaMonths = (v: number) => wholeNumberIn(v, 1, GAMIYA_MAX_MONTHS);
 
 /**
