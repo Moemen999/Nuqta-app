@@ -99,6 +99,8 @@ describe('الأدوات الأساسية ليها testID — ومحدش يشي�
     'feedback_text_input', 'feedback_send_button', 'about_version',
     // ساعة التذكير بقت أي ساعة من 24 بزرارين (2026-10-28) بدل 4 اختيارات
     'notifications_hour_earlier', 'notifications_hour_later', 'notifications_hour_value',
+    // إذن "المنبهات والتذكيرات" (2026-10-28)
+    'exact_alarm_card', 'exact_alarm_status', 'exact_alarm_open',
   ];
 
   const REQUIRED_TEMPLATES = [

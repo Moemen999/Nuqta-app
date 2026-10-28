@@ -1,10 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { hasNotificationPermission, requestNotificationPermission, setupNotifications } from '@/lib/notifications';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
+import { openExactAlarmSettings as openExactAlarmSettingsRaw } from '@/lib/exactAlarm';
 
 const K_ENABLED = 'nuqta_notifs_enabled';
 const K_DAILY = 'nuqta_notifs_daily';
@@ -29,6 +30,12 @@ type NotificationsContextType = {
   setDailyHour: (h: number) => Promise<void>;
   /** بيعيد قراية الإذن الحقيقي من النظام — بيتنادى لوحده كل رجوع للتطبيق */
   refreshPermission: () => Promise<void>;
+  /**
+   * بيفتح إعداد "المنبهات والتذكيرات" ويعلّم إن الجدولة تتعاد أول ما التطبيق يرجع للمقدمة:
+   * الإذن بيأثر على المنبّهات اللي بتتجدول بعده بس، فاللي اتجدول قبله فاضل تقريبي.
+   * بيرجّع false لو الإعداد ما اتفتحش.
+   */
+  openExactAlarmSettings: () => Promise<boolean>;
 };
 
 /** مُصدَّر للاختبارات بس (قيمة جاهزة من غير Provider حقيقي) */
@@ -42,6 +49,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [dailyEnabled, setDailyEnabledState] = useState(true);
   const [dailyHour, setDailyHourState] = useState(DEFAULT_DAILY_HOUR);
   const [loading, setLoading] = useState(true);
+  // إعادة جدولة بعد الرجوع من إعداد المنبّهات (tdd-guide: setEnabled(true) وهي true مبيعيدش الـeffect)
+  const [rescheduleTick, setRescheduleTick] = useState(0);
+  const rescheduleOnReturn = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -89,7 +99,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // غيّر الإذن من برّه فيه
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') refreshPermission();
+      if (state !== 'active') return;
+      refreshPermission();
+      if (rescheduleOnReturn.current) {
+        rescheduleOnReturn.current = false;
+        setRescheduleTick(t => t + 1);
+      }
     });
     return () => sub.remove();
   }, [refreshPermission]);
@@ -109,7 +124,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       hideAmounts: amountsHidden,
       incomes,
     }).catch(() => {});
-  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour]);
+  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
+
+  async function openExactAlarmSettings() {
+    const opened = await openExactAlarmSettingsRaw();
+    if (opened) rescheduleOnReturn.current = true;
+    return opened;
+  }
 
   async function enableNotifications() {
     const granted = await requestNotificationPermission();
@@ -141,7 +162,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   return (
     <NotificationsContext.Provider
-      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour, refreshPermission }}>
+      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour, refreshPermission, openExactAlarmSettings }}>
       {children}
     </NotificationsContext.Provider>
   );

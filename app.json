@@ -26,7 +26,8 @@
       "package": "com.nuqta.app",
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "SCHEDULE_EXACT_ALARM"
       ]
     },
     "web": {

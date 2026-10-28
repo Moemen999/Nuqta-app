@@ -6,8 +6,9 @@ import { selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
 import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
+import { exactAlarmStatus } from '@/lib/exactAlarm';
 import { useMemo, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -32,6 +33,13 @@ export const STATUS_ON = 'الإشعارات مفعّلة';
 const snake = (s: string) => s.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
 export const STATUS_OFF = 'الإشعارات مقفولة';
 
+export const EXACT_ALARM_TITLE = 'التذكيرات ممكن توصل متأخر';
+export const EXACT_ALARM_BODY = 'أندرويد بيأخّر التذكيرات لحد ساعة لو إذن "المنبهات والتذكيرات" مقفول لنقطة. افتح الإعداد وفعّله لنقطة عشان التذكير يوصل في معاده.';
+export const EXACT_ALARM_STATUS_UNKNOWN = 'مش قادرين نعرف من جوه التطبيق هو مفعّل ولا لأ. لو لقيت نقطة في القايمة ومفتاحها مفعّل، يبقى تمام.';
+export const EXACT_ALARM_BUTTON = 'افتح إعداد المنبهات والتذكيرات';
+export const EXACT_ALARM_FAILED_TITLE = 'مقدرناش نفتح الإعداد';
+export const EXACT_ALARM_FAILED_BODY = 'افتح إعدادات الموبايل، وبعدين التطبيقات، وبعدين نقطة، وفعّل "المنبهات والتذكيرات".';
+
 /**
  * إعدادات الإشعارات.
  *
@@ -48,6 +56,8 @@ export default function NotificationsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notifs = useNotifications();
   const banners = useBannerDismiss();
+  const { busy: openingAlarm, run: runOpenAlarm } = useBusy();
+  const alarmStatus = exactAlarmStatus({ os: Platform.OS, apiLevel: Platform.Version });
   const [showRoutine, setShowRoutine] = useState(false);
   const { busy, run } = useBusy();
 
@@ -123,6 +133,23 @@ export default function NotificationsScreen() {
             </View>
           </View>
 
+        </View>
+      )}
+
+      {/* إذن "المنبهات والتذكيرات" (2026-10-28): من غيره أندرويد 12+ بيأخّر التذكير لحد ساعة.
+          الحالة مبتتقريش من التطبيق (lib/exactAlarm.ts) فالكارت ظاهر طول ما الإشعارات شغالة */}
+      {notifs.enabled && alarmStatus !== 'not-needed' && (
+        <View testID="exact_alarm_card" style={styles.card}>
+          <Text style={styles.switchLabel}>{EXACT_ALARM_TITLE}</Text>
+          <Text style={styles.hint}>{EXACT_ALARM_BODY}</Text>
+          <Text testID="exact_alarm_status" style={[styles.hint, { marginTop: 6 }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
+          <TouchableOpacity testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
+            onPress={() => runOpenAlarm(async () => {
+              if (!(await notifs.openExactAlarmSettings())) Alert.alert(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
+            })}
+            accessibilityRole="button" accessibilityLabel={EXACT_ALARM_BUTTON} accessibilityState={{ busy: openingAlarm }}>
+            <Text style={styles.alarmBtnText}>{EXACT_ALARM_BUTTON}</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -209,6 +236,8 @@ function makeStyles(c: ThemeColors) {
     stepText: { color: c.text, fontSize: 20, fontWeight: '700' },
     hourValue: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: 13, textAlign: 'right' },
+    alarmBtn: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 12 },
+    alarmBtnText: { color: c.accentText, fontSize: 13.5, fontWeight: '700' },
     groupLabel: { color: c.textSecondary, fontSize: 12, fontWeight: '700', textAlign: 'right' },
     toggleRow: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
     toggleText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'right' },
