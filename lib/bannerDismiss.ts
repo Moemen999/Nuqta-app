@@ -29,7 +29,7 @@ const DAY = 24 * HOUR;
 export type IntervalOption = { id: string; ms: number; label: string };
 
 export const WARNING_INTERVALS: readonly IntervalOption[] = [
-  { id: '15m', ms: 15 * MIN, label: '¼ ساعة' },
+  { id: '15m', ms: 15 * MIN, label: 'ربع ساعة' },
   { id: '1h', ms: HOUR, label: 'ساعة' },
   { id: '3h', ms: 3 * HOUR, label: '3 ساعات' },
 ];
@@ -114,20 +114,20 @@ export function parseIntervals(raw: string | null): Record<string, string> {
 export const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /** شرح الـ✕ لقارئ الشاشة — بيقول إنه مش للأبد */
-export const DISMISS_HINT = 'بيخبّيه لحد المدة اللي اخترتها في الإعدادات، وبعدين بيرجع لو لسه فيه حاجة';
+export const DISMISS_HINT = 'بيخبّيه لمدة تظبطها من الإعدادات، وبعدها بيرجع لو المشكلة لسه موجودة';
 
 /** أسامي الأنواع في الإعدادات — بنفس كلام البانر نفسه عشان المستخدم يربطهم */
 export const BANNER_LABELS: Record<BannerType, string> = {
   loadError: 'مقدرناش نجيب بياناتك',
-  offline: 'مفيش نت',
-  stale: 'الأرقام ممكن تكون قديمة',
-  pending: 'مستنيين ردك',
+  offline: 'مفيش نت ومفيش أرقام',
+  stale: 'النت قطع والأرقام ممكن تكون قديمة',
+  pending: 'حاجات مستنية ردك',
   verifyEmail: 'تأكيد الإيميل',
-  noTxToday: 'لسه ما سجلتش النهاردة',
+  noTxToday: 'لسه ما سجلتش مصاريف النهاردة',
   lowBalance: 'رصيد قرب يخلص',
-  budget: 'الميزانية قربت تخلص',
-  subscriptionDue: 'اشتراك جاي',
-  gamiyaDue: 'قسط جمعية جاي',
+  budget: 'الميزانية قربت تخلص أو خلصت',
+  subscriptionDue: 'اشتراك معاده قرب',
+  gamiyaDue: 'قسط جمعية معاده قرب',
 };
 export const BANNER_TYPES = Object.keys(BANNER_LABELS) as BannerType[];
 

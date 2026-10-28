@@ -130,7 +130,7 @@ export default function NotificationsScreen() {
       <View style={styles.card}>
         <Text style={styles.switchLabel}>الساعة كام نفكّرك تسجّل مصاريف النهاردة؟</Text>
         <Text style={styles.hint}>
-          {`بانر "لسه ما سجلتش" في الرئيسية بيظهر من الساعة دي، ولو التذكير اليومي مفعّل الإشعار بيوصلك في نفس المعاد.`}
+          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من الساعة دي. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
         </Text>
         <View style={[styles.row, { alignItems: 'center' }]}>
           <TouchableOpacity testID="notifications_hour_later" style={styles.stepBtn}
@@ -157,7 +157,7 @@ export default function NotificationsScreen() {
       <View style={styles.card}>
         <Text style={styles.switchLabel}>التنبيه اللي تقفله يرجع بعد قد إيه؟</Text>
         <Text style={styles.hint}>
-          لما تقفل تنبيه في الرئيسية بالـ✕، بيرجع بعد المدة دي لو لسه فيه حاجة. تحذيرات الأرقام مددها أقصر عشان رقم غلط ميفضلش من غير تنبيه كتير.
+          لما تقفل تنبيه في الرئيسية بالـ✕، بيرجع بعد المدة دي لو المشكلة لسه موجودة. تحذيرات الأرقام مددها أقصر، عشان رقم ممكن يكون غلط ميتخبّاش وقت طويل.
         </Text>
         {BANNER_TYPES.map(type => {
           const chosen = intervalMs(type, banners.intervals);
