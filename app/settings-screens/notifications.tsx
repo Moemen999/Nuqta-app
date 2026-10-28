@@ -4,9 +4,9 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { hourLabel } from '@/lib/notificationStatus';
 import { selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
-import { BANNER_LABELS, BANNER_TYPES, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
+import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,6 +48,7 @@ export default function NotificationsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notifs = useNotifications();
   const banners = useBannerDismiss();
+  const [showRoutine, setShowRoutine] = useState(false);
   const { busy, run } = useBusy();
 
   function toggle(next: boolean) {
@@ -159,10 +160,14 @@ export default function NotificationsScreen() {
         <Text style={styles.hint}>
           لما تقفل تنبيه في الرئيسية بالـ✕، بيرجع بعد المدة دي لو المشكلة لسه موجودة. تحذيرات الأرقام مددها أقصر، عشان رقم ممكن يكون غلط ميتخبّاش وقت طويل.
         </Text>
-        {BANNER_TYPES.map(type => {
+        {/* مجموعتين (visual-identity-reviewer: 10 صفوف بتطوّل الشاشة): التحذيرات مفتوحة دايمًا،
+            والباقي مطوي لحد ما المستخدم يفتحه */}
+        <Text style={[styles.groupLabel, { marginTop: 12 }]}>تحذيرات الأرقام</Text>
+        {[...WARNING_BANNERS, ...(showRoutine ? BANNER_TYPES.filter(t => !WARNING_BANNERS.includes(t)) : [])].map((type, i) => {
           const chosen = intervalMs(type, banners.intervals);
           return (
             <View key={type} style={{ marginTop: 12 }}>
+              {i === WARNING_BANNERS.length && <Text style={[styles.groupLabel, { marginBottom: 6 }]}>باقي التنبيهات</Text>}
               <Text style={styles.typeLabel}>{BANNER_LABELS[type]}</Text>
               <View style={styles.row}>
                 {intervalOptions(type).map(o => (
@@ -178,6 +183,10 @@ export default function NotificationsScreen() {
             </View>
           );
         })}
+        <TouchableOpacity testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
+          accessibilityRole="button" accessibilityState={{ expanded: showRoutine }}>
+          <Text style={styles.toggleText}>{showRoutine ? 'اخفي باقي التنبيهات' : `اظهر باقي التنبيهات (${BANNER_TYPES.length - WARNING_BANNERS.length})`}</Text>
+        </TouchableOpacity>
       </View>
     </ScrollView>
   );
@@ -200,5 +209,8 @@ function makeStyles(c: ThemeColors) {
     stepText: { color: c.text, fontSize: 20, fontWeight: '700' },
     hourValue: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: 13, textAlign: 'right' },
+    groupLabel: { color: c.textSecondary, fontSize: 12, fontWeight: '700', textAlign: 'right' },
+    toggleRow: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
+    toggleText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'right' },
   });
 }

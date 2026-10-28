@@ -142,8 +142,13 @@ describe('شاشة الإشعارات — الجرد', () => {
     expect(screen.getByTestId('notifications_hour_value')).toBeTruthy();
   });
 
-  it('مدة رجوع لكل نوع بانر (10 أنواع)', async () => {
+  it('مدة رجوع لكل نوع بانر (10 أنواع) — التحذيرات ظاهرة، والباقي ورا "اظهر"', async () => {
     await wrap(<NotificationsScreen />);
+    for (const t of ['load_error', 'offline', 'stale']) {
+      expect(screen.getAllByTestId(new RegExp(`^banner_interval_${t}_`)).length).toBe(3);
+    }
+    expect(screen.queryAllByTestId(/^banner_interval_low_balance_/)).toHaveLength(0);
+    await act(async () => { fireEvent.press(screen.getByTestId('banner_intervals_toggle')); });
     for (const t of ['load_error', 'offline', 'stale', 'pending', 'verify_email', 'no_tx_today', 'low_balance', 'budget', 'subscription_due', 'gamiya_due']) {
       expect(screen.getAllByTestId(new RegExp(`^banner_interval_${t}_`)).length).toBeGreaterThanOrEqual(3);
     }
