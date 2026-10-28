@@ -20,6 +20,7 @@ jest.mock('@/lib/notifications', () => ({
 }));
 jest.mock('@/lib/scheduleAllReminders', () => ({ scheduleAllReminders: jest.fn(async () => {}) }));
 jest.mock('@/lib/exactAlarm', () => ({ openExactAlarmSettings: jest.fn(async () => true) }));
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: jest.fn() }));
 
 let emit: (s: AppStateStatus) => void = () => {};
 let api: ReturnType<typeof useNotifications>;
@@ -59,4 +60,12 @@ it('رجوع للتطبيق من غير ما الإعداد يتفتح ← مف�
   await active();
   await active('background');
   expect((scheduleAllReminders as jest.Mock).mock.calls.length).toBe(before);
+});
+
+/** silent-failure-hunter: فشل الجدولة كان بيتبلع ساكت (.catch(() => {})) */
+it('الجدولة وقعت ← بتوصل Sentry (اسم العملية بس)', async () => {
+  const { reportAtomicFailure } = jest.requireMock('@/lib/atomicFailure');
+  (scheduleAllReminders as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+  await mount();
+  expect(reportAtomicFailure).toHaveBeenCalledWith('جدولة التذكيرات', expect.any(Error));
 });

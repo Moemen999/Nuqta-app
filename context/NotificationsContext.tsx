@@ -6,6 +6,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { hasNotificationPermission, requestNotificationPermission, setupNotifications } from '@/lib/notifications';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
 import { openExactAlarmSettings as openExactAlarmSettingsRaw } from '@/lib/exactAlarm';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 const K_ENABLED = 'nuqta_notifs_enabled';
 const K_DAILY = 'nuqta_notifs_daily';
@@ -123,7 +124,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dailyMinute: 0,
       hideAmounts: amountsHidden,
       incomes,
-    }).catch(() => {});
+      // كانت `.catch(() => {})` (silent-failure-hunter): الجدولة بعد إذن المنبهات هي اللي بتحوّل
+      // التذكير من تقريبي لبالظبط، وفشلها كان بيعدّي ساكت. Sentry بالكود بس، من غير أسامي ولا مبالغ
+    }).catch(e => reportAtomicFailure('جدولة التذكيرات', e));
   }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
 
   async function openExactAlarmSettings() {
