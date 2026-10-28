@@ -32,8 +32,8 @@ const categories = [
 const mockData: any = {
   wallets, categories, transactions: [], budgets: {}, debts: [],
   subscriptions: [], gamiyas: [], serverReachable: true, loadErrors: [],
-  updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
-  archiveWallet: jest.fn(), restoreWallet: jest.fn(),
+  updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
+  archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(),
   archiveCategory: jest.fn(), restoreCategory: jest.fn(),
   setBudget: jest.fn(), setMonthlyIncome: jest.fn(), setShakhbataPercents: jest.fn(),

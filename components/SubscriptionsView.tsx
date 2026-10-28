@@ -6,6 +6,7 @@ import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataCon
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
+import { parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
@@ -149,15 +150,20 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   }
 
   async function handleSave() {
-    const amt = Number(amount);
-    if (!name.trim() || !amt || amt <= 0 || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
+    if (!name.trim() || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
+    // بند 15: "1e999" كان بيتخزّن Infinity، و`Number(x) || 30` كان بيحوّل الغلط
+    // لقيمة افتراضية ساكت. دلوقتي الغلط بيترفض برسالته (نفس الفحص جوه DataContext)
+    const data = {
+      name: name.trim(), amount: parseEntryNumber(amount), walletId, categoryId,
+      frequency, customDays: frequency === 'custom' ? parseEntryNumber(customDays) : undefined,
+      nextDueDate, reminderDaysBefore: parseEntryNumber(reminderDays), chargeMode,
+    };
+    const problem = subscriptionEntryProblem(data);
+    if (problem) { setError(problem.message); return; }
     await runBusy(async () => {
       try {
-        await addSubscription({
-          name: name.trim(), amount: amt, walletId, categoryId,
-          frequency, customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
-          nextDueDate, reminderDaysBefore: Number(reminderDays) || 0, chargeMode,
-        });
+        const result = await addSubscription(data);
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
@@ -312,27 +318,32 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'custom'>(sub.frequency);
   const [customDays, setCustomDays] = useState(String(sub.customDays || 30));
   const [nextDueDate, setNextDueDate] = useState(sub.nextDueDate);
-  const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore));
+  const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(sub.chargeMode ?? 'confirm');
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
 
   async function handleSave() {
-    const amt = Number(amount);
-    if (!name.trim() || !amt || amt <= 0 || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
+    // بعد التقريب مش قبله: "1e999" و"1e307" كانوا بيتخزّنوا Infinity (بند 15)
+    if (!name.trim() || !walletId) { setError('دخّل اسم ومبلغ ومحفظة صحيحين'); return; }
+    // نفس فحص الإضافة (بند 15)
+    const data = {
+      name: name.trim(),
+      amount: parseEntryNumber(amount),
+      walletId,
+      categoryId: categoryId ?? undefined,
+      frequency,
+      customDays: frequency === 'custom' ? parseEntryNumber(customDays) : undefined,
+      nextDueDate,
+      reminderDaysBefore: parseEntryNumber(reminderDays),
+      chargeMode,
+    };
+    const problem = subscriptionEntryProblem(data);
+    if (problem) { setError(problem.message); return; }
     await runBusy(async () => {
       try {
-        await updateSubscription(sub.id, {
-          name: name.trim(),
-          amount: amt,
-          walletId,
-          categoryId: categoryId ?? undefined,
-          frequency,
-          customDays: frequency === 'custom' ? Number(customDays) || 30 : undefined,
-          nextDueDate,
-          reminderDaysBefore: Number(reminderDays) || 0,
-          chargeMode,
-        });
+        const result = await updateSubscription(sub.id, data);
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
