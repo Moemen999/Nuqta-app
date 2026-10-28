@@ -12,6 +12,7 @@ import {
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -132,9 +133,11 @@ export default function WalletsScreen() {
       try {
         const result = await deleteWallet(id);
         if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
-      } catch {
-        // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection
-        Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش.`, [{ text: 'تمام' }]);
+      } catch (e) {
+        // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection.
+        // رمي هنا = باج، فبيوصل Sentry (كود الخطأ بس، من غير الاسم)
+        reportAtomicFailure('مسح المحفظة', e);
+        Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
       }
     });
   }
@@ -213,10 +216,11 @@ export default function WalletsScreen() {
     try {
       const result = await archiveWallet(id, reassign);
       if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
-    } catch {
+    } catch (e) {
+      reportAtomicFailure('أرشفة المحفظة', e);
       // فشل الكتابة نفسها بيتقال من `track` باسم المحفظة؛ ده للي بيترمي قبلها
       // (تجهيز الدفعة) — كان هيبقى unhandled rejection والشيت اتقفل (silent-failure-hunter)
-      Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش.`, [{ text: 'تمام' }]);
+      Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
     }
   }
 

@@ -22,6 +22,9 @@ const mockData: any = {};
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: jest.fn() }));
+// eslint-disable-next-line import/first
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 function seed(wallets: object[], transactions: object[] = []) {
   Object.assign(mockData, {
@@ -209,7 +212,8 @@ describe('رمي قبل الكتابة مبيتبلعش', () => {
     await render(ui());
     await pressDelete('w1');
     await press('حذف');
-    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش.', [{ text: 'تمام' }]);
+    expect(reportAtomicFailure).toHaveBeenCalledWith('مسح المحفظة', expect.any(Error));
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.', [{ text: 'تمام' }]);
   });
   it('الأرشفة رمت ← "حصل خطأ" باسم المحفظة', async () => {
     mockData.archiveWallet = jest.fn(async () => { throw new Error('x'); });
@@ -218,6 +222,7 @@ describe('رمي قبل الكتابة مبيتبلعش', () => {
     await pressDelete('w1');
     await press('أرشفها');
     await press('أرشفها');
-    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتأرشفتش.', [{ text: 'تمام' }]);
+    expect(reportAtomicFailure).toHaveBeenCalledWith('أرشفة المحفظة', expect.any(Error));
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.', [{ text: 'تمام' }]);
   });
 });
