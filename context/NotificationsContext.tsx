@@ -10,6 +10,14 @@ const K_ENABLED = 'nuqta_notifs_enabled';
 const K_DAILY = 'nuqta_notifs_daily';
 const K_DAILY_HOUR = 'nuqta_notifs_daily_hour';
 
+/** ساعة التذكير اليومي لو مفيش اختيار — نفس الافتراضي من الأول (20) */
+export const DEFAULT_DAILY_HOUR = 20;
+/** ساعة صالحة 0–23؛ غير كده ← الافتراضي. `Number(x) || 20` كان بيقلب 0 (12 بالليل) لـ20 */
+export function parseDailyHour(raw: string | number | null | undefined): number {
+  const h = typeof raw === 'number' ? raw : raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+  return Number.isInteger(h) && h >= 0 && h <= 23 ? h : DEFAULT_DAILY_HOUR;
+}
+
 type NotificationsContextType = {
   enabled: boolean;
   dailyEnabled: boolean;
@@ -31,7 +39,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
-  const [dailyHour, setDailyHourState] = useState(20);
+  const [dailyHour, setDailyHourState] = useState(DEFAULT_DAILY_HOUR);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,7 +54,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const granted = await hasNotificationPermission();
         setEnabled(en === '1' && granted);
         if (daily !== null) setDailyEnabledState(daily === '1');
-        if (hour !== null) setDailyHourState(Number(hour) || 20);
+        if (hour !== null) setDailyHourState(parseDailyHour(hour));
       } catch {
         // لو أي حاجة فشلت، التطبيق يكمل عادي من غير إشعارات
       } finally {
@@ -123,8 +131,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }
 
   async function setDailyHour(h: number) {
-    await AsyncStorage.setItem(K_DAILY_HOUR, String(h));
-    setDailyHourState(h);
+    const hour = parseDailyHour(h);
+    setDailyHourState(hour);
+    await AsyncStorage.setItem(K_DAILY_HOUR, String(hour));
   }
 
   return (
@@ -139,4 +148,12 @@ export function useNotifications() {
   const ctx = useContext(NotificationsContext);
   if (!ctx) throw new Error('useNotifications must be used within NotificationsProvider');
   return ctx;
+}
+
+/**
+ * ساعة التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية — من غير ما يرمي لو مفيش
+ * Provider (اختبارات الشاشة)، ساعتها الافتراضي
+ */
+export function useDailyReminderHour() {
+  return useContext(NotificationsContext)?.dailyHour ?? DEFAULT_DAILY_HOUR;
 }

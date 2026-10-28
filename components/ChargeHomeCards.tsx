@@ -1,3 +1,4 @@
+import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import {
@@ -129,10 +130,8 @@ export function ChargeAutoNotices() {
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
-          <TouchableOpacity onPress={() => dismiss(n.id)} style={styles.dismiss}
-            accessibilityRole="button" accessibilityLabel="اقفل الرسالة" hitSlop={8}>
-            <Text style={styles.dismissText}>✕</Text>
-          </TouchableOpacity>
+          {/* رسالة حدث (اتسجل/ما اتسجلش) مش حالة — الـ✕ هنا بيقفلها خالص ومبترجعش */}
+          <DismissButton onPress={() => dismiss(n.id)} label="اقفل الرسالة" />
         </View>
       ))}
     </View>
@@ -345,8 +344,6 @@ function makeStyles(c: ThemeColors) {
       borderRadius: 12, borderWidth: 1, borderColor: c.borderStrong, padding: 12, marginBottom: 10,
     },
     noticeText: { flex: 1, color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 19 },
-    dismiss: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-    dismissText: { color: c.textMuted, fontSize: 14 },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '70%' }), padding: 0, overflow: 'hidden' },
     sheetContent: { padding: 20 },

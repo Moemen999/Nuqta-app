@@ -97,6 +97,8 @@ describe('الأدوات الأساسية ليها testID — ومحدش يشي�
     'archive_export_button', 'archive_date_from', 'archive_date_to',
     // رأي وعن التطبيق
     'feedback_text_input', 'feedback_send_button', 'about_version',
+    // ساعة التذكير بقت أي ساعة من 24 بزرارين (2026-10-28) بدل 4 اختيارات
+    'notifications_hour_earlier', 'notifications_hour_later', 'notifications_hour_value',
   ];
 
   const REQUIRED_TEMPLATES = [
@@ -104,7 +106,7 @@ describe('الأدوات الأساسية ليها testID — ومحدش يشي�
     'wallet_row_', 'wallet_name_input_', 'wallet_delete_',
     'wallet_opening_input_', 'wallet_alert_input_',
     'category_row_', 'category_name_input_', 'category_delete_',
-    'notifications_hour_', 'archive_preset_', 'reports_preset_',
+    'banner_interval_', 'archive_preset_', 'reports_preset_',
     'tx_type_', 'feedback_type_', 'lock_grace_', 'home_tx_',
   ];
 

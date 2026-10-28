@@ -2,6 +2,9 @@ import ChargeHomeCards, { usePendingCharges } from '@/components/ChargeHomeCards
 import IncomeHomeCards, { usePendingIncomes } from '@/components/IncomeHomeCards';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { pendingSummaryPhrase } from '@/lib/pendingSummary';
+import DismissButton from '@/components/DismissButton';
+import { DISMISS_HINT } from '@/lib/bannerDismiss';
+import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -29,19 +32,21 @@ export default function PendingSummary() {
   const count = incomes + charges.length;
   const phrase = pendingSummaryPhrase(count);
   const [open, setOpen] = useState(false);
+  const { hidden, dismiss } = useBannerDismiss();
 
   // آخر حاجة اتردّ عليها ← الشيت بيتقفل لوحده بدل ما يفضل فاضي
   useEffect(() => {
     if (count === 0 && open) setOpen(false);
   }, [count, open]);
 
-  if (!phrase) return null;
+  if (!phrase || hidden('pending')) return null;
 
   return (
     <>
+      <View style={styles.lineRow}>
       <TouchableOpacity
         testID="home_pending_summary"
-        style={styles.line}
+        style={[styles.line, styles.lineFlex]}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={phrase}
@@ -49,6 +54,8 @@ export default function PendingSummary() {
         <Text style={styles.lineText}>{phrase}</Text>
         <Text style={styles.chevron} accessible={false}>‹</Text>
       </TouchableOpacity>
+      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending')} hint={DISMISS_HINT} />
+      </View>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <View style={styles.overlay}>
@@ -94,8 +101,11 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8,
       backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border,
       borderRightWidth: 4, borderRightColor: c.accent,
-      paddingHorizontal: 14, minHeight: MIN_TOUCH + 8, marginTop: 10,
+      paddingHorizontal: 14, minHeight: MIN_TOUCH + 8,
     },
+    // الـ✕ جنب السطر مش جوّاه: زرار جوه زرار قارئ الشاشة بيدمجهم في عنصر واحد
+    lineRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, marginTop: 10 },
+    lineFlex: { flex: 1 },
     lineText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
     chevron: { color: c.textSecondary, fontSize: 20 },
     overlay: overlayStyle,
