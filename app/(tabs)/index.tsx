@@ -13,7 +13,7 @@ import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useDailyReminderHour } from '@/context/NotificationsContext';
 import DismissButton from '@/components/DismissButton';
-import { DISMISS_HINT } from '@/lib/bannerDismiss';
+import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -185,14 +185,14 @@ function HomeScreen() {
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
-            <DismissButton testID="home_banner_dismiss_offline" onPress={() => dismiss('offline')} hint={DISMISS_HINT} />
+            <DismissButton testID="home_banner_dismiss_offline" onPress={() => dismiss('offline')} hint={DISMISS_HINT} label={dismissLabel('offline')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
         {staleFigures && !hidden('stale') && (
           <View testID="home_banner_stale" style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
-            <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} />
+            <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
         {noWallets && (
@@ -221,7 +221,7 @@ function HomeScreen() {
         {!hasTodayTx && !offlineEmpty && !noWallets && nowHour >= dailyHour && !hidden('noTxToday') && (
           <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
             <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
-            <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} />
+            <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
         {lowWallets.filter(w => !hidden('lowBalance', w.id)).map(w => (
@@ -230,7 +230,7 @@ function HomeScreen() {
               accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
               رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
             </Text>
-            <DismissButton testID={`home_banner_dismiss_low_balance_${w.id}`} onPress={() => dismiss('lowBalance', w.id)} hint={DISMISS_HINT} />
+            <DismissButton testID={`home_banner_dismiss_low_balance_${w.id}`} onPress={() => dismiss('lowBalance', w.id)} hint={DISMISS_HINT} label={dismissLabel('lowBalance', w.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
         {totalBudgetAlert && !hidden('budget', 'total') && (
@@ -239,7 +239,7 @@ function HomeScreen() {
               accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
               الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
-            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', 'total')} hint={DISMISS_HINT} />
+            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', 'total')} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
         {budgetAlerts.filter(b => !hidden('budget', b.cat.id)).map(b => (
@@ -248,7 +248,7 @@ function HomeScreen() {
               accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
               ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
             </Text>
-            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', b.cat.id)} hint={DISMISS_HINT} />
+            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', b.cat.id)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
@@ -263,7 +263,7 @@ function HomeScreen() {
                 اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
               </Text>
               </TouchableOpacity>
-              <DismissButton testID={`home_banner_dismiss_sub_${s.id}`} onPress={() => dismiss('subscriptionDue', `${s.id}@${s.nextDueDate}`)} hint={DISMISS_HINT} />
+              <DismissButton testID={`home_banner_dismiss_sub_${s.id}`} onPress={() => dismiss('subscriptionDue', `${s.id}@${s.nextDueDate}`)} hint={DISMISS_HINT} label={dismissLabel('subscriptionDue', s.name)} announce={DISMISSED_ANNOUNCEMENT} />
             </View>
           );
         })}
@@ -277,7 +277,7 @@ function HomeScreen() {
                 جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
               </Text>
               </TouchableOpacity>
-              <DismissButton testID={`home_banner_dismiss_gamiya_${month.id}`} onPress={() => dismiss('gamiyaDue', month.id)} hint={DISMISS_HINT} />
+              <DismissButton testID={`home_banner_dismiss_gamiya_${month.id}`} onPress={() => dismiss('gamiyaDue', month.id)} hint={DISMISS_HINT} label={dismissLabel('gamiyaDue', gamiya.name)} announce={DISMISSED_ANNOUNCEMENT} />
             </View>
           );
         })}
@@ -386,7 +386,7 @@ function EmailVerificationBanner() {
         <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
           إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
         </Text>
-        <DismissButton testID="home_banner_dismiss_verify_email" onPress={() => dismiss('verifyEmail')} hint={DISMISS_HINT} />
+        <DismissButton testID="home_banner_dismiss_verify_email" onPress={() => dismiss('verifyEmail')} hint={DISMISS_HINT} label={dismissLabel('verifyEmail')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
       {sent && !error ? (
         <Text style={styles.bannerText}>بعتنالك رسالة تأكيد جديدة، شوف إيميلك</Text>

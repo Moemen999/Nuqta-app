@@ -135,18 +135,19 @@ export default function NotificationsScreen() {
         <View style={[styles.row, { alignItems: 'center' }]}>
           <TouchableOpacity testID="notifications_hour_later" style={styles.stepBtn}
             onPress={() => notifs.setDailyHour((notifs.dailyHour + 1) % 24)}
-            accessibilityRole="button" accessibilityLabel="ساعة بعد">
+            accessibilityRole="button" accessibilityLabel="زوّد ساعة التذكير">
             <Text style={styles.stepText}>+</Text>
           </TouchableOpacity>
           <Text testID="notifications_hour_value" style={styles.hourValue}
-            accessibilityRole="adjustable" accessibilityLabel={`ساعة التذكير ${hourLabel(notifs.dailyHour)}`}
+            accessibilityRole="adjustable" accessibilityLabel="ساعة التذكير"
+            accessibilityValue={{ text: hourLabel(notifs.dailyHour) }} accessibilityLiveRegion="polite"
             accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
             onAccessibilityAction={e => notifs.setDailyHour((notifs.dailyHour + (e.nativeEvent.actionName === 'increment' ? 1 : 23)) % 24)}>
             {hourLabel(notifs.dailyHour)}
           </Text>
           <TouchableOpacity testID="notifications_hour_earlier" style={styles.stepBtn}
             onPress={() => notifs.setDailyHour((notifs.dailyHour + 23) % 24)}
-            accessibilityRole="button" accessibilityLabel="ساعة قبل">
+            accessibilityRole="button" accessibilityLabel="قلّل ساعة التذكير">
             <Text style={styles.stepText}>−</Text>
           </TouchableOpacity>
         </View>

@@ -129,3 +129,13 @@ export const BANNER_LABELS: Record<BannerType, string> = {
   gamiyaDue: 'قسط جمعية جاي',
 };
 export const BANNER_TYPES = Object.keys(BANNER_LABELS) as BannerType[];
+
+/**
+ * اسم الـ✕ لقارئ الشاشة — بيقول **أنهي** تنبيه (a11y-architect): ممكن يبقى فيه 5 ✕ على
+ * الشاشة، و"اقفل التنبيه" للكل مبيفرّقش بينهم
+ */
+export const dismissLabel = (type: BannerType, name?: string) =>
+  name ? `اقفل تنبيه ${BANNER_LABELS[type]}: ${name}` : `اقفل تنبيه ${BANNER_LABELS[type]}`;
+
+/** بيتقال بعد الـ✕ — البانر بيختفي من الشجرة والتركيز بيضيع من غيرها */
+export const DISMISSED_ANNOUNCEMENT = 'اتقفل التنبيه، وهيرجع بعد المدة اللي اخترتها لو المشكلة لسه موجودة';

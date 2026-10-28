@@ -199,3 +199,23 @@ describe('الـ✕ مش جوه زرار تاني', () => {
     }
   });
 });
+
+/** a11y-architect: كل ✕ اسمه بيقول أنهي تنبيه، وبعد الدوسة بيتقال إنه اتقفل وهيرجع */
+describe('اسم الـ✕ وإعلانه', () => {
+  it('محفظتين ← اسمين مختلفين فيهم اسم المحفظة', async () => {
+    await mount();
+    const a = screen.getByTestId('home_banner_dismiss_low_balance_w1').props.accessibilityLabel;
+    const b = screen.getByTestId('home_banner_dismiss_low_balance_w2').props.accessibilityLabel;
+    expect(a).not.toBe(b);
+    expect(a).toContain('كاش');
+    expect(b).toContain('البنك');
+  });
+  it('الدوسة بتعلن إنه اتقفل وهيرجع', async () => {
+    const { AccessibilityInfo } = jest.requireActual('react-native');
+    const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    await mount();
+    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('اتقفل التنبيه'));
+    spy.mockRestore();
+  });
+});

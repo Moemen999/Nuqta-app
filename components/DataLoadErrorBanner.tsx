@@ -3,7 +3,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/listenerErrors';
 import { useMemo } from 'react';
 import DismissButton from '@/components/DismissButton';
-import { DISMISS_HINT } from '@/lib/bannerDismiss';
+import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -34,7 +34,8 @@ export default function DataLoadErrorBanner() {
     <View testID="data_load_error_banner" style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="alert">
       <View style={styles.titleRow}>
         <Text style={[styles.title, styles.titleFlex]}>{LOAD_ERROR_TITLE}</Text>
-        <DismissButton testID="data_load_error_dismiss" onPress={() => dismiss('loadError')} hint={DISMISS_HINT} />
+        <DismissButton testID="data_load_error_dismiss" onPress={() => dismiss('loadError')} hint={DISMISS_HINT}
+          label={dismissLabel('loadError')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
       <Text testID="data_load_error_body" style={styles.body}>{loadErrorBody(loadErrors)}</Text>
       <TouchableOpacity

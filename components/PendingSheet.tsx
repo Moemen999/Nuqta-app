@@ -3,7 +3,7 @@ import IncomeHomeCards, { usePendingIncomes } from '@/components/IncomeHomeCards
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { pendingSummaryPhrase } from '@/lib/pendingSummary';
 import DismissButton from '@/components/DismissButton';
-import { DISMISS_HINT } from '@/lib/bannerDismiss';
+import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
@@ -54,7 +54,8 @@ export default function PendingSummary() {
         <Text style={styles.lineText}>{phrase}</Text>
         <Text style={styles.chevron} accessible={false}>‹</Text>
       </TouchableOpacity>
-      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending')} hint={DISMISS_HINT} />
+      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending')} hint={DISMISS_HINT}
+        label={dismissLabel('pending')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
