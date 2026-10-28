@@ -318,7 +318,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'custom'>(sub.frequency);
   const [customDays, setCustomDays] = useState(String(sub.customDays || 30));
   const [nextDueDate, setNextDueDate] = useState(sub.nextDueDate);
-  const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore));
+  const [reminderDays, setReminderDays] = useState(String(sub.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(sub.chargeMode ?? 'confirm');
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');

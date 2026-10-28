@@ -328,7 +328,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
   const [name, setName] = useState(gamiya.name);
   const [walletId, setWalletId] = useState(gamiya.walletId);
-  const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore));
+  const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(gamiya.chargeMode ?? 'confirm');
   const [error, setError] = useState('');
 

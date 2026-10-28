@@ -67,6 +67,8 @@ it('تعديل اشتراك لـInfinity ← invalid والمبلغ القديم
   const id = harness.api().subscriptions[0].id;
   expect(await harness.api().updateSubscription(id, { amount: Infinity })).toMatchObject({ outcome: 'invalid', field: 'amount' });
   expect(await harness.api().updateSubscription(id, { frequency: 'custom', customDays: -1 })).toMatchObject({ outcome: 'invalid', field: 'customDays' });
+  // تعديل جزئي فيه customDays لوحده (من غير frequency) بيتفحص برضه (money-reviewer)
+  expect(await harness.api().updateSubscription(id, { customDays: Infinity })).toMatchObject({ outcome: 'invalid', field: 'customDays' });
   await harness.api().updateSubscription(id, { name: 'شاهد' });
   await harness.waitForData(api => api.subscriptions[0]?.name === 'شاهد');
   expect((await getDoc(doc(col('subscriptions'), id))).data()).toMatchObject({ name: 'شاهد', amount: 200, frequency: 'monthly' });

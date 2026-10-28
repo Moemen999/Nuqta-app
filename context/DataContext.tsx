@@ -142,6 +142,9 @@ class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
 class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
 
+/** اللي تعديل الجمعية يقدر يغيّره — المبالغ والشهور مش منهم (بند 15) */
+export type GamiyaEdit = Partial<Pick<Gamiya, 'name' | 'walletId' | 'reminderDaysBefore' | 'chargeMode'>>;
+
 /** نتيجة `deleteWallet`/`archiveWallet` — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
 export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
 
@@ -520,7 +523,7 @@ type DataContextType = {
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
   }) => Promise<EntrySaveResult>;
-  updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<EntrySaveResult>;
+  updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
@@ -1778,10 +1781,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
   }): Promise<EntrySaveResult> {
-    if (!uid) return { outcome: 'done' };
     // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
     const invalid = subscriptionEntryProblem(data);
     if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
     const { chargeMode, ...rest } = data;
     rest.amount = storableAmount(rest.amount)!;
     const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
@@ -1792,9 +1795,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { outcome: 'done' };
   }
   async function updateSubscription(id: string, data: Partial<Subscription>): Promise<EntrySaveResult> {
-    if (!uid) return { outcome: 'done' };
     const invalid = subscriptionEntryProblem(data);
     if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
     const current = subscriptions.find(s => s.id === id);
     const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
@@ -2247,10 +2250,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
   }): Promise<EntrySaveResult> {
-    if (!uid) return { outcome: 'done' };
     // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
     const invalid = gamiyaEntryProblem(data);
     if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
     const monthlyAmount = storableAmount(data.monthlyAmount)!;
     const payoutAmount = storableAmount(data.payoutAmount)!;
     const months: GamiyaMonth[] = Array.from({ length: data.totalMonths }, (_, i) => {
@@ -2271,12 +2274,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, namedLabel('الجمعية', data.name));
     return { outcome: 'done' };
   }
-  async function updateGamiya(id: string, data: Partial<Gamiya>): Promise<EntrySaveResult> {
-    if (!uid) return { outcome: 'done' };
-    // التعديل مبيلمسش مبالغ (الشهور اتولّدت خلاص) — التذكير بس (بند 15)
+  async function updateGamiya(id: string, data: GamiyaEdit): Promise<EntrySaveResult> {
+    // التعديل مبيلمسش مبالغ ولا شهور (اتولّدوا خلاص) — النوع نفسه مبيسمحش بيهم
+    // (money-reviewer: `Partial<Gamiya>` كان باب خلفي لـInfinity)، والتذكير بيتفحص (بند 15)
     if (data.reminderDaysBefore !== undefined && !validReminderDays(data.reminderDaysBefore)) return invalidEntry('reminderDays');
+    if (!uid) return { outcome: 'done' };
     const current = gamiyas.find(x => x.id === id);
-    const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    const { chargeMode, ...rest } = data;
     const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));

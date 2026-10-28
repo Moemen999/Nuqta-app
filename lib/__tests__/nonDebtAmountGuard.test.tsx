@@ -182,3 +182,25 @@ describe('الدوال نفسها (المصدر الواحد للشاشة وData
     expect(gamiyaEntryProblem({ ...ok, payoutAmount: 1e307 })?.field).toBe('payoutAmount');
   });
 });
+
+describe('parseEntryNumber', () => {
+  it('عشري بس — "0x10" و"0b11" مش أرقام هنا', () => {
+    const { parseEntryNumber } = jest.requireActual('@/lib/entryValidation');
+    expect(parseEntryNumber('0x10')).toBeNaN();
+    expect(parseEntryNumber('0b11')).toBeNaN();
+    expect(parseEntryNumber('')).toBeNaN();
+    expect(parseEntryNumber(' 99.5 ')).toBe(99.5);
+    expect(parseEntryNumber('.5')).toBe(0.5);
+    expect(parseEntryNumber('1e999')).toBe(Infinity);
+  });
+});
+
+describe('تعديل قديم: التذكير مش متخزّن', () => {
+  it('الخانة بتبدأ 0 مش "undefined" ← الحفظ بيمشي', async () => {
+    mockData.subscriptions = [{ ...sub, reminderDaysBefore: undefined }];
+    await render(wrap(<SubscriptionsView />));
+    await press(screen.getByText('تعديل'));
+    await press(screen.getByTestId('subscription_edit_save'));
+    expect(mockData.updateSubscription).toHaveBeenCalledWith('s1', expect.objectContaining({ reminderDaysBefore: 0 }));
+  });
+});
