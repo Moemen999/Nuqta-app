@@ -223,10 +223,14 @@ export default function AddTransactionModal() {
     const linkWarning = transactionLinkWarning(existing.id);
     const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
     const changes = [{ before: existing }];
-    const run = (settlements: Settlement[]) => {
-      deleteTransaction(existing.id, settlements);
-      router.back();
-    };
+    // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
+    // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
+    // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز
+    const run = (settlements: Settlement[]) =>
+      Promise.resolve().then(() => deleteTransaction(existing.id, settlements)).then(
+        () => router.back(),
+        e => { reportAtomicFailure('حذف العملية', e); setError('حصل خطأ، جرب تاني'); },
+      );
     // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
     // السؤال نفسه (فيها "متأكد؟" والتحذير وزرار "حذف") — مش Alert وبعده شيت فوق بعض
     if (settle.needsSettlement(changes)) {
@@ -242,10 +246,9 @@ export default function AddTransactionModal() {
           try {
             settle.request(changes, run);
           } catch {
-            // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
-            // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
-            // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
-            // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
+            // فشل التجهيز (stageReconcile) بيتمسك جوه `run` نفسها (الـpromise بتاع
+            // `deleteTransaction`)؛ فشل الكتابة بيعدي من `track` وبيتعرض مسمّى بالسجل.
+            // فاضل هنا للأخطاء المتزامنة في `settle.request` نفسها.
             setError('حصل خطأ، جرب تاني');
           } finally {
             setBusy(false);

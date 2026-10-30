@@ -220,3 +220,13 @@ describe('debtLinkWarning — جملة تحذير مسح العملية المر
     expect(debtLinkWarning(withBigPayment(), 'nope')).toBeNull();
   });
 });
+
+
+// silent-failure-hunter + money-reviewer (الجولة 1 على D3): نفس شرط الكتابة (`storableCount`) —
+// عدد مش صحيح أو فوق الدقة مبيتكتبش، فالسطر ميقولوش
+it('installmentCountBackLine: عدد مش قابل للتخزين ← مفيش سطر', () => {
+  expect(installmentCountBackLine(10, 12.5)).toBeNull();
+  expect(installmentCountBackLine(10, Number.MAX_SAFE_INTEGER + 2)).toBeNull();
+  expect(installmentCountBackLine(10.5, 12)).toBeNull();
+  expect(installmentCountBackLine(10, 12)).toBe('عدد الأقساط هيرجع 12 بدل 10.');
+});

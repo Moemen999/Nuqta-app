@@ -1019,20 +1019,13 @@ export function installmentChangeMessage(
 }
 
 /**
- * الرسالة لما زيادة على الدين تغيّر عدد الأقساط (2026-09-29). نفس فكرة
- * `installmentChangeMessage` للدفعة: العدد ميتغيّرش ساكت. القسط نفسه ثابت،
- * فاللي بيتقال العدد القديم والجديد بس — من غير مبلغ.
- *
- * `null` لو العدد ما اتغيرش، أو القديم مش معروف (دين قديم من غير عدد —
- * "بدل 0" كانت هتبقى كدب)، أو الجديد مش رقم حقيقي.
- */
-/**
  * سطر "عدد الأقساط هيرجع X بدل Y." — مصدر واحد لتأكيد المسح من شاشة الدين ومن مودال
  * العملية (D3، 2026-10-30، قرار مؤمن: نفس الرسالة في المكانين). `null` لو مفيش حركة
  * أو أي رقم مش معروف — "بدل 0" كانت هتبقى كدب.
  */
 export function installmentCountBackLine(before: number | null | undefined, after: number | null | undefined): string | null {
-  const ok = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  // نفس شرط الكتابة (`countToWrite` ← `storableCount`): عدد مبيتكتبش ميتقالش (silent-failure-hunter)
+  const ok = (n: unknown): n is number => storableCount(n);
   if (!ok(before) || !ok(after) || before === after) return null;
   return `عدد الأقساط هيرجع ${after} بدل ${before}.`;
 }
@@ -1096,6 +1089,14 @@ export function debtLinkWarning(d: Debt, txId: string): string | null {
   return countLine ? `${sentence}\n${countLine}` : sentence;
 }
 
+/**
+ * الرسالة لما زيادة على الدين تغيّر عدد الأقساط (2026-09-29). نفس فكرة
+ * `installmentChangeMessage` للدفعة: العدد ميتغيّرش ساكت. القسط نفسه ثابت،
+ * فاللي بيتقال العدد القديم والجديد بس — من غير مبلغ.
+ *
+ * `null` لو العدد ما اتغيرش، أو القديم مش معروف (دين قديم من غير عدد —
+ * "بدل 0" كانت هتبقى كدب)، أو الجديد مش رقم حقيقي.
+ */
 export function installmentIncreaseMessage(beforeCount: number | undefined, afterCount: number): string | null {
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (!Number.isFinite(afterCount) || afterCount <= 0) return null;

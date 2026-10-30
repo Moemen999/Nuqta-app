@@ -20,6 +20,7 @@ jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
   useLocalSearchParams: () => mockParams,
 }));
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: jest.fn() }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
@@ -122,4 +123,62 @@ it('الإلغاء من الشيت ← مفيش مسح', async () => {
   await act(async () => { fireEvent.press(within(screen.getByTestId('settle_sheet')).getByText('إلغاء')); });
   expect(screen.queryByTestId('settle_sheet')).toBeNull();
   expect(mockData.deleteTransaction).not.toHaveBeenCalled();
+});
+
+
+/**
+ * الجولة 1 على D3 (2026-10-30): silent-failure-hunter + react-reviewer + a11y-architect.
+ */
+describe('الجولة 1 على D3', () => {
+  it('دوستين على "حذف" في الشيت في نفس اللحظة ← المسح والتسوية مرة واحدة (مش تحويلين)', async () => {
+    seed([archived, active], 'a');
+    await openAndPressDelete();
+    const sheet = screen.getByTestId('settle_sheet');
+    await act(async () => { fireEvent.press(within(sheet).getByText('كاش')); });
+    const confirm = screen.getByTestId('settle_confirm');
+    await act(async () => { fireEvent.press(confirm); fireEvent.press(confirm); });
+    expect(mockData.deleteTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('المسح وقع (رمى) ← المودال مبيتقفلش والرسالة بتظهر، والفشل بيوصل Sentry', async () => {
+    seed([archived, active], 'a');
+    (mockData.deleteTransaction as jest.Mock).mockImplementation(async () => { throw new Error('boom'); });
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await openAndPressDelete();
+    await act(async () => { fireEvent.press(within(screen.getByTestId('settle_sheet')).getByText('كاش')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('settle_confirm')); });
+    await act(async () => {});
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    const { reportAtomicFailure } = jest.requireMock('@/lib/atomicFailure');
+    expect(reportAtomicFailure).toHaveBeenCalledWith('حذف العملية', expect.any(Error));
+  });
+
+  it('مسار Alert: المسح وقع ← نفس الرسالة ومفيش رجوع', async () => {
+    seed([active], 'w');
+    (mockData.deleteTransaction as jest.Mock).mockImplementation(async () => { throw new Error('boom'); });
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await openAndPressDelete();
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => {});
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+  });
+
+  it('زرار التأكيد بيقول إنه زرار ومقفول لحد ما المحفظة تتختار، والشرايح بتقول مين المختار', async () => {
+    seed([archived, active], 'a');
+    await openAndPressDelete();
+    const confirm = screen.getByTestId('settle_confirm');
+    expect(confirm.props.accessibilityRole).toBe('button');
+    expect(confirm.props.accessibilityState).toEqual(expect.objectContaining({ disabled: true }));
+    const chip = within(screen.getByTestId('settle_sheet')).getByText('كاش');
+    await act(async () => { fireEvent.press(chip); });
+    const chipBtn = screen.getByTestId('settle_target_w');
+    expect(chipBtn.props.accessibilityRole).toBe('radio');
+    expect(chipBtn.props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(screen.getByTestId('settle_confirm').props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
+  });
 });
