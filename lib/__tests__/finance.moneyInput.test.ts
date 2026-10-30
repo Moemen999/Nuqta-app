@@ -99,7 +99,9 @@ describe('كل مدخل بيكتب مبلغ أو عدد بيعدّي على ال
 
   it('كل كتابة لعدد الأقساط بتعدّي على countToWrite (مفيش كتابة مباشرة)', () => {
     expect(ctx).not.toMatch(/patch\.installmentCount = (recount|nextCount)/);
-    expect((ctx.match(/countToWrite\(/g) || []).length).toBeGreaterThanOrEqual(7);
+    // 6 من 2026-10-30 (D3): فرعين الدفعة والزيادة في stageReconcile بقوا نداء واحد على
+    // transactionDeleteDebtPlan — نفس الحماية، نداء أقل
+    expect((ctx.match(/countToWrite\(/g) || []).length).toBeGreaterThanOrEqual(6);
   });
 
   it('رسالة الدفعة بالعدد اللي اتكتب — مش `nextCount ??` (مبيمسكش NaN)', () => {

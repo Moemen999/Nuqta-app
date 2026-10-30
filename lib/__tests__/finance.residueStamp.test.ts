@@ -344,10 +344,12 @@ describe('DataContext — الجولة 1 على D2', () => {
 
   it('stageReconcile (مسح عملية زيادة): الفرق المتجاهَل بيتسجّل قبل الطيّ زي باقي مسارات الدين', () => {
     const b = fnBody('  function stageReconcile(');
+    // D3 (2026-10-30): الطيّ بقى جوه transactionDeleteDebtPlan؛ السطر لازم يفضل قبل كتابة الفرق
     const ignored = b.indexOf('noteIgnoredResidue(d);');
-    const fold = b.indexOf('residueAfterIncreaseChange(d,');
+    const write = b.indexOf('patch.installmentResidue =');
     expect(ignored).toBeGreaterThan(-1);
-    expect(ignored).toBeLessThan(fold);
+    expect(b).toMatch(/if \(plan\.kind === 'increase'\) noteIgnoredResidue\(d\);/);
+    expect(ignored).toBeLessThan(write);
   });
 
   // money-reviewer (NIT): النوع مبيمنعش فرق من غير بصمة لأن الـpatch `Record<string, unknown>`

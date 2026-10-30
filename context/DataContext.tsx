@@ -14,7 +14,7 @@ import {
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  foldInstallmentResidue, stampResidue, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -1293,38 +1293,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if ((d.payments || []).some(p => p.transactionId === txId)) {
-        const payments = d.payments.filter(p => p.transactionId !== txId);
-        // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
-        // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
-        // من غير pinInstallmentAmount هنا عن قصد: الدفعة دي من حالة الرياكت مش من
-        // قراية ذرية، فقيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب فوقها (silent-failure-hunter).
-        // وفرق التقريب (`installmentResidue`) مبيتغيّرش مع الدفعات أصلاً (الخطة هي هي)،
-        // فمبيتكتبش هنا — لو متأخر عن جهاز تاني، أول عملية ذرية بتعيد العدد صح
-        const patch: Record<string, unknown> = { payments };
-        const recount = installmentCountFor({ ...d, payments });
-        const count = countToWrite(recount, d.installmentCount, d.id);
-        if (count !== undefined) patch.installmentCount = count;
-        batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
-        return;
-      }
-      if ((d.increases || []).some(e => e.transactionId === txId)) {
-        const removed = (d.increases || []).filter(e => e.transactionId === txId);
-        const increases = (d.increases || []).filter(e => e.transactionId !== txId);
-        const patch: Record<string, unknown> = { increases };
-        // الفرق لازم يفضل مطابق للخطة بعد المسح (2026-09-30) — زي `deleteDebtIncrease`.
-        // **من حالة الرياكت (مش ذرية):** لو جهاز تاني غيّر القسط في نفس اللحظة، الفرق
-        // بيبقى بتاع قسط تاني فبيتجاهل (القاعدة القديمة لحد تعديل العدد). لو زوّد
-        // زيادة في نفس اللحظة، إزاحتها بتضيع من الخطة **ومبتتصلحش لوحدها** — العدد
-        // بيفضل صح (المتبقي بيتحسب من الدفعات)، بس تصنيف تقريب/كسر ممكن يفرق بقسط
-        // على آخر الدين. نادر (جهازين في نفس الثواني)، ومتسجّل في TIMELINE
+      // دفعة أو زيادة: نفس الدالة اللي بتبني تحذير مودال العملية (`transactionDeleteDebtPlan`،
+      // D3 2026-10-30)، فعدد الأقساط في الرسالة هو اللي بيتكتب. **من حالة الرياكت (مش ذرية)**
+      // ومن غير `pinInstallmentAmount` عن قصد: قيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب
+      // فوقها (silent-failure-hunter). لو جهاز تاني زوّد زيادة في نفس اللحظة، إزاحتها بتضيع
+      // من الخطة — والبصمة (D2) بتبقى مش مطابقة فالفرق بيتجاهل (متسجّل في TIMELINE)
+      const plan = transactionDeleteDebtPlan(d, txId);
+      if (plan) {
         // فرق متجاهَل (نسخة قديمة غيّرت الزيادات — D2) بيتسجّل زي باقي مسارات الدين
-        // (silent-failure-hunter، الجولة 1 على D2): ده المسار الوحيد اللي كان ساكت
-        noteIgnoredResidue(d);
-        const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0), increases);
-        if (residue) patch.installmentResidue = residue.patch;
-        const recount = installmentCountFor({ ...d, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
-        const count = countToWrite(recount, d.installmentCount, d.id);
+        if (plan.kind === 'increase') noteIgnoredResidue(d);
+        const patch: Record<string, unknown> = plan.kind === 'payment' ? { payments: plan.payments } : { increases: plan.increases };
+        if (plan.residue?.op === 'set') patch.installmentResidue = plan.residue.value;
+        if (plan.residue?.op === 'clear') {
+          patch.installmentResidue = deleteField();
+          noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
+        }
+        const count = countToWrite(plan.countAfter, d.installmentCount, d.id);
         if (count !== undefined) patch.installmentCount = count;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
@@ -1428,19 +1412,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // بتقول للمستخدم قبل التأكيد إيه اللي هيحصل للسجل المرتبط بالعملية دي
   function transactionLinkWarning(id: string): string | null {
+    // الدين: الجملة + سطر عدد الأقساط بنفس حساب الكتابة (`debtLinkWarning`، D3)
     for (const d of debts) {
-      if (d.initialTransactionId === id) {
-        const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
-        return hasHistory
-          ? `العملية دي هي أساس دين "${d.personName}" — الدين هيفضل موجود بس هيبقى بالأجل من غير أثر على أي محفظة.`
-          : `العملية دي هي أساس دين "${d.personName}" — الدين هيتمسح كمان.`;
-      }
-      if ((d.payments || []).some(p => p.transactionId === id)) {
-        return `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`;
-      }
-      if ((d.increases || []).some(e => e.transactionId === id)) {
-        return `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
-      }
+      const w = debtLinkWarning(d, id);
+      if (w) return w;
     }
     for (const sub of subscriptions) {
       const entry = (sub.history || []).find(h => h.transactionId === id);

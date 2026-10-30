@@ -1026,6 +1026,76 @@ export function installmentChangeMessage(
  * `null` لو العدد ما اتغيرش، أو القديم مش معروف (دين قديم من غير عدد —
  * "بدل 0" كانت هتبقى كدب)، أو الجديد مش رقم حقيقي.
  */
+/**
+ * سطر "عدد الأقساط هيرجع X بدل Y." — مصدر واحد لتأكيد المسح من شاشة الدين ومن مودال
+ * العملية (D3، 2026-10-30، قرار مؤمن: نفس الرسالة في المكانين). `null` لو مفيش حركة
+ * أو أي رقم مش معروف — "بدل 0" كانت هتبقى كدب.
+ */
+export function installmentCountBackLine(before: number | null | undefined, after: number | null | undefined): string | null {
+  const ok = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+  if (!ok(before) || !ok(after) || before === after) return null;
+  return `عدد الأقساط هيرجع ${after} بدل ${before}.`;
+}
+
+/**
+ * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): بالظبط اللي
+ * `stageReconcile` بيكتبه — نفس الدالة بتبني الكتابة والتحذير، فالرقم في الرسالة هو
+ * الرقم اللي بيتكتب. **مختلف عن `debtEntryDeletePlan` عن قصد:** المسار ده من حالة
+ * الرياكت مش ذرة، فمبيثبّتش قسط الدين القديم (قيمة اتعدّلت من جهاز تاني كانت هتتكتب
+ * فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
+ *
+ * `residue`: `set` = الفرق بعد الطيّ (مبصوم)، `clear` = كان معروف والطيّ فشل (الكاتب
+ * بيشيله صريح ويسجّل)، `null` = مفيش حاجة تتكتب في الفرق.
+ */
+export type TransactionDeleteDebtPlan = {
+  kind: 'payment' | 'increase';
+  payments?: Debt['payments'];
+  increases?: Debt['increases'];
+  residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
+  countBefore: number | undefined;
+  countAfter: number | null;
+};
+
+export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDeleteDebtPlan | null {
+  if ((d.payments || []).some(p => p.transactionId === txId)) {
+    // الفرق مبيتغيّرش مع الدفعات (الخطة هي هي)
+    const payments = (d.payments || []).filter(p => p.transactionId !== txId);
+    return { kind: 'payment', payments, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }) };
+  }
+  if ((d.increases || []).some(e => e.transactionId === txId)) {
+    const removed = (d.increases || []).filter(e => e.transactionId === txId);
+    const increases = (d.increases || []).filter(e => e.transactionId !== txId);
+    let residue: TransactionDeleteDebtPlan['residue'] = null;
+    if (installmentResidueKnown(d)) {
+      const folded = foldInstallmentResidue(d, { kind: 'increase', delta: -removed.reduce((s, e) => s + Number(e.amount), 0), increasesAfter: increases });
+      residue = folded ? { op: 'set', value: folded } : { op: 'clear' };
+    }
+    const forCount = residue === null ? {} : { installmentResidue: residue.op === 'set' ? residue.value : undefined };
+    return { kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }) };
+  }
+  return null;
+}
+
+/**
+ * تحذير مسح عملية مربوطة بدين في مودال العملية (كان جوه `transactionLinkWarning`).
+ * دفعة أو زيادة بتحرّك العدد ← سطر العدد بنفس صيغة شاشة الدين (D3).
+ */
+export function debtLinkWarning(d: Debt, txId: string): string | null {
+  if (d.initialTransactionId === txId) {
+    const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
+    return hasHistory
+      ? `العملية دي هي أساس دين "${d.personName}" — الدين هيفضل موجود بس هيبقى بالأجل من غير أثر على أي محفظة.`
+      : `العملية دي هي أساس دين "${d.personName}" — الدين هيتمسح كمان.`;
+  }
+  const plan = transactionDeleteDebtPlan(d, txId);
+  if (!plan) return null;
+  const sentence = plan.kind === 'payment'
+    ? `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`
+    : `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
+  const countLine = installmentCountBackLine(plan.countBefore, plan.countAfter);
+  return countLine ? `${sentence}\n${countLine}` : sentence;
+}
+
 export function installmentIncreaseMessage(beforeCount: number | undefined, afterCount: number): string | null {
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (!Number.isFinite(afterCount) || afterCount <= 0) return null;
@@ -1127,9 +1197,9 @@ export function debtEntryDeleteMessage(
   } else {
     lines.push(`زيادة ${amt} على دين ${d.personName} هتتمسح.`);
   }
-  if (plan.countBefore !== null && plan.countAfter !== null) {
-    lines.push(`عدد الأقساط هيرجع ${plan.countAfter} بدل ${plan.countBefore}.`);
-  }
+  const countLine = plan.countBefore !== null && plan.countAfter !== null
+    ? installmentCountBackLine(plan.countBefore, plan.countAfter) : null;
+  if (countLine) lines.push(countLine);
   if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
   else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
   else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');

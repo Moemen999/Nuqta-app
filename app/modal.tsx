@@ -222,6 +222,17 @@ export default function AddTransactionModal() {
     // لو العملية مرتبطة بدين أو اشتراك أو جمعية، المستخدم لازم يعرف هيحصل إيه للسجل ده
     const linkWarning = transactionLinkWarning(existing.id);
     const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
+    const changes = [{ before: existing }];
+    const run = (settlements: Settlement[]) => {
+      deleteTransaction(existing.id, settlements);
+      router.back();
+    };
+    // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
+    // السؤال نفسه (فيها "متأكد؟" والتحذير وزرار "حذف") — مش Alert وبعده شيت فوق بعض
+    if (settle.needsSettlement(changes)) {
+      settle.request(changes, run, { intro: message, confirmLabel: 'حذف' });
+      return;
+    }
     Alert.alert('حذف العملية', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
@@ -229,10 +240,7 @@ export default function AddTransactionModal() {
           if (busy) return;
           setBusy(true);
           try {
-            settle.request([{ before: existing }], settlements => {
-              deleteTransaction(existing.id, settlements);
-              router.back();
-            });
+            settle.request(changes, run);
           } catch {
             // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
             // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون

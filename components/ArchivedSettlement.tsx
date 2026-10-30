@@ -65,6 +65,8 @@ export function useArchivedSettlement() {
     changes: TxChange[];
     run: (settlements: Settlement[]) => void;
     isDelete: boolean;
+    intro?: string;
+    confirmLabel?: string;
   } | null>(null);
 
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
@@ -91,15 +93,28 @@ export function useArchivedSettlement() {
    * ومبتشغّلش حاجة. الحالتين كانوا في سطر واحد، فالتانية كانت بتشغّل المسح
    * من غير تسوية ورصيد المؤرشفة يبعد عن الصفر ساكت.
    */
-  function request(changes: TxChange[], run: (settlements: Settlement[]) => void) {
+  function request(
+    changes: TxChange[], run: (settlements: Settlement[]) => void,
+    opts: { intro?: string; confirmLabel?: string } = {},
+  ) {
     if (archivedWalletDeltas(changes, archivedWallets).length === 0) { run([]); return; }
-    setPending({ changes, run, isDelete: changes.every(c => !c.after) });
+    setPending({ changes, run, isDelete: changes.every(c => !c.after), ...opts });
+  }
+
+  /**
+   * الشيت هتفتح؟ — عشان المودال يسأل سؤال واحد (D3، 2026-10-30، قرار مؤمن): لو هتفتح،
+   * سؤال "متأكد؟" والتحذير بيتحطوا جوّاها بدل `Alert` وبعده شيت فوق بعض
+   */
+  function needsSettlement(changes: TxChange[]) {
+    return archivedWalletDeltas(changes, archivedWallets).length > 0;
   }
 
   const sheet = pending && deltas.length > 0 ? (
     <SettleSheet
       deltas={deltas}
       isDelete={pending.isDelete}
+      intro={pending.intro}
+      confirmLabel={pending.confirmLabel}
       // الممنوع بيتقرر من المحافظ **دلوقتي** مش وقت الفتح: آخر محفظة شغالة
       // ممكن تتمسح من جهاز تاني والشيت مفتوحة — كانت هتفضل سؤال من غير اختيارات
       targets={activeWallets.map(w => ({ id: w.id, name: w.name }))}
@@ -117,12 +132,15 @@ export function useArchivedSettlement() {
     />
   ) : null;
 
-  return { request, sheet };
+  return { request, needsSettlement, sheet };
 }
 
-function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
+function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm, onCancel }: {
   deltas: ArchivedDelta[];
   isDelete: boolean;
+  /** سؤال التأكيد والتحذير لما الشيت هي الحوار الوحيد (D3) — مبيظهرش في الممنوعة */
+  intro?: string;
+  confirmLabel?: string;
   targets: { id: string; name: string }[];
   onConfirm: (targetByWallet: Record<string, string>) => void;
   onCancel: () => void;
@@ -147,6 +165,8 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
               ? speakable([SETTLE_TITLE, ...deltas.map(d => settleBlockedBody(d.name, d.delta, isDelete, money)), settleBlockedHint(isDelete)].join(' '))
               : undefined}>
             <Text style={styles.sheetTitle}>{SETTLE_TITLE}</Text>
+            {/* الممنوعة مبتسألش "متأكد؟": مفيش حاجة هتتعمل أصلاً */}
+            {!blocked && intro ? <Text testID="settle_intro" style={styles.body}>{intro}</Text> : null}
             {deltas.map(d => (
               <View key={d.walletId} style={styles.card}>
                 <Text style={[styles.body, blocked && styles.bodyBlocked]}>
@@ -184,7 +204,7 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
                   style={[styles.saveBtn, !allPicked && styles.btnBusy]}
                   disabled={!allPicked}
                   onPress={() => onConfirm(picked)}>
-                  <Text style={{ color: colors.onAccent, fontWeight: '700' }}>احفظ</Text>
+                  <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
                 </TouchableOpacity>
               </>
             )}
