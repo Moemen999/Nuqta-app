@@ -1318,6 +1318,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // زيادة في نفس اللحظة، إزاحتها بتضيع من الخطة **ومبتتصلحش لوحدها** — العدد
         // بيفضل صح (المتبقي بيتحسب من الدفعات)، بس تصنيف تقريب/كسر ممكن يفرق بقسط
         // على آخر الدين. نادر (جهازين في نفس الثواني)، ومتسجّل في TIMELINE
+        // فرق متجاهَل (نسخة قديمة غيّرت الزيادات — D2) بيتسجّل زي باقي مسارات الدين
+        // (silent-failure-hunter، الجولة 1 على D2): ده المسار الوحيد اللي كان ساكت
+        noteIgnoredResidue(d);
         const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0), increases);
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...d, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
@@ -1742,14 +1745,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return false;
     const plan = planInstallmentCountEdit(debt, nextTotal);
     if (!plan) return false;
+    // مبصوم بمجموع الزيادات الحالي (D2). المجموع مش رقم ← الفرق بيتشال (القاعدة القديمة)
+    // بدل ما يفضل القديم جنب قسط جديد — **بسطر**، زي كل مسار تاني بيشيل الفرق
+    // (silent-failure-hunter، الجولة 1 على D2). والفرق القديم المتجاهَل كمان بيتسجّل
+    noteIgnoredResidue(debt);
+    const stamped = stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, debt.increases);
+    if (!stamped) noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
     track(
       updateDoc(doc(db, 'users', uid, 'debts', debtId), {
         installmentCount: plan.count,
         installmentAmount: plan.value,
         // في نفس الكتابة، ومحسوب على المتبقي اللي اتقسّم دلوقتي (2026-09-30)
-        // مبصوم بمجموع الزيادات الحالي (D2). المجموع مش رقم ← الفرق بيتشال (القاعدة القديمة)
-        // بدل ما يفضل القديم جنب قسط جديد
-        installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, debt.increases) ?? deleteField(),
+        installmentResidue: stamped ?? deleteField(),
       }),
       namedLabel('عدد أقساط الدين', debt.personName),
     );

@@ -318,3 +318,44 @@ describe('قيد معروف C1: نسخة قديمة بتعدّل العدد وت
     expect(installmentResidueIgnored(oldBuild)).toBe(true);
   });
 });
+
+
+/**
+ * الجولة 1 على D2 (2026-10-30): silent-failure-hunter + money-reviewer. اختبارات على
+ * مصدر `DataContext` (نفس نمط "DataContext (المراجعة الجولة 2)") — السطور دي لوج وكتابة
+ * من جوه الكونتكست، مش دوال صافية.
+ */
+describe('DataContext — الجولة 1 على D2', () => {
+  const { readFileSync } = require('fs');
+  const src: string = readFileSync('context/DataContext.tsx', 'utf8');
+  const fnBody = (header: string) => {
+    const start = src.indexOf(header);
+    expect(start).toBeGreaterThan(-1);
+    return src.slice(start, src.indexOf('\n  }\n', start));
+  };
+
+  it('setInstallmentCount: البصمة مش ممكنة ← الفرق بيتشال **بسطر** (مش ساكت)، والفرق المتجاهَل بيتسجّل', () => {
+    const b = fnBody('  async function setInstallmentCount(');
+    expect(b).toMatch(/noteIgnoredResidue\(debt\)/);
+    // الحالة اللي البصمة فيها null لازم يبقى فيها سطر fold قبل deleteField
+    expect(b).toMatch(/if \(!stamped\) noteOnce\(`fold:\$\{debtId\}`/);
+    expect(b).toMatch(/installmentResidue: stamped \?\? deleteField\(\)/);
+  });
+
+  it('stageReconcile (مسح عملية زيادة): الفرق المتجاهَل بيتسجّل قبل الطيّ زي باقي مسارات الدين', () => {
+    const b = fnBody('  function stageReconcile(');
+    const ignored = b.indexOf('noteIgnoredResidue(d);');
+    const fold = b.indexOf('residueAfterIncreaseChange(d,');
+    expect(ignored).toBeGreaterThan(-1);
+    expect(ignored).toBeLessThan(fold);
+  });
+
+  // money-reviewer (NIT): النوع مبيمنعش فرق من غير بصمة لأن الـpatch `Record<string, unknown>`
+  // — فالحارس هنا: مفيش ولا فرق بيتكتب كـliteral، كله من stampResidue أو الطيّ
+  it('جرد: مفيش `installmentResidue: {` literal في DataContext ولا linkedEdit', () => {
+    for (const file of ['context/DataContext.tsx', 'lib/linkedEdit.ts']) {
+      const text: string = readFileSync(file, 'utf8');
+      expect(text).not.toMatch(/installmentResidue:\s*\{/);
+    }
+  });
+});
