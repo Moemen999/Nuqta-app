@@ -1,7 +1,7 @@
 import type { Debt } from '@/context/DataContext';
 import {
   foldInstallmentResidue, installmentCountFor, installmentResidueOf, pinInstallmentAmount, planInstallments,
-  suggestedInstallmentPayment, debtRemaining,
+  stampResidue, suggestedInstallmentPayment, debtRemaining,
 } from '@/lib/finance';
 import { debtLinkedEditPlan } from '@/lib/linkedEdit';
 
@@ -33,7 +33,7 @@ function created(total: number, n: number, over: Partial<Debt> = {}): Debt {
   const plan = planInstallments(total, n)!;
   return baseDebt({
     totalAmount: total, installmentCount: n, installmentAmount: plan.value,
-    installmentResidue: { amount: plan.residue, forInstallment: plan.value, over: n }, ...over,
+    installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: n }, [])!, ...over,
   });
 }
 
@@ -46,9 +46,10 @@ const plan = (d: Debt, txId: string, amount: number, over: Record<string, unknow
 /** 1000 على 12 + زيادة 500 (الفرق بعد الزيادة بنفس طي مسار الزيادة) */
 function withIncrease(): Debt {
   const d0 = created(1000, 12);
-  const residue = foldInstallmentResidue(d0, 500)!;
+  const entry = { id: 'i1', date: '2026-01-10', amount: 500, walletId: 'w1', transactionId: 'tx_i1' };
+  const residue = foldInstallmentResidue(d0, { kind: 'increase', delta: 500, increasesAfter: [entry] })!;
   return baseDebt({
-    ...d0, increases: [{ id: 'i1', date: '2026-01-10', amount: 500, walletId: 'w1', transactionId: 'tx_i1' }],
+    ...d0, increases: [entry],
     installmentResidue: residue, installmentCount: 18,
   } as Partial<Debt>);
 }
@@ -56,10 +57,11 @@ function withIncrease(): Debt {
 describe('تعديل الأصل — الفرق بيتطوي', () => {
   it('1000 على 12 ← 2000: الفرق {0.08، 83.33، 24} والعدد 24 (مش 25)', () => {
     const d = created(1000, 12);
-    expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
+    expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 });
     const p = plan(d, 'tx_init', 2000);
-    expect(p.patch.installmentResidue).toEqual({ amount: 0.08, forInstallment: 83.33, over: 24 });
-    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue(d, 1000));
+    // البصمة (D2): الزيادات مااتغيّرتش بتعديل الأصل ← 0 زي ما كانت
+    expect(p.patch.installmentResidue).toEqual({ amount: 0.08, forInstallment: 83.33, over: 24, increasesTotal: 0 });
+    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue(d, { kind: 'initial', delta: 1000 }));
     expect(p.patch.installmentCount).toBe(24);
     expect(p.countAfter).toBe(24);
     expect(p.countBefore).toBe(12);
@@ -76,7 +78,7 @@ describe('تعديل الأصل — الفرق بيتطوي', () => {
   it('التعديل لأقل (1000 ← 500) بيطوي بالسالب', () => {
     const d = created(1000, 12);
     const p = plan(d, 'tx_init', 500);
-    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue(d, -500));
+    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue(d, { kind: 'initial', delta: -500 }));
     expect(p.patch.installmentCount).toBe(installmentCountFor({ ...d, ...p.patch } as Debt));
   });
 
@@ -87,13 +89,26 @@ describe('تعديل الأصل — الفرق بيتطوي', () => {
     expect(p.countAfter).toBe(12);
   });
 
+  it('البصمة (D2): تعديل الأصل مبيغيّرش بصمة الزيادات، وتعديل الزيادة بيغيّرها لمجموعها الجديد', () => {
+    const d = withIncrease();
+    expect(d.installmentResidue!.increasesTotal).toBe(500);
+    // الأصل 1000 ← 2000: الزيادات لسه 500 ← البصمة 500 والفرق لسه مقبول
+    const origin = plan(d, 'tx_init', 2000);
+    expect((origin.patch.installmentResidue as { increasesTotal: number }).increasesTotal).toBe(500);
+    expect(installmentResidueOf(origin.debtAfter)).not.toBeNull();
+    // الزيادة 500 ← 600: البصمة 600 (مجموع الزيادات في نفس الكتابة)
+    const inc = plan(d, 'tx_i1', 600);
+    expect((inc.patch.installmentResidue as { increasesTotal: number }).increasesTotal).toBe(600);
+    expect(installmentResidueOf(inc.debtAfter)).not.toBeNull();
+  });
+
   it('دين قديم من غير قسط متخزّن: التثبيت بيحصل والفرق بيتطوي من الدين المثبّت', () => {
     const d = baseDebt({ totalAmount: 1000, installmentCount: 12 });
     const pin = pinInstallmentAmount(d)!;
     expect(pin).not.toBeNull();
     const p = plan(d, 'tx_init', 2000);
     expect(p.patch.installmentAmount).toBe(pin.installmentAmount);
-    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue({ ...d, ...pin }, 1000));
+    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue({ ...d, ...pin }, { kind: 'initial', delta: 1000 }));
     expect(p.patch.installmentCount).toBe(24);
   });
 });
@@ -104,7 +119,11 @@ describe('تعديل الزيادة — الفرق بيتطوي', () => {
     expect(d.installmentResidue!.over).toBe(18);
     const p = plan(d, 'tx_i1', 600);
     expect(p.role).toBe('increase');
-    expect(p.patch.installmentResidue).toEqual(foldInstallmentResidue(d, 100));
+    expect(p.patch.installmentResidue).toEqual(
+      foldInstallmentResidue(d, { kind: 'increase', delta: 100, increasesAfter: [{ ...d.increases[0], amount: 600 }] }),
+    );
+    // والبصمة = مجموع الزيادات الجديد
+    expect((p.patch.installmentResidue as { increasesTotal: number }).increasesTotal).toBe(600);
     expect(p.clearResidue).toBeFalsy();
     expect(p.patch.installmentCount).toBe(installmentCountFor({ ...d, ...p.patch } as Debt));
   });
@@ -114,8 +133,8 @@ describe('تعديل الزيادة — الفرق بيتطوي', () => {
     const p = plan(d, 'tx_i1', 600);
     const afterEdit = p.debtAfter;
     // مسح الزيادة = طي بمقدار −600 (مسار الحذف بيطوي بالسالب)
-    const afterDelete = foldInstallmentResidue(afterEdit, -600);
-    expect(afterDelete).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
+    const afterDelete = foldInstallmentResidue(afterEdit, { kind: 'increase', delta: -600, increasesAfter: [] });
+    expect(afterDelete).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 });
   });
 
   it('رجوع ذهاب وإياب: X ← Y ثم Y ← X بيرجّع الفرق الأصلي بالظبط', () => {
@@ -132,7 +151,7 @@ describe('الفرق معروف والطي رجّع null', () => {
   it('clearResidue = true ومفيش مفتاح installmentResidue في الـpatch، والعدد بالقاعدة القديمة', () => {
     // مبلغ ضخم: الطي بالقروش يفوق الأعداد الآمنة ← null
     const d = created(1000, 12);
-    expect(foldInstallmentResidue(d, 1e20)).toBeNull();
+    expect(foldInstallmentResidue(d, { kind: 'initial', delta: 1e20 })).toBeNull();
     const p = plan(d, 'tx_init', 1e20);
     expect(p.clearResidue).toBe(true);
     expect('installmentResidue' in p.patch).toBe(false);
@@ -153,7 +172,7 @@ describe('الفرق مش معروف', () => {
   it('فرق متجاهَل (بتاع قسط تاني) + تعديل الأصل: بيتشال صريح (clearIgnoredResidue)، مش طيّ ولا فشل طيّ', () => {
     const d = baseDebt({
       totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33,
-      installmentResidue: { amount: 0.04, forInstallment: 90, over: 12 },
+      installmentResidue: { amount: 0.04, forInstallment: 90, over: 12, increasesTotal: 0 },
     });
     const p = plan(d, 'tx_init', 2000) as Plan & { clearIgnoredResidue?: boolean };
     expect('installmentResidue' in p.patch).toBe(false);
@@ -166,7 +185,7 @@ describe('الفرق مش معروف', () => {
     // 12 × 83.33 + 500 = 1499.96 > 1000 ← متجاهَل قبل التعديل، وبعد 2000 كان هيعدّي
     const d = baseDebt({
       totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33,
-      installmentResidue: { amount: 500, forInstallment: 83.33, over: 12 },
+      installmentResidue: { amount: 500, forInstallment: 83.33, over: 12, increasesTotal: 0 },
     });
     const p = plan(d, 'tx_init', 2000) as Plan & { clearIgnoredResidue?: boolean };
     expect(p.clearIgnoredResidue).toBe(true);

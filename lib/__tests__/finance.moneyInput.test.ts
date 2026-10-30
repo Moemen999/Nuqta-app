@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import type { Debt } from '@/context/DataContext';
 import {
   foldInstallmentResidue, installmentCountFor, planInstallmentCountEdit, planInstallments,
-  storableCount, toMoneyAmount,
+  stampResidue, storableCount, toMoneyAmount,
 } from '@/lib/finance';
 
 /**
@@ -46,7 +46,7 @@ const created = (total: number, n: number, over: Partial<Debt> = {}) => {
   return {
     id: 'd', personName: 'أحمد', direction: 'i_owe', isInstallment: true, date: '2026-01-01',
     createdAt: '2026-01-01', payments: [], increases: [], totalAmount: total, installmentCount: n,
-    installmentAmount: plan.value, installmentResidue: { amount: plan.residue, forInstallment: plan.value, over: n },
+    installmentAmount: plan.value, installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: n }, [])!,
     ...over,
   } as unknown as Debt;
 };
@@ -62,7 +62,7 @@ describe('أعداد ضخمة في الدوال اللي الفرع ضافها',
   });
 
   it('زيادة ضخمة (1e300) ← حسبة الفرق بتفشل صريح (الكتابة بتشيله) مش رقم مش دقيق', () => {
-    expect(foldInstallmentResidue(created(1000, 12), 1e300)).toBeNull();
+    expect(foldInstallmentResidue(created(1000, 12), { kind: 'increase', delta: 1e300, increasesAfter: [{ id: 'i', date: '', amount: 1e300 }] })).toBeNull();
   });
 
   it('...والعدد اللي بيطلع منها مبيتخزّنش ← لازم الحارس في الكتابة', () => {

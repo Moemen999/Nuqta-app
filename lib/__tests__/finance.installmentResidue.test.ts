@@ -4,7 +4,7 @@ import {
   installmentIncreaseMessage, installmentResidueIgnored, INSTALLMENT_VALUE_TOO_SMALL, installmentChangeMessage, installmentCountAfterPayment,
   installmentCountEditRefusal, installmentCountFor, installmentCountTooLowMessage, installmentProgressLabel,
   installmentResidueOf, PIASTRE_EPS, pinInstallmentAmount, planInstallmentCountEdit, planInstallments,
-  reopenedDueDate, roundMoney, suggestedInstallmentPayment,
+  reopenedDueDate, roundMoney, stampResidue, suggestedInstallmentPayment,
 } from '@/lib/finance';
 
 /**
@@ -25,12 +25,29 @@ const base = (over: Partial<Debt>) => ({
   date: '2026-01-01', createdAt: '2026-01-01', payments: [], increases: [], ...over,
 }) as unknown as Debt;
 
-/** نفس `addDebt` */
+/**
+ * بصمة الفرق (`increasesTotal`، قرار مؤمن D2): مجموع الزيادات وقت الكتابة. الفرق
+ * المتخزّن بيتقري **بس** لو البصمة = مجموع زيادات الدين دلوقتي. المتوقع هنا بيتحسب
+ * من غير `sumIncreasesCents` عن قصد (عشان الاختبار ميبقاش دايرة مع اللي بيختبره)
+ */
+type Plain = { amount: number; forInstallment: number; over: number };
+const sumOf = (xs: Debt['increases'] | undefined) =>
+  Math.round((xs || []).reduce((s, e) => s + Number(e.amount), 0) * 100) / 100;
+/** الفرق المتوقع + بصمة = مجموع زيادات `d` */
+const withStamp = (d: Debt, r: Plain) => ({ ...r, increasesTotal: sumOf(d.increases) });
+/** الفرق من غير البصمة — لمقارنة دينين زياداتهم مختلفة بس الخطة واحدة */
+const plainOf = (r: Debt['installmentResidue'] | undefined): Plain => {
+  const { increasesTotal: _ignored, ...p } = r as NonNullable<typeof r>;
+  return p;
+};
+
+/** نفس `addDebt` (البصمة = زيادات الدين وقت الإنشاء، صفر في الطبيعي) */
 function created(total: number, n: number, over: Partial<Debt> = {}): Debt {
   const plan = planInstallments(total, n)!;
+  const increases = (over.increases ?? []) as Debt['increases'];
   return base({
     totalAmount: total, installmentCount: n, installmentAmount: plan.value,
-    installmentResidue: { amount: plan.residue, forInstallment: plan.value, over: n }, ...over,
+    installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: n }, increases)!, ...over,
   });
 }
 
@@ -71,7 +88,8 @@ function edited(d: Debt, n: number): Debt {
   const plan = planInstallmentCountEdit(d, n)!;
   return {
     ...d, installmentCount: plan.count, installmentAmount: plan.value,
-    installmentResidue: { amount: plan.residue, forInstallment: plan.value, over: plan.over },
+    // نفس `setInstallmentCount`: البصمة = زيادات الدين الحالية
+    installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, d.increases)!,
   };
 }
 
@@ -79,10 +97,11 @@ function edited(d: Debt, n: number): Debt {
 function increased(d: Debt, amount: number, id = `i${++seq}`): Debt {
   const pin = pinInstallmentAmount(d);
   const planned: Debt = pin ? { ...d, ...pin } : d;
-  const folded = foldInstallmentResidue(planned, amount);
+  const increasesAfter = [...(planned.increases || []), { id, date: '2026-03-01', amount }];
+  const folded = foldInstallmentResidue(planned, { kind: 'increase', delta: amount, increasesAfter });
   const next: Debt = {
     ...planned, ...(folded ? { installmentResidue: folded } : {}),
-    increases: [...(planned.increases || []), { id, date: '2026-03-01', amount }],
+    increases: increasesAfter,
   } as Debt;
   return { ...next, installmentCount: installmentCountFor(next) ?? next.installmentCount };
 }
@@ -92,10 +111,11 @@ function withoutIncrease(d: Debt, id: string): Debt {
   const entry = d.increases.find(e => e.id === id)!;
   const pin = pinInstallmentAmount(d);
   const planned: Debt = pin ? { ...d, ...pin } : d;
-  const folded = foldInstallmentResidue(planned, -entry.amount);
+  const increasesAfter = planned.increases.filter(e => e.id !== id);
+  const folded = foldInstallmentResidue(planned, { kind: 'increase', delta: -entry.amount, increasesAfter });
   const next: Debt = {
     ...planned, ...(folded ? { installmentResidue: folded } : {}),
-    increases: planned.increases.filter(e => e.id !== id),
+    increases: increasesAfter,
   } as Debt;
   return { ...next, installmentCount: installmentCountFor(next) ?? next.installmentCount };
 }
@@ -188,7 +208,7 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
     // باقي 1000 على (4 − 1) = 333.33، الفرق 1000 − 999.99 = 0.01
     d = edited(d, 4);
     expect(d.installmentAmount).toBe(333.33);
-    expect(d.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33, over: 3 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.01, forInstallment: 333.33, over: 3 }));
     const r = payThrough(d);
     expect(r.amounts).toEqual([333.33, 333.33, 333.34]);
     expect(r.counts).toEqual([4, 4, 4]);
@@ -200,7 +220,7 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
     d = paid(d, 250).debt;
     // باقي 750 على 7 = 107.14، الفرق 750 − 749.98 = 0.02
     d = edited(d, 8);
-    expect(d.installmentResidue).toEqual({ amount: 0.02, forInstallment: 107.14, over: 7 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.02, forInstallment: 107.14, over: 7 }));
     const r = payThrough(d);
     expect(r.amounts).toEqual([...Array(6).fill(107.14), 107.16]);
     expect(r.counts).toEqual(Array(7).fill(8));
@@ -209,7 +229,7 @@ describe('تعديل العدد وبعدين الدفع للآخر', () => {
 
   it('عدد مبيقسمش الإجمالي من غير دفعات: 1000 على 4 ← 3', () => {
     const d = edited(created(1000, 4), 3);
-    expect(d.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33, over: 3 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.01, forInstallment: 333.33, over: 3 }));
     const r = payThrough(d);
     expect(r.amounts).toEqual([333.33, 333.33, 333.34]);
     expect(r.counts).toEqual([3, 3, 3]);
@@ -265,10 +285,10 @@ describe('ديون قبل الحقل ده', () => {
   it('من غير قسط متخزّن خالص (خطوة 6): التثبيت بيكتب الفرق ← 12 قسط، آخرها 83.37', () => {
     const legacy = base({ totalAmount: 1000, installmentCount: 12 });
     expect(pinInstallmentAmount(legacy)).toEqual({
-      installmentAmount: 83.33, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12 },
+      installmentAmount: 83.33, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 },
     });
     const r = payThrough(legacy);
-    expect(r.debt.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
+    expect(r.debt.installmentResidue).toEqual(withStamp(r.debt, { amount: 0.04, forInstallment: 83.33, over: 12 }));
     expect(r.amounts).toHaveLength(12);
     expect(r.amounts[11]).toBe(83.37);
     expect(r.counts).toEqual(Array(12).fill(12));
@@ -306,16 +326,18 @@ describe('installmentResidueOf — الفرق بيتقري بس لو بتاع ا
     ['مش object', 0.04, null],
     ['مش موجود', undefined, null],
   ])('%s', (_, residue, expected) => {
-    expect(installmentResidueOf(d({ installmentResidue: residue as never }))).toBe(expected);
+    // البصمة 0 = زيادات d (مفيش) — عشان الجدول يختبر الباقي، والبصمة ليها describe لوحدها
+    const stamped = typeof residue === 'object' && residue ? { increasesTotal: 0, ...residue } : residue;
+    expect(installmentResidueOf(d({ installmentResidue: stamped as never }))).toBe(expected);
   });
 
   it('من غير قسط متخزّن (القيمة محسوبة) ← مش معروف حتى لو فيه فرق', () => {
-    expect(installmentResidueOf(d({ installmentAmount: undefined, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12 } }))).toBeNull();
+    expect(installmentResidueOf(d({ installmentAmount: undefined, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 } }))).toBeNull();
   });
 
   it('الفرق القديم مع قسط جديد ← القاعدة القديمة، مش خصم فرق غلط', () => {
     // 1000 على 12 (فرق 0.04 على 83.33)، ونسخة قديمة غيّرت القسط لـ76.92 من غير الفرق
-    const stale = d({ installmentAmount: 76.92, installmentCount: 13, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12 } });
+    const stale = d({ installmentAmount: 76.92, installmentCount: 13, installmentResidue: { amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 } });
     // ceil(1000 ÷ 76.92 − 0.005) = ceil(13.0005 − 0.005) = 13
     expect(installmentCountFor(stale)).toBe(13);
   });
@@ -331,7 +353,7 @@ describe('مع خطوة 7: زيادة فتحت دين متسدد', () => {
     const reopened = increased(r.debt, 100);
     // الخطة 3 × 333.33 + 0.01 + 100 ← الباقي 100.01 كسر حقيقي (مش ≤ 3 × نص قرش) ← 0
     // باقي 100: max(1, ceil((100 − 0 − 0.005) ÷ 333.33)) = 1، + 3 دفعات = 4
-    expect(reopened.installmentResidue).toEqual({ amount: 100.01, forInstallment: 333.33, over: 3 });
+    expect(reopened.installmentResidue).toEqual(withStamp(reopened, { amount: 100.01, forInstallment: 333.33, over: 3 }));
     expect(installmentCountFor(reopened)).toBe(4);
     expect(suggestedInstallmentPayment(reopened)).toBe(100);
   });
@@ -341,7 +363,7 @@ describe('مع خطوة 7: زيادة فتحت دين متسدد', () => {
     const reopened = increased(r.debt, 333.34);
     // 0.01 + 333.34 = قسط كامل + 0.02، و0.02 ≤ 4 × نص قرش **بالظبط** ← تقريب
     // (التقريب لنص فوق كان هيقول 333.335 ← 333.34 ≠ القسط ← قسط 0.01 وهمي)
-    expect(reopened.installmentResidue).toEqual({ amount: 0.02, forInstallment: 333.33, over: 4 });
+    expect(reopened.installmentResidue).toEqual(withStamp(reopened, { amount: 0.02, forInstallment: 333.33, over: 4 }));
     expect(installmentCountFor(reopened)).toBe(4);
     expect(suggestedInstallmentPayment(reopened)).toBe(333.34);
     expect(payThrough(reopened).amounts).toEqual([333.34]);
@@ -364,7 +386,7 @@ describe('الرسالة لما العدد يتغيّر والمبلغ هو ال
 describe('المراجعة (الجولة 1)', () => {
   it('فرق فوق السقف الفيزيائي (بيانات بايظة) ← القاعدة القديمة، ومتعلَّم إنه اتجاهل', () => {
     // 1e6 بنفس القسط كانت هتخلّي العدد "قسط واحد فاضل" على 1000
-    const bad = created(1000, 12, { installmentResidue: { amount: 1e6, forInstallment: 83.33, over: 12 } });
+    const bad = created(1000, 12, { installmentResidue: { amount: 1e6, forInstallment: 83.33, over: 12, increasesTotal: 0 } });
     expect(installmentResidueOf(bad)).toBeNull();
     expect(installmentResidueIgnored(bad)).toBe(true);
     expect(installmentCountFor(bad)).toBe(12);
@@ -412,14 +434,14 @@ describe('المراجعة (الجولة 2)', () => {
     let d = base({ totalAmount: 1000.29, installmentCount: 1, installmentAmount: 1000.29,
       increases: [{ id: 'big', date: '2026-02-01', amount: 2000 }] as never });
     d = edited(d, 60);
-    expect(d.installmentResidue).toEqual({ amount: 0.29, forInstallment: 50, over: 60 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.29, forInstallment: 50, over: 60 }));
     const plan = debtEntryDeletePlan(d, 'increase', 'big')!;
     // **اتغيّر 2026-09-30 (قرار مؤمن):** بعد المسح الخطة 1000.29 = 20 × 50 + 0.29،
     // و0.29 > 20 × نص قرش = 0.10 ← كسر حقيقي مش تقريب ← 21 قسط آخرها 0.29 — نفس
     // اللي كان هيطلع لو الدين اتعمل بحالته دي. (الجولة 2 كانت بتقول 20)
     expect(plan.countAfter).toBe(21);
     const after = withoutIncrease(d, 'big');
-    expect(after.installmentResidue).toEqual({ amount: 0.29, forInstallment: 50, over: 20 });
+    expect(after.installmentResidue).toEqual(withStamp(after, { amount: 0.29, forInstallment: 50, over: 20 }));
     expect(installmentResidueOf(after)).toBe(0);
     expect(installmentResidueIgnored(after)).toBe(false);
     expect(after.installmentCount).toBe(21);
@@ -435,7 +457,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
   it('1000 على 12 + 500 ← 18 قسط، آخرها 83.39 (كان 19 وآخرها 0.06)', () => {
     // 0.04 + 500 = 6 × 83.33 + 0.06 ← over 18، و0.06 ≤ 18 × نص قرش = 0.09 ← تقريب
     const d = increased(created(1000, 12), 500);
-    expect(d.installmentResidue).toEqual({ amount: 0.06, forInstallment: 83.33, over: 18 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.06, forInstallment: 83.33, over: 18 }));
     expect(d.installmentCount).toBe(18);
     expect(installmentIncreaseMessage(12, 18)).toBe('بعد الزيادة، الأقساط بقت 18 بدل 12.');
     const r = payThrough(d);
@@ -446,13 +468,15 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
 
   it('...ونفس الحالة لو اتعملت كده من الأول: 1500 على 18 ← نفس القسط والفرق', () => {
     expect(planInstallments(1500, 18)).toEqual({ value: 83.33, residue: 0.06, over: 18 });
-    expect(increased(created(1000, 12), 500).installmentResidue).toEqual(created(1500, 18).installmentResidue);
+    // نفس الخطة؛ البصمة بس بتفرق (500 زيادة هنا، وصفر في الإنشاء من الأول)
+    expect(plainOf(increased(created(1000, 12), 500).installmentResidue))
+      .toEqual(plainOf(created(1500, 18).installmentResidue));
   });
 
   it('1000 على 12 + 100 ← الكسر حقيقي (16.71) ← 14 قسط وآخرها 16.71، مش بيتشال', () => {
     // 0.04 + 100 = 83.33 + 16.71 ← over 13، و16.71 > 13 × نص قرش ← مش تقريب
     const d = increased(created(1000, 12), 100);
-    expect(d.installmentResidue).toEqual({ amount: 16.71, forInstallment: 83.33, over: 13 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 16.71, forInstallment: 83.33, over: 13 }));
     expect(installmentResidueOf(d)).toBe(0);
     expect(d.installmentCount).toBe(14);
     const r = payThrough(d);
@@ -462,7 +486,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
 
   it('زيادة بتتقسم بالظبط (6 × 83.33 = 499.98) ← زي ما هو: 18 وآخرها 83.37', () => {
     const d = increased(created(1000, 12), 499.98);
-    expect(d.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 18 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.04, forInstallment: 83.33, over: 18 }));
     expect(d.installmentCount).toBe(18);
     expect(payThrough(d).amounts[17]).toBe(83.37);
   });
@@ -485,7 +509,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
   it('زيادة كسر + زيادة بتكمّله قسط تقريبًا ← بيتشال (مش بيتحسب من كل زيادة لوحدها)', () => {
     // +100 (كسر 16.71) وبعدين +66.68: 16.71 + 66.68 = 83.33 + 0.06 ← over 14، 0.06 ≤ 0.07
     const d = increased(increased(created(1000, 12), 100), 66.68);
-    expect(d.installmentResidue).toEqual({ amount: 0.06, forInstallment: 83.33, over: 14 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.06, forInstallment: 83.33, over: 14 }));
     expect(d.installmentCount).toBe(14);
     expect(payThrough(d).amounts[13]).toBe(83.39);
   });
@@ -513,7 +537,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
     let d = edited(paid(created(1500, 3), 500).debt, 4);
     // +666.66 = 2 × 333.33 ← over 5، الفرق 0.01 ← 6 أقساط وآخرها 333.34
     const exact = increased(d, 666.66);
-    expect(exact.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33, over: 5 });
+    expect(exact.installmentResidue).toEqual(withStamp(exact, { amount: 0.01, forInstallment: 333.33, over: 5 }));
     expect(exact.installmentCount).toBe(6);
     expect(payThrough(exact).amounts).toEqual([333.33, 333.33, 333.33, 333.33, 333.34]);
     // +500: 0.01 + 500 = 2 × 333.33 − 166.65 ← كسر حقيقي ← 6 وآخرها 166.68
@@ -525,7 +549,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
 
   it('دين قبل الفرق (قسط متخزّن من غير فرق) ← مفيش فرق بيتخمّن، والقاعدة القديمة', () => {
     const legacy = base({ totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33 });
-    expect(foldInstallmentResidue(legacy, 500)).toBeNull();
+    expect(foldInstallmentResidue(legacy, { kind: 'increase', delta: 500, increasesAfter: [{ id: 'n', date: '2026-03-01', amount: 500 }] })).toBeNull();
     const d = increased(legacy, 500);
     expect(d.installmentResidue).toBeUndefined();
     // القاعدة القديمة: ceil(1500 ÷ 83.33 − 0.005) = ceil(17.9957) = 18
@@ -536,9 +560,10 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
     // 1000 على 12 قديم وعليه زيادة 500 من قبل: التثبيت = 12 × 83.33 + 0.04، + 500
     const legacy = base({ totalAmount: 1000, installmentCount: 12,
       increases: [{ id: 'old', date: '2025-06-01', amount: 500 }] as never });
-    expect(pinInstallmentAmount(legacy)!.installmentResidue).toEqual({ amount: 0.06, forInstallment: 83.33, over: 18 });
+    // البصمة = الزيادة القديمة (500) اللي دخلت الخطة
+    expect(pinInstallmentAmount(legacy)!.installmentResidue).toEqual({ amount: 0.06, forInstallment: 83.33, over: 18, increasesTotal: 500 });
     // ومسح الزيادة القديمة بعد التثبيت بيرجّع خطة الـ1000 بالظبط
-    expect(withoutIncrease(legacy, 'old').installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
+    expect(withoutIncrease(legacy, 'old').installmentResidue).toEqual(withStamp(withoutIncrease(legacy, 'old'), { amount: 0.04, forInstallment: 83.33, over: 12 }));
   });
 
   it('خاصية: أي تسلسل زيادات ومسحها ← الفرق = لو الزيادات الفاضلة اتعملت مرة واحدة', () => {
@@ -566,23 +591,23 @@ describe('مراجعة الزيادات (الجولة 1)', () => {
     const reversed = [...xs].reverse().reduce((d, x) => increased(d, x), created(3193.45, 38));
     expect(one.installmentResidue).toEqual(sum.installmentResidue);
     expect(reversed.installmentResidue).toEqual(sum.installmentResidue);
-    expect(one.installmentResidue).toEqual({ amount: 5.36, forInstallment: 84.04, over: 103 });
+    expect(one.installmentResidue).toEqual(withStamp(one, { amount: 5.36, forInstallment: 84.04, over: 103 }));
   });
 
   it('زيادة نص قسط بالظبط وبعدين مسحها ← نفس الحالة', () => {
     // 84.04 على 1 (فرق 0) + 42.02 (نص قسط) ← النص لفوق: over 2 وamount −42.02
     const d = increased(created(84.04, 1), 42.02, 'h');
-    expect(d.installmentResidue).toEqual({ amount: -42.02, forInstallment: 84.04, over: 2 });
-    expect(withoutIncrease(d, 'h').installmentResidue).toEqual({ amount: 0, forInstallment: 84.04, over: 1 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: -42.02, forInstallment: 84.04, over: 2 }));
+    expect(withoutIncrease(d, 'h').installmentResidue).toEqual(withStamp(withoutIncrease(d, 'h'), { amount: 0, forInstallment: 84.04, over: 1 }));
   });
 
   it('مسح زيادة كبيرة قبل تعديل العدد ← over ممكن يبقى 0، بيتقري كسر حقيقي', () => {
     // 100 + زيادة 900، العدد اتعدّل لـ3: 1000 ÷ 3 = 333.33، فرق 0.01
     let d = edited(increased(created(100, 1), 900, 'big'), 3);
-    expect(d.installmentResidue).toEqual({ amount: 0.01, forInstallment: 333.33, over: 3 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.01, forInstallment: 333.33, over: 3 }));
     d = withoutIncrease(d, 'big');
     // 0.01 − 900 = −3 × 333.33 + 100 ← over 0، الباقي 100 كسر
-    expect(d.installmentResidue).toEqual({ amount: 100, forInstallment: 333.33, over: 0 });
+    expect(d.installmentResidue).toEqual(withStamp(d, { amount: 100, forInstallment: 333.33, over: 0 }));
     expect(installmentResidueOf(d)).toBe(0);
     expect(d.installmentCount).toBe(1);
     expect(suggestedInstallmentPayment(d)).toBe(100);
@@ -622,10 +647,13 @@ describe('مراجعة الزيادات (الجولة 2)', () => {
   it('تأكيد مسح زيادة بمبلغ بايظ بيعدّ من غير الفرق — زي الكتابة اللي بتشيله', () => {
     // 100.04 على 11 (فرق 0.05): بالفرق 11، وبالقاعدة القديمة ceil(100.04 ÷ 9.09 − 0.005) = 12
     const d = { ...created(100.04, 11), increases: [{ id: 'bad', date: '2026-03-01', amount: 'x' }] } as unknown as Debt;
-    expect(foldInstallmentResidue(d, -Number('x'))).toBeNull();
-    // الكتابة بتشيل الفرق (residueAfterIncreaseChange) ← 12؛ التأكيد لازم يقول نفس الرقم
+    expect(foldInstallmentResidue(d, { kind: 'increase', delta: -Number('x'), increasesAfter: [] })).toBeNull();
+    // D2 (2026-10-30): مجموع الزيادات مش رقم ← الفرق متجاهَل والكتابة مبتلمسوش (مش بتشيله)؛
+    // بعد المسح المجموع 0 = البصمة ← الفرق سليم تاني والعدد 11 (الصح لـ100.04 على 11). التأكيد
+    // لازم يقول نفس اللي الكتابة هتعمله: مفيش تغيير في العدد (قبل D2 كانت 11 ← 12)
     const plan = debtEntryDeletePlan(d, 'increase', 'bad')!;
-    expect([plan.countBefore, plan.countAfter]).toEqual([11, 12]);
+    expect([plan.countBefore, plan.countAfter]).toEqual([null, null]);
+    expect(installmentCountFor({ ...d, increases: [] })).toBe(11);
   });
 });
 

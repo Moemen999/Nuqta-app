@@ -14,7 +14,7 @@ import {
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  foldInstallmentResidue, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  foldInstallmentResidue, stampResidue, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -353,8 +353,15 @@ export type Debt = {
    * المستخدم ده الأقساط الفاضلة **وقت التعديل**؛ والدفعات مبتنقّصوش (الخطة هي هي).
    * ممكن يبقى 0 أو أقل لو زيادة كبيرة قبل التعديل اتمسحت — كسر حقيقي، بيتقري 0.
    * غايب = مش معروف (دين قبل الحقل ده) ← قاعدة العدد القديمة.
+   *
+   * `increasesTotal` (2026-10-30، بند 8 D2، قرار مؤمن): مجموع `increases` وقت ما
+   * الفرق اتكتب. النسخ القديمة مبتعرفش الفرق وبتكتب patch، فالفرق كان بيفضل
+   * على الخطة القديمة بعد زيادة منها؛ مجموع الزيادات هو اللي بيحرّك الخطة، فلو
+   * مش مطابق للحالي ← الفرق بيتجاهل (القاعدة القديمة). غايب = بيتجاهل كمان
+   * (الفرق ما اتبناش في أي بناء من غيره). اختياري هنا عشان القراية بس —
+   * الكتابة دايمًا بـ`stampResidue`.
    */
-  installmentResidue?: { amount: number; forInstallment: number; over: number };
+  installmentResidue?: { amount: number; forInstallment: number; over: number; increasesTotal?: number };
   note?: string;
   createdAt: string;
   payments: DebtPayment[];
@@ -1311,7 +1318,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // زيادة في نفس اللحظة، إزاحتها بتضيع من الخطة **ومبتتصلحش لوحدها** — العدد
         // بيفضل صح (المتبقي بيتحسب من الدفعات)، بس تصنيف تقريب/كسر ممكن يفرق بقسط
         // على آخر الدين. نادر (جهازين في نفس الثواني)، ومتسجّل في TIMELINE
-        const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0));
+        const residue = residueAfterIncreaseChange(d, -removed.reduce((s, e) => s + Number(e.amount), 0), increases);
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...d, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
         const count = countToWrite(recount, d.installmentCount, d.id);
@@ -1511,9 +1518,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بيتعدّ بيه (type-design-analyzer + silent-failure-hunter). مفيش فرق معروف ←
    * مفيش حاجة تتكتب (مبنخمّنش فرق لدين قديم).
    */
-  function residueAfterIncreaseChange(d: Debt, delta: number): { patch: unknown; forCount: Debt['installmentResidue'] } | null {
+  function residueAfterIncreaseChange(d: Debt, delta: number, increasesAfter: Debt['increases']): { patch: unknown; forCount: Debt['installmentResidue'] } | null {
     if (!installmentResidueKnown(d)) return null;
-    const folded = foldInstallmentResidue(d, delta);
+    // البصمة (D2) من نفس قايمة الزيادات اللي هتتكتب في الـpatch
+    const folded = foldInstallmentResidue(d, { kind: 'increase', delta, increasesAfter });
     if (folded) return { patch: folded, forCount: folded };
     noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
     return { patch: deleteField(), forCount: undefined };
@@ -1556,7 +1564,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // ومعاها فرق التقريب (2026-09-30) — القسط الأخير بيشيله، فـ1000 على 12
     // بيخلص في 12 قسط مش 13
     const installmentAmount = plan?.value;
-    const installmentResidue = plan ? { amount: plan.residue, forInstallment: plan.value, over: plan.over } : undefined;
+    // دين جديد مالوش زيادات ← البصمة 0 (D2)
+    const installmentResidue = plan ? stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, []) ?? undefined : undefined;
     const clean = Object.fromEntries(Object.entries({
       direction: data.direction, personName: data.personName, personPhone: data.personPhone, personContactId: data.personContactId, totalAmount: data.totalAmount, date: data.date,
       isInstallment: data.isInstallment, installmentCount: data.installmentCount, installmentAmount, installmentResidue, note: data.note,
@@ -1738,7 +1747,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         installmentCount: plan.count,
         installmentAmount: plan.value,
         // في نفس الكتابة، ومحسوب على المتبقي اللي اتقسّم دلوقتي (2026-09-30)
-        installmentResidue: { amount: plan.residue, forInstallment: plan.value, over: plan.over },
+        // مبصوم بمجموع الزيادات الحالي (D2). المجموع مش رقم ← الفرق بيتشال (القاعدة القديمة)
+        // بدل ما يفضل القديم جنب قسط جديد
+        installmentResidue: stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, debt.increases) ?? deleteField(),
       }),
       namedLabel('عدد أقساط الدين', debt.personName),
     );
@@ -1852,7 +1863,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const patch: Record<string, unknown> = { increases, ...pin };
         // الزيادة بتدخل الخطة (2026-09-30): لو اللي فاضل تقريب بس القسط الأخير بيشيله
         // (1000/12 + 500 = 18 مش 19 بقسط 0.06)، ولو كسر حقيقي بيفضل قسط أصغر
-        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount);
+        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount, increases);
         if (residue) patch.installmentResidue = residue.patch;
         // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
         // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
@@ -1905,7 +1916,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const pin = pinInstallmentAmount(debt);
         const patch: Record<string, unknown> = { increases, ...pin };
         // المسح بيطرح الزيادة من الخطة — نفس حالة الدين لو الزيادة ما اتعملتش
-        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, -Number(entry.amount));
+        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, -Number(entry.amount), increases);
         if (residue) patch.installmentResidue = residue.patch;
         const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
         const count = countToWrite(recount, debt.installmentCount, debtId);

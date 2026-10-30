@@ -677,7 +677,8 @@ export function pinInstallmentAmount(d: Debt): { installmentAmount: number; inst
   // زيادة مبلغها مش رقم ← مفيش تثبيت (زي فشل الحسبة في مسار الزيادة)، مش 0 ساكت
   const increases = (d.increases || []).reduce((s, e) => s + Number(e.amount), 0);
   if (!Number.isFinite(increases)) return null;
-  const planned = shiftInstallmentResidue({ amount: residue, forInstallment: value, over: count }, increases);
+  const shifted = shiftInstallmentResidue({ amount: residue, forInstallment: value, over: count }, increases);
+  const planned = shifted ? stampResidue(shifted, d.increases) : null;
   return planned ? { installmentAmount: value, installmentResidue: planned } : null;
 }
 
@@ -807,7 +808,37 @@ function installmentsLeft(d: Debt, remaining: number, value: number): number {
   return Math.max(1, k);
 }
 
-export type InstallmentResidue = NonNullable<Debt['installmentResidue']>;
+/** الخطة من غير بصمة — اللي `planInstallments` والطيّ بيحسبوه */
+export type ResiduePlan = { amount: number; forInstallment: number; over: number };
+/**
+ * الفرق زي ما بيتكتب وبيتقري سليم: الخطة + مجموع الزيادات وقت الكتابة (D2، 2026-10-30).
+ * `increasesTotal` مطلوب هنا عن قصد: أي مكان بيبني فرق لازم يعدّي على `stampResidue`
+ */
+export type InstallmentResidue = ResiduePlan & { increasesTotal: number };
+
+/**
+ * مجموع الزيادات **بالقروش الصحيحة** — كل زيادة بتتقرّب لوحدها، فالترتيب وضجيج
+ * الكسور (0.1 + 0.2) مبيفرقوش. `null` لو أي مبلغ مش رقم أو المجموع فوق الدقة.
+ */
+export function sumIncreasesCents(increases: Debt['increases'] | undefined): number | null {
+  let total = 0;
+  for (const e of increases || []) {
+    const c = Math.round(Number(e.amount) * 100);
+    if (!Number.isSafeInteger(c)) return null;
+    total += c;
+  }
+  return Number.isSafeInteger(total) ? total : null;
+}
+
+/**
+ * الطريق الوحيد لكتابة فرق (D2): الخطة + مجموع الزيادات **بعد** الكتابة. `null` لو
+ * المجموع مش رقم ← المسار مبيكتبش فرق (القاعدة القديمة).
+ */
+export function stampResidue(plan: ResiduePlan, increasesAfter: Debt['increases'] | undefined): InstallmentResidue | null {
+  const cents = sumIncreasesCents(increasesAfter);
+  if (cents === null) return null;
+  return { amount: plan.amount, forInstallment: plan.forInstallment, over: plan.over, increasesTotal: cents / 100 };
+}
 
 /** `base − value × n` مقرّب للقرش — `null` لو أي رقم مش حقيقي */
 function residueOf(base: number, value: number, n: number): number | null {
@@ -859,7 +890,7 @@ export function installmentResidueOf(d: Debt): number | null {
  * اتقفل وزيادة 333.34 ← 4 أقساط وفرق 0.02 = 4 × نص قرش، والتقريب لنص فوق كان
  * هيعمل قسط 0.01 وهمي.
  */
-function isRoundingResidue(r: InstallmentResidue): boolean {
+function isRoundingResidue(r: ResiduePlan): boolean {
   return r.over >= 1 && Math.abs(r.amount) <= PIASTRE_EPS * r.over + 1e-9;
 }
 
@@ -877,7 +908,16 @@ function storedResidue(d: Debt): InstallmentResidue | null {
   // اللي بيتقسّم = الإجمالي ناقص اللي اتدفع قبل الخطة، فعمره ما يعدّي الإجمالي.
   // أكبر من كده (1e6، أو over بايظ) = بيانات بايظة ← القاعدة القديمة ومتعلَّم إنه اتجاهل
   if (r.over * value + r.amount > Math.max(debtGrandTotal(d), d.totalAmount || 0) + PIASTRE_EPS) return null;
-  return r;
+  // D2 (2026-10-30، قرار مؤمن): الخطة بتتحرك بمجموع الزيادات بس. نسخة قديمة زوّدت أو
+  // مسحت زيادة من غير ما تلمس الفرق ← المجموع مش مطابق للبصمة ← بيتجاهل. بصمة غايبة
+  // أو مش رقم ← بيتجاهل. **حد مقبول (C1):** نسخة قديمة عدّلت العدد ونزلت على نفس
+  // القسط المقرّب (forInstallment مطابق) والبصمة زي ما هي ← فرق قديم بيتقري؛ الغلط
+  // ≤ نص قرش × over على القسط الأخير، مش قسط وهمي (type-design-analyzer + database-reviewer)
+  const stamp = r.increasesTotal;
+  if (typeof stamp !== 'number' || !Number.isFinite(stamp)) return null;
+  const current = sumIncreasesCents(d.increases);
+  if (current === null || Math.round(stamp * 100) !== current) return null;
+  return { amount: r.amount, forInstallment: r.forInstallment, over: r.over, increasesTotal: stamp };
 }
 
 /**
@@ -895,12 +935,19 @@ function storedResidue(d: Debt): InstallmentResidue | null {
  * `null` = مفيش فرق معروف (دين قبل الحقل، أو بتاع قسط تاني) ← مبيتكتبش حاجة
  * والقاعدة القديمة فاضلة. **مبنستنتجش فرق لدين مالوش.**
  */
-export function foldInstallmentResidue(d: Debt, delta: number): InstallmentResidue | null {
+export function foldInstallmentResidue(
+  d: Debt,
+  change: { kind: 'increase'; delta: number; increasesAfter: Debt['increases'] } | { kind: 'initial'; delta: number },
+): InstallmentResidue | null {
   const r = storedResidue(d);
-  return r ? shiftInstallmentResidue(r, delta) : null;
+  const shifted = r ? shiftInstallmentResidue(r, change.delta) : null;
+  if (!shifted) return null;
+  // البصمة من القايمة نفسها اللي هتتكتب (مش قديم + فرق): الزيادة ← الزيادات بعد
+  // التغيير؛ الأصل ← الزيادات زي ما هي
+  return stampResidue(shifted, change.kind === 'increase' ? change.increasesAfter : d.increases);
 }
 
-function shiftInstallmentResidue(r: InstallmentResidue, delta: number): InstallmentResidue | null {
+function shiftInstallmentResidue(r: ResiduePlan, delta: number): ResiduePlan | null {
   // **بالقروش الصحيحة** (money-reviewer): بالكسور، (amount+δ)/v ممكن تطلع 0.4999…
   // وamount/v تطلع 0.5 بالظبط لنفس النص قسط، فالإزاحة بتغلط بقسط كامل والترتيب
   // بيفرق (3193.45 على 38 وزيادات معينة ← 95.23 بدل 5.36). بالقروش التقريب لنص
@@ -1020,7 +1067,9 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
   const planned: Debt = { ...d, ...pinInstallmentAmount(d) };
   // نفس `residueAfterIncreaseChange`: فرق معروف والحسبة فشلت ← بيتشال، فالعدّ من غيره
   const known = kind === 'increase' && installmentResidueKnown(planned);
-  const folded = known ? foldInstallmentResidue(planned, -Number(entry.amount)) : null;
+  const folded = known
+    ? foldInstallmentResidue(planned, { kind: 'increase', delta: -Number(entry.amount), increasesAfter: increases.filter(e => e.id !== entryId) })
+    : null;
   const recount = installmentCountFor(kind === 'payment'
     ? { ...planned, payments: payments.filter(e => e.id !== entryId) }
     : { ...planned, ...(known ? { installmentResidue: folded ?? undefined } : {}), increases: increases.filter(e => e.id !== entryId) });

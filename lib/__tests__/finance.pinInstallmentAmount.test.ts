@@ -18,11 +18,12 @@ describe('pinInstallmentAmount', () => {
   it('دين قديم ← القيمة بالعدد الحالي (قبل أي تغيير)', () => {
     // ومعاها فرق التقريب بنفس الأساس (2026-09-30): 6000 − 6 × 1000 = 0،
     // و6500 − 6 × 1083.33 = 6500 − 6499.98 = 0.02
+    // + بصمة الزيادات (`increasesTotal`، D2): صفر هنا، مفيش زيادات
     expect(pinInstallmentAmount(legacy())).toEqual({
-      installmentAmount: 1000, installmentResidue: { amount: 0, forInstallment: 1000, over: 6 },
+      installmentAmount: 1000, installmentResidue: { amount: 0, forInstallment: 1000, over: 6, increasesTotal: 0 },
     });
     expect(pinInstallmentAmount(legacy({ totalAmount: 6500 }))).toEqual({
-      installmentAmount: 1083.33, installmentResidue: { amount: 0.02, forInstallment: 1083.33, over: 6 },
+      installmentAmount: 1083.33, installmentResidue: { amount: 0.02, forInstallment: 1083.33, over: 6, increasesTotal: 0 },
     });
   });
 

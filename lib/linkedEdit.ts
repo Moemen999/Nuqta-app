@@ -139,7 +139,10 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
       : Number((d.increases || []).find(e => e.transactionId === txId)?.amount);
     const base = { ...d, ...pin } as Debt;
     if (installmentResidueKnown(base)) {
-      const folded = foldInstallmentResidue(base, amount - before);
+      // الأصل مبيغيّرش الزيادات ← البصمة زي ما هي؛ الزيادة ← مجموع الزيادات بعد التعديل (D2)
+      const folded = role === 'initial'
+        ? foldInstallmentResidue(base, { kind: 'initial', delta: amount - before })
+        : foldInstallmentResidue(base, { kind: 'increase', delta: amount - before, increasesAfter: patch.increases as Debt['increases'] });
       if (folded) patch.installmentResidue = folded;
       else {
         // معروف والطيّ فشل ← يتشال (القاعدة القديمة) بدل ما يفضل فرق غلط بيتعدّ بيه
