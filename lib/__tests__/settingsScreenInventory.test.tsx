@@ -32,8 +32,8 @@ const categories = [
 const mockData: any = {
   wallets, categories, transactions: [], budgets: {}, debts: [],
   subscriptions: [], gamiyas: [], serverReachable: true, loadErrors: [],
-  updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
-  archiveWallet: jest.fn(), restoreWallet: jest.fn(),
+  updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
+  archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(),
   archiveCategory: jest.fn(), restoreCategory: jest.fn(),
   setBudget: jest.fn(), setMonthlyIncome: jest.fn(), setShakhbataPercents: jest.fn(),
@@ -126,12 +126,32 @@ describe('شاشة الإشعارات — الجرد', () => {
     expect(screen.getByText(STATUS_OFF)).toBeTruthy();
   });
 
-  it('مفتاح التذكير اليومي وكل ساعات الاختيار الأربعة', async () => {
+  // 2026-10-28: الساعة أي ساعة من 24 (زرارين) بدل 4 اختيارات، وبرّه كارت الإشعارات —
+  // بتتحكم في بانر "لسه ما سجلتش" كمان، فلازم تبان حتى والإشعارات مقفولة
+  it('مفتاح التذكير اليومي، وساعة التذكير (أي ساعة)', async () => {
     await wrap(<NotificationsScreen />);
     expect(screen.getByTestId('notifications_daily_switch')).toBeTruthy();
-    [14, 18, 20, 22].forEach(h => {
-      expect(screen.getByTestId(`notifications_hour_${h}`)).toBeTruthy();
-    });
+    for (const id of ['notifications_hour_earlier', 'notifications_hour_value', 'notifications_hour_later']) {
+      expect(screen.getByTestId(id)).toBeTruthy();
+    }
+  });
+
+  it('ساعة التذكير ظاهرة حتى والإشعارات مقفولة', async () => {
+    mockNotifs.enabled = false;
+    await wrap(<NotificationsScreen />);
+    expect(screen.getByTestId('notifications_hour_value')).toBeTruthy();
+  });
+
+  it('مدة رجوع لكل نوع بانر (10 أنواع) — التحذيرات ظاهرة، والباقي ورا "اظهر"', async () => {
+    await wrap(<NotificationsScreen />);
+    for (const t of ['load_error', 'offline', 'stale']) {
+      expect(screen.getAllByTestId(new RegExp(`^banner_interval_${t}_`)).length).toBe(3);
+    }
+    expect(screen.queryAllByTestId(/^banner_interval_low_balance_/)).toHaveLength(0);
+    await act(async () => { fireEvent.press(screen.getByTestId('banner_intervals_toggle')); });
+    for (const t of ['load_error', 'offline', 'stale', 'pending', 'verify_email', 'no_tx_today', 'low_balance', 'budget', 'subscription_due', 'gamiya_due']) {
+      expect(screen.getAllByTestId(new RegExp(`^banner_interval_${t}_`)).length).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('التذكير اليومي المقفول بيقول كده بالنص مش بوضع المفتاح بس', async () => {

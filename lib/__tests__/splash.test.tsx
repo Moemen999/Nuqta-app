@@ -21,10 +21,8 @@ jest.mock('expo-splash-screen', () => ({
   hideAsync: jest.fn(() => Promise.resolve()),
 }));
 jest.mock('@sentry/react-native', () => ({ captureMessage: jest.fn() }));
-jest.mock('@expo-google-fonts/tajawal', () => ({
-  useFonts: () => mockFonts.value,
-  Tajawal_400Regular: 1, Tajawal_500Medium: 2, Tajawal_700Bold: 3,
-}));
+jest.mock('expo-font', () => ({ useFonts: () => mockFonts.value }));
+jest.mock('@/lib/appFontSources', () => ({ APP_FONT_SOURCES: {} }));
 jest.mock('react-native-reanimated', () => ({}));
 jest.mock('expo-router', () => {
   const Stack = () => null;
@@ -33,7 +31,6 @@ jest.mock('expo-router', () => {
   return { Stack };
 });
 jest.mock('@/lib/sentry', () => ({ initSentry: jest.fn() }));
-jest.mock('@/lib/applyGlobalFont', () => ({ applyGlobalFont: jest.fn() }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve('1')),
 }));
@@ -128,7 +125,6 @@ describe('الـsplash', () => {
     mockReady.auth = true;
     const splash = await mountFresh();
     expect(splash.hideAsync).toHaveBeenCalledTimes(1);
-    expect(require('@/lib/applyGlobalFont').applyGlobalFont).not.toHaveBeenCalled();
   });
 
   it('جهز ← الحزام مبيناديش hideAsync تاني', async () => {

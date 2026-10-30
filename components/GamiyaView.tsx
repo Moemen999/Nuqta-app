@@ -6,13 +6,15 @@ import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataCo
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
+import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -173,22 +175,22 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   }
 
   async function handleSave() {
-    const monthly = Number(monthlyAmount);
-    const total = Number(totalMonths);
-    const payoutIdx = Number(payoutMonthIndex);
-    const payout = Number(payoutAmount);
-    if (!name.trim() || !monthly || monthly <= 0 || !total || total <= 0 || !payoutIdx || payoutIdx < 1 || payoutIdx > total || !payout || payout <= 0 || !walletId) {
-      setError('راجع البيانات — تأكد إن شهر الاستلام رقم صحيح ضمن عدد الشهور');
-      return;
-    }
+    // D-B: كانت بتقول "شهر الاستلام" والمشكلة اسم أو محفظة — نفس رسالة تعديل الجمعية
+    if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
+    // بند 15: كل قيمة غلط بتترفض برسالتها (نفس الفحص جوه DataContext) — المبالغ
+    // Infinity، والشهور كسور أو برّه 1..60، والتذكير `Number(x) || 0` الساكت
+    const data = {
+      name: name.trim(), monthlyAmount: parseEntryNumber(monthlyAmount), totalMonths: parseEntryNumber(totalMonths),
+      payoutMonthIndex: parseEntryNumber(payoutMonthIndex), payoutAmount: parseEntryNumber(payoutAmount), walletId, startDate,
+      reminderDaysBefore: parseEntryNumber(reminderDays),
+      chargeMode,
+    };
+    const problem = gamiyaEntryProblem(data);
+    if (problem) { setError(problem.message); return; }
     await runBusy(async () => {
       try {
-        await addGamiya({
-          name: name.trim(), monthlyAmount: monthly, totalMonths: total,
-          payoutMonthIndex: payoutIdx, payoutAmount: payout, walletId, startDate,
-          reminderDaysBefore: Number(reminderDays) || 0,
-          chargeMode,
-        });
+        const result = await addGamiya(data);
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
@@ -324,22 +326,23 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
 
   const [name, setName] = useState(gamiya.name);
   const [walletId, setWalletId] = useState(gamiya.walletId);
-  const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore));
+  const [reminderDays, setReminderDays] = useState(String(gamiya.reminderDaysBefore ?? 0));
   const [chargeMode, setChargeMode] = useState<ChargeMode>(gamiya.chargeMode ?? 'confirm');
-  const [error, setError] = useState('');
+  // C2: تذكير قديم برّه الحدود ← رسالته بتبان من أول ما التعديل يتفتح
+  const [error, setError] = useState(() =>
+    validReminderDays(gamiya.reminderDaysBefore ?? 0) ? '' : `${LEGACY_VALUE_NOTE} ${ENTRY_MESSAGES.reminderDays}`);
 
   const doneCount = gamiya.months.filter(m => m.status === 'done').length;
 
   async function handleSave() {
     if (!name.trim() || !walletId) { setError('دخّل اسم ومحفظة صحيحين'); return; }
+    // `Number(x) || 0` كان بيحوّل الغلط لصفر ساكت ويقبل Infinity والسالب (بند 15)
+    const reminderDaysBefore = parseEntryNumber(reminderDays);
+    if (!validReminderDays(reminderDaysBefore)) { setError(ENTRY_MESSAGES.reminderDays); return; }
     await runBusy(async () => {
       try {
-        await updateGamiya(gamiya.id, {
-          name: name.trim(),
-          walletId,
-          reminderDaysBefore: Number(reminderDays) || 0,
-          chargeMode,
-        });
+        const result = await updateGamiya(gamiya.id, { name: name.trim(), walletId, reminderDaysBefore, chargeMode });
+        if (result.outcome === 'invalid') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون

@@ -1,5 +1,6 @@
 import { useTheme } from '@/context/ThemeContext';
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet} from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * علامة صغيرة جنب تاريخ العملية معناها إنها اتحفظت على الموبايل ولسه بترفع.

@@ -8,13 +8,14 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { todayStr } from '@/lib/finance';
 
 /**
- * ترتيب بانرات الرئيسية (2026-09-29):
- * - **اللي بيقول إن رقم على الشاشة ممكن يكون غلط** — مفيش نت، "ما سجلناش"
- *   (التسجيل التلقائي فشل) — تحت الرصيد على طول، **قبل** آخر العمليات.
+ * ترتيب بانرات الرئيسية — **قرار مؤمن 2026-10-28، رجوع عن 2026-09-29**:
+ * - **كل** البانرات **قبل** "آخر العمليات" (مؤمن بطّل ياخد باله منها وهي تحت القايمة).
+ * - جوّاهم: اللي بيقول إن رقم ممكن يكون غلط (مفيش نت، "ما سجلناش") الأول، وبعدين
+ *   الباقي (تأكيد الإيميل، "لسه ما سجلتش"، الجمعية، الاشتراك، الرصيد، الميزانيات).
  *   و"مقدرناش نجيب بياناتك" (listener اترفض) أعلى كمان: فوق الـStack كله.
- * - الباقي (تأكيد الإيميل، "لسه ما سجلتش"، الجمعية الجاية، الرصيد اللي قرب
- *   يخلص) **بعد** آخر العمليات.
+ * - آخر العمليات لسه 10 صفوف.
  * - ولا واحد منهم في عدّاد "مستنيين ردك".
+ * - كل بانر ليه ✕ (جرد من الكود نفسه تحت).
  */
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
@@ -62,6 +63,9 @@ function setData(over: Record<string, unknown>) {
 
 async function mount() {
   jest.useFakeTimers();
+  // "لسه ما سجلتش" بيظهر بعد ساعة التذكير بس (الافتراضي 8 م) — نفس اليوم، الساعة 9 م
+  const now = new Date();
+  jest.setSystemTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 0, 0));
   await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   // "مفيش نت" بيستنى 2.5 ثانية عشان ميلمعش وإحنا بنحمّل
   await act(async () => { jest.advanceTimersByTime(3000); });
@@ -112,8 +116,8 @@ describe('بانرات "الرقم ممكن يكون غلط" فوق آخر ال�
   });
 });
 
-describe('الباقي تحت آخر العمليات', () => {
-  it('تأكيد الإيميل، "لسه ما سجلتش"، والجمعية الجاية ← بعد آخر عملية', async () => {
+describe('الباقي كمان فوق آخر العمليات (رجوع عن 2026-09-29)', () => {
+  it('تأكيد الإيميل، "لسه ما سجلتش"، والجمعية الجاية ← قبل "آخر العمليات" وقبل أول عملية', async () => {
     mockVerified = false;
     const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
     setData({
@@ -123,17 +127,56 @@ describe('الباقي تحت آخر العمليات', () => {
       }],
     });
     await mount();
-    const lastTx = pos('home_tx_t1');
-    expect(lastTx).toBeGreaterThan(pos('home_recent_title'));
+    const title = pos('home_recent_title');
+    expect(pos('home_tx_t1')).toBeGreaterThan(title);
     for (const id of ['home_banner_verify_email', 'home_banner_no_tx_today', 'home_banner_gamiya_m2']) {
-      expect({ id, after: pos(id) > lastTx }).toEqual({ id, after: true });
+      expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
     }
   });
 
-  it('رصيد قرب يخلص ← بعد آخر عملية كمان (مش بيقول إن الرقم غلط)', async () => {
-    setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 100, lowAlert: 500 }], transactions: [{ ...tx, date: today }] });
+  it('رصيد قرب يخلص + ميزانية + اشتراك جاي ← كلهم قبل "آخر العمليات"', async () => {
+    const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
+    setData({
+      wallets: [{ id: 'w1', name: 'كاش', openingBalance: 100, lowAlert: 500 }],
+      categories: [{ id: 'c1', name: 'أكل' }],
+      transactions: [{ ...tx, date: today, categoryId: 'c1' }],
+      budgets: { c1: 50 },
+      subscriptions: [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true, nextDueDate: soon, reminderDaysBefore: 3 }],
+    });
     await mount();
-    expect(pos('home_banner_low_w1')).toBeGreaterThan(pos('home_tx_t1'));
+    const title = pos('home_recent_title');
+    for (const id of ['home_banner_low_w1', 'home_banner_budget_c1', 'home_banner_sub_s1']) {
+      expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
+    }
+  });
+});
+
+/**
+ * جرد من الكود نفسه (مش قايمة الاختبار بيبنيها لنفسه — tdd-guide): كل `home_banner_`
+ * في الرئيسية مكتوب قبل `home_recent_title` وليه ✕ (`home_banner_dismiss_`)، وآخر
+ * العمليات لسه 10. ولو حد رجّع بانر تحت القايمة الاختبار ده بيقع.
+ */
+describe('جرد بانرات الرئيسية في الكود', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'app', '(tabs)', 'index.tsx'), 'utf8');
+  const titleAt = src.indexOf('testID="home_recent_title"');
+  const banners = [...src.matchAll(/testID=\{?[`"]home_banner_(?!dismiss_)([a-z_]+)/gi)].map(m => ({ id: m[1].replace(/_$/, ''), at: m.index! }));
+
+  it('فيه بانرات أصلاً (الجرد مش فاضي)', () => {
+    expect(banners.map(b => b.id).sort()).toEqual(
+      ['budget', 'budget_total', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+  });
+  it('كلهم مكتوبين قبل "آخر العمليات"', () => {
+    // بانر الإيميل كومبوننت لوحده تحت في الملف — المهم مكان استخدامه في الشاشة
+    const at = (b: { id: string; at: number }) => (b.id === 'verify_email' ? src.indexOf('<EmailVerificationBanner />') : b.at);
+    for (const b of banners) expect({ id: b.id, before: at(b) > -1 && at(b) < titleAt }).toEqual({ id: b.id, before: true });
+  });
+  it('كل بانر ليه ✕', () => {
+    const dismissIds = new Set([...src.matchAll(/home_banner_dismiss_([a-z_]+)/g)].map(m => m[1].replace(/_$/, '')));
+    expect([...dismissIds].sort()).toEqual(
+      ['budget', 'budget_total', 'gamiya', 'low_balance', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+  });
+  it('آخر العمليات لسه 10', () => {
+    expect(src).toMatch(/\.slice\(0, 10\);/);
   });
 });
 

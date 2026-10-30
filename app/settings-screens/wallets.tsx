@@ -7,14 +7,16 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import {
-  roundedWalletBalance, walletArchiveBlock, walletDeleteConsequences, walletHasHistory,
+  roundedWalletBalance, walletArchiveBlock, walletDeleteBlock, walletDeleteConsequences, walletHasHistory,
   walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -56,6 +58,10 @@ export default function WalletsScreen() {
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
+  // آخر نسخة من المحافظ لفحص المسح **لحظة الدوسة**: زرار الـAlert بينادي
+  // نسخة الـrender اللي فتحته، فلو قرا `wallets` كان هيشوف اللي قبل التأكيد
+  const latestWallets = useRef(wallets);
+  latestWallets.current = wallets;
 
   /** لو بيانات الرصيد ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
   function blockedByMissingData() {
@@ -88,10 +94,14 @@ export default function WalletsScreen() {
     updateWallet(id, { name });
   }
 
-  function showBlock(block: ArchiveBlock, name: string) {
+  function showBlock(block: ArchiveBlock, name: string, action: 'archive' | 'delete') {
     if (block.kind === 'last-active') {
+      // المسح بيقترح "رجّع واحدة من المؤرشفة" — اللي عنده مؤرشفة مش محتاج يعمل
+      // جديدة. في الأرشفة الكلام ده مالوش معنى، فكل واحد ليه جملته
       Alert.alert('دي آخر محفظة شغالة',
-        'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
+        action === 'delete'
+          ? 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.'
+          : 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
         [{ text: 'تمام' }]);
       return;
     }
@@ -106,13 +116,40 @@ export default function WalletsScreen() {
       [{ text: 'تمام' }]);
   }
 
+  /** آخر محفظة شغالة مبتتمسحش أبدًا — بيقول كده وبيرجّع true */
+  function blockedAsLastActive(id: string, name: string) {
+    const block = walletDeleteBlock(id, latestWallets.current);
+    if (!block) return false;
+    showBlock(block, name, 'delete');
+    return true;
+  }
+
+  /** المسح نفسه، بعد فحص أخير لحظة الدوسة (المحافظ ممكن تكون اتغيّرت والتأكيد مفتوح) */
+  function deleteNow(id: string, name: string) {
+    if (blockedAsLastActive(id, name)) return;
+    // DataContext بيرفض هو كمان (بند 13) — لو المحافظ اتغيّرت بين الفحص والكتابة
+    // الرفض بيرجع هنا ويتقال بنفس الرسالة
+    runDelete(id, async () => {
+      try {
+        const result = await deleteWallet(id);
+        if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
+      } catch (e) {
+        // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection.
+        // رمي هنا = باج، فبيوصل Sentry (كود الخطأ بس، من غير الاسم)
+        reportAtomicFailure('مسح المحفظة', e);
+        Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
+      }
+    });
+  }
+
   function confirmDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (blockedAsLastActive(id, name)) return;
     const refs = refsFor(id);
     if (!walletHasHistory(refs)) {
       Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'حذف', style: 'destructive', onPress: () => runDelete(id, () => deleteWallet(id)) },
+        { text: 'حذف', style: 'destructive', onPress: () => deleteNow(id, name) },
       ]);
       return;
     }
@@ -128,12 +165,13 @@ export default function WalletsScreen() {
   /** التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي */
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (blockedAsLastActive(id, name)) return;
     const w = wallets.find(x => x.id === id);
     if (!w) return;
     const balance = roundedWalletBalance(transactions, id, w.openingBalance);
     Alert.alert('مسح نهائي', walletDeleteConsequences({ balance, refs: refsFor(id) }).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
-      { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(id, () => deleteWallet(id)) },
+      { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
     ]);
   }
 
@@ -156,7 +194,7 @@ export default function WalletsScreen() {
     const refs = refsFor(id);
     const others = activeWallets.filter(x => x.id !== id);
     const block = archiveBlockFor(id);
-    if (block) { showBlock(block, name); return; }
+    if (block) { showBlock(block, name, 'archive'); return; }
 
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
@@ -166,11 +204,24 @@ export default function WalletsScreen() {
     if (items.length === 0) {
       Alert.alert('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'أرشفها', onPress: () => archiveWallet(id, {}) },
+        { text: 'أرشفها', onPress: () => { void archiveNow(id, name, {}); } },
       ]);
       return;
     }
     setSheet({ id, name, items, targets: others.map(x => ({ id: x.id, name: x.name })) });
+  }
+
+  /** الأرشفة نفسها — DataContext بيرفض آخر محفظة شغالة هو كمان (بند 13)، والرفض بيتقال بنفس الرسالة */
+  async function archiveNow(id: string, name: string, reassign: Parameters<typeof archiveWallet>[1]) {
+    try {
+      const result = await archiveWallet(id, reassign);
+      if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
+    } catch (e) {
+      reportAtomicFailure('أرشفة المحفظة', e);
+      // فشل الكتابة نفسها بيتقال من `track` باسم المحفظة؛ ده للي بيترمي قبلها
+      // (تجهيز الدفعة) — كان هيبقى unhandled rejection والشيت اتقفل (silent-failure-hunter)
+      Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
+    }
   }
 
   function confirmRestore(id: string, name: string) {
@@ -194,7 +245,7 @@ export default function WalletsScreen() {
       return;
     }
     const block = archiveBlockFor(sheet.id);
-    if (block) { setSheet(null); showBlock(block, sheet.name); return; }
+    if (block) { setSheet(null); showBlock(block, sheet.name, 'archive'); return; }
     // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
     // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
     // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني
@@ -218,7 +269,7 @@ export default function WalletsScreen() {
       else if (kind === 'دخل ثابت') incomesMap[itemId] = target;
       else gamiyasMap[itemId] = target;
     });
-    archiveWallet(sheet.id, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
+    void archiveNow(sheet.id, sheet.name, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
     setSheet(null);
   }
 

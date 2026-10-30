@@ -200,6 +200,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
+  'app/modal.tsx': { count: 1, why: 'تأكيد قبل حفظ تعديل بيخلّي المدفوع أكتر من الدين' },
 };
 
 /** الشاشات اللي بتعرض مبالغ — كل واحدة لازم فيها `<Money` أو `money(` */
@@ -265,6 +266,20 @@ describe('جرد الإخفاء في كل الشاشات', () => {
     expect(home).toMatch(/<AmountsMaskScope>\s*<HomeScreen \/>\s*<\/AmountsMaskScope>/);
     const users = files.filter(f => /<AmountsMaskScope>/.test(fs.readFileSync(f, 'utf8'))).map(rel);
     expect(users).toEqual(['app/(tabs)/index.tsx']);
+  });
+
+  /**
+   * العين للأرصدة (قرار مؤمن 2026-10-28): جوه الرئيسية مبلغ العملية بس اللي بيطلع
+   * من القناع — `AmountsUnmaskedScope` حوالين `<Money value={t.amount}` في صف
+   * "آخر العمليات" ومفيش في أي مكان تاني (البانرات والكروت والرصيد فاضلين مخفيين).
+   */
+  it('الاستثناء جوه الرئيسية: مبلغ صف العملية بس', () => {
+    const users = files.filter(f => /<AmountsUnmaskedScope>/.test(fs.readFileSync(f, 'utf8'))).map(rel);
+    expect(users).toEqual(['app/(tabs)/index.tsx']);
+    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
+    const scopes = home.match(/<AmountsUnmaskedScope>[\s\S]*?<\/AmountsUnmaskedScope>/g) ?? [];
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0]).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {

@@ -157,6 +157,21 @@ export function walletArchiveBlock(opts: {
   return null;
 }
 
+/**
+ * المسح النهائي لآخر محفظة شغالة ممنوع **دايمًا** — نفس قاعدة الأرشفة
+ * (`last-active`)، سواء فيه مؤرشفة ولا لأ. من غيره المستخدم كان بيمسحها
+ * ويفضل من غير ولا محفظة يسجّل عليها، والمؤرشفة من غير مكان لتسويتها.
+ * المؤرشفة نفسها بتتمسح عادي: مسحها مبيغيّرش عدد الشغالة.
+ */
+export function walletDeleteBlock(
+  walletId: string,
+  wallets: { id: string; archived?: boolean }[],
+): ArchiveBlock | null {
+  const w = wallets.find(x => x.id === walletId);
+  if (!w || w.archived) return null;
+  return wallets.filter(x => !x.archived).length <= 1 ? { kind: 'last-active' } : null;
+}
+
 export function categoryArchiveBlock(opts: {
   refs: CategoryRefs;
   activeCategoryCount: number;

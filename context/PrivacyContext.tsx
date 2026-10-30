@@ -9,6 +9,8 @@ import { amountFormatter, type AmountFormatter } from '@/lib/money';
  * **النطاق: الرئيسية بس** (قرار مؤمن 2026-09-27، رجوع عن "كل الشاشات"). العين
  * بتغطي الأرصدة في الرئيسية — غطا سريع من حد بيبص على الشاشة، مش خصوصية
  * كاملة: اللي ماسك التليفون يقدر يفتح الإعدادات أو الديون ويشوف الأرقام.
+ * **ومبالغ العمليات ظاهرة حتى في الرئيسية** (قرار مؤمن 2026-10-28): صفوف "آخر
+ * العمليات" ملفوفة في `AmountsUnmaskedScope` — نفس صفوف الأرشيف وكشف الحساب.
  * الرئيسية ملفوفة في `AmountsMaskScope`، وبرّه النطاق `amountsHidden` بـfalse
  * و`money()` بيرجّع الرقم — فكل الشاشات التانية بتعرض أرقامها من غير ما
  * نلمس كل شاشة لوحدها. الإشعارات بتقرا `hidePreference` (التفضيل نفسه):
@@ -40,6 +42,14 @@ const MaskScopeContext = createContext(false);
 /** اللي جوّاه بيتخبّى لما العين مقفولة. بيتلف حوالين الرئيسية بس */
 export function AmountsMaskScope({ children }: { children: ReactNode }) {
   return <MaskScopeContext.Provider value>{children}</MaskScopeContext.Provider>;
+}
+
+/**
+ * جوه الرئيسية بس: مبلغ العملية نفسها بيفضل ظاهر والعين مقفولة (قرار مؤمن
+ * 2026-10-28 — العين للأرصدة). بيتلف حوالين مبلغ الصف بس، مش الصف كله
+ */
+export function AmountsUnmaskedScope({ children }: { children: ReactNode }) {
+  return <MaskScopeContext.Provider value={false}>{children}</MaskScopeContext.Provider>;
 }
 
 export function PrivacyProvider({ children }: { children: ReactNode }) {

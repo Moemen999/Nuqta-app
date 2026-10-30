@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, Text, type StyleProp, type TextStyle } from 'react-native';
+import { AccessibilityInfo, type StyleProp, type TextStyle } from 'react-native';
+import { Text } from '@/components/AppText';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { fmt } from '@/lib/finance';
 import { CURRENCY, MONEY_MASK } from '@/lib/money';

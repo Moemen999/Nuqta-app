@@ -1,14 +1,33 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { hasNotificationPermission, requestNotificationPermission, setupNotifications } from '@/lib/notifications';
 import { scheduleAllReminders } from '@/lib/scheduleAllReminders';
+import { openExactAlarmSettings as openExactAlarmSettingsRaw } from '@/lib/exactAlarm';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 const K_ENABLED = 'nuqta_notifs_enabled';
 const K_DAILY = 'nuqta_notifs_daily';
 const K_DAILY_HOUR = 'nuqta_notifs_daily_hour';
+
+/** سقف جدولة واحدة — بعده بتتعتبر فشلت والجاية تبدأ */
+export const SCHEDULE_TIMEOUT_MS = 20_000;
+class ScheduleTimeoutError extends Error { name = 'ScheduleTimeoutError'; }
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => { t = setTimeout(() => reject(new ScheduleTimeoutError()), ms); });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(t));
+}
+
+/** ساعة التذكير اليومي لو مفيش اختيار — نفس الافتراضي من الأول (20) */
+export const DEFAULT_DAILY_HOUR = 20;
+/** ساعة صالحة 0–23؛ غير كده ← الافتراضي. `Number(x) || 20` كان بيقلب 0 (12 بالليل) لـ20 */
+export function parseDailyHour(raw: string | number | null | undefined): number {
+  const h = typeof raw === 'number' ? raw : raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+  return Number.isInteger(h) && h >= 0 && h <= 23 ? h : DEFAULT_DAILY_HOUR;
+}
 
 type NotificationsContextType = {
   enabled: boolean;
@@ -21,9 +40,16 @@ type NotificationsContextType = {
   setDailyHour: (h: number) => Promise<void>;
   /** بيعيد قراية الإذن الحقيقي من النظام — بيتنادى لوحده كل رجوع للتطبيق */
   refreshPermission: () => Promise<void>;
+  /**
+   * بيفتح إعداد "المنبهات والتذكيرات" ويعلّم إن الجدولة تتعاد أول ما التطبيق يرجع للمقدمة:
+   * الإذن بيأثر على المنبّهات اللي بتتجدول بعده بس، فاللي اتجدول قبله فاضل تقريبي.
+   * بيرجّع false لو الإعداد ما اتفتحش.
+   */
+  openExactAlarmSettings: () => Promise<boolean>;
 };
 
-const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
+/** مُصدَّر للاختبارات بس (قيمة جاهزة من غير Provider حقيقي) */
+export const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { subscriptions, gamiyas, debts, incomes } = useData();
@@ -31,8 +57,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();
   const [enabled, setEnabled] = useState(false);
   const [dailyEnabled, setDailyEnabledState] = useState(true);
-  const [dailyHour, setDailyHourState] = useState(20);
+  const [dailyHour, setDailyHourState] = useState(DEFAULT_DAILY_HOUR);
   const [loading, setLoading] = useState(true);
+  // إعادة جدولة بعد الرجوع من إعداد المنبّهات (tdd-guide: setEnabled(true) وهي true مبيعيدش الـeffect)
+  const [rescheduleTick, setRescheduleTick] = useState(0);
+  const rescheduleOnReturn = useRef(false);
+  const scheduleChain = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     (async () => {
@@ -46,7 +76,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const granted = await hasNotificationPermission();
         setEnabled(en === '1' && granted);
         if (daily !== null) setDailyEnabledState(daily === '1');
-        if (hour !== null) setDailyHourState(Number(hour) || 20);
+        if (hour !== null) setDailyHourState(parseDailyHour(hour));
       } catch {
         // لو أي حاجة فشلت، التطبيق يكمل عادي من غير إشعارات
       } finally {
@@ -80,7 +110,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   // غيّر الإذن من برّه فيه
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') refreshPermission();
+      if (state !== 'active') return;
+      const reschedule = rescheduleOnReturn.current;
+      rescheduleOnReturn.current = false;
+      // الجدولة بعد ما الإذن يتقري تاني (react-reviewer): لو الإشعارات اتقفلت من الموبايل
+      // في النص، الـeffect يشوف enabled الجديد مش القديم
+      void refreshPermission().then(() => { if (reschedule) setRescheduleTick(t => t + 1); });
     });
     return () => sub.remove();
   }, [refreshPermission]);
@@ -90,7 +125,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // مستنيين تفضيل الإخفاء كمان: من غيره أول جدولة كانت ممكن تحط المبالغ
     // في إشعارات مستخدم مختار يخبّيها
     if (loading || !enabled || !privacyLoaded) return;
-    scheduleAllReminders({
+    // ورا بعض مش مع بعض (react-reviewer): كل جدولة "امسح الكل وبعدين جدول"، فاتنين متداخلين
+    // كانوا ممكن يسيبوا تذكيرات مكررة أو ناقصة
+    const opts = {
       subscriptions,
       gamiyas,
       debts,
@@ -99,8 +136,24 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       dailyMinute: 0,
       hideAmounts: amountsHidden,
       incomes,
-    }).catch(() => {});
-  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour]);
+    };
+    // كانت `.catch(() => {})` (silent-failure-hunter): الجدولة بعد إذن المنبهات هي اللي بتحوّل
+    // التذكير من تقريبي لبالظبط، وفشلها كان بيعدّي ساكت. Sentry بالكود بس، من غير أسامي ولا مبالغ
+    // بسقف (silent-failure-hunter، الجولة التانية): نداء native علّق كان هيوقف كل جدولة بعده
+    // ساكت. بعد السقف بيتبلّغ والسلسلة بتكمّل
+    scheduleChain.current = scheduleChain.current
+      .then(() => withTimeout(scheduleAllReminders(opts), SCHEDULE_TIMEOUT_MS))
+      .catch(e => reportAtomicFailure('جدولة التذكيرات', e));
+  }, [loading, enabled, privacyLoaded, amountsHidden, subscriptions, gamiyas, debts, incomes, dailyEnabled, dailyHour, rescheduleTick]);
+
+  async function openExactAlarmSettings() {
+    // العلامة **قبل** الفتح (react-reviewer): لو الـpromise خلص متأخر والتطبيق كان راح ورجع،
+    // العلامة كانت بتتحط بعد الرجوع والجدولة بتتفوّت
+    rescheduleOnReturn.current = true;
+    const opened = await openExactAlarmSettingsRaw();
+    if (!opened) rescheduleOnReturn.current = false;
+    return opened;
+  }
 
   async function enableNotifications() {
     const granted = await requestNotificationPermission();
@@ -123,13 +176,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }
 
   async function setDailyHour(h: number) {
-    await AsyncStorage.setItem(K_DAILY_HOUR, String(h));
-    setDailyHourState(h);
+    const hour = parseDailyHour(h);
+    setDailyHourState(hour);
+    // الحفظ وقع: الساعة متطبقة لحد ما التطبيق يتقفل، وبترجع للمتخزّن بعدها — مش رمي
+    // من غير حد يمسكه من زرار المقبض (react-reviewer)
+    await AsyncStorage.setItem(K_DAILY_HOUR, String(hour)).catch(() => {});
   }
 
   return (
     <NotificationsContext.Provider
-      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour, refreshPermission }}>
+      value={{ enabled, dailyEnabled, dailyHour, loading, enableNotifications, disableNotifications, setDailyEnabled, setDailyHour, refreshPermission, openExactAlarmSettings }}>
       {children}
     </NotificationsContext.Provider>
   );
@@ -139,4 +195,15 @@ export function useNotifications() {
   const ctx = useContext(NotificationsContext);
   if (!ctx) throw new Error('useNotifications must be used within NotificationsProvider');
   return ctx;
+}
+
+/**
+ * ساعة التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية — `null` لحد ما الإعداد يتقري
+ * (react-reviewer): الافتراضي (8 م) قبل القراية كان بيطلّع البانر للي اختار 10 م، أو
+ * يخبّيه عن اللي اختار 2 الضهر. من غير Provider (اختبارات الشاشة) ← الافتراضي.
+ */
+export function useDailyReminderHour(): number | null {
+  const ctx = useContext(NotificationsContext);
+  if (!ctx) return DEFAULT_DAILY_HOUR;
+  return ctx.loading ? null : ctx.dailyHour;
 }

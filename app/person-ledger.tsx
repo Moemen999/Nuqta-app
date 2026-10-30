@@ -8,7 +8,8 @@ import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Row = {
@@ -230,7 +231,7 @@ function makeStyles(c: ThemeColors) {
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
     sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 6 },
     addDebtBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
+    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },
     debtBlock: { backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
     debtBlockHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
     debtBlockTitle: { color: c.text, fontSize: 13, fontWeight: '700', textAlign: 'right', flexShrink: 1 },

@@ -11,7 +11,8 @@ import {
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },

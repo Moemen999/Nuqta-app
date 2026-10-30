@@ -42,8 +42,8 @@ function seed() {
   Object.assign(mockData, {
     wallets, categories: [], transactions: baseTxs, budgets: {}, debts: [],
     subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true, loadErrors: [],
-    updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(),
-    archiveWallet: jest.fn(), restoreWallet: jest.fn(),
+    updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
+    archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   });
 }
 

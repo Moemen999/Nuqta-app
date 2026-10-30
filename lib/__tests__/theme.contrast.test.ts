@@ -146,3 +146,16 @@ describe('expenseText / incomeText — مبالغ كل سطر', () => {
     }
   });
 });
+
+/**
+ * الـ✕ (DismissButton، 2026-10-28) رمز واجهة: 3:1 على الأقل فوق surface وbg في الثيمين
+ * (visual-identity-reviewer: textMuted كان ~2.8:1 في الفاتح)
+ */
+describe('لون الـ✕', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'components', 'DismissButton.tsx'), 'utf8');
+  const token = (src.match(/x: \{ color: c\.(\w+)/) ?? [])[1] as keyof ThemeColors;
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 3:1 على surface وbg', (_n, c) => {
+    expect(token).toBeTruthy();
+    for (const bg of [c.surface, c.bg]) expect(contrast(c[token] as string, bg)).toBeGreaterThanOrEqual(3);
+  });
+});

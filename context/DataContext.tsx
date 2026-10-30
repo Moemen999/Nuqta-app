@@ -2,11 +2,15 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
 import {
-  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds,
-  type CascadeDeleteBlock, type CascadeKind,
+  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
+import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
+import {
+  gamiyaEntryProblem, invalidEntry, subscriptionEntryProblem, validReminderDays, type EntrySaveResult,
+} from '@/lib/entryValidation';
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
@@ -110,6 +114,18 @@ class WalletMissingError extends Error { name = 'WalletMissingError'; }
  */
 class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
+const LINK_SOURCES: ListenerName[] = ['transactions', 'debts', 'subscriptions', 'gamiyas', 'incomes'];
+
+/**
+ * نتيجة تعديل عملية مربوطة بدين. `gone` = العملية أو الدين أو الربط بينهم
+ * اتغيّروا من جهاز تاني — "جرب تاني" مش هتنفع، لازم تقفل وتفتح من جديد.
+ */
+export type TxEditOutcome = PayOutcome | 'gone';
+export type TxEditResult = { outcome: TxEditOutcome; note?: string | null };
+
+/** العملية اتمسحت، أو اتفكّت من الدين، من جهاز تاني وإحنا بنعدّلها */
+class LinkedTxMissingError extends Error { name = 'LinkedTxMissingError'; }
+
 /**
  * مسح دفعة/زيادة عمليتها المالية خرجت من محفظة مؤرشفة. المسح مبيعملش تسوية،
  * فكان هيسيب رصيد المؤرشفة مش صفر ومحدش شايفه. الشاشة بتمنع ده قبل التأكيد،
@@ -125,6 +141,12 @@ class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
 class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
+
+/** اللي تعديل الجمعية يقدر يغيّره — المبالغ والشهور مش منهم (بند 15) */
+export type GamiyaEdit = Partial<Pick<Gamiya, 'name' | 'walletId' | 'reminderDaysBefore' | 'chargeMode'>>;
+
+/** نتيجة `deleteWallet`/`archiveWallet` — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
+export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
 
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
@@ -195,6 +217,29 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+  },
+};
+
+/**
+ * تعديل عملية مربوطة بدين (`updateDebtLinkedTransaction`). مش "خصم": المستخدم
+ * بيعدّل حاجة موجودة، فاللي محتاج يعرفه إن **ولا العملية ولا الدين** اتغيّروا.
+ */
+export const TX_EDIT_OUTCOME_ALERT: Record<Exclude<TxEditOutcome, 'done'>, { title: string; body: string }> = {
+  gone: {
+    title: 'العملية اتغيّرت',
+    body: 'العملية دي أو الدين بتاعها اتغيّروا من جهاز تاني، فمفيش حاجة اتحفظت. شوفها في الرئيسية أو الأرشيف وافتحها تاني لو لسه موجودة.',
+  },
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'التعديل ما اتحفظش. العملية دي مربوطة بدين، فلازم تتأكد من السيرفر عشان الدين والرصيد يفضلوا متطابقين — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتحفظش',
+    body: 'مفيش حاجة اتغيّرت، لا في العملية ولا في الدين. اتأكد إن النت شغال وجرب تاني.',
+  },
+  'wallet-missing': {
+    title: 'محتاج محفظة تانية',
+    body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فمفيش حاجة اتغيّرت. اختار محفظة شغالة وجرب تاني.',
   },
 };
 
@@ -434,6 +479,11 @@ type DataContextType = {
    * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
    */
   loadErrors: ListenerName[];
+  /**
+   * العمليات والسجلات اللي ممكن تكون مربوطة بيها (ديون، اشتراكات، جمعيات، دخل)
+   * وصلوا كلهم ومفيش منهم مرفوض. قبلها مودال العملية مبيعرفش هي مربوطة ولا لأ
+   */
+  linkSourcesReady: boolean;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -442,10 +492,10 @@ type DataContextType = {
   completeSetup: (choice: SetupChoice) => Promise<SetupOutcome>;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
-  deleteWallet: (id: string) => Promise<void>;
+  deleteWallet: (id: string) => Promise<WalletWriteResult>;
   archiveWallet: (id: string, reassign: {
     subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string>;
-  }) => Promise<void>;
+  }) => Promise<WalletWriteResult>;
   restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
@@ -455,6 +505,11 @@ type DataContextType = {
   restoreCategory: (id: string) => Promise<void>;
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
+  /** تعديل عملية مربوطة بدين — العملية والدين في ذرة واحدة (`lib/linkedEdit.ts`) */
+  updateDebtLinkedTransaction: (
+    txId: string, tx: Partial<Transaction> & LinkedEditNext, expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>,
+    settlements?: Settlement[],
+  ) => Promise<TxEditResult>;
   deleteTransaction: (id: string, settlements?: Settlement[]) => Promise<void>;
   transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
@@ -476,16 +531,16 @@ type DataContextType = {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) => Promise<void>;
-  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<void>;
+  }) => Promise<EntrySaveResult>;
+  updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) => Promise<void>;
-  updateGamiya: (id: string, data: Partial<Gamiya>) => Promise<void>;
+  }) => Promise<EntrySaveResult>;
+  updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
@@ -575,6 +630,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const creationTime = user?.metadata?.creationTime;
 
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  // آخر محافظ وصلت — حارس آخر محفظة شغالة (بند 13) بيقرا منه مش من الـclosure:
+  // الشاشة بتنادي المسح/الأرشفة من زرار Alert اتعمل في render قديم، فالـclosure
+  // كان هيشوف محافظ قديمة (money-reviewer + silent-failure-hunter)
+  const latestWallets = useRef(wallets);
+  latestWallets.current = wallets;
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [budgets, setBudgets] = useState<Budgets>({});
@@ -610,6 +670,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
+  // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
+  // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
+  const [delivered, setDelivered] = useState<Set<ListenerName>>(() => new Set());
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
@@ -733,6 +797,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]); setIncomes([]);
+      setDelivered(new Set());
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
@@ -798,8 +863,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
      * فاضية لحد ما السيرفر يرد (silent-failure-hunter). بيرجّع نفس الـstate لو
      * الاسم مش موجود، فمفيش render زيادة مع كل snapshot عادي.
      */
-    const loaded = (name: ListenerName) =>
+    const loaded = (name: ListenerName) => {
       setLoadErrors(prev => (prev.includes(name) ? prev.filter(n => n !== name) : prev));
+      setDelivered(prev => (prev.has(name) ? prev : new Set(prev).add(name)));
+    };
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
@@ -886,9 +953,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     track(updateDoc(doc(db, 'users', uid, 'wallets', id), data));
   }
-  async function deleteWallet(id: string) {
-    if (!uid) return;
+  async function deleteWallet(id: string): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // بند 13: آخر محفظة شغالة مبتتمسحش — نفس حظر الشاشة (`walletDeleteBlock`) هنا
+    // كمان، فالمتصل اللي نسي الفحص بيترفض بدل ما المستخدم يفضل من غير محفظة.
+    // **حد:** من المحافظ اللي وصلت النسخة دي — جهازين كل واحد بيمسح واحدة من آخر
+    // اتنين لسه ممكن يوصلوا لصفر (محتاج مستند عدّاد أو قاعدة، والقواعد برّه الجولة)
+    const block = walletDeleteBlock(id, latestWallets.current);
+    if (block) return { outcome: 'blocked', block };
     track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
+    return { outcome: 'done' };
   }
 
   /**
@@ -907,8 +981,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function archiveWallet(
     id: string,
     reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string> },
-  ) {
-    if (!uid) return;
+  ): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
+    // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
+    if (latestWallets.current.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
     const batch = writeBatch(db);
     // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
     // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
@@ -934,6 +1011,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       archived: true, archivedAt: new Date().toISOString(),
     });
     track(batch.commit(), namedLabel('أرشفة المحفظة', wallets.find(w => w.id === id)?.name));
+    return { outcome: 'done' };
   }
 
   async function restoreWallet(id: string) {
@@ -1029,6 +1107,74 @@ export function DataProvider({ children }: { children: ReactNode }) {
     batch.update(doc(db, 'users', uid, 'transactions', id), clean);
     stageSettlements(batch, settlements);
     track(batch.commit());
+  }
+
+  /**
+   * تعديل عملية مربوطة بدين (أصله، دفعة، زيادة) — العملية والدين مع بعض في
+   * ذرة واحدة (بند 14، 2026-10-27). قبل كده `updateTransaction` كان بيعدّل
+   * العملية بس، فالرصيد يتحرك والمتبقي وعدد الأقساط يفضلوا على الرقم القديم.
+   *
+   * **ذرية مش batch من حالة الرياكت** لنفس سبب `addDebtPayment`: مصفوفة
+   * الدفعات بتتقري من السيرفر، فدفعة نزلت من جهاز تاني متتمسحش وإحنا بنكتب
+   * المصفوفة. والتمن نفسه: محتاجة نت (قاعدة 7) ونتيجة قاطعة.
+   *
+   * المحفظة الجديدة لازم تكون شغالة؛ لو المحفظة ما اتغيّرتش وهي مؤرشفة، التسوية
+   * (`settlements`) هي اللي بتغطيها في نفس الذرة — زي التعديل العادي بالظبط.
+   */
+  async function updateDebtLinkedTransaction(
+    txId: string, edit: Partial<Transaction> & LinkedEditNext, expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>,
+    settlements: Settlement[] = [],
+  ): Promise<TxEditResult> {
+    if (!uid) return { outcome: 'failed' };
+    // التقريب الأول وبعدين الفحص (`storableAmount`): "1e307" كان بيعدّي `isFinite`
+    // ويتقرّب لـInfinity ويتكتب على العملية والدين. والعملية والدين بنفس الرقم
+    // المقرّب بالظبط — نفس الرقم اللي التسوية في المودال بتتحسب منه
+    const amount = storableAmount(edit.amount);
+    if (amount === null) return { outcome: 'failed' };
+    const tx = { ...edit, amount };
+    const debtId = debts.find(d => debtRoleOf(d, txId))?.id;
+    if (!debtId) {
+      noteAtomicFailure('تعديل عملية الدين', new LinkedTxMissingError());
+      return { outcome: 'gone' };
+    }
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    const debtRef = doc(db, 'users', uid, 'debts', debtId);
+    const txRef = doc(db, 'users', uid, 'transactions', txId);
+    const result: { note: string | null } = { note: null };
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const debtSnap = await t.get(debtRef);
+        if (!debtSnap.exists()) throw new DebtMissingError();
+        const txSnap = await t.get(txRef);
+        if (!txSnap.exists()) throw new LinkedTxMissingError();
+        const debt = { id: debtId, payments: [], increases: [], ...(debtSnap.data() as any) } as Debt;
+        const current = txSnap.data() as Transaction;
+        // اتعدّلت من جهاز تاني بعد ما المودال اتفتح: التسوية (`settlements`)
+        // اتحسبت على الأرقام القديمة، فالكتابة كانت هتسوّي برقم غلط
+        if (current.amount !== expected.amount || current.walletId !== expected.walletId || current.type !== expected.type) {
+          throw new LinkedTxMissingError();
+        }
+        const plan = debtLinkedEditPlan(debt, txId, tx, todayStr());
+        if (!plan) throw new LinkedTxMissingError();
+        if (tx.walletId !== current.walletId
+          && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', tx.walletId)))) {
+          throw new WalletMissingError();
+        }
+        // كل القرايات خلصت — من هنا كتابات بس
+        const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+        t.update(txRef, clean);
+        t.update(debtRef, plan.patch);
+        stageSettlements(t, settlements);
+        result.note = installmentEditMessage(plan.countBefore, plan.countAfter);
+      }));
+      return { outcome: 'done', note: result.note };
+    } catch (e) {
+      noteAtomicFailure('تعديل عملية الدين', e);
+      if (e instanceof WalletMissingError) return { outcome: 'wallet-missing' };
+      if (e instanceof LinkedTxMissingError || e instanceof DebtMissingError) return { outcome: 'gone' };
+      return { outcome: 'failed' };
+    }
   }
   /**
    * حذف سجل (دين/اشتراك/جمعية) **بكل العمليات المالية المولّدة منه**، في دفعة
@@ -1228,13 +1374,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * في الرئيسية، شخبطة، وإجماليات الأرشيف — كلهم بيفلتروا على النوع صراحةً).
    * يعني التسوية بتصحّح الأرصدة من غير ما تلوّث ولا تقرير.
    */
-  function stageSettlements(batch: WriteBatch, settlements: Settlement[]) {
+  function stageSettlements(batch: Pick<WriteBatch, 'set'> | FirestoreTransaction, settlements: Settlement[]) {
     if (!uid) return;
     settlements.forEach(st => {
       const amount = Math.abs(st.delta);
       if (amount === 0) return;
       const ref = doc(collection(db, 'users', uid, 'transactions'));
-      batch.set(ref, {
+      // الاتنين ليهم نفس `set` — النوع بس اللي مبيتجمعش من غير cast
+      (batch as Pick<WriteBatch, 'set'>).set(ref, {
         type: 'withdraw',
         amount,
         // موجب = المؤرشفة زادت، فالزيادة تخرج منها للمحفظة الشغالة
@@ -1770,24 +1917,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) {
-    if (!uid) return;
+  }): Promise<EntrySaveResult> {
+    // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
+    const invalid = subscriptionEntryProblem(data);
+    if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
     const { chargeMode, ...rest } = data;
+    rest.amount = storableAmount(rest.amount)!;
     const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     addDocNoWait('subscriptions', {
       ...clean, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()),
       active: true, history: [], closed: {}, createdAt: new Date().toISOString(),
     }, namedLabel('الاشتراك', data.name));
+    return { outcome: 'done' };
   }
-  async function updateSubscription(id: string, data: Partial<Subscription>) {
-    if (!uid) return;
+  async function updateSubscription(id: string, data: Partial<Subscription>): Promise<EntrySaveResult> {
+    // "مخصص" من غير `customDays` في التعديل ← بيتفحص على المتخزّن (tdd-guide): الشرط
+    // إن المخصص ليه أيام صحيحة، مش إن كل تعديل يبعتها تاني
+    const stored = subscriptions.find(s => s.id === id);
+    const invalid = subscriptionEntryProblem(
+      data.frequency === 'custom' && data.customDays === undefined ? { ...data, customDays: stored?.customDays } : data,
+    );
+    if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
     const current = subscriptions.find(s => s.id === id);
     const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    if (rest.amount !== undefined) rest.amount = storableAmount(rest.amount)!;
     const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     // "تلقائي" من النهاردة بس — مش من أول ما الاشتراك اتعمل (`chargeModePatch`)
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
+    return { outcome: 'done' };
   }
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
@@ -2230,8 +2391,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
     chargeMode?: ChargeMode;
-  }) {
-    if (!uid) return;
+  }): Promise<EntrySaveResult> {
+    // نفس فحص الفورم (بند 15) — الشاشة اللي تنسى بتترفض برضه، قبل أي كتابة
+    const invalid = gamiyaEntryProblem(data);
+    if (invalid) return invalid;
+    if (!uid) return { outcome: 'done' };
+    const monthlyAmount = storableAmount(data.monthlyAmount)!;
+    const payoutAmount = storableAmount(data.payoutAmount)!;
     const months: GamiyaMonth[] = Array.from({ length: data.totalMonths }, (_, i) => {
       const monthIndex = i + 1;
       const isPayoutMonth = monthIndex === data.payoutMonthIndex;
@@ -2240,22 +2406,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
         monthIndex,
         dueDate: addMonths(data.startDate, i),
         isPayoutMonth,
-        amount: isPayoutMonth ? data.payoutAmount : data.monthlyAmount,
+        amount: isPayoutMonth ? payoutAmount : monthlyAmount,
         status: 'pending',
       };
     });
     const { chargeMode, ...rest } = data;
     addDocNoWait('gamiyas', {
-      ...rest, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()), months, createdAt: new Date().toISOString(),
+      ...rest, monthlyAmount, payoutAmount, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()), months, createdAt: new Date().toISOString(),
     }, namedLabel('الجمعية', data.name));
+    return { outcome: 'done' };
   }
-  async function updateGamiya(id: string, data: Partial<Gamiya>) {
-    if (!uid) return;
+  async function updateGamiya(id: string, data: GamiyaEdit): Promise<EntrySaveResult> {
+    // التعديل مبيلمسش مبالغ ولا شهور (اتولّدوا خلاص) — النوع نفسه مبيسمحش بيهم
+    // (money-reviewer: `Partial<Gamiya>` كان باب خلفي لـInfinity)، والتذكير بيتفحص (بند 15)
+    if (data.reminderDaysBefore !== undefined && !validReminderDays(data.reminderDaysBefore)) return invalidEntry('reminderDays');
+    if (!uid) return { outcome: 'done' };
     const current = gamiyas.find(x => x.id === id);
-    const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
-    const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    const { chargeMode } = data;
+    // قايمة مسموحة وقت التشغيل مش النوع بس (typescript-reviewer): `GamiyaEdit` مبيمنعش
+    // مفتاح زيادة لو حد بعت متغيّر (`{ ...gamiya }`)، فالمبالغ والشهور و`chargeAutoSince`
+    // كانوا هيتكتبوا من غير فحص
+    const clean: Record<string, unknown> = Object.fromEntries(
+      (['name', 'walletId', 'reminderDaysBefore'] as const)
+        .filter(k => data[k] !== undefined).map(k => [k, data[k]]),
+    );
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
     track(updateDoc(doc(db, 'users', uid, 'gamiyas', id), clean), namedLabel('تعديل الجمعية', current?.name));
+    return { outcome: 'done' };
   }
   async function deleteGamiya(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
@@ -2317,10 +2494,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
+        linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
-        addTransaction, updateTransaction, deleteTransaction, transactionLinkWarning,
+        addTransaction, updateTransaction, updateDebtLinkedTransaction, deleteTransaction, transactionLinkWarning,
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         setInstallmentCount,

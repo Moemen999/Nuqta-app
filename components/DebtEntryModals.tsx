@@ -18,7 +18,8 @@ import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 /**
  * مودالات تسجيل دفعة وزيادة على دين ودين جديد.
@@ -414,11 +415,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput testID="debt_add_person" style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
+          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           {linkedToWallet && (
@@ -510,7 +511,7 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 16 },
+    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 17 },
     installmentText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },

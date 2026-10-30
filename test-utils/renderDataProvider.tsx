@@ -15,8 +15,11 @@ export const TEST_SETUP = {
  * والبيانات اللي جواه. بنستخدم البروفايدر نفسه مش نسخة مقلّدة عشان الاختبار
  * يعدّي على نفس الكود اللي التطبيق بيستخدمه — بما فيه إن دوال التنسيق بتقرا من
  * الحالة اللي جاية من onSnapshot.
+ *
+ * `extra` بيتركّب جوه نفس البروفايدر — لهوك أو شيت محتاج البيانات الحقيقية
+ * (`useArchivedSettlement` مثلاً).
  */
-export async function renderDataProvider() {
+export async function renderDataProvider(extra?: React.ReactNode) {
   const holder: { current: DataApi | null } = { current: null };
 
   function Probe() {
@@ -28,6 +31,7 @@ export async function renderDataProvider() {
   const tree = (
     <DataProvider>
       <Probe />
+      {extra}
     </DataProvider>
   );
   const view = await render(tree);
@@ -77,6 +81,7 @@ export async function renderDataProvider() {
   const rerender = () => view.rerender(
     <DataProvider>
       <Probe />
+      {extra}
     </DataProvider>
   );
   return { view, api, waitForData, waitForReady, rerender, unmount: () => view.unmount() };

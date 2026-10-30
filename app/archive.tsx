@@ -11,10 +11,12 @@ import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
+import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
@@ -172,7 +174,15 @@ export default function ArchiveScreen() {
         const catLabel = categoryLabelById(categories, t.categoryId);
         const walletLabel = transactionWalletLabel(t, wallets);
         return (
-          <View key={t.id} style={styles.txRow}>
+          // نفس مودال الرئيسية — فيه التسوية والتأكيد والقيود، مفيش مسار تاني.
+          // من غير ده العملية اللي نزلت تحت أحدث 10 مالهاش تصليح (بند 14)
+          <TouchableOpacity
+            key={t.id}
+            testID={`archive_tx_${t.id}`}
+            style={styles.txRow}
+            accessibilityRole="button"
+            accessibilityHint="بيفتح العملية عشان تعدّلها أو تمسحها"
+            onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
             <View style={styles.txMid}>
               <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
               <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
@@ -183,7 +193,7 @@ export default function ArchiveScreen() {
               {pendingTxIds.has(t.id) && <PendingSyncMark />}
               {t.autoRecorded && <AutoRecordedMark />}
             </View>
-          </View>
+          </TouchableOpacity>
         );
       })}
 

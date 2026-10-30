@@ -1,4 +1,4 @@
-import { Tajawal_400Regular, Tajawal_500Medium, Tajawal_700Bold, useFonts } from '@expo-google-fonts/tajawal';
+import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -7,10 +7,13 @@ import { useEffect } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { initSentry } from '@/lib/sentry';
-import { applyGlobalFont } from '@/lib/applyGlobalFont';
+import * as Sentry from '@sentry/react-native';
+import { setAppFontReady } from '@/lib/appFont';
+import { APP_FONT_SOURCES } from '@/lib/appFontSources';
 import { holdSplash, releaseSplash } from '@/lib/splash';
 
 import LockScreen from '@/components/LockScreen';
@@ -143,23 +146,21 @@ function RootNavigator() {
 initSentry();
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Tajawal_400Regular,
-    Tajawal_500Medium,
-    Tajawal_700Bold,
-  });
+  // نفس الأسامي اللي الغلاف (components/AppText.tsx) بيطلبها — APP_FONT في lib/appFont.ts
+  const [fontsLoaded, fontError] = useFonts(APP_FONT_SOURCES);
 
-  // بنطبّق الخط على كل نصوص التطبيق أول ما يحمّل
+  // الخطوط فشلت ← التطبيق يكمّل بخط النظام بدل ما يستنى للأبد. console.warn
+  // مبيوصلش Sentry (الـbreadcrumbs بتتشال)، فالفشل بيتبعت صريح — نص ثابت من غير
+  // تفاصيل الخطأ (فيها مسار الملف)
   useEffect(() => {
-    if (fontsLoaded) applyGlobalFont();
-  }, [fontsLoaded]);
-
-  // الخطوط فشلت ← التطبيق يكمّل بخط النظام بدل ما يستنى للأبد
-  useEffect(() => {
-    if (fontError) console.warn('[fonts] Tajawal', fontError);
+    if (!fontError) return;
+    console.warn('[fonts] app font', fontError);
+    Sentry.captureMessage('fonts: app font failed to load, using the system font', 'error');
   }, [fontError]);
 
   if (!fontsLoaded && !fontError) return null;
+  // قبل أول رسمة لأي شاشة: الغلاف ميطلبش أسامي مش متحمّلة (lib/appFont.ts)
+  setAppFontReady(fontsLoaded && !fontError);
 
   return (
     <ThemeProvider>

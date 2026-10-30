@@ -28,7 +28,7 @@ const tx = { id: 't1', type: 'expense', amount: 50, walletId: 'w1', date: '2026-
 beforeEach(() => {
   mockParams = {};
   Object.assign(mockData, {
-    wallets: [wallet], categories: [], transactions: [tx],
+    wallets: [wallet], categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], linkSourcesReady: true, loadErrors: [], retryLoad: jest.fn(), transactions: [tx],
     addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(), transactionLinkWarning: () => null,
   });
 });

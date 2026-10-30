@@ -5,8 +5,9 @@ import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 WebBrowser.maybeCompleteAuthSession();
 

@@ -1,6 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * قسم المؤرشف — مطوي افتراضيًا. المستخدم أرشفها عشان تختفي، فلو فتحناها

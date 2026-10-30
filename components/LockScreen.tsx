@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
   Alert, KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, Text, TextInput, TouchableOpacity, View,
+  StyleSheet, TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';

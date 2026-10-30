@@ -11,7 +11,8 @@ import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { PieChart } from 'react-native-chart-kit';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

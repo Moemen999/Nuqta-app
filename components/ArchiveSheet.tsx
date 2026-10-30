@@ -2,7 +2,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 export type ReassignTarget = { id: string; name: string };
 /** حاجة شغّالة مربوطة باللي بنأرشفه ولازم تلاقي بديل قبل ما نكمّل */

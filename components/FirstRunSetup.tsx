@@ -10,9 +10,10 @@ import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput,
+  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**

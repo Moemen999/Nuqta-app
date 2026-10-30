@@ -2,7 +2,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 
 /**
  * زرار الرجوع في أعلى الشاشات الداخلية.

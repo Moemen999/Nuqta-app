@@ -16,9 +16,10 @@ import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle
 import { useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput,
+  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
 } from 'react-native';
+import { Text, TextInput } from '@/components/AppText';
 
 /** نفس أسامي الاشتراكات والجمعية — مصدر واحد في `lib/autoCharge.ts` */
 export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;

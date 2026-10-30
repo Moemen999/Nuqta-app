@@ -4,7 +4,8 @@ import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** خيارات مهلة السماح — نفس اللي كانت في شاشة الإعدادات القديمة بالظبط */
