@@ -182,3 +182,26 @@ describe('الجولة 1 على D3', () => {
     expect(screen.getByTestId('settle_confirm').props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
   });
 });
+
+
+/** الجولة 2 على D3 (silent-failure-hunter، الأخيرة) */
+describe('الجولة 2 على D3', () => {
+  it('رسالة الخطأ برّه الـScrollView (فوق الأزرار اللاصقة) — مبتضيعش تحت الفورم الطويل', () => {
+    const src: string = require('fs').readFileSync('app/modal.tsx', 'utf8');
+    const errorAt = src.indexOf('testID="tx_error"');
+    expect(errorAt).toBeGreaterThan(src.lastIndexOf('</ScrollView>'));
+    expect(errorAt).toBeLessThan(src.indexOf('<View style={styles.footer}>'));
+  });
+
+  it('محاولة مسح تانية بتشيل رسالة الخطأ القديمة', async () => {
+    seed([archived, active], 'a');
+    (mockData.deleteTransaction as jest.Mock).mockImplementationOnce(async () => { throw new Error('boom'); });
+    await openAndPressDelete();
+    await act(async () => { fireEvent.press(within(screen.getByTestId('settle_sheet')).getByText('كاش')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('settle_confirm')); });
+    await act(async () => {});
+    expect(screen.getByTestId('tx_error')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
+    expect(screen.queryByTestId('tx_error')).toBeNull();
+  });
+});

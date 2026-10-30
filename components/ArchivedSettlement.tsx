@@ -214,14 +214,14 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                   accessibilityState={{ disabled: !allPicked }}
                   // التأكيد على مسح (D3) بشكل زرار الحذف في التطبيق (خط ونص أحمر، زي "حذف الجمعية")
                   // مش زي "احفظ" — الـAlert القديم كان destructive (a11y-architect)
-                  style={[confirmLabel ? styles.deleteBtn : styles.saveBtn, !allPicked && styles.btnBusy]}
+                  style={[isDelete && confirmLabel ? styles.deleteBtn : styles.saveBtn, !allPicked && styles.btnBusy]}
                   disabled={!allPicked}
                   onPress={() => {
                     if (confirmed.current) return;
                     confirmed.current = true;
                     onConfirm(picked);
                   }}>
-                  <Text style={{ color: confirmLabel ? colors.danger : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
+                  <Text style={{ color: isDelete && confirmLabel ? colors.danger : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
                 </TouchableOpacity>
               </>
             )}
