@@ -85,6 +85,12 @@ export type DebtLinkedEditPlan = {
   excessAfter: number;
   /** فرق التقريب كان معروف والطيّ فشل ← الذرة بتشيله صريح (`deleteField`) وبتسجّل المعرّف */
   clearResidue?: boolean;
+  /**
+   * فرق متخزّن بس متجاهَل (بتاع قسط تاني، أو فوق الإجمالي) والتعديل بيحرّك الخطة ←
+   * بيتشال صريح: إجمالي أكبر كان ممكن يخلّيه "سليم" ويتعدّ بأرقام قديمة
+   * (silent-failure-hunter). الذرة بتكتب `deleteField`؛ سطر "متجاهَل" اتسجّل قبله
+   */
+  clearIgnoredResidue?: boolean;
   /** العدد الجديد مينفعش يتخزّن (NaN أو أكبر من الدقة) ← القديم بيفضل والذرة بتسجّل المعرّف */
   countNotStorable?: boolean;
 };
@@ -126,6 +132,7 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
   // وقسط وهمي بقروش في الآخر (money-reviewer + silent-failure-hunter). الدفعة
   // مبتحرّكش الخطة، فمفيش طيّ
   let clearResidue = false;
+  let clearIgnoredResidue = false;
   if (role !== 'payment') {
     const before = role === 'initial'
       ? Number(d.totalAmount)
@@ -139,10 +146,13 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
         delete patch.installmentResidue;
         clearResidue = true;
       }
+    } else if (base.installmentResidue !== undefined && base.installmentResidue !== null) {
+      delete patch.installmentResidue;
+      clearIgnoredResidue = true;
     }
   }
   const debtAfter = { ...d, ...patch } as Debt;
-  if (clearResidue) debtAfter.installmentResidue = undefined;
+  if (clearResidue || clearIgnoredResidue) debtAfter.installmentResidue = undefined;
   const recount = installmentCountFor(debtAfter);
   let countNotStorable = false;
   if (recount !== null && recount !== d.installmentCount) {
@@ -172,6 +182,7 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
     excessBefore: roundMoney(debtExcess(d)),
     excessAfter: roundMoney(debtExcess(debtAfter)),
     ...(clearResidue ? { clearResidue } : {}),
+    ...(clearIgnoredResidue ? { clearIgnoredResidue } : {}),
     ...(countNotStorable ? { countNotStorable } : {}),
   };
 }

@@ -1157,19 +1157,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const plan = debtLinkedEditPlan(debt, txId, tx, todayStr());
         if (!plan) throw new LinkedTxMissingError();
-        // نفس إشارات باقي مسارات الدين (silent-failure-hunter): فرق متجاهَل، طيّ فشل
-        // (بيتشال صريح)، أو عدد مينفعش يتخزّن — المعرّف بس (sentryScrub)
-        noteIgnoredResidue(debt);
-        if (plan.clearResidue) {
-          plan.patch.installmentResidue = deleteField();
-          noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
-        }
-        if (plan.countNotStorable) noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
         if (tx.walletId !== current.walletId
           && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', tx.walletId)))) {
           throw new WalletMissingError();
         }
         // كل القرايات خلصت — من هنا كتابات بس
+        // نفس إشارات باقي مسارات الدين (silent-failure-hunter): فرق متجاهَل، طيّ فشل أو
+        // فرق متجاهَل بيتشال صريح، أو عدد مينفعش يتخزّن — المعرّف بس (sentryScrub). بعد
+        // آخر قراية عشان السطر ميتكتبش لكتابة ما حصلتش (money-reviewer + silent-failure-hunter)
+        noteIgnoredResidue(debt);
+        if (plan.clearResidue || plan.clearIgnoredResidue) plan.patch.installmentResidue = deleteField();
+        if (plan.clearResidue) noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
+        if (plan.countNotStorable) noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
         const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
         t.update(txRef, clean);
         t.update(debtRef, plan.patch);

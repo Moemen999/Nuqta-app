@@ -148,14 +148,29 @@ describe('الفرق مش معروف', () => {
     expect(p.clearResidue).toBeFalsy();
   });
 
-  it('فرق متجاهَل (بتاع قسط تاني): مفيش كتابة فرق ولا clearResidue', () => {
+  // silent-failure-hunter (جولة 1 على خطوة 2): فرق متجاهَل لأنه فوق الإجمالي القديم كان
+  // ممكن يبقى "سليم" بعد ما التعديل يكبّر الإجمالي، ويتعدّ بأرقام قديمة ← بيتشال صريح
+  it('فرق متجاهَل (بتاع قسط تاني) + تعديل الأصل: بيتشال صريح (clearIgnoredResidue)، مش طيّ ولا فشل طيّ', () => {
     const d = baseDebt({
       totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33,
       installmentResidue: { amount: 0.04, forInstallment: 90, over: 12 },
     });
-    const p = plan(d, 'tx_init', 2000);
+    const p = plan(d, 'tx_init', 2000) as Plan & { clearIgnoredResidue?: boolean };
     expect('installmentResidue' in p.patch).toBe(false);
+    expect(p.clearIgnoredResidue).toBe(true);
     expect(p.clearResidue).toBeFalsy();
+    expect(p.debtAfter.installmentResidue).toBeUndefined();
+  });
+
+  it('فرق فوق الإجمالي القديم (متجاهَل) والتعديل كبّر الإجمالي: مبيتعدّش بيه', () => {
+    // 12 × 83.33 + 500 = 1499.96 > 1000 ← متجاهَل قبل التعديل، وبعد 2000 كان هيعدّي
+    const d = baseDebt({
+      totalAmount: 1000, installmentCount: 12, installmentAmount: 83.33,
+      installmentResidue: { amount: 500, forInstallment: 83.33, over: 12 },
+    });
+    const p = plan(d, 'tx_init', 2000) as Plan & { clearIgnoredResidue?: boolean };
+    expect(p.clearIgnoredResidue).toBe(true);
+    expect('installmentResidue' in p.patch).toBe(false);
   });
 
   it('دين مش قسط: مفيش فرق ولا عدد', () => {

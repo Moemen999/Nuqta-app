@@ -322,6 +322,23 @@ describe('تعديل عملية مربوطة بيطوي الفرق', () => {
     expect(s.installmentResidue).toEqual({ amount: 0.08, forInstallment: 83.33, over: 24 });
   });
 
+  // silent-failure-hunter (جولة 1 على خطوة 2): فرق متجاهَل (فوق الإجمالي) كان هيبقى
+  // "سليم" بعد ما الأصل يكبر ← بيتشال من السيرفر (deleteField) مش بيتعدّ بيه
+  it('فرق متجاهَل + تعديل الأصل ← بيتشال من السيرفر، والعدد بالقاعدة القديمة', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    await harness.waitForData(api => api.transactions.length === 1);
+    await setDoc(doc(db, 'users', getMockUid(), 'debts', debtId),
+      { installmentResidue: { amount: 500, forInstallment: 83.33, over: 12 } }, { merge: true });
+    await harness.waitForData(api => api.debts[0].installmentResidue?.amount === 500);
+    const initTxId = harness.api().debts[0].initialTransactionId!;
+    const r = await harness.api().updateDebtLinkedTransaction(initTxId, { amount: 2000, walletId, date: '2026-01-01' }, seen(initTxId));
+    expect(r.outcome).toBe('done');
+    const s = await serverDebt(debtId);
+    expect(s.totalAmount).toBe(2000);
+    expect('installmentResidue' in s).toBe(false);
+    expect(s.installmentCount).toBe(24);
+  });
+
   it('زيادة 500 ← 600 وبعدين مسحها: الفرق والعدد بيرجعوا زي ما الدين اتعمل', async () => {
     const { walletId, debtId } = await makeDebt(1000, 12);
     const inc = await harness.api().addDebtIncrease(debtId, 500, '2026-02-01', walletId);
