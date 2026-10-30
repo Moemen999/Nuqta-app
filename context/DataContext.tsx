@@ -1157,6 +1157,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const plan = debtLinkedEditPlan(debt, txId, tx, todayStr());
         if (!plan) throw new LinkedTxMissingError();
+        // نفس إشارات باقي مسارات الدين (silent-failure-hunter): فرق متجاهَل، طيّ فشل
+        // (بيتشال صريح)، أو عدد مينفعش يتخزّن — المعرّف بس (sentryScrub)
+        noteIgnoredResidue(debt);
+        if (plan.clearResidue) {
+          plan.patch.installmentResidue = deleteField();
+          noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
+        }
+        if (plan.countNotStorable) noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
         if (tx.walletId !== current.walletId
           && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', tx.walletId)))) {
           throw new WalletMissingError();

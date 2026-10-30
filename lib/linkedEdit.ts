@@ -1,6 +1,7 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import {
-  debtExcess, debtRemaining, installmentCountFor, pinInstallmentAmount, reopenedDueDate, roundMoney, todayStr,
+  debtExcess, debtRemaining, foldInstallmentResidue, installmentCountFor, installmentResidueKnown, pinInstallmentAmount,
+  reopenedDueDate, roundMoney, storableCount, todayStr,
 } from '@/lib/finance';
 import type { TxChange } from '@/lib/archiving';
 import type { RecurringIncome } from '@/lib/recurringIncome';
@@ -82,6 +83,10 @@ export type DebtLinkedEditPlan = {
   /** الزيادة المدفوعة فوق الدين قبل/بعد — الشاشة بتسأل لو التعديل هو اللي عملها */
   excessBefore: number;
   excessAfter: number;
+  /** فرق التقريب كان معروف والطيّ فشل ← الذرة بتشيله صريح (`deleteField`) وبتسجّل المعرّف */
+  clearResidue?: boolean;
+  /** العدد الجديد مينفعش يتخزّن (NaN أو أكبر من الدقة) ← القديم بيفضل والذرة بتسجّل المعرّف */
+  countNotStorable?: boolean;
 };
 
 /**
@@ -115,11 +120,38 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
 
   const pin = pinInstallmentAmount(d);
   if (pin) Object.assign(patch, pin);
+  // الأصل والزيادة جوه الخطة (2026-10-30، بند 8): تعديلهم بيحرّك المبلغ اللي
+  // بيتقسّم، ففرق التقريب لازم يتطوي بالفرق — زي `addDebtIncrease` بالظبط. من غيره
+  // الفرق كان بيفضل على الخطة القديمة: 1000/12 ← 2000 كان بيكتب 25 قسط مش 24،
+  // وقسط وهمي بقروش في الآخر (money-reviewer + silent-failure-hunter). الدفعة
+  // مبتحرّكش الخطة، فمفيش طيّ
+  let clearResidue = false;
+  if (role !== 'payment') {
+    const before = role === 'initial'
+      ? Number(d.totalAmount)
+      : Number((d.increases || []).find(e => e.transactionId === txId)?.amount);
+    const base = { ...d, ...pin } as Debt;
+    if (installmentResidueKnown(base)) {
+      const folded = foldInstallmentResidue(base, amount - before);
+      if (folded) patch.installmentResidue = folded;
+      else {
+        // معروف والطيّ فشل ← يتشال (القاعدة القديمة) بدل ما يفضل فرق غلط بيتعدّ بيه
+        delete patch.installmentResidue;
+        clearResidue = true;
+      }
+    }
+  }
   const debtAfter = { ...d, ...patch } as Debt;
+  if (clearResidue) debtAfter.installmentResidue = undefined;
   const recount = installmentCountFor(debtAfter);
+  let countNotStorable = false;
   if (recount !== null && recount !== d.installmentCount) {
-    patch.installmentCount = recount;
-    debtAfter.installmentCount = recount;
+    // عدد مش صالح ← القديم بيفضل (زي `countToWrite` في باقي مسارات الدين): firestore.rules
+    // بتطلب int، فعدد كسر كان هيرفض الذرة كلها برسالة عامة
+    if (storableCount(recount)) {
+      patch.installmentCount = recount;
+      debtAfter.installmentCount = recount;
+    } else countNotStorable = true;
   }
   // التعديل فتح دين أقساط كان متسدد (دفعة قلّت، أو الأصل/زيادة كبروا) ← نفس قاعدة
   // الزيادة: المعاد الفايت بيتقدّم. العكس (التعديل سدّده) المعاد بيفضل زي ما هو،
@@ -139,6 +171,8 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
     countAfter: debtAfter.installmentCount,
     excessBefore: roundMoney(debtExcess(d)),
     excessAfter: roundMoney(debtExcess(debtAfter)),
+    ...(clearResidue ? { clearResidue } : {}),
+    ...(countNotStorable ? { countNotStorable } : {}),
   };
 }
 

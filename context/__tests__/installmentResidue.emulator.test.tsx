@@ -296,3 +296,47 @@ describe('مبالغ مش صالحة مبتوصلش فايرستور', () => {
     expect(harness.api().transactions.length).toBe(txBefore);
   });
 });
+
+/**
+ * تعديل عملية مربوطة (بند 14) على دين بفرق تقريب (2026-10-30، بند 8): الأصل
+ * والزيادة جوه الخطة، فالفرق لازم يتطوي في نفس الذرة. قبل كده كان بيفضل على
+ * الخطة القديمة: 1000/12 ← 2000 كان بيكتب 25 قسط مش 24 (money-reviewer).
+ */
+describe('تعديل عملية مربوطة بيطوي الفرق', () => {
+  /** اللي المودال شافه وقت ما اتفتح — من العملية نفسها */
+  function seen(txId: string) {
+    const t = harness.api().transactions.find(x => x.id === txId)!;
+    return { amount: t.amount, walletId: t.walletId, type: t.type };
+  }
+
+  it('أصل 1000 على 12 ← 2000: 24 قسط وفرق 0.08 على السيرفر، والرسالة بتقول 24', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    await harness.waitForData(api => api.transactions.length === 1);
+    const initTxId = harness.api().debts[0].initialTransactionId!;
+    const r = await harness.api().updateDebtLinkedTransaction(initTxId, { amount: 2000, walletId, date: '2026-01-01' }, seen(initTxId));
+    expect(r.outcome).toBe('done');
+    expect(r.note).toBe('بعد التعديل، الأقساط بقت 24 بدل 12.');
+    const s = await serverDebt(debtId);
+    expect(s.totalAmount).toBe(2000);
+    expect(s.installmentCount).toBe(24);
+    expect(s.installmentResidue).toEqual({ amount: 0.08, forInstallment: 83.33, over: 24 });
+  });
+
+  it('زيادة 500 ← 600 وبعدين مسحها: الفرق والعدد بيرجعوا زي ما الدين اتعمل', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const inc = await harness.api().addDebtIncrease(debtId, 500, '2026-02-01', walletId);
+    expect(inc.outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].increases || []).length === 1 && api.transactions.length === 2);
+    const entry = harness.api().debts[0].increases[0];
+    const r = await harness.api().updateDebtLinkedTransaction(entry.transactionId!, { amount: 600, walletId, date: '2026-02-01' }, seen(entry.transactionId!));
+    expect(r.outcome).toBe('done');
+    await harness.waitForData(api => api.debts[0].increases[0].amount === 600);
+
+    expect(await harness.api().deleteDebtIncrease(debtId, entry.id)).toBe('done');
+    await harness.waitForData(api => (api.debts[0].increases || []).length === 0);
+    const s = await serverDebt(debtId);
+    expect(s.installmentCount).toBe(12);
+    expect(s.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12 });
+    expect(suggestedInstallmentPayment(harness.api().debts[0])).toBe(83.33);
+  });
+});
