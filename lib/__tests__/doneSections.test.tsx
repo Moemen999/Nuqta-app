@@ -190,3 +190,16 @@ describe('جمعيات خلصت — ليبل قارئ الشاشة', () => {
     expect(screen.getByTestId('gamiyas_finished_toggle').props.accessibilityLabel).toBe('جمعيات خلصت، جمعية واحدة');
   });
 });
+
+describe('isDebtSettled بسماحية نص قرش (fix/settled-epsilon)', () => {
+  const pays = (amounts: number[]) => amounts.map((amount, i) => ({ id: `p${i}`, date: '2026-08-01', amount }));
+  it('دين متسدد بالقرش والمجموع العشري ساب ~1e-13 ← متسدد (قبل كده كان 0.00 ومش متسدد)', () => {
+    const amounts = [205.7, 420.39, 4.17, 245.11]; // مجموعهم بالقرش 875.37
+    const d = { ...debt('a', 'أ', 'owed_to_me', 875.37, 0), payments: pays(amounts) } as unknown as Debt;
+    expect(875.37 - amounts.reduce((x, y) => x + y, 0)).toBeGreaterThan(0); // المشكلة نفسها موجودة
+    expect(isDebtSettled(d)).toBe(true);
+  });
+  it('قرش واحد باقي ← مش متسدد', () => {
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
+  });
+});
