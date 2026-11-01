@@ -310,7 +310,8 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
  * جملة تغيّر الأقساط لو العدد اتحرك (`note`) — الاتنين لازم يرجعوا مع بعض
  * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
  */
-export type DebtPayResult = { outcome: PayOutcome; note?: string | null };
+/** `settledNow` = الدفعة دي هي اللي سددت الدين، محسوبة جوه الذرة على الدين اللي اتقرا من السيرفر */
+export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settledNow?: boolean };
 /**
  * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
  * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
@@ -1640,7 +1641,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // الجملة بتتحسب جوه العملية الذرية (على الدين اللي اتقرا من السيرفر) وبتتقري
     // من بره بعد ما تنجح. الحامل ده مش ترف: الـcallback ممكن تتعاد لما العملية
     // تتصادم، والقيمة اللي تهمنا هي بتاعة اللفة اللي نجحت
-    const result: { note: string | null } = { note: null };
+    const result: { note: string | null; settledNow: boolean } = { note: null, settledNow: false };
     try {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
@@ -1706,8 +1707,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           count ?? debt.installmentCount ?? 0,
           debtRemaining(debt) - amount <= PIASTRE_EPS,
         );
+        result.settledNow = debtRemaining(debt) > PIASTRE_EPS && debtRemaining(debt) - amount <= PIASTRE_EPS;
       }));
-      return { outcome: 'done', note: result.note };
+      return { outcome: 'done', note: result.note, settledNow: result.settledNow };
     } catch (e) {
       // ذرية يعني كله أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل، والشاشة
       // بتقول كده صريح بدل ما المستخدم يفضل يتخمّن

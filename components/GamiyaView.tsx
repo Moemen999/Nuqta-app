@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
@@ -151,7 +151,7 @@ export default function GamiyaView() {
 
       {gamiyas.length === 0 && <Text style={styles.emptyState}>مفيش جمعية مسجلة</Text>}
       {activeGamiyas.map(renderGamiya)}
-      <FoldedSection testID="gamiyas_finished" title="جمعيات خلصت" count={finishedGamiyas.length}>
+      <FoldedSection testID="gamiyas_finished" title="جمعيات خلصت" a11yLabel={`جمعيات خلصت، ${gamiyasPhrase(finishedGamiyas.length)}`} count={finishedGamiyas.length}>
         {finishedGamiyas.map(renderGamiya)}
       </FoldedSection>
 

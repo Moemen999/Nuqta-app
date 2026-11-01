@@ -1,3 +1,4 @@
+import { debtsPhrase } from '@/lib/archiving';
 import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
@@ -373,14 +374,14 @@ function DebtsContent() {
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
       {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
       {owedSplit.active.map(renderDebt)}
-      <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yContext="من فلوس ليا" count={owedSplit.done.length}>
+      <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس ليا، ${debtsPhrase(owedSplit.done.length)}`} count={owedSplit.done.length}>
         {owedSplit.done.map(renderDebt)}
       </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
       {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
       {iOweSplit.active.map(renderDebt)}
-      <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yContext="من فلوس عليا" count={iOweSplit.done.length}>
+      <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس عليا، ${debtsPhrase(iOweSplit.done.length)}`} count={iOweSplit.done.length}>
         {iOweSplit.done.map(renderDebt)}
       </FoldedSection>
 

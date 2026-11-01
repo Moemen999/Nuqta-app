@@ -11,16 +11,17 @@ import { Text } from '@/components/AppText';
  *
  * `framed` = إطار حوالين الهيدر والمحتوى، للصفوف الخفيفة (المؤرشف). من غيره الهيدر بس
  * ليه شكل، والكروت بتنزل تحته بإطارها هي (visual-identity-reviewer: كارت جوه صندوق كان
- * بيعمل إطار جوه إطار وبيقص الزوايا). `a11yContext` بيتضاف للي قارئ الشاشة بيقوله بس —
- * قسمين بنفس الاسم في شاشة واحدة ("ديون اتسددت" تحت ليا وتحت عليا)
+ * بيعمل إطار جوه إطار وبيقص الزوايا). `a11yLabel` للي قارئ الشاشة بيقوله: العدد
+ * بالمعدود، والاتجاه لما قسمين بنفس الاسم في شاشة واحدة ("ديون اتسددت" تحت ليا وتحت عليا)
  */
-export default function FoldedSection({ title, count, children, testID, framed = false, a11yContext }: {
+export default function FoldedSection({ title, count, children, testID, framed = false, a11yLabel }: {
   title: string;
   count: number;
   children: ReactNode;
   testID?: string;
   framed?: boolean;
-  a11yContext?: string;
+  /** اللي قارئ الشاشة بيقوله — العدد بالمعدود ("دينين" مش "(2)") وأي سياق زيادة */
+  a11yLabel?: string;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -34,7 +35,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
         onPress={() => setOpen(o => !o)}
         testID={testID ? `${testID}_toggle` : undefined}
         accessibilityRole="button" accessibilityState={{ expanded: open }}
-        accessibilityLabel={a11yContext ? `${title} ${a11yContext} (${count})` : label}>
+        accessibilityLabel={a11yLabel ?? label}>
         <Text style={styles.title}>{label}</Text>
         {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
         <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>

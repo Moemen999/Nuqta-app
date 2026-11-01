@@ -554,3 +554,17 @@ describe('الباقي من الزيادة (D1) على المحاكي', () => {
     expect(lastInstalmentOf(after)).toBe(0.04);
   });
 });
+
+/** الأقسام المطوية (2026-11-02): الذرة بتقول الدفعة دي هي اللي سددت الدين ولا لأ */
+describe('addDebtPayment ← settledNow من السيرفر', () => {
+  it('دفعة جزئية ← false، والدفعة اللي بتخلّص ← true', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const first = await harness.api().addDebtPayment(debtId, 400, walletId, '2026-01-15');
+    expect(first.outcome).toBe('done');
+    expect(first.settledNow).toBe(false);
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+    const last = await harness.api().addDebtPayment(debtId, 600, walletId, '2026-01-20');
+    expect(last.outcome).toBe('done');
+    expect(last.settledNow).toBe(true);
+  });
+});

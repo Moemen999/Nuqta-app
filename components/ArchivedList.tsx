@@ -24,7 +24,7 @@ export default function ArchivedList({ title, items, onRestore }: {
         <View key={item.id} style={styles.row}>
           <Text style={styles.name}>{item.name}</Text>
           <TouchableOpacity onPress={() => onRestore(item.id, item.name)} style={styles.restoreBtn}
-            accessibilityRole="button" accessibilityLabel={`رجّع ${item.name}`}>
+            accessibilityRole="button" accessibilityLabel={`رجّعها: ${item.name}`}>
             <Text style={styles.restore}>رجّعها</Text>
           </TouchableOpacity>
         </View>
@@ -37,7 +37,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
     name: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
-    restoreBtn: { minHeight: MIN_TOUCH, justifyContent: 'center' },
+    restoreBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: 'center', alignItems: 'center' },
     restore: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
   });
 }

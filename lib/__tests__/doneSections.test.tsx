@@ -87,8 +87,8 @@ describe('شاشة الديون — "اتسددت" مطوي', () => {
     expect(screen.getByText('ديون اتسددت (2)')).toBeTruthy();
     expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
     // قارئ الشاشة بيفرّق بين القسمين
-    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا (2)');
-    expect(screen.getByTestId('debts_settled_iowe_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس عليا (1)');
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا، دينين');
+    expect(screen.getByTestId('debts_settled_iowe_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس عليا، دين واحد');
   });
 
   it('الدوس بيفتح القسم وبيبيّن الكروت بنفس الكارت ("اتسدد بالكامل")', async () => {
@@ -120,7 +120,7 @@ describe('شاشة الديون — "اتسددت" مطوي', () => {
     await render(wrap(<DebtsTabScreen />));
     expect(screen.getByText('منى')).toBeTruthy();
     // كريم بس اللي في المطوي من ناحية ليا
-    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا (1)');
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا، دين واحد');
   });
 
   it('زيادة على دين متسدد (من جهاز تاني) ← بيرجع للنشط لوحده', async () => {
@@ -165,14 +165,28 @@ describe('الدفعة اللي بتسدد الدين بتقول الكارت ر
     await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
   }
 
-  it('دفعة بالباقي كله ← "الدين اتسدد بالكامل" ومكانه', async () => {
+  it('السيرفر بيقول الدفعة دي سددت (settledNow) ← "الدين اتسدد بالكامل" ومكانه', async () => {
+    mockData.addDebtPayment = jest.fn(async () => ({ outcome: 'done', note: null, settledNow: true }));
     await pay(debt('d1', 'أحمد', 'owed_to_me', 1000, 400), '600');
     expect(screen.getByTestId('notice_title').props.children).toBe(DEBT_SETTLED_TITLE);
     expect(screen.getByTestId('notice_body').props.children).toBe(DEBT_SETTLED_BODY);
   });
 
+  it('الشاشة شايفاها بتسدد بس السيرفر لأ (الدين اتغيّر من جهاز تاني) ← مفيش رسالة سداد', async () => {
+    await pay(debt('d1', 'أحمد', 'owed_to_me', 1000, 400), '600');
+    expect(screen.queryByTestId('notice_title')).toBeNull();
+  });
+
   it('دفعة جزئية ← مفيش رسالة سداد', async () => {
     await pay(debt('d1', 'أحمد', 'owed_to_me', 1000, 400), '100');
     expect(screen.queryByTestId('notice_title')).toBeNull();
+  });
+});
+
+describe('جمعيات خلصت — ليبل قارئ الشاشة', () => {
+  it('العدد بالمعدود', async () => {
+    mockData.gamiyas = [gamiya('g2', 'جمعية العيلة', ['done', 'done'])];
+    await render(wrap(<GamiyaView />));
+    expect(screen.getByTestId('gamiyas_finished_toggle').props.accessibilityLabel).toBe('جمعيات خلصت، جمعية واحدة');
   });
 });

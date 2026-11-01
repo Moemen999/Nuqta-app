@@ -1,4 +1,3 @@
-import { isDebtSettled } from '@/lib/doneSections';
 import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
@@ -44,7 +43,9 @@ export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
 /** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
 const NEAR_DOUBLE = 1.5;
 export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
-export const DEBT_SETTLED_BODY = 'نزل تحت في "ديون اتسددت"، وتقدر تفتحه من هناك.';
+// جملة عامة صح في الشاشتين (الديون وكشف الشخص) — مش "نزل تحت" (arabic-copy-reviewer +
+// silent-failure-hunter، جولة 2)
+export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" في تاب الديون، ودوس عليه عشان تفتحه.';
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
@@ -125,9 +126,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         notice(alert.title, alert.body);
         return;
       }
-      // الدفعة دي سددت الدين ← الكارت بينزل في "ديون اتسددت" المطوي، فبيتقال فين بدل ما
-      // يختفي من قدامه (silent-failure-hunter). نفس تعريف الطيّ (`isDebtSettled`)
-      if (isDebtSettled({ ...debt, payments: [...(debt.payments || []), { id: '', date, amount: amt }] } as Debt)) {
+      // الدفعة دي سددت الدين ← الكارت بيروح "ديون اتسددت" المطوي، فبيتقال بدل ما يختفي من
+      // قدامه (silent-failure-hunter). من **السيرفر** (`settledNow` جوه الذرة)، مش من نسخة الدين
+      // اللي المودال اتفتح بيها — جهاز تاني ممكن يكون غيّره
+      if (result.settledNow) {
         notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY);
       } else if (result.note) {
         // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
