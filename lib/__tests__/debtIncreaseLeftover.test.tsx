@@ -229,8 +229,10 @@ describe('الحفظ', () => {
     await save();
     const err = screen.getByTestId('debt_increase_error');
     expect(err.props.accessibilityLiveRegion).toBe('polite');
-    let p: any = err.parent;
-    while (p) { expect(p.type).not.toBe('RCTScrollView'); p = p.parent; }
+    const scrollAncestors = (n: any) => { let c = 0; for (let p = n.parent; p; p = p.parent) if (p.type === 'RCTScrollView') c++; return c; };
+    // الفحص نفسه بيشوف الـScrollView: خانة المبلغ جواه
+    expect(scrollAncestors(screen.getByTestId('debt_increase_amount'))).toBeGreaterThan(0);
+    expect(scrollAncestors(err)).toBe(0);
   });
 
   it('اختار الأول ثم الحفظ: رسالة الخطأ بتختفي', async () => {
@@ -308,5 +310,17 @@ describe('leftover-changed', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
     await save();
     expect(mockData.addDebtIncrease).not.toHaveBeenCalled();
+  });
+});
+
+describe('الاختيار ومسح الأخطاء (جولة 2)', () => {
+  it('اختيار خيار بيمسح "اختار الأول" بس، مش "اختار محفظة"', async () => {
+    mockData.wallets = [];
+    await open();
+    await type('100');
+    await save();
+    expect(screen.getByText('اختار محفظة')).toBeTruthy();
+    await pick('debt_leftover_absorb');
+    expect(screen.getByText('اختار محفظة')).toBeTruthy();
   });
 });

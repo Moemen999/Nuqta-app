@@ -526,7 +526,7 @@ describe('الباقي من الزيادة (D1) على المحاكي', () => {
     expect(ok.outcome).toBe('done');
   });
 
-  it('الباقي نفسه بس العدد أو آخر قسط اتغيّر (دفعة من جهاز تاني) ← leftover-changed ومفيش حاجة اتكتبت', async () => {
+  it('الباقي نفسه بس العدد أو آخر قسط المبعوتين مختلفين عن السيرفر ← leftover-changed ومفيش حاجة اتكتبت', async () => {
     const { walletId, debtId } = await makeDebt(1000, 12);
     // الشاشة شافت 13 وآخرهم 100.04؛ السيرفر عنده نفس الباقي بعدد مختلف
     const res = await harness.api().addDebtIncrease(debtId, 100, '2026-02-01', walletId, { mode: 'absorb', amount: 16.71, count: 12, last: 100.04 });

@@ -217,7 +217,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   // الأرقام اتغيّرت (المبلغ، أو الدين من جهاز تاني والشيت مفتوحة) بيرجع من غير اختيار
   // (silent-failure-hunter، جولة 1) — مش اختيار قديم على أرقام ما اتشافتش
   const choiceKey = choice
-    ? [choice.leftover, choice.absorb.count, choice.absorb.last, choice.separate.count, choice.separate.last].join('|')
+    ? [choice.leftover, choice.value, choice.absorb.count, choice.absorb.last, choice.separate.count, choice.separate.last].join('|')
     : '';
   const [picked, setPicked] = useState<{ mode: LeftoverMode; key: string } | null>(null);
   const leftoverMode = picked && picked.key === choiceKey ? picked.mode : null;
@@ -319,7 +319,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
                 return (
                   <TouchableOpacity key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
                     accessibilityRole="radio" accessibilityState={{ selected }}
-                    onPress={() => { setLeftoverMode(mode); setError(''); }}
+                    onPress={() => { setLeftoverMode(mode); setError(e => (e === LEFTOVER_REQUIRED ? '' : e)); }}
                     style={[styles.leftoverOption, selectionStyle(colors, selected)]}>
                     <Text style={[styles.leftoverTitle, { color: selected ? colors.text : colors.textSecondary }]}>
                       {mode === 'absorb' ? 'يتضاف على آخر قسط' : 'قسط منفصل في الآخر'}
