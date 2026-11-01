@@ -15,7 +15,7 @@ import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTra
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
-  installmentCountTooLowMessage, installmentProgressLabel, installmentValue,
+  INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
@@ -414,10 +414,14 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
     // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه
     if (debt.isInstallment && installmentCount.trim()) {
       const next = Number(installmentCount);
-      if (!Number.isInteger(next) || next <= 0) { setError(INSTALLMENT_COUNT_INVALID); return; }
+      // آمن مش صحيح بس: 1e20 "صحيح" بس مبيتخزّنش كعدد بدقته (`storableCount`)
+      if (!storableCount(next)) { setError(INSTALLMENT_COUNT_INVALID); return; }
       if (next !== debt.installmentCount) {
         const done = await setInstallmentCount(debt.id, next);
-        if (!done) { setError(installmentCountTooLowMessage(debt.payments.length)); return; }
+        // السبب من نفس الحسبة (عدد أقل من الدفعات، دين متسدد، قسط أقل من قرش).
+        // ولو الحسبة هنا قابلاه والكتابة اترفضت (الدين اتمسح أو اتغيّر من جهاز
+        // تاني) ← "مقدرناش نحفظ"، مش سبب مش حقيقي
+        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
       }
     }
     await runBusy(async () => {

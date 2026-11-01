@@ -5,7 +5,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/archiving';
 import { selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
@@ -65,6 +65,8 @@ export function useArchivedSettlement() {
     changes: TxChange[];
     run: (settlements: Settlement[]) => void;
     isDelete: boolean;
+    intro?: string;
+    confirmLabel?: string;
   } | null>(null);
 
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
@@ -91,15 +93,30 @@ export function useArchivedSettlement() {
    * ومبتشغّلش حاجة. الحالتين كانوا في سطر واحد، فالتانية كانت بتشغّل المسح
    * من غير تسوية ورصيد المؤرشفة يبعد عن الصفر ساكت.
    */
-  function request(changes: TxChange[], run: (settlements: Settlement[]) => void) {
-    if (archivedWalletDeltas(changes, archivedWallets).length === 0) { run([]); return; }
-    setPending({ changes, run, isDelete: changes.every(c => !c.after) });
+  function request(
+    changes: TxChange[], run: (settlements: Settlement[]) => void,
+    opts: { intro?: string; confirmLabel?: string } = {},
+  ) {
+    // نفس شرط `needsSettlement` من نفس المكان (react-reviewer): لو اختلفوا، المودال كان
+    // هيتخطّى الـAlert والمسح يتعمل من غير أي تأكيد
+    if (!needsSettlement(changes)) { run([]); return; }
+    setPending({ ...opts, changes, run, isDelete: changes.every(c => !c.after) });
+  }
+
+  /**
+   * الشيت هتفتح؟ — عشان المودال يسأل سؤال واحد (D3، 2026-10-30، قرار مؤمن): لو هتفتح،
+   * سؤال "متأكد؟" والتحذير بيتحطوا جوّاها بدل `Alert` وبعده شيت فوق بعض
+   */
+  function needsSettlement(changes: TxChange[]) {
+    return archivedWalletDeltas(changes, archivedWallets).length > 0;
   }
 
   const sheet = pending && deltas.length > 0 ? (
     <SettleSheet
       deltas={deltas}
       isDelete={pending.isDelete}
+      intro={pending.intro}
+      confirmLabel={pending.confirmLabel}
       // الممنوع بيتقرر من المحافظ **دلوقتي** مش وقت الفتح: آخر محفظة شغالة
       // ممكن تتمسح من جهاز تاني والشيت مفتوحة — كانت هتفضل سؤال من غير اختيارات
       targets={activeWallets.map(w => ({ id: w.id, name: w.name }))}
@@ -117,12 +134,15 @@ export function useArchivedSettlement() {
     />
   ) : null;
 
-  return { request, sheet };
+  return { request, needsSettlement, sheet };
 }
 
-function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
+function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm, onCancel }: {
   deltas: ArchivedDelta[];
   isDelete: boolean;
+  /** سؤال التأكيد والتحذير لما الشيت هي الحوار الوحيد (D3) — مبيظهرش في الممنوعة */
+  intro?: string;
+  confirmLabel?: string;
   targets: { id: string; name: string }[];
   onConfirm: (targetByWallet: Record<string, string>) => void;
   onCancel: () => void;
@@ -132,6 +152,9 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   // مفيش اختيار افتراضي عن قصد: دي فلوس بتنتقل، فالمستخدم لازم يقول هي رايحة فين
   const [picked, setPicked] = useState<Record<string, string>>({});
+  // دوستين في نفس اللحظة قبل ما الشيت تتقفل كانوا بيشغّلوا التسوية مرتين — تحويلين
+  // بمعرّفات عشوائية، يعني فلوس بتتنقل مرتين (silent-failure-hunter + react-reviewer)
+  const confirmed = useRef(false);
   const blocked = targets.length === 0;
   // اختيار لمحفظة اتأرشفت أو اتمسحت والشيت مفتوحة مبيتحسبش
   const allPicked = deltas.every(d => targets.some(t => t.id === picked[d.walletId]));
@@ -147,6 +170,8 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
               ? speakable([SETTLE_TITLE, ...deltas.map(d => settleBlockedBody(d.name, d.delta, isDelete, money)), settleBlockedHint(isDelete)].join(' '))
               : undefined}>
             <Text style={styles.sheetTitle}>{SETTLE_TITLE}</Text>
+            {/* الممنوعة مبتسألش "متأكد؟": مفيش حاجة هتتعمل أصلاً */}
+            {!blocked && intro ? <Text testID="settle_intro" style={styles.body}>{intro}</Text> : null}
             {deltas.map(d => (
               <View key={d.walletId} style={styles.card}>
                 <Text style={[styles.body, blocked && styles.bodyBlocked]}>
@@ -158,6 +183,10 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
                       <TouchableOpacity
                         key={t.id}
                         onPress={() => setPicked(p => ({ ...p, [d.walletId]: t.id }))}
+                        testID={`settle_target_${t.id}`}
+                        // المختار بيتقري مش بيتشاف بس (a11y-architect)
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: picked[d.walletId] === t.id }}
                         style={[styles.chip, selectionStyle(colors, picked[d.walletId] === t.id)]}>
                         <Text style={{ color: colors.text, fontSize: 13 }}>{t.name}</Text>
                       </TouchableOpacity>
@@ -176,15 +205,23 @@ function SettleSheet({ deltas, isDelete, targets, onConfirm, onCancel }: {
               </TouchableOpacity>
             ) : (
               <>
-                <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+                <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} accessibilityRole="button">
                   <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   testID="settle_confirm"
-                  style={[styles.saveBtn, !allPicked && styles.btnBusy]}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: !allPicked }}
+                  // التأكيد على مسح (D3) بشكل زرار الحذف في التطبيق (خط ونص أحمر، زي "حذف الجمعية")
+                  // مش زي "احفظ" — الـAlert القديم كان destructive (a11y-architect)
+                  style={[isDelete && confirmLabel ? styles.deleteBtn : styles.saveBtn, !allPicked && styles.btnBusy]}
                   disabled={!allPicked}
-                  onPress={() => onConfirm(picked)}>
-                  <Text style={{ color: colors.onAccent, fontWeight: '700' }}>احفظ</Text>
+                  onPress={() => {
+                    if (confirmed.current) return;
+                    confirmed.current = true;
+                    onConfirm(picked);
+                  }}>
+                  <Text style={{ color: isDelete && confirmLabel ? colors.danger : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
                 </TouchableOpacity>
               </>
             )}
@@ -211,6 +248,7 @@ function makeStyles(c: ThemeColors) {
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    deleteBtn: { flex: 2, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     btnBusy: { opacity: 0.5 },
   });
 }

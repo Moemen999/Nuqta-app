@@ -7,12 +7,14 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
+import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions } from '@/lib/archiving';
+import { usePrivacy } from '@/context/PrivacyContext';
+import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
 import {
-  categoryLabel, debtRemaining, installmentProgressLabel, installmentValue,
-  isValidDebtAmount, overpayCheck, projectBalances, todayStr, type DebtPrefill,
+  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
+  overpayCheck, projectBalances, todayStr, type DebtPrefill,
+  increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -31,6 +33,15 @@ import { Text, TextInput } from '@/components/AppText';
  */
 
 export const INSTALLMENTS_CHANGED_TITLE = 'عدد الأقساط اتظبط';
+
+/**
+ * سؤال الباقي بعد الزيادة (D1، 2026-10-30) — النص اتقرر مع مؤمن بعد arabic-copy-reviewer
+ * (سطر TIMELINE "بند 8 — نص D1 اتقرر")
+ */
+export const LEFTOVER_REQUIRED = 'اختار الأول: يتضاف على آخر قسط ولا قسط منفصل.';
+export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
+/** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
+const NEAR_DOUBLE = 1.5;
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
@@ -49,11 +60,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
    * كان لازم يمسح الرقم ويكتب قسطه كل مرة. ولسه يقدر يعدّله — الاقتراح
    * اقتراح مش قفل، ودي نص القاعدة: يدفع أقل أو أكتر والعدد يتظبط لوحده.
    */
-  const suggested = useMemo(() => {
-    const value = installmentValue(debt);
-    if (value && remaining > value + 0.005) return Math.round(value * 100) / 100;
-    return remaining;
-  }, [debt, remaining]);
+  // والقسط الأخير = المتبقي كله بنفس قاعدة العدد (`suggestedInstallmentPayment`، 2026-09-30)
+  const suggested = useMemo(() => suggestedInstallmentPayment(debt), [debt]);
   const progressLabel = installmentProgressLabel(debt);
 
   const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
@@ -65,7 +73,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
   // السداد بيولّد عملية فعلية: إيراد لو الدين ليك، مصروف لو عليك
   const projections = useMemo(() => projectBalances({
-    transactions, wallets, amount: Number(amount), walletId,
+    transactions, wallets, amount: toMoneyAmount(Number(amount)) ?? 0, walletId,
     type: debt.direction === 'owed_to_me' ? 'income' : 'expense',
   }), [transactions, wallets, amount, walletId, debt.direction]);
 
@@ -90,8 +98,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   }
 
   async function handleSave() {
-    const amt = Number(amount);
-    if (!isValidDebtAmount(amt) || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
+    // مقرّب للقرش ورقم حقيقي (`toMoneyAmount`): "1e999" وInfinity و0.004 بيترفضوا هنا
+    // برسالتهم، وفحص الزيادة عن المتبقي على نفس المبلغ اللي هيتسجل
+    const amt = toMoneyAmount(Number(amount));
+    if (amt === null || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
     const check = overpayCheck(amt, remaining);
     if (check !== 'none' && !(await confirmOverpay(check, amt))) return;
     await runBusy(async () => {
@@ -196,27 +206,60 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+  // الأرقام من `money` مش `fmt` (جرد الإخفاء): نفس تنسيق باقي الشاشات
+  const { money } = usePrivacy();
+  // نفس الدالة اللي الكتابة بتتأكد بيها على السيرفر، على الدين بعد التثبيت زي `addDebtIncrease`
+  const choice = useMemo(() => {
+    const typed = toMoneyAmount(Number(amount));
+    return typed === null ? null : increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, typed);
+  }, [debt, amount]);
+  // D1: مفيش اختيار افتراضي (قرار مؤمن). الاختيار مربوط بالأرقام اللي اتختار عليها: لو
+  // الأرقام اتغيّرت (المبلغ، أو الدين من جهاز تاني والشيت مفتوحة) بيرجع من غير اختيار
+  // (silent-failure-hunter، جولة 1) — مش اختيار قديم على أرقام ما اتشافتش
+  const choiceKey = choice
+    ? [choice.leftover, choice.value, choice.absorb.count, choice.absorb.last, choice.separate.count, choice.separate.last].join('|')
+    : '';
+  const [picked, setPicked] = useState<{ mode: LeftoverMode; key: string } | null>(null);
+  const leftoverMode = picked && picked.key === choiceKey ? picked.mode : null;
+  const setLeftoverMode = (mode: LeftoverMode | null) => setPicked(mode ? { mode, key: choiceKey } : null);
+  // الخطأ القديم ("اختار الأول") مبيفضلش بعد ما المبلغ يتغيّر والسؤال يمشي
+  const changeAmount = (v: string) => { setAmount(v); setLeftoverMode(null); setError(''); };
 
   // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
   const projections = useMemo(() => projectBalances({
-    transactions, wallets, amount: Number(amount),
+    transactions, wallets, amount: toMoneyAmount(Number(amount)) ?? 0,
     walletId: linkedToWallet ? walletId : undefined,
     type: debt.direction === 'owed_to_me' ? 'expense' : 'income',
   }), [transactions, wallets, amount, walletId, linkedToWallet, debt.direction]);
 
   async function handleSave() {
-    const amt = Number(amount);
-    // isFinite جوه isValidDebtAmount: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)
-    if (!isValidDebtAmount(amt)) { setError('دخّل مبلغ صحيح'); return; }
+    // isFinite: "1e999" بيطلع Infinity ويعدّي من `amt <= 0` (silent-failure-hunter)،
+    // والتقريب قبل الفحص: 1e307 بيطلع Infinity بعد التقريب، و0.004 بيطلع 0 (`toMoneyAmount`)
+    const amt = toMoneyAmount(Number(amount));
+    if (amt === null) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
+    if (choice && !leftoverMode) { setError(LEFTOVER_REQUIRED); return; }
+    // اللي المستخدم شافه وقت الاختيار — عشان الأرقام في الرسالة بعد الحفظ تبقى نفسها
+    const seen = choice;
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtIncrease>>;
       try {
-        result = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+        const wallet = linkedToWallet ? walletId : undefined;
+        // الباقي اللي المستخدم شافه بيتبعت عشان الذرة تتأكد إنه لسه هو (D1)
+        result = seen && leftoverMode
+          ? await addDebtIncrease(debt.id, amt, date, wallet, leftoverSeen(seen, leftoverMode))
+          : await addDebtIncrease(debt.id, amt, date, wallet);
       } catch {
         // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
         // المتزامنة بس
         setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      if (result.outcome === 'leftover-changed') {
+        // الدين اتغيّر من جهاز تاني: مفيش حاجة اتسجلت، والسؤال بيتحسب تاني من الدين الحي
+        // ويتسأل من الأول (من غير اختيار قديم)
+        setLeftoverMode(null);
+        notice(LEFTOVER_CHANGED_ALERT.title, LEFTOVER_CHANGED_ALERT.body);
         return;
       }
       if (result.outcome !== 'done') {
@@ -225,8 +268,14 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
-      // مبيتغيّرش لوحده من غير ما حد يقول ليه
-      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
+      // مبيتغيّرش لوحده من غير ما حد يقول ليه. ولو الباقي اتضاف على آخر قسط (D1) ← آخر قسط
+      // اتغيّر فعلاً والمستخدم هيدفع مبلغ مختلف، فبيتقال حتى لو العدد ثابت
+      const absorbed = seen && leftoverMode === 'absorb' ? seen.absorb.last : null;
+      if (result.note) {
+        notice(INSTALLMENTS_CHANGED_TITLE, absorbed === null ? result.note : `${result.note} آخر قسط بقى ${money(absorbed)} ج.م.`);
+      } else if (absorbed !== null && seen) {
+        notice(LAST_INSTALMENT_ADJUSTED_TITLE, `آخر قسط بقى ${money(absorbed)} ج.م بدل ${money(seen.value)} ج.م.`);
+      }
       onClose();
     });
   }
@@ -252,9 +301,35 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           </View>
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
-          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={changeAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
+
+          {/* D1 (قرار مؤمن): الباقي أقل من قسط ← بيتسأل كل مرة، من غير افتراضي، حتى للقروش */}
+          {choice && (
+            <View testID="debt_leftover_question">
+              <Text style={styles.leftoverQuestion}>
+                {`الزيادة سابت ${money(choice.leftover)} ج.م، أقل من قسط كامل. تعمل فيه إيه؟`}
+              </Text>
+              {(['absorb', 'separate'] as const).map(mode => {
+                const selected = leftoverMode === mode;
+                const caption = mode === 'absorb'
+                  ? `الأقساط هتبقى ${installmentsPhrase(choice.absorb.count)}، وآخر قسط ${money(choice.absorb.last)} ج.م بدل ${money(choice.value)} ج.م${choice.absorb.last >= NEAR_DOUBLE * choice.value ? '، يعني تقريبًا ضعف القسط العادي' : ''}.`
+                  : `هيتضاف قسط أخير قيمته ${money(choice.leftover)} ج.م، والأقساط هتبقى ${installmentsPhrase(choice.separate.count)}.`;
+                return (
+                  <TouchableOpacity key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
+                    accessibilityRole="radio" accessibilityState={{ selected }}
+                    onPress={() => { setLeftoverMode(mode); setError(e => (e === LEFTOVER_REQUIRED ? '' : e)); }}
+                    style={[styles.leftoverOption, selectionStyle(colors, selected)]}>
+                    <Text style={[styles.leftoverTitle, { color: selected ? colors.text : colors.textSecondary }]}>
+                      {mode === 'absorb' ? 'يتضاف على آخر قسط' : 'قسط منفصل في الآخر'}
+                    </Text>
+                    <Text style={styles.leftoverCaption}>{caption}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
           {linkedToWallet && (
             <>
@@ -275,10 +350,12 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
             <Text style={styles.dateBtnText}>{date}</Text>
           </TouchableOpacity>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {/* فوق الأزرار مش آخر الـScrollView (جولة 1): "اختار الأول" كانت بتقع تحت الشاشة والحفظ "مبيعملش حاجة" */}
+        {!!error && <Text testID="debt_increase_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <TouchableOpacity testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
@@ -327,16 +404,20 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(null);
 
   async function handleSave() {
-    const amt = Number(totalAmount);
-    if (!personName.trim() || !isValidDebtAmount(amt)) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
+    // "1e999" كان بيعدّي من فحص الصفر لوحده ويتسجل دين Infinity (`toMoneyAmount`)
+    const amt = toMoneyAmount(Number(totalAmount));
+    if (!personName.trim() || amt === null) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
     const count = isInstallment ? Number(installmentCount) : 0;
-    if (isInstallment && (!Number.isInteger(count) || count <= 0)) {
+    // آمن مش صحيح بس (`storableCount`) — نفس فحص تعديل العدد
+    if (isInstallment && !storableCount(count)) {
       setError(INSTALLMENT_COUNT_REQUIRED);
       return;
     }
+    // قسط أقل من قرش (0.05 على 10) كان بيتسجل من غير قيمة قسط خالص
+    if (isInstallment && !planInstallments(amt, count)) { setError(INSTALLMENT_VALUE_TOO_SMALL); return; }
     await runBusy(async () => {
       try {
         await addDebt({
@@ -524,9 +605,15 @@ function makeStyles(c: ThemeColors) {
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    // اختيارين فوق بعض بعرض كامل، كل واحد بشرحه (arabic-copy-reviewer: جنب بعض مش هيكفي الشرح)
+    leftoverQuestion: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 14, marginBottom: 8, lineHeight: 20 },
+    leftoverOption: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, minHeight: 44 },
+    leftoverTitle: { fontSize: 13.5, fontWeight: '700', textAlign: 'right' },
+    leftoverCaption: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    footerError: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

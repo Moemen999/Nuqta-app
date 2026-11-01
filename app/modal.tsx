@@ -219,9 +219,26 @@ export default function AddTransactionModal() {
 
   function handleDelete() {
     if (!existing) return;
+    // رسالة فشل من محاولة قبل كده متفضلش ظاهرة والمحاولة الجديدة شغالة (silent-failure-hunter)
+    setError('');
     // لو العملية مرتبطة بدين أو اشتراك أو جمعية، المستخدم لازم يعرف هيحصل إيه للسجل ده
     const linkWarning = transactionLinkWarning(existing.id);
     const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
+    const changes = [{ before: existing }];
+    // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
+    // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
+    // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز
+    const run = (settlements: Settlement[]) =>
+      Promise.resolve().then(() => deleteTransaction(existing.id, settlements))
+        .then(() => router.back())
+        // `.catch` مش التاني في `.then`: رمية من `router.back` نفسها كانت هتبقى unhandled
+        .catch(e => { reportAtomicFailure('حذف العملية', e); setError('حصل خطأ، جرب تاني'); });
+    // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
+    // السؤال نفسه (فيها "متأكد؟" والتحذير وزرار "حذف") — مش Alert وبعده شيت فوق بعض
+    if (settle.needsSettlement(changes)) {
+      settle.request(changes, run, { intro: message, confirmLabel: 'حذف' });
+      return;
+    }
     Alert.alert('حذف العملية', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
@@ -229,15 +246,11 @@ export default function AddTransactionModal() {
           if (busy) return;
           setBusy(true);
           try {
-            settle.request([{ before: existing }], settlements => {
-              deleteTransaction(existing.id, settlements);
-              router.back();
-            });
+            settle.request(changes, run);
           } catch {
-            // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
-            // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
-            // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
-            // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
+            // فشل التجهيز (stageReconcile) بيتمسك جوه `run` نفسها (الـpromise بتاع
+            // `deleteTransaction`)؛ فشل الكتابة بيعدي من `track` وبيتعرض مسمّى بالسجل.
+            // فاضل هنا للأخطاء المتزامنة في `settle.request` نفسها.
             setError('حصل خطأ، جرب تاني');
           } finally {
             setBusy(false);
@@ -413,8 +426,6 @@ export default function AddTransactionModal() {
       <TextInput style={styles.input} value={note} onChangeText={setNote}
         placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
-      {!!error && <Text style={styles.error}>{error}</Text>}
-
       <CalendarPickerModal
         visible={showDatePicker}
         value={date}
@@ -422,6 +433,10 @@ export default function AddTransactionModal() {
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
+
+    {/* برّه الـScrollView، فوق الأزرار اللاصقة: على فورم طويل كانت بتتعرض تحت آخر حقل
+        والمستخدم يدوس "حذف" والشيت تتقفل ومفيش حاجة باينة (silent-failure-hunter، الجولة 2 على D3) */}
+    {!!error && <Text testID="tx_error" style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
 
     <View style={styles.footer}>
       {isEdit && (
@@ -458,7 +473,7 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     lockedHint: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 8, lineHeight: 18 },
     noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: 12, padding: 14, gap: 10, marginBottom: 8 },
     noWalletsText: { color: c.text, fontSize: 14, textAlign: 'right', lineHeight: 21 },

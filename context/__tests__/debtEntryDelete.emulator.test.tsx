@@ -5,6 +5,7 @@ import { debtEntryDeletePlan, walletBalance, type DebtEntryKind } from '@/lib/fi
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
+import { increaseAsBefore } from '@/test-utils/increaseAsBefore';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -49,7 +50,7 @@ async function setup(direction: Debt['direction'], kind: DebtEntryKind) {
     await harness.api().addDebtPayment(debtId, 700, w.id, '2026-02-01');
     await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
   } else {
-    await harness.api().addDebtIncrease(debtId, 700, '2026-02-01', w.id);
+    await increaseAsBefore(harness.api(), debtId, 700, '2026-02-01', w.id);
     await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
   }
   const debt = harness.api().debts[0];

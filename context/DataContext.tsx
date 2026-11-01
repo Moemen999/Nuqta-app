@@ -14,7 +14,7 @@ import {
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  installmentValue, planInstallmentCountEdit, PIASTRE_EPS, roundMoney, todayStr,
+  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, sameLeftoverSeen, type LeftoverMode, type LeftoverSeen, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -106,6 +106,8 @@ export type Settlement = {
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
 class WalletMissingError extends Error { name = 'WalletMissingError'; }
+/** D1: الباقي اللي المستخدم اختار له اتغيّر على السيرفر (جهاز تاني) — مفيش كتابة خالص */
+class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
@@ -309,6 +311,16 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
  * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
  */
 export type DebtPayResult = { outcome: PayOutcome; note?: string | null };
+/**
+ * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
+ * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
+ * نوع لوحده مش جوه `PayOutcome`: باقي شاشات الدفع مالهاش الحالة دي
+ */
+export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null };
+export const LEFTOVER_CHANGED_ALERT = {
+  title: 'الدين اتغيّر',
+  body: 'الدين اتغيّر من جهاز تاني، فمفيش أي زيادة اتسجلت ولا فلوس اتحركت. شوف الباقي الجديد واختار تاني.',
+};
 
 /** أقصى انتظار لتأكيد السيرفر على الرأي قبل ما نقول إنه في الطابور */
 const FEEDBACK_ACK_MS = 8000;
@@ -338,6 +350,30 @@ export type Debt = {
    * اللي اتعملت قبل الميزة — `installmentValue` بترجع للحسبة القديمة وقتها.
    */
   installmentAmount?: number;
+  /**
+   * فرق تقريب القسط (2026-09-30). القسط مقرّب للقرش، فـ"العدد × القسط" بيفرق
+   * عن المبلغ اللي اتقسّم: 1000 على 12 = 83.33 × 12 = 999.96، و`amount` = 0.04
+   * هي اللي القسط الأخير بيشيلها (83.37).
+   *
+   * بيتكتب **مع** القسط في نفس الكتابة بس (الإنشاء، تعديل العدد، تثبيت دين
+   * قديم)، و`forInstallment` هو القسط اللي اتحسب عليه: لو القسط اتغيّر من غيره
+   * (نسخة قديمة من التطبيق عدّلت العدد) الفرق بيتجاهل. `amount` بالإشارة زي ما
+   * هو (سالب = القسط الأخير أصغر)، والقراية بتاخد الموجب بس (`installmentResidueOf`).
+   * `over` = عدد الأقساط الكاملة في الخطة (`over × القسط + amount` = المبلغ اللي
+   * اتقسّم): بيه بنعرف الفرق تقريب ولا كسر حقيقي (≤ نص قرش لكل قسط)، والزيادة
+   * ومسحها بيحركوه (`foldInstallmentResidue`، 2026-09-30). بعد تعديل العدد بإيد
+   * المستخدم ده الأقساط الفاضلة **وقت التعديل**؛ والدفعات مبتنقّصوش (الخطة هي هي).
+   * ممكن يبقى 0 أو أقل لو زيادة كبيرة قبل التعديل اتمسحت — كسر حقيقي، بيتقري 0.
+   * غايب = مش معروف (دين قبل الحقل ده) ← قاعدة العدد القديمة.
+   *
+   * `increasesTotal` (2026-10-30، بند 8 D2، قرار مؤمن): مجموع `increases` وقت ما
+   * الفرق اتكتب. النسخ القديمة مبتعرفش الفرق وبتكتب patch، فالفرق كان بيفضل
+   * على الخطة القديمة بعد زيادة منها؛ مجموع الزيادات هو اللي بيحرّك الخطة، فلو
+   * مش مطابق للحالي ← الفرق بيتجاهل (القاعدة القديمة). غايب = بيتجاهل كمان
+   * (الفرق ما اتبناش في أي بناء من غيره). اختياري هنا عشان القراية بس —
+   * الكتابة دايمًا بـ`stampResidue`.
+   */
+  installmentResidue?: { amount: number; forInstallment: number; over: number; increasesTotal?: number; lastAbsorbs?: true };
   note?: string;
   createdAt: string;
   payments: DebtPayment[];
@@ -508,7 +544,7 @@ type DataContextType = {
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
-  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<DebtPayResult>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
   deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
@@ -1145,6 +1181,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletMissingError();
         }
         // كل القرايات خلصت — من هنا كتابات بس
+        // نفس إشارات باقي مسارات الدين (silent-failure-hunter): فرق متجاهَل، طيّ فشل أو
+        // فرق متجاهَل بيتشال صريح، أو عدد مينفعش يتخزّن — المعرّف بس (sentryScrub). بعد
+        // آخر قراية عشان السطر ميتكتبش لكتابة ما حصلتش (money-reviewer + silent-failure-hunter)
+        noteIgnoredResidue(debt);
+        if (plan.clearResidue || plan.clearIgnoredResidue) plan.patch.installmentResidue = deleteField();
+        if (plan.clearResidue) noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
+        if (plan.countNotStorable) noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
         const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
         t.update(txRef, clean);
         t.update(debtRef, plan.patch);
@@ -1262,23 +1305,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if ((d.payments || []).some(p => p.transactionId === txId)) {
-        const payments = d.payments.filter(p => p.transactionId !== txId);
-        // العدد بيترجع مع الدفعة: حذف العملية المربوطة بدفعة لازم يسيب الدين
-        // موصوف صح، مش بعدد أقساط من زمن دفعة مابقتش موجودة
-        // من غير pinInstallmentAmount هنا عن قصد: الدفعة دي من حالة الرياكت مش من
-        // قراية ذرية، فقيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب فوقها (silent-failure-hunter)
-        const patch: Record<string, unknown> = { payments };
-        const recount = installmentCountFor({ ...d, payments });
-        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
-        batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
-        return;
-      }
-      if ((d.increases || []).some(e => e.transactionId === txId)) {
-        const increases = (d.increases || []).filter(e => e.transactionId !== txId);
-        const patch: Record<string, unknown> = { increases };
-        const recount = installmentCountFor({ ...d, increases });
-        if (recount !== null && recount !== d.installmentCount) patch.installmentCount = recount;
+      // دفعة أو زيادة: نفس الدالة اللي بتبني تحذير مودال العملية (`transactionDeleteDebtPlan`،
+      // D3 2026-10-30)، فعدد الأقساط في الرسالة هو اللي بيتكتب. **من حالة الرياكت (مش ذرية)**
+      // ومن غير `pinInstallmentAmount` عن قصد: قيمة قسط اتعدّلت من جهاز تاني كانت هتتكتب
+      // فوقها (silent-failure-hunter). لو جهاز تاني زوّد زيادة في نفس اللحظة، إزاحتها بتضيع
+      // من الخطة — والبصمة (D2) بتبقى مش مطابقة فالفرق بيتجاهل (متسجّل في TIMELINE)
+      const plan = transactionDeleteDebtPlan(d, txId);
+      if (plan) {
+        // فرق متجاهَل (نسخة قديمة غيّرت الزيادات — D2) بيتسجّل زي باقي مسارات الدين
+        if (plan.kind === 'increase') noteIgnoredResidue(d);
+        const patch: Record<string, unknown> = plan.kind === 'payment' ? { payments: plan.payments } : { increases: plan.increases };
+        if (plan.residue?.op === 'set') patch.installmentResidue = plan.residue.value;
+        if (plan.residue?.op === 'clear') {
+          patch.installmentResidue = deleteField();
+          noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
+        }
+        const count = countToWrite(plan.countAfter, d.installmentCount, d.id);
+        if (count !== undefined) patch.installmentCount = count;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1381,19 +1424,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // بتقول للمستخدم قبل التأكيد إيه اللي هيحصل للسجل المرتبط بالعملية دي
   function transactionLinkWarning(id: string): string | null {
+    // الدين: الجملة + سطر عدد الأقساط بنفس حساب الكتابة (`debtLinkWarning`، D3)
     for (const d of debts) {
-      if (d.initialTransactionId === id) {
-        const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
-        return hasHistory
-          ? `العملية دي هي أساس دين "${d.personName}" — الدين هيفضل موجود بس هيبقى بالأجل من غير أثر على أي محفظة.`
-          : `العملية دي هي أساس دين "${d.personName}" — الدين هيتمسح كمان.`;
-      }
-      if ((d.payments || []).some(p => p.transactionId === id)) {
-        return `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`;
-      }
-      if ((d.increases || []).some(e => e.transactionId === id)) {
-        return `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
-      }
+      const w = debtLinkWarning(d, id);
+      if (w) return w;
     }
     for (const sub of subscriptions) {
       const entry = (sub.history || []).find(h => h.transactionId === id);
@@ -1432,12 +1466,77 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب شخبطة');
   }
 
+  /**
+   * فرق تقريب متخزّن واتجاهل (بتاع قسط تاني من نسخة قديمة، أو بايظ) — العدد
+   * بيرجع للقاعدة القديمة وده آمن، بس منسيبوش ساكت. المعرّف بس (sentryScrub).
+   */
+  // مرة لكل دين في الجلسة: الفرق المتجاهَل مبيتصلحش لوحده، و`runTransaction`
+  // بتعيد الـcallback لما تتصادم — من غيرها نفس السطر كان هيتكرر مع كل دفعة
+  const ignoredResidueNoted = useRef(new Set<string>());
+  function noteOnce(key: string, message: string, debtId: string) {
+    if (ignoredResidueNoted.current.has(key)) return;
+    ignoredResidueNoted.current.add(key);
+    console.warn(message, debtId);
+  }
+  /**
+   * العدد الجديد لو ينفع يتكتب ومختلف — غير كده `undefined`. عدد مش صالح (NaN، أو
+   * أكبر من اللي بيتخزّن بدقة) مبيتكتبش، والعدد القديم بيفضل، وبنسجّل المعرّف مرة
+   * (silent-failure-hunter الجولة 3) بدل ما يتخطى ساكت.
+   */
+  function countToWrite(next: number | null, current: number | undefined, debtId: string): number | undefined {
+    if (next === null) return undefined;
+    if (!storableCount(next)) {
+      noteOnce(`count:${debtId}`, '[debt] installment count not storable, old count kept', debtId);
+      return undefined;
+    }
+    return next !== current ? next : undefined;
+  }
+
+  function noteIgnoredResidue(debt: Debt) {
+    if (installmentResidueIgnored(debt)) noteOnce(`ignored:${debt.id}`, '[debt] installmentResidue ignored, old count rule used', debt.id);
+    // دين قديم (عدد من غير قسط متخزّن) والتثبيت مش ممكن (بيانات بايظة) ← القسط بيفضل
+    // يتحرك مع العدد؛ منسيبوش ساكت (silent-failure-hunter)
+    if (debt.isInstallment && typeof debt.installmentAmount !== 'number' && debt.installmentCount
+      && pinInstallmentAmount(debt) === null) {
+      noteOnce(`pin:${debt.id}`, '[debt] legacy installment could not be pinned, old rule kept', debt.id);
+    }
+  }
+
+  /**
+   * الفرق بعد زيادة أو مسحها — للـpatch وللعدّ. فرق معروف والحسبة فشلت (مبلغ مش
+   * رقم) ← بيتشال صريح (القاعدة القديمة) مع سطر بالمعرّف، بدل ما يفضل فرق قديم
+   * بيتعدّ بيه (type-design-analyzer + silent-failure-hunter). مفيش فرق معروف ←
+   * مفيش حاجة تتكتب (مبنخمّنش فرق لدين قديم).
+   */
+  function residueAfterIncreaseChange(
+    d: Debt, delta: number, increasesAfter: Debt['increases'], mode?: LeftoverMode,
+  ): { patch: unknown; forCount: Debt['installmentResidue'] } | null {
+    if (!installmentResidueKnown(d)) return null;
+    // البصمة (D2) من نفس قايمة الزيادات اللي هتتكتب في الـpatch، واختيار الباقي (D1)
+    // من نفس الدالة اللي بتبني السؤال (`residueForIncrease`)
+    const folded = residueForIncrease(d, delta, increasesAfter, mode);
+    if (folded) return { patch: folded, forCount: folded };
+    noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
+    return { patch: deleteField(), forCount: undefined };
+  }
+
   async function addDebt(data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
     dueDate?: string; reminderDaysBefore?: number;
   }) {
     if (!uid) return;
+    // مبلغ الدين بالقرش ولازم رقم حقيقي (2026-09-30): "1e999" كان بيعدّي من المودال
+    // ويتكتب دين وعملية Infinity. الرفض بيوصل المودال كخطأ ("حصل خطأ، جرب تاني")
+    const total = toMoneyAmount(data.totalAmount);
+    if (total === null) throw new Error('invalid debt amount');
+    data = { ...data, totalAmount: total };
+    // وعدد الأقساط زي أي كتابة عدد (`storableCount`) وخطته ممكنة — **قبل** العملية
+    // المالية، وإلا كانت هتفضل عملية يتيمة في المحفظة (money-reviewer 2026-09-30)
+    const plan = data.isInstallment ? planInstallments(total, data.installmentCount ?? NaN) : null;
+    if (data.isInstallment && (!storableCount(data.installmentCount) || !plan)) {
+      throw new Error('invalid installment plan');
+    }
     let initialTransactionId: string | undefined;
     if (data.walletId) {
       const type = data.direction === 'owed_to_me' ? 'expense' : 'income';
@@ -1455,12 +1554,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // لا نهائي (1083.333...) اللي بيدفع الاقتراح كان بيطلعله "دفعت 1,083.33
     // بدل 1,083.33، الأقساط بقت 7" — رقمين متطابقين وسط جملة بتقول إنهم
     // مختلفين. اللي بيتخزّن هو اللي بيتعرض.
-    const installmentAmount = data.isInstallment && data.installmentCount && data.installmentCount > 0
-      ? roundMoney(data.totalAmount / data.installmentCount)
-      : undefined;
+    // ومعاها فرق التقريب (2026-09-30) — القسط الأخير بيشيله، فـ1000 على 12
+    // بيخلص في 12 قسط مش 13
+    const installmentAmount = plan?.value;
+    // دين جديد مالوش زيادات ← البصمة 0 (D2)
+    const installmentResidue = plan ? stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, []) ?? undefined : undefined;
     const clean = Object.fromEntries(Object.entries({
       direction: data.direction, personName: data.personName, personPhone: data.personPhone, personContactId: data.personContactId, totalAmount: data.totalAmount, date: data.date,
-      isInstallment: data.isInstallment, installmentCount: data.installmentCount, installmentAmount, note: data.note,
+      isInstallment: data.isInstallment, installmentCount: data.installmentCount, installmentAmount, installmentResidue, note: data.note,
       initialWalletId: data.walletId, initialTransactionId,
       dueDate: data.dueDate, reminderDaysBefore: data.reminderDaysBefore,
     }).filter(([, v]) => v !== undefined));
@@ -1522,6 +1623,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     debtId: string, amount: number, walletId: string, date: string, categoryId?: string,
   ): Promise<DebtPayResult> {
     if (!uid) return { outcome: 'done' };
+    // بالقرش (money-reviewer 2026-09-30): 0.006 من الخانة كان بيتسجل كده، وخطة الأقساط
+    // والفرق شغالين بالقروش الصحيحة فكان بيبعد الخطة عن الإجمالي. اللي بيتعرض هو
+    // اللي بيتسجل
+    const money = toMoneyAmount(amount);
+    if (money === null) {
+      // المودال بيرفضه قبل كده برسالته؛ نادي تاني هيشوف "ما اتسجلش"، فالسبب هنا (المعرّف بس)
+      console.warn('[debt] payment amount refused (not a valid money amount)', debtId);
+      return { outcome: 'failed' };
+    }
+    amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1558,12 +1669,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
          * دفعة بغير قيمة القسط بتغيّر **عدد** الأقساط، مش قيمتها. اللي دفع نص
          * قسط بياخد قسط زيادة، واللي دفع قسطين بيخلّص بدري — وبنقوله بالكلام.
          */
-        const nextCount = installmentCountAfterPayment(debt, amount);
-        if (nextCount !== null && nextCount !== debt.installmentCount) {
-          patch.installmentCount = nextCount;
-        }
-        // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت في نفس الكتابة
-        Object.assign(patch, pinInstallmentAmount(debt));
+        // دين قديم من غير قيمة متخزّنة: القيمة بالعدد القديم تتثبّت (ومعاها فرق
+        // تقريبها) في نفس الكتابة — **قبل** العدّ، فالعدد بيتحسب بالخطة اللي
+        // هتتكتب، مش بيتغيّر ساكت في الكتابة اللي بعدها
+        noteIgnoredResidue(debt);
+        const pin = pinInstallmentAmount(debt);
+        const planned: Debt = pin ? { ...debt, ...pin } : debt;
+        Object.assign(patch, pin);
+        const nextCount = installmentCountAfterPayment(planned, amount);
+        const count = countToWrite(nextCount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
 
         /**
          * دين الأقساط بياخد معاد واحد معناه "القسط الجاي"، وبيتقدّم شهر مع كل
@@ -1581,11 +1696,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         t.update(debtRef, patch);
 
+        // المقارنة بالمبلغ اللي المودال اقترحه (2026-09-30): على القسط الأخير ده
+        // المتبقي كله، فاللي دفع القسط المقرّب بدله بيتقاله إن فيه قسط زيادة
         result.note = installmentChangeMessage(
           amount,
-          installmentValue(debt) ?? amount,
+          installmentValue(planned) === null ? amount : suggestedInstallmentPayment(planned),
           debt.installmentCount ?? 0,
-          nextCount ?? debt.installmentCount ?? 0,
+          // العدد اللي اتكتب فعلاً — مش NaN في الرسالة (`??` مبيمسكش NaN)
+          count ?? debt.installmentCount ?? 0,
           debtRemaining(debt) - amount <= PIASTRE_EPS,
         );
       }));
@@ -1617,10 +1735,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!debt) return false;
     const plan = planInstallmentCountEdit(debt, nextTotal);
     if (!plan) return false;
+    // مبصوم بمجموع الزيادات الحالي (D2). المجموع مش رقم ← الفرق بيتشال (القاعدة القديمة)
+    // بدل ما يفضل القديم جنب قسط جديد — **بسطر**، زي كل مسار تاني بيشيل الفرق
+    // (silent-failure-hunter، الجولة 1 على D2). والفرق القديم المتجاهَل كمان بيتسجّل
+    noteIgnoredResidue(debt);
+    const stamped = stampResidue({ amount: plan.residue, forInstallment: plan.value, over: plan.over }, debt.increases);
+    if (!stamped) noteOnce(`fold:${debtId}`, '[debt] installmentResidue fold failed, cleared', debtId);
     track(
       updateDoc(doc(db, 'users', uid, 'debts', debtId), {
         installmentCount: plan.count,
         installmentAmount: plan.value,
+        // في نفس الكتابة، ومحسوب على المتبقي اللي اتقسّم دلوقتي (2026-09-30)
+        installmentResidue: stamped ?? deleteField(),
       }),
       namedLabel('عدد أقساط الدين', debt.personName),
     );
@@ -1658,9 +1784,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // **العدد لازم يترجع معاها.** من غير ده، دفعة غيّرت العدد من 6 لـ7 وبعدين
         // اتمسحت كانت بتسيب العدد 7 للأبد — فالكارت يقول "القسط 1 من 7" لدين
         // حسابه 6.
-        const patch: Record<string, unknown> = { payments, ...pinInstallmentAmount(debt) };
-        const recount = installmentCountFor({ ...debt, payments });
-        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        noteIgnoredResidue(debt);
+        const pin = pinInstallmentAmount(debt);
+        const patch: Record<string, unknown> = { payments, ...pin };
+        const recount = installmentCountFor({ ...debt, ...pin, payments });
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
         t.update(debtRef, patch);
       }));
@@ -1675,11 +1804,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * وبترجّع نفس شكل نتيجتها: `note` لو عدد الأقساط اتغيّر، والشاشة بتقوله
    * بنفس الطريقة (2026-09-29).
    */
-  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<DebtPayResult> {
+  async function addDebtIncrease(
+    debtId: string, amount: number, date: string, walletId?: string,
+    leftover?: LeftoverSeen,
+  ): Promise<DebtIncreaseResult> {
     if (!uid) return { outcome: 'done' };
     // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
     // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
-    if (!Number.isFinite(amount) || amount <= 0) return { outcome: 'failed' };
+    // بالقرش زي الدفعة، **والفحص بعد التقريب** (`toMoneyAmount`): 1e307 كان بيعدّي
+    // `isFinite` وبعدين `roundMoney` تطلعه Infinity ويتكتب
+    const money = toMoneyAmount(amount);
+    if (money === null) {
+      console.warn('[debt] increase amount refused (not a valid money amount)', debtId);
+      return { outcome: 'failed' };
+    }
+    amount = money;
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
@@ -1697,6 +1836,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (walletId && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) {
           throw new WalletMissingError();
         }
+        // D1 (قرار مؤمن): السؤال بيتحسب تاني من **السيرفر**؛ لو المستخدم شاف باقي غير اللي
+        // هنا (أو ما اتسألش وفيه سؤال، أو العكس) ← مفيش كتابة خالص ويتسأل تاني — مش تطبيق
+        // اختيار على أرقام ما شافهاش، ومش افتراضي. قبل أي `t.set`/`t.update`
+        const serverChoice = increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, amount);
+        if (!sameLeftoverSeen(serverChoice, leftover)) throw new LeftoverChangedError();
 
         let transactionId: string | undefined;
         if (walletId) {
@@ -1719,7 +1863,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // 6000 على 6 بعد زيادة 2000 كان بيفضل "القسط 1 من 6" لحد أول دفعة. نفس
         // حساب `deleteDebtIncrease` في الاتجاه التاني، وعلى الدين اللي اتقرا جوه
         // الذرة — والقسط نفسه (`installmentAmount`) مبيتغيّرش
-        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
+        noteIgnoredResidue(debt);
+        const pin = pinInstallmentAmount(debt);
+        const patch: Record<string, unknown> = { increases, ...pin };
+        // الزيادة بتدخل الخطة (2026-09-30): لو اللي فاضل تقريب بس القسط الأخير بيشيله
+        // (1000/12 + 500 = 18 مش 19 بقسط 0.06)، ولو كسر حقيقي بيفضل قسط أصغر
+        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount, increases, leftover?.mode);
+        if (residue) patch.installmentResidue = residue.patch;
         // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
         // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
         const nextDue = reopenedDueDate(debt, amount, date, todayStr());
@@ -1728,21 +1878,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
           // المعاد المتخزّن بايظ ← سايبينه زي ما هو بدل ما نخترع واحد. المعرّف بس (sentryScrub)
           console.warn('[debt] stored dueDate is not YYYY-MM-DD, left as is', debtId);
         }
-        const recount = installmentCountFor({ ...debt, increases });
+        const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
         // مستند قديم بقيمة مش رقم كان هيدّي NaN — العدد القديم أحسن من NaN مكتوب
-        if (recount !== null && Number.isFinite(recount) && recount !== debt.installmentCount) {
-          patch.installmentCount = recount;
+        // عدد مش صالح (NaN، أو أكبر من اللي بيتخزّن بدقة) ← العدد القديم بيفضل وسطر بالمعرّف
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) {
+          patch.installmentCount = count;
           // null عن قصد لو العدد القديم مش معروف (دين قديم من غير عدد): العدد الصح
           // بيتكتب، بس مفيش "بدل كام" صادقة تتقال — "بدل 0" كانت هتبقى كدب
-          result.note = installmentIncreaseMessage(debt.installmentCount, recount);
-        } else if (recount !== null && !Number.isFinite(recount)) {
-          // من غير أرقام — المعرّف بس (sentryScrub)
-          console.warn('[debt] installment recount not finite, count left as is', debtId);
+          result.note = installmentIncreaseMessage(debt.installmentCount, count);
         }
         t.update(debtRef, patch);
       }));
       return { outcome: 'done', note: result.note };
     } catch (e) {
+      // مش فشل: الدين اتغيّر من جهاز تاني والمستخدم هيتسأل تاني — مش Sentry
+      if (e instanceof LeftoverChangedError) {
+        // المعرّف بس (sentryScrub): لو الرفض اتكرر عند حد يبقى فيه أثر يفسّره
+        console.warn('[debt] increase leftover changed since shown, nothing written', debtId);
+        return { outcome: 'leftover-changed' };
+      }
       noteAtomicFailure('زيادة الدين', e);
       return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
     }
@@ -1768,9 +1923,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
           throw new WalletArchivedError();
         }
         const increases = (debt.increases || []).filter(e => e.id !== entryId);
-        const patch: Record<string, unknown> = { increases, ...pinInstallmentAmount(debt) };
-        const recount = installmentCountFor({ ...debt, increases });
-        if (recount !== null && recount !== debt.installmentCount) patch.installmentCount = recount;
+        noteIgnoredResidue(debt);
+        const pin = pinInstallmentAmount(debt);
+        const patch: Record<string, unknown> = { increases, ...pin };
+        // المسح بيطرح الزيادة من الخطة — نفس حالة الدين لو الزيادة ما اتعملتش
+        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, -Number(entry.amount), increases);
+        if (residue) patch.installmentResidue = residue.patch;
+        const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
+        const count = countToWrite(recount, debt.installmentCount, debtId);
+        if (count !== undefined) patch.installmentCount = count;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
         t.update(debtRef, patch);
       }));

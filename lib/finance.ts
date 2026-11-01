@@ -356,6 +356,28 @@ export function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
 }
 
+/**
+ * مبلغ فلوس جاي من المستخدم (خانة أو دالة كتابة) — مقرّب للقرش، أو `null` لو
+ * مينفعش يتسجل (2026-09-30). **التقريب الأول وبعدين الفحص:** `roundMoney` بتضرب
+ * في 100، فـ1e307 بيعدّي فحص `isFinite` ويطلع Infinity بعد التقريب — وده اللي كان
+ * بيتكتب في الزيادة. وأقل من نص قرش (0.004) بيطلع 0 فمرفوض هنا، مش في الداتا برسالة
+ * "اتأكد من النت". NaN وInfinity والسالب والصفر مرفوضين.
+ */
+export function toMoneyAmount(value: number): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const rounded = roundMoney(value);
+  return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
+}
+
+/**
+ * عدد أقساط ينفع يتكتب: صحيح موجب وآمن (≤ 2^53 − 1). NaN وInfinity، وأي عدد أكبر
+ * من كده (زيادة 1e300 على قسط 83.33) مبيتخزّنش — فايرستور كان هيرفضه كـint أو
+ * يخزّنه بغير قيمته.
+ */
+export function storableCount(n: unknown): n is number {
+  return typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
+}
+
 /** المتبقي على الدين. بيطلع بالسالب لو اتدفع أكتر من الإجمالي. */
 export function debtRemaining(d: Debt) {
   return debtGrandTotal(d) - debtPaid(d);
@@ -634,11 +656,30 @@ export function installmentValue(d: Debt): number | null {
  *
  * `null` لو الدين مش قسط، أو القيمة متخزّنة أصلاً، أو مفيش قيمة تتحسب.
  */
-export function pinInstallmentAmount(d: Debt): { installmentAmount: number } | null {
+export function pinInstallmentAmount(d: Debt): { installmentAmount: number; installmentResidue: InstallmentResidue } | null {
   if (!d.isInstallment) return null;
   if (typeof d.installmentAmount === 'number' && d.installmentAmount > MONEY_EPS) return null;
+  const count = d.installmentCount;
+  if (typeof count !== 'number' || !Number.isInteger(count) || count <= 0) return null;
   const value = installmentValue(d);
-  return value && value > PIASTRE_EPS ? { installmentAmount: value } : null;
+  if (!value || !Number.isFinite(value) || value <= PIASTRE_EPS) return null;
+  // فرق التقريب (2026-09-30) بنفس الأساس اللي القيمة القديمة اتحسبت منه:
+  // `totalAmount ÷ installmentCount`. لو العدد كان اتحرّك مع دفعات قديمة ده فرق
+  // تقريب للإجمالي مش لخطة حقيقية — صغير (≤ نص قرش لكل قسط) ومبيخبّيش فلوس:
+  // المتبقي بيتعرض زي ما هو، والفرق بيتحط على القسط الأخير بس
+  const residue = residueOf(d.totalAmount, value, count);
+  // القيمة القديمة = الأصل ÷ العدد مقرّبة، فالفرق ≤ نص قرش × العدد بالتعريف —
+  // أكبر من كده يبقى بيانات بايظة ومنكتبهاش (silent-failure-hunter)
+  if (residue === null || Math.abs(residue) > PIASTRE_EPS * count + 1e-9) return null;
+  // والزيادات اللي عليه من قبل التثبيت بتدخل الخطة (2026-09-30): الفرق لازم يبقى
+  // هو هو اللي كان هيتحسب لو الدين اتعمل بحالته دي، وإلا مسح زيادة قديمة بعدين
+  // كان هيطرح من خطة عمرها ما شالتها
+  // زيادة مبلغها مش رقم ← مفيش تثبيت (زي فشل الحسبة في مسار الزيادة)، مش 0 ساكت
+  const increases = (d.increases || []).reduce((s, e) => s + Number(e.amount), 0);
+  if (!Number.isFinite(increases)) return null;
+  const shifted = shiftInstallmentResidue({ amount: residue, forInstallment: value, over: count }, increases);
+  const planned = shifted ? stampResidue(shifted, d.increases) : null;
+  return planned ? { installmentAmount: value, installmentResidue: planned } : null;
 }
 
 /**
@@ -727,7 +768,7 @@ export function installmentCountFor(d: Debt): number | null {
   const paidCount = (d.payments || []).length;
   if (remaining <= PIASTRE_EPS) return Math.max(paidCount, 1);
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  return paidCount + installmentsLeft(d, remaining, value);
 }
 
 export function installmentCountAfterPayment(d: Debt, paidAmount: number): number | null {
@@ -741,7 +782,345 @@ export function installmentCountAfterPayment(d: Debt, paidAmount: number): numbe
   // اتسدد بالكامل (أو زيادة): العدد بيقف عند الدفعات اللي حصلت فعلاً
   if (remaining <= PIASTRE_EPS) return paidCount;
 
-  return paidCount + Math.ceil(remaining / value - PIASTRE_EPS);
+  return paidCount + installmentsLeft(d, remaining, value);
+}
+
+/**
+ * كام قسط فاضل على `remaining` (أكبر من نص قرش) — **المكان الوحيد** اللي
+ * القاعدة متكتوبة فيه، والعدد والاقتراح في المودال الاتنين منه (2026-09-30).
+ *
+ * - **فرق التقريب معروف** (`installmentResidueOf`): السماحية بالفلوس — نص قرش
+ *   + الفرق المتخزّن بالظبط، اللي القسط الأخير بيشيله. 1000 على 12: القسط
+ *   الأخير 83.37 مش قسط 13.
+ * - **مش معروف** (دين قبل الحقل ده): القاعدة القديمة زي ما هي، سماحية 0.5% من
+ *   القسط. تطبيق سماحية الفلوس عليه كان هيعمل قسط 13 وهمي من أول دفعة
+ *   (1000 على 12 من غير فرق متخزّن ← 12.0005 قسط)، ومنقدرش **نستنتج** الفرق
+ *   (خطوة 5 اترجعت عشان كده).
+ *
+ * وفي الحالتين **فلوس فاضلة = قسط واحد على الأقل**: القاعدة القديمة كانت بتقول
+ * 0 على 0.04 فاضلة، فالكارت يقول "القسط 12 من 12" والفلوس لسه مفتوحة.
+ */
+function installmentsLeft(d: Debt, remaining: number, value: number): number {
+  const residue = installmentResidueOf(d);
+  const k = residue === null
+    ? Math.ceil(remaining / value - PIASTRE_EPS)
+    : Math.ceil((remaining - residue - PIASTRE_EPS) / value);
+  return Math.max(1, k);
+}
+
+/** الخطة من غير بصمة — اللي `planInstallments` والطيّ بيحسبوه */
+export type ResiduePlan = { amount: number; forInstallment: number; over: number };
+/**
+ * الفرق زي ما بيتكتب وبيتقري سليم: الخطة + مجموع الزيادات وقت الكتابة (D2، 2026-10-30).
+ * `increasesTotal` مطلوب هنا عن قصد: أي مكان بيبني فرق لازم يعدّي على `stampResidue`
+ */
+export type InstallmentResidue = ResiduePlan & {
+  increasesTotal: number;
+  /**
+   * D1 (2026-10-30، قرار مؤمن): المستخدم اختار "يتضاف على آخر قسط" للباقي بعد زيادة.
+   * الأرقام (`amount`/`over`) **زي ما الطيّ طلّعها بالظبط** — العلم بيغيّر العدّ بس
+   * (type-design-analyzer: تطبيع المبلغ كان بيكسر "زوّد وامسح بيرجّع نفس الحالة").
+   * بيتكتب من `absorbLeftover` بس، وأي طيّ بفرق غير صفر بيشيله
+   */
+  lastAbsorbs?: true;
+};
+
+/**
+ * مجموع الزيادات **بالقروش الصحيحة** — كل زيادة بتتقرّب لوحدها، فالترتيب وضجيج
+ * الكسور (0.1 + 0.2) مبيفرقوش. `null` لو أي مبلغ مش رقم أو المجموع فوق الدقة.
+ */
+export function sumIncreasesCents(increases: Debt['increases'] | undefined): number | null {
+  let total = 0;
+  for (const e of increases || []) {
+    const c = Math.round(Number(e.amount) * 100);
+    if (!Number.isSafeInteger(c)) return null;
+    total += c;
+  }
+  return Number.isSafeInteger(total) ? total : null;
+}
+
+/**
+ * الطريق الوحيد لكتابة فرق (D2): الخطة + مجموع الزيادات **بعد** الكتابة. `null` لو
+ * المجموع مش رقم ← المسار مبيكتبش فرق (القاعدة القديمة).
+ */
+export function stampResidue(plan: ResiduePlan, increasesAfter: Debt['increases'] | undefined): InstallmentResidue | null {
+  const cents = sumIncreasesCents(increasesAfter);
+  if (cents === null) return null;
+  return { amount: plan.amount, forInstallment: plan.forInstallment, over: plan.over, increasesTotal: cents / 100 };
+}
+
+/** `base − value × n` مقرّب للقرش — `null` لو أي رقم مش حقيقي */
+function residueOf(base: number, value: number, n: number): number | null {
+  const r = roundMoney(base - value * n);
+  if (!Number.isFinite(r)) return null;
+  return r === 0 ? 0 : r; // من غير -0
+}
+
+/**
+ * القسط وفرق تقريبه لما مبلغ يتقسّم على `n` (الإنشاء وتعديل العدد).
+ * `null` لو القسط هيطلع أقل من قرش — قسط 0 كان هيتقري "مفيش قسط متخزّن"
+ * ويرجع للحسبة القديمة، والقواعد بترفضه أصلاً.
+ */
+export function planInstallments(base: number, n: number): { value: number; residue: number; over: number } | null {
+  if (!Number.isFinite(base) || base <= PIASTRE_EPS) return null;
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
+  const value = roundMoney(base / n);
+  if (!(value > PIASTRE_EPS)) return null;
+  const residue = residueOf(base, value, n);
+  return residue === null ? null : { value, residue, over: n };
+}
+
+/**
+ * الفرق اللي القسط الأخير بيشيله فوق القسط — `null` = مش معروف (القاعدة القديمة).
+ *
+ * بيتقري **بس** لو اتحسب على القسط المتخزّن نفسه (`forInstallment`): نسخة قديمة
+ * من التطبيق بتعدّل العدد بتكتب قسط جديد ومبتلمسش الفرق، فالفرق القديم مع قسط
+ * جديد كان هيبقى كدب. وبيتجاهل لو مش رقم حقيقي.
+ *
+ * **والسقف من الفيزيا مش من القسط:** فرق تقريب n قسط ≤ نص قرش × n، والـn ≤
+ * المبلغ اللي اتقسّم ÷ (القسط − نص قرش)، والمبلغ ده (الأصل أو المتبقي وقت
+ * التعديل) ≤ الإجمالي بالزيادات. فرق أكبر من كده مستحيل ييجي من تقريب — بيانات
+ * بايظة (مثلاً 1e6 بنفس القسط كانت هتخلّي العدد "قسط واحد فاضل" على مبلغ كبير)
+ * ← القاعدة القديمة. سقف بالقسط نفسه كان غلط: 1 على 24 = قسط 0.04 وفرق 0.04
+ * حقيقي (القسط الأخير 0.08). السالب (القسط الأخير أصغر) ← 0: المتبقي هيبقى
+ * أقل من قسط لوحده.
+ */
+export function installmentResidueOf(d: Debt): number | null {
+  const r = storedResidue(d);
+  if (!r) return null;
+  // D1: الباقي اتضاف على آخر قسط ← بيتشال من العدّ زي التقريب
+  if (r.lastAbsorbs && !isRoundingResidue(r)) return absorbedExtra(r);
+  // فرق مش تقريب (زيادة سابت كسر حقيقي من قسط) ← 0: القسط الأخير الأصغر
+  // بيتعدّ لوحده. 0 هو الأحوط — عمره ما بينزّل العدد
+  return isRoundingResidue(r) && r.amount > 0 ? r.amount : 0;
+}
+
+/**
+ * الفرق **تقريب بس** لو ≤ نص قرش لكل قسط في الخطة (`over`) — نفس حد الإنشاء
+ * بالظبط (قرار مؤمن 2026-09-29: "متخترعش حد تاني"). شامل الحد نفسه: 1000 على 3
+ * اتقفل وزيادة 333.34 ← 4 أقساط وفرق 0.02 = 4 × نص قرش، والتقريب لنص فوق كان
+ * هيعمل قسط 0.01 وهمي.
+ */
+function isRoundingResidue(r: ResiduePlan): boolean {
+  return r.over >= 1 && Math.abs(r.amount) <= PIASTRE_EPS * r.over + 1e-9;
+}
+
+/** الفرق المتخزّن لو سليم ومربوط بالقسط المتخزّن — غير كده `null` (القاعدة القديمة) */
+function storedResidue(d: Debt): InstallmentResidue | null {
+  const r = d.installmentResidue;
+  const value = d.installmentAmount;
+  // نفس حد `installmentValue` للقسط المتخزّن
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= MONEY_EPS) return null;
+  if (!r || typeof r !== 'object') return null;
+  if (typeof r.forInstallment !== 'number' || Math.abs(r.forInstallment - value) > MONEY_EPS) return null;
+  if (typeof r.amount !== 'number' || !Number.isFinite(r.amount)) return null;
+  if (typeof r.over !== 'number' || !Number.isInteger(r.over)) return null;
+  // الخطة نفسها بتتفحص (type-design-analyzer): `over × القسط + amount` هو المبلغ
+  // اللي بيتقسّم = الإجمالي ناقص اللي اتدفع قبل الخطة، فعمره ما يعدّي الإجمالي.
+  // أكبر من كده (1e6، أو over بايظ) = بيانات بايظة ← القاعدة القديمة ومتعلَّم إنه اتجاهل
+  if (r.over * value + r.amount > Math.max(debtGrandTotal(d), d.totalAmount || 0) + PIASTRE_EPS) return null;
+  // D2 (2026-10-30، قرار مؤمن): الخطة بتتحرك بمجموع الزيادات بس. نسخة قديمة زوّدت أو
+  // مسحت زيادة من غير ما تلمس الفرق ← المجموع مش مطابق للبصمة ← بيتجاهل. بصمة غايبة
+  // أو مش رقم ← بيتجاهل. **حد مقبول (C1):** نسخة قديمة عدّلت العدد ونزلت على نفس
+  // القسط المقرّب (forInstallment مطابق) والبصمة زي ما هي ← فرق قديم بيتقري؛ الغلط
+  // ≤ نص قرش × over على القسط الأخير، مش قسط وهمي (type-design-analyzer + database-reviewer)
+  const stamp = r.increasesTotal;
+  if (typeof stamp !== 'number' || !Number.isFinite(stamp)) return null;
+  const current = sumIncreasesCents(d.increases);
+  if (current === null || Math.round(stamp * 100) !== current) return null;
+  const plan = { amount: r.amount, forInstallment: r.forInstallment, over: r.over, increasesTotal: stamp };
+  // D1: العلم `true` بالظبط وإلا الفرق كله بيتجاهل (القواعد مبتفحصهوش — قاعدة 6)، وعلى
+  // فرق مش تقريب لازم يبقى له معنى؛ على تقريب أصلاً مالوش أثر فبيعدّي
+  if ('lastAbsorbs' in r && (r as { lastAbsorbs?: unknown }).lastAbsorbs !== undefined) {
+    if ((r as { lastAbsorbs?: unknown }).lastAbsorbs !== true) return null;
+    // شكل مستحيل مع العلم (مبلغ 0، أكبر من قسط، مفيش قسط قبله) = بيانات بايظة ← كله بيتجاهل
+    if (!absorbableShape(plan)) return null;
+    return isRoundingResidue(plan) ? plan : { ...plan, lastAbsorbs: true };
+  }
+  return plan;
+}
+
+/**
+ * الفرق بعد زيادة (`delta` موجب) أو مسح زيادة (سالب) — 2026-09-30، قرار مؤمن:
+ * لو الباقي تقريب بس، القسط الأخير بيشيله زي الإنشاء بالظبط (1000 على 12 + 500
+ * = 18 قسط وآخرهم 83.39، مش 19 وآخرهم 0.06)؛ لو كسر حقيقي من قسط (+100 ←
+ * 16.71) بيفضل قسط أخير أصغر.
+ *
+ * الخطة `over × القسط + amount` = المبلغ اللي بيتقسّم؛ الزيادة بتضيف له،
+ * و`over` بيتحرك بعدد الأقساط الكاملة اللي دخلت. الإزاحة `round((amount+delta)/v)
+ * − round(amount/v)` مش `round(delta/v)`: كده زوّد وامسح بيرجّع نفس الحالة
+ * بالظبط، وزيادتين 250 = زيادة 500 — الفرق دايمًا اللي كان هيتحسب لو الدين اتعمل
+ * بحالته النهائية، مهما كان الترتيب.
+ *
+ * `null` = مفيش فرق معروف (دين قبل الحقل، أو بتاع قسط تاني) ← مبيتكتبش حاجة
+ * والقاعدة القديمة فاضلة. **مبنستنتجش فرق لدين مالوش.**
+ */
+export function foldInstallmentResidue(
+  d: Debt,
+  change: { kind: 'increase'; delta: number; increasesAfter: Debt['increases'] } | { kind: 'initial'; delta: number },
+): InstallmentResidue | null {
+  const r = storedResidue(d);
+  const shifted = r ? shiftInstallmentResidue(r, change.delta) : null;
+  if (!shifted) return null;
+  // البصمة من القايمة نفسها اللي هتتكتب (مش قديم + فرق): الزيادة ← الزيادات بعد
+  // التغيير؛ الأصل ← الزيادات زي ما هي
+  const stamped = stampResidue(shifted, change.kind === 'increase' ? change.increasesAfter : d.increases);
+  // D1: تعديل تاريخ أو محفظة (فرق صفر) مبيغيّرش الخطة ← اختيار المستخدم بيفضل.
+  // أي فرق تاني بيشيله (السؤال بيتسأل تاني في الزيادة الجاية)
+  if (stamped && r && r.lastAbsorbs && Math.round(change.delta * 100) === 0) return { ...stamped, lastAbsorbs: true };
+  return stamped;
+}
+
+/** الباقي اللي بيتضاف على آخر قسط: موجب زي ما هو، سالب (أقرب قسط لفوق) + القسط */
+function absorbedExtra(r: ResiduePlan): number {
+  return roundMoney(r.amount > 0 ? r.amount : r.amount + r.forInstallment);
+}
+
+/** شكل ينفع يتضاف على آخر قسط — نفس شروط القراية والكتابة */
+function absorbableShape(r: ResiduePlan): boolean {
+  const v = r.forInstallment;
+  if (!(r.amount !== 0) || !(Math.abs(r.amount) < v)) return false;
+  return r.amount > 0 ? r.over >= 1 : r.over >= 2;
+}
+
+/**
+ * الطريق الوحيد لكتابة `lastAbsorbs` (D1). `null` لو الفرق تقريب بس (مفيش سؤال) أو
+ * الشكل مالوش معنى (مبلغ 0، أكبر من قسط، أو مفيش قسط قبله يتضاف عليه)
+ */
+export function absorbLeftover(r: InstallmentResidue): InstallmentResidue | null {
+  if (isRoundingResidue(r) || !absorbableShape(r)) return null;
+  return { ...r, lastAbsorbs: true };
+}
+
+/** آخر قسط هيبقى كام — المتبقي ناقص الأقساط الكاملة قبله. `null` لو مش قسط أو مفيش قيمة */
+export function lastInstalmentOf(d: Debt): number | null {
+  if (!d.isInstallment) return null;
+  // القسط المتخزّن بس: الدين القديم (القسط محسوب الإجمالي ÷ العدد) مبيتسألش أصلاً
+  if (typeof d.installmentAmount !== 'number') return null;
+  const value = installmentValue(d);
+  if (!value) return null;
+  const remaining = debtRemaining(d);
+  if (!(remaining > 0)) return null;
+  const left = installmentsLeft(d, remaining, value);
+  return roundMoney(remaining - (left - 1) * value);
+}
+
+export type LeftoverMode = 'absorb' | 'separate';
+export type LeftoverChoice = {
+  /** الباقي اللي المستخدم بيشوفه (X): الزيادة سابته أقل من قسط */
+  leftover: number;
+  value: number;
+  absorb: { count: number; last: number };
+  separate: { count: number; last: number };
+};
+
+/**
+ * سؤال الباقي بعد زيادة (D1، 2026-10-30، قرار مؤمن: "بيتسأل كل مرة، حتى للقروش").
+ * `d` بعد `pinInstallmentAmount` (زي `addDebtIncrease`). `null` = مفيش سؤال: مش قسط،
+ * مفيش فرق معروف (دين قديم/متجاهَل ← السلوك القديم)، الطيّ فشل، تقريب بس، أو الاختيارين
+ * بيدّوا نفس النتيجة. **نفس الحساب اللي الكتابة بتعمله** (`residueForIncrease`)، والعدد
+ * من `installmentCountFor` نفسه — الشاشة والكتابة مبيختلفوش
+ */
+export function increaseLeftoverChoice(d: Debt, amount: number): LeftoverChoice | null {
+  if (!d.isInstallment) return null;
+  const money = toMoneyAmount(amount);
+  if (money === null) return null;
+  if (!installmentResidueKnown(d)) return null;
+  const increasesAfter = [...(d.increases || []), { id: '__new__', date: '', amount: money }] as Debt['increases'];
+  const separate = foldInstallmentResidue(d, { kind: 'increase', delta: money, increasesAfter });
+  if (!separate || isRoundingResidue(separate)) return null;
+  const absorbed = absorbLeftover(separate);
+  if (!absorbed) return null;
+  const after = { ...d, increases: increasesAfter };
+  const outcome = (r: InstallmentResidue) => {
+    const count = installmentCountFor({ ...after, installmentResidue: r });
+    if (count === null) return null;
+    const last = lastInstalmentOf({ ...after, installmentResidue: r, installmentCount: count });
+    return last === null ? null : { count, last };
+  };
+  const a = outcome(absorbed);
+  const b = outcome(separate);
+  if (!a || !b || (a.count === b.count && a.last === b.last)) return null;
+  // الباقي المعروض = آخر قسط فعلاً لو اتفصل، مش فرق الخطة (money-reviewer، جولة 1): دفعة
+  // مختلفة عن القسط قبل الزيادة بتحرّك الذيل — 100 بدل 83.33 ثم +100 ← الذيل 0.04 مش 16.71
+  return { leftover: b.last, value: separate.forInstallment, absorb: a, separate: b };
+}
+
+/** اللي المستخدم شافه للاختيار اللي اختاره — بيتبعت للذرة عشان تتأكد إنه لسه هو */
+export type LeftoverSeen = { mode: LeftoverMode; amount: number; count: number; last: number };
+
+export function leftoverSeen(choice: LeftoverChoice, mode: LeftoverMode): LeftoverSeen {
+  return { mode, amount: choice.leftover, count: choice[mode].count, last: choice[mode].last };
+}
+
+/**
+ * الذرة بتقارن **الباقي والعدد وآخر قسط** للاختيار نفسه (D1، جولة 1): دفعة من جهاز تاني
+ * ممكن تحرّك العدد أو آخر قسط والباقي ثابت، فالمقارنة بالباقي لوحده كانت بتكتب أرقام ما اتشافتش
+ */
+export function sameLeftoverSeen(server: LeftoverChoice | null, seen: LeftoverSeen | undefined): boolean {
+  if (!seen) return server === null;
+  if (!server) return false;
+  const o = server[seen.mode];
+  return roundMoney(server.leftover) === roundMoney(seen.amount)
+    && o.count === seen.count && roundMoney(o.last) === roundMoney(seen.last);
+}
+
+/**
+ * الفرق بعد زيادة — الطريق الوحيد للكتابة والسؤال (D1). من غير `mode` = الطيّ العادي؛
+ * `absorb` ومفيش سؤال (تقريب) ← الطيّ العادي برضه (مفيش علم من غير معنى)
+ */
+export function residueForIncrease(
+  d: Debt, amount: number, increasesAfter: Debt['increases'], mode?: LeftoverMode,
+): InstallmentResidue | null {
+  const folded = foldInstallmentResidue(d, { kind: 'increase', delta: amount, increasesAfter });
+  if (!folded || mode !== 'absorb') return folded;
+  return absorbLeftover(folded) ?? folded;
+}
+
+function shiftInstallmentResidue(r: ResiduePlan, delta: number): ResiduePlan | null {
+  // **بالقروش الصحيحة** (money-reviewer): بالكسور، (amount+δ)/v ممكن تطلع 0.4999…
+  // وamount/v تطلع 0.5 بالظبط لنفس النص قسط، فالإزاحة بتغلط بقسط كامل والترتيب
+  // بيفرق (3193.45 على 38 وزيادات معينة ← 95.23 بدل 5.36). بالقروش التقريب لنص
+  // واحد في الاتنين
+  const vc = Math.round(r.forInstallment * 100);
+  const ac = Math.round(r.amount * 100);
+  const dc = Math.round(delta * 100);
+  if (!Number.isFinite(dc) || !Number.isFinite(ac) || !(vc >= 1)) return null;
+  const nearest = (x: number) => Math.floor((2 * x + vc) / (2 * vc)); // لأقرب قسط، النص لفوق
+  const shift = nearest(ac + dc) - nearest(ac);
+  const amountCents = ac + dc - shift * vc;
+  const over = r.over + shift;
+  // بالقروش الصحيحة الآمنة: مبلغ أو عدد أقساط ضخم كان هيفقد دقته ← فشل صريح (بيتشال)
+  if (!Number.isSafeInteger(ac) || !Number.isSafeInteger(dc) || !Number.isSafeInteger(amountCents) || !Number.isSafeInteger(over)) return null;
+  return { amount: amountCents === 0 ? 0 : amountCents / 100, forInstallment: r.forInstallment, over };
+}
+
+/**
+ * فيه فرق متخزّن ومتجاهَل (بتاع قسط تاني، أو مش رقم، أو فوق السقف) — عشان
+ * مسارات الكتابة تسجّل المعرّف (من غير أرقام). مش في `installmentResidueOf`
+ * نفسها: دي بتتنادى في كل رندر.
+ */
+/** فيه فرق متخزّن سليم (حتى لو كسر حقيقي بيتقري 0) — عشان المسار يعرف لازم يحدّثه */
+export function installmentResidueKnown(d: Debt): boolean {
+  return storedResidue(d) !== null;
+}
+
+export function installmentResidueIgnored(d: Debt): boolean {
+  return d.installmentResidue !== undefined && d.installmentResidue !== null
+    && typeof d.installmentAmount === 'number' && storedResidue(d) === null;
+}
+
+/**
+ * المبلغ اللي المودال بيقترحه (كان جوه `DebtEntryModals`). القسط، **إلا** لو
+ * فاضل قسط واحد بنفس قاعدة العدد (`installmentsLeft`) — ساعتها المتبقي كله.
+ * كده دفع الاقتراح عمره ما بيغيّر العدد، والقسط الأخير بيقفل الدين: قبل كده
+ * 1000 على 12 كان بيقترح 83.33 على 83.37 وبيسيب 0.04 مفتوحة.
+ */
+export function suggestedInstallmentPayment(d: Debt): number {
+  const remaining = debtRemaining(d);
+  const value = installmentValue(d);
+  if (!value || !d.isInstallment || remaining <= PIASTRE_EPS) return roundMoney(remaining);
+  return installmentsLeft(d, remaining, value) > 1 ? value : roundMoney(remaining);
 }
 
 /**
@@ -760,9 +1139,84 @@ export function installmentChangeMessage(
 ): string | null {
   if (settled) return null;
   if (beforeCount === afterCount) return null;
-  // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش إنه غيّر حاجة
-  if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) return null;
+  // بالقرش مش بفاصلة الآلة: اللي دفع الرقم المقترح بالظبط مايتقالوش "دفعت X بدل X".
+  // بس لو العدد اتغيّر برضه (أول ما دين قديم يتثبّت قسطه وفرقه — 2026-09-30)
+  // بيتقال، مش بيتغيّر ساكت. "بدل 0" على عدد مش معروف كانت هتبقى كدب
+  if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) {
+    return beforeCount > 0 && afterCount > 0 ? `الأقساط بقت ${afterCount} بدل ${beforeCount}.` : null;
+  }
   return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
+}
+
+/**
+ * سطر "عدد الأقساط هيرجع X بدل Y." — مصدر واحد لتأكيد المسح من شاشة الدين ومن مودال
+ * العملية (D3، 2026-10-30، قرار مؤمن: نفس الرسالة في المكانين). `null` لو مفيش حركة
+ * أو أي رقم مش معروف — "بدل 0" كانت هتبقى كدب.
+ */
+export function installmentCountBackLine(before: number | null | undefined, after: number | null | undefined): string | null {
+  // نفس شرط الكتابة (`countToWrite` ← `storableCount`): عدد مبيتكتبش ميتقالش (silent-failure-hunter)
+  const ok = (n: unknown): n is number => storableCount(n);
+  if (!ok(before) || !ok(after) || before === after) return null;
+  return `عدد الأقساط هيرجع ${after} بدل ${before}.`;
+}
+
+/**
+ * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): بالظبط اللي
+ * `stageReconcile` بيكتبه — نفس الدالة بتبني الكتابة والتحذير، فالرقم في الرسالة هو
+ * الرقم اللي بيتكتب. **مختلف عن `debtEntryDeletePlan` عن قصد:** المسار ده من حالة
+ * الرياكت مش ذرة، فمبيثبّتش قسط الدين القديم (قيمة اتعدّلت من جهاز تاني كانت هتتكتب
+ * فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
+ *
+ * `residue`: `set` = الفرق بعد الطيّ (مبصوم)، `clear` = كان معروف والطيّ فشل (الكاتب
+ * بيشيله صريح ويسجّل)، `null` = مفيش حاجة تتكتب في الفرق.
+ */
+export type TransactionDeleteDebtPlan = {
+  kind: 'payment' | 'increase';
+  payments?: Debt['payments'];
+  increases?: Debt['increases'];
+  residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
+  countBefore: number | undefined;
+  countAfter: number | null;
+};
+
+export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDeleteDebtPlan | null {
+  if ((d.payments || []).some(p => p.transactionId === txId)) {
+    // الفرق مبيتغيّرش مع الدفعات (الخطة هي هي)
+    const payments = (d.payments || []).filter(p => p.transactionId !== txId);
+    return { kind: 'payment', payments, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }) };
+  }
+  if ((d.increases || []).some(e => e.transactionId === txId)) {
+    const removed = (d.increases || []).filter(e => e.transactionId === txId);
+    const increases = (d.increases || []).filter(e => e.transactionId !== txId);
+    let residue: TransactionDeleteDebtPlan['residue'] = null;
+    if (installmentResidueKnown(d)) {
+      const folded = foldInstallmentResidue(d, { kind: 'increase', delta: -removed.reduce((s, e) => s + Number(e.amount), 0), increasesAfter: increases });
+      residue = folded ? { op: 'set', value: folded } : { op: 'clear' };
+    }
+    const forCount = residue === null ? {} : { installmentResidue: residue.op === 'set' ? residue.value : undefined };
+    return { kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }) };
+  }
+  return null;
+}
+
+/**
+ * تحذير مسح عملية مربوطة بدين في مودال العملية (كان جوه `transactionLinkWarning`).
+ * دفعة أو زيادة بتحرّك العدد ← سطر العدد بنفس صيغة شاشة الدين (D3).
+ */
+export function debtLinkWarning(d: Debt, txId: string): string | null {
+  if (d.initialTransactionId === txId) {
+    const hasHistory = (d.payments || []).length > 0 || (d.increases || []).length > 0;
+    return hasHistory
+      ? `العملية دي هي أساس دين "${d.personName}" — الدين هيفضل موجود بس هيبقى بالأجل من غير أثر على أي محفظة.`
+      : `العملية دي هي أساس دين "${d.personName}" — الدين هيتمسح كمان.`;
+  }
+  const plan = transactionDeleteDebtPlan(d, txId);
+  if (!plan) return null;
+  const sentence = plan.kind === 'payment'
+    ? `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`
+    : `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
+  const countLine = installmentCountBackLine(plan.countBefore, plan.countAfter);
+  return countLine ? `${sentence}\n${countLine}` : sentence;
 }
 
 /**
@@ -808,9 +1262,18 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
   const entry = (kind === 'payment' ? payments : increases).find(e => e.id === entryId);
   if (!entry) return null;
 
+  // نفس اللي `deleteDebtPayment`/`deleteDebtIncrease` بيعملوه: دين قديم بيتثبّت
+  // قسطه وفرقه **قبل** العدّ — فالتأكيد بيقول نفس العدد اللي هيتكتب
+  // ومسح الزيادة بيطرحها من الخطة (`foldInstallmentResidue`) زي `deleteDebtIncrease`
+  const planned: Debt = { ...d, ...pinInstallmentAmount(d) };
+  // نفس `residueAfterIncreaseChange`: فرق معروف والحسبة فشلت ← بيتشال، فالعدّ من غيره
+  const known = kind === 'increase' && installmentResidueKnown(planned);
+  const folded = known
+    ? foldInstallmentResidue(planned, { kind: 'increase', delta: -Number(entry.amount), increasesAfter: increases.filter(e => e.id !== entryId) })
+    : null;
   const recount = installmentCountFor(kind === 'payment'
-    ? { ...d, payments: payments.filter(e => e.id !== entryId) }
-    : { ...d, increases: increases.filter(e => e.id !== entryId) });
+    ? { ...planned, payments: payments.filter(e => e.id !== entryId) }
+    : { ...planned, ...(known ? { installmentResidue: folded ?? undefined } : {}), increases: increases.filter(e => e.id !== entryId) });
   // العدد المتخزّن ممكن يبقى ناقص (بيانات قديمة) — ساعتها بنقارن بالمحسوب،
   // وإلا دفعة بقيمة القسط بالظبط كانت هتقول "هيرجع 6 بدل 6"
   const before = d.installmentCount ?? installmentCountFor(d);
@@ -865,9 +1328,9 @@ export function debtEntryDeleteMessage(
   } else {
     lines.push(`زيادة ${amt} على دين ${d.personName} هتتمسح.`);
   }
-  if (plan.countBefore !== null && plan.countAfter !== null) {
-    lines.push(`عدد الأقساط هيرجع ${plan.countAfter} بدل ${plan.countBefore}.`);
-  }
+  const countLine = plan.countBefore !== null && plan.countAfter !== null
+    ? installmentCountBackLine(plan.countBefore, plan.countAfter) : null;
+  if (countLine) lines.push(countLine);
   if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
   else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
   else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');
@@ -884,19 +1347,42 @@ export function debtEntryDeleteMessage(
  *
  * `null` معناها العدد مش مقبول.
  */
-export function planInstallmentCountEdit(d: Debt, nextTotal: number): { count: number; value: number } | null {
-  if (!Number.isInteger(nextTotal) || nextTotal <= 0) return null;
+export function planInstallmentCountEdit(
+  d: Debt, nextTotal: number,
+): { count: number; value: number; residue: number; over: number } | null {
+  if (!Number.isSafeInteger(nextTotal) || nextTotal <= 0) return null;
   const paidCount = (d.payments || []).length;
   if (nextTotal <= paidCount) return null;
 
   const remaining = debtRemaining(d);
   if (remaining <= PIASTRE_EPS) return null;
 
-  return { count: nextTotal, value: roundMoney(remaining / (nextTotal - paidCount)) };
+  // الفرق بيتحسب على **المتبقي** اللي اتقسّم دلوقتي (2026-09-30) — وده بالظبط
+  // اللي خطوة 5 كانت بتحاول تستنتجه بعدين وغلطت فيه
+  const plan = planInstallments(remaining, nextTotal - paidCount);
+  return plan ? { count: nextTotal, value: plan.value, residue: plan.residue, over: nextTotal - paidCount } : null;
 }
 
 export function installmentCountTooLowMessage(paidCount: number) {
   return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
+}
+
+export const INSTALLMENT_VALUE_TOO_SMALL = 'كده القسط هيبقى أقل من قرش، اختار عدد أقل.';
+export const INSTALLMENT_DEBT_SETTLED = 'الدين ده اتسدد خلاص، مفيش فلوس فاضلة تتقسّم على أقساط.';
+export const INSTALLMENT_COUNT_NOT_SAVED = 'مقدرناش نحفظ عدد الأقساط، جرّب تاني.';
+
+/**
+ * ليه تعديل العدد اترفض — للشاشة. `null` = مقبول. العدد اللي مش رقم صحيح
+ * موجب ليه رسالته في الشاشة نفسها (`INSTALLMENT_COUNT_INVALID`) قبل ما توصل هنا.
+ */
+export function installmentCountEditRefusal(d: Debt, nextTotal: number): string | null {
+  if (planInstallmentCountEdit(d, nextTotal)) return null;
+  const paidCount = (d.payments || []).length;
+  if (nextTotal <= paidCount) return installmentCountTooLowMessage(paidCount);
+  const remaining = debtRemaining(d);
+  if (!Number.isFinite(remaining)) return INSTALLMENT_COUNT_NOT_SAVED;
+  if (remaining <= PIASTRE_EPS) return INSTALLMENT_DEBT_SETTLED;
+  return INSTALLMENT_VALUE_TOO_SMALL;
 }
 
 /** `money` بييجي من `usePrivacy()` في الشاشة — عشان الجملة تتخبّى مع المبالغ */
