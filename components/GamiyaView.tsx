@@ -15,6 +15,8 @@ import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import FoldedSection from '@/components/FoldedSection';
+import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -63,6 +65,77 @@ export default function GamiyaView() {
     );
   }
 
+  // قسم "جمعيات خلصت" المطوي (2026-11-02): محسوب، ومسح قسط بيرجّعها للنشطة لوحدها
+  const { active: activeGamiyas, done: finishedGamiyas } = splitDone(gamiyas, isGamiyaFinished);
+
+  function renderGamiya(g: Gamiya) {
+      const walletLabel = walletHistoryName(wallets, g.walletId);
+      const doneCount = g.months.filter(m => m.status === 'done').length;
+      const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
+      const nextPending = g.months.find(m => m.status === 'pending');
+      const isExpanded = expanded === g.id;
+
+      return (
+        <View key={g.id} style={styles.card}>
+          <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
+            <View style={styles.cardHead}>
+              <Text style={styles.name}>{g.name}</Text>
+              <Text style={styles.sub2}>{walletLabel}</Text>
+            </View>
+            <Text style={styles.sub}>
+              <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
+            </Text>
+            <View style={styles.track}>
+              <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
+            </View>
+            <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
+            {nextPending && (
+              <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
+                {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {isExpanded && (
+            <View style={styles.expandedArea}>
+              {g.months.map(m => (
+                <View key={m.id} style={styles.monthRow}>
+                  <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
+                    شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
+                  </Text>
+                  {m.status === 'pending' ? (
+                    <TouchableOpacity
+                      onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
+                      style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
+                      disabled={busyKey === `month_${m.id}`}>
+                      {busyKey === `month_${m.id}` ? (
+                        // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
+                        <ActivityIndicator size="small" color={colors.onAccent} />
+                      ) : (
+                        <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
+                          {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>
+                  )}
+                </View>
+              ))}
+              <View style={styles.gamiyaActions}>
+                <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+                  <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+                  <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      );
+  }
+
   return (
     <ScrollView
       style={styles.scrollArea}
@@ -77,73 +150,10 @@ export default function GamiyaView() {
       </View>
 
       {gamiyas.length === 0 && <Text style={styles.emptyState}>مفيش جمعية مسجلة</Text>}
-      {gamiyas.map(g => {
-        const walletLabel = walletHistoryName(wallets, g.walletId);
-        const doneCount = g.months.filter(m => m.status === 'done').length;
-        const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
-        const nextPending = g.months.find(m => m.status === 'pending');
-        const isExpanded = expanded === g.id;
-
-        return (
-          <View key={g.id} style={styles.card}>
-            <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
-              <View style={styles.cardHead}>
-                <Text style={styles.name}>{g.name}</Text>
-                <Text style={styles.sub2}>{walletLabel}</Text>
-              </View>
-              <Text style={styles.sub}>
-                <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
-              </Text>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
-              </View>
-              <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
-              {nextPending && (
-                <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
-                  {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {isExpanded && (
-              <View style={styles.expandedArea}>
-                {g.months.map(m => (
-                  <View key={m.id} style={styles.monthRow}>
-                    <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
-                      شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
-                    </Text>
-                    {m.status === 'pending' ? (
-                      <TouchableOpacity
-                        onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
-                        style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
-                        disabled={busyKey === `month_${m.id}`}>
-                        {busyKey === `month_${m.id}` ? (
-                          // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
-                          <ActivityIndicator size="small" color={colors.onAccent} />
-                        ) : (
-                          <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
-                            {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>
-                    )}
-                  </View>
-                ))}
-                <View style={styles.gamiyaActions}>
-                  <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
-                    <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
-                    <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        );
-      })}
+      {activeGamiyas.map(renderGamiya)}
+      <FoldedSection testID="gamiyas_finished" title="جمعيات خلصت" count={finishedGamiyas.length}>
+        {finishedGamiyas.map(renderGamiya)}
+      </FoldedSection>
 
       <AddGamiyaModal visible={showAdd} onClose={() => setShowAdd(false)} />
       {editingGamiya && <EditGamiyaModal gamiya={editingGamiya} onClose={() => setEditingGamiya(null)} />}

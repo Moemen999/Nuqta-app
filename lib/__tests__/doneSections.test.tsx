@@ -1,0 +1,143 @@
+import React from 'react';
+import { Alert } from 'react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import DebtsTabScreen from '@/app/(tabs)/debts';
+import GamiyaView from '@/components/GamiyaView';
+import { NoticeProvider } from '@/components/NoticeProvider';
+import { PrivacyProvider } from '@/context/PrivacyContext';
+import { ThemeProvider } from '@/context/ThemeContext';
+import type { Debt, Gamiya } from '@/context/DataContext';
+import { isDebtSettled, isGamiyaFinished, splitDone } from '@/lib/doneSections';
+
+/**
+ * أقسام "خلص" المطوية (قرار مؤمن 2026-11-02): ديون اتسددت وجمعيات خلصت. محسوبة وقت
+ * العرض، مطوية افتراضيًا، والعنوان فيه العدد. الإجماليات مبتتغيّرش.
+ */
+
+const mockData: Record<string, unknown> = {};
+jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
+jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
+
+const W = { id: 'w1', name: 'الكاش', openingBalance: 0, lowAlert: 0 };
+const debt = (id: string, personName: string, direction: 'owed_to_me' | 'i_owe', total: number, paid: number, increases: number[] = []) => ({
+  id, personName, direction, totalAmount: total, isInstallment: false, date: '2026-07-01', createdAt: '2026-07-01',
+  payments: paid ? [{ id: `p_${id}`, date: '2026-08-01', amount: paid, walletId: W.id, transactionId: `tp_${id}` }] : [],
+  increases: increases.map((amount, i) => ({ id: `i_${id}_${i}`, date: '2026-07-15', amount })),
+}) as unknown as Debt;
+const month = (i: number, status: 'done' | 'pending') => ({
+  id: `m${i}`, monthIndex: i, dueDate: `2026-0${i}-01`, amount: 1000, status, isPayoutMonth: false,
+});
+const gamiya = (id: string, name: string, statuses: ('done' | 'pending')[]) => ({
+  id, name, monthlyAmount: 1000, totalMonths: statuses.length, payoutMonthIndex: statuses.length, payoutAmount: 1000 * statuses.length,
+  walletId: W.id, startDate: '2026-01-01', createdAt: '2026-01-01', months: statuses.map((s, i) => month(i + 1, s)),
+}) as unknown as Gamiya;
+
+describe('الحساب', () => {
+  it('isDebtSettled = نفس شرط "اتسدد بالكامل" (الباقي ≤ 0)، والزيادة بترجّعه', () => {
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1200))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000, [100]))).toBe(false);
+  });
+
+  it('isGamiyaFinished: كل الشهور done بس؛ من غير شهور ← مش خلصت', () => {
+    expect(isGamiyaFinished(gamiya('g', 'ج', ['done', 'done']))).toBe(true);
+    expect(isGamiyaFinished(gamiya('g', 'ج', ['done', 'pending']))).toBe(false);
+    expect(isGamiyaFinished(gamiya('g', 'ج', []))).toBe(false);
+    expect(isGamiyaFinished({ ...gamiya('g', 'ج', []), months: undefined } as unknown as Gamiya)).toBe(false);
+  });
+
+  it('splitDone بيحافظ على الترتيب', () => {
+    expect(splitDone([1, 2, 3, 4, 5], n => n % 2 === 0)).toEqual({ active: [1, 3, 5], done: [2, 4] });
+  });
+});
+
+let alertSpy: jest.SpyInstance;
+beforeEach(() => {
+  for (const k of Object.keys(mockData)) delete mockData[k];
+  Object.assign(mockData, {
+    wallets: [W], categories: [], loadErrors: [], figuresPending: [], transactions: [], subscriptions: [], gamiyas: [],
+    deleteDebt: jest.fn(), deleteDebtPayment: jest.fn(), deleteDebtIncrease: jest.fn(), deleteGamiya: jest.fn(),
+  });
+  alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+});
+afterEach(() => alertSpy.mockRestore());
+
+const wrap = (node: React.ReactNode) => <ThemeProvider><NoticeProvider><PrivacyProvider>{node}</PrivacyProvider></NoticeProvider></ThemeProvider>;
+
+describe('شاشة الديون — "اتسددت" مطوي', () => {
+  beforeEach(() => {
+    mockData.debts = [
+      debt('d1', 'أحمد', 'owed_to_me', 1000, 400),
+      debt('d2', 'منى', 'owed_to_me', 500, 500),
+      debt('d3', 'كريم', 'owed_to_me', 300, 300),
+      debt('d4', 'سارة', 'i_owe', 200, 200),
+    ];
+  });
+
+  it('المتسدد مطوي افتراضيًا والعنوان فيه العدد لكل اتجاه، والنشط باين', async () => {
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.getByText('أحمد')).toBeTruthy();
+    expect(screen.queryByText('منى')).toBeNull();
+    expect(screen.queryByText('سارة')).toBeNull();
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityState).toEqual({ expanded: false });
+    expect(screen.getByText('اتسددت (2)')).toBeTruthy();
+    expect(screen.getByText('اتسددت (1)')).toBeTruthy();
+  });
+
+  it('الدوس بيفتح القسم وبيبيّن الكروت بنفس الكارت ("اتسدد بالكامل")', async () => {
+    await render(wrap(<DebtsTabScreen />));
+    await act(async () => { fireEvent.press(screen.getByTestId('debts_settled_owed_toggle')); });
+    expect(screen.getByText('منى')).toBeTruthy();
+    expect(screen.getByText('كريم')).toBeTruthy();
+    expect(screen.getAllByText('اتسدد بالكامل')).toHaveLength(2);
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityState).toEqual({ expanded: true });
+    // الاتجاه التاني لسه مطوي
+    expect(screen.queryByText('سارة')).toBeNull();
+  });
+
+  it('كل الديون في اتجاه اتسددت ← رسالة "مفيش" فوق القسم المطوي (مش شاشة فاضية)', async () => {
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.getByText('مفيش عليك ديون دلوقتي')).toBeTruthy();
+    expect(screen.getByTestId('debts_settled_iowe')).toBeTruthy();
+  });
+
+  it('مفيش متسدد ← مفيش قسم خالص', async () => {
+    mockData.debts = [debt('d1', 'أحمد', 'owed_to_me', 1000, 400)];
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.queryByTestId('debts_settled_owed')).toBeNull();
+    expect(screen.queryByTestId('debts_settled_iowe')).toBeNull();
+  });
+
+  it('زيادة على دين متسدد (من جهاز تاني) ← بيرجع للنشط لوحده', async () => {
+    const r = await render(wrap(<DebtsTabScreen />));
+    mockData.debts = [debt('d2', 'منى', 'owed_to_me', 500, 500, [100])];
+    await act(async () => { r.rerender(wrap(<DebtsTabScreen />)); });
+    expect(screen.getByText('منى')).toBeTruthy();
+    expect(screen.queryByTestId('debts_settled_owed')).toBeNull();
+  });
+});
+
+describe('الجمعية — "جمعيات خلصت" مطوي', () => {
+  beforeEach(() => {
+    mockData.gamiyas = [gamiya('g1', 'جمعية الشغل', ['done', 'pending']), gamiya('g2', 'جمعية العيلة', ['done', 'done'])];
+  });
+
+  it('اللي خلصت مطوية والعنوان فيه العدد، والشغالة باينة', async () => {
+    await render(wrap(<GamiyaView />));
+    expect(screen.getByText('جمعية الشغل')).toBeTruthy();
+    expect(screen.queryByText('جمعية العيلة')).toBeNull();
+    expect(screen.getByText('جمعيات خلصت (1)')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByTestId('gamiyas_finished_toggle')); });
+    expect(screen.getByText('جمعية العيلة')).toBeTruthy();
+  });
+
+  it('كل الجمعيات خلصت ← مفيش "مفيش جمعية مسجلة" (مسجلة فعلاً) والقسم موجود', async () => {
+    mockData.gamiyas = [gamiya('g2', 'جمعية العيلة', ['done', 'done'])];
+    await render(wrap(<GamiyaView />));
+    expect(screen.queryByText('مفيش جمعية مسجلة')).toBeNull();
+    expect(screen.getByTestId('gamiyas_finished')).toBeTruthy();
+  });
+});

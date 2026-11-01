@@ -1,3 +1,5 @@
+import FoldedSection from '@/components/FoldedSection';
+import { isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -111,6 +113,9 @@ function DebtsContent() {
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
   const iOwe = debts.filter(d => d.direction === 'i_owe');
+  // أقسام "اتسددت" المطوية (2026-11-02): محسوبة، والإجماليات تحت من القوايم الكاملة زي ما هي
+  const owedSplit = splitDone(owedToMe, isDebtSettled);
+  const iOweSplit = splitDone(iOwe, isDebtSettled);
 
   function remainingOf(d: Debt) {
     return debtGrandTotal(d) - debtPaid(d);
@@ -212,7 +217,7 @@ function DebtsContent() {
     const paid = debtPaid(d);
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
-    const settled = remaining <= 0;
+    const settled = isDebtSettled(d);
     const color = settled ? colors.success : d.direction === 'owed_to_me' ? colors.success : colors.danger;
     const expanded = expandedDebt === d.id;
 
@@ -363,12 +368,18 @@ function DebtsContent() {
       </View>
 
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
-      {owedToMe.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
-      {owedToMe.map(renderDebt)}
+      {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
+      {owedSplit.active.map(renderDebt)}
+      <FoldedSection testID="debts_settled_owed" title="اتسددت" count={owedSplit.done.length}>
+        {owedSplit.done.map(renderDebt)}
+      </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
-      {iOwe.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
-      {iOwe.map(renderDebt)}
+      {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
+      {iOweSplit.active.map(renderDebt)}
+      <FoldedSection testID="debts_settled_iowe" title="اتسددت" count={iOweSplit.done.length}>
+        {iOweSplit.done.map(renderDebt)}
+      </FoldedSection>
 
       {showAddDebt && <AddDebtModal onClose={() => setShowAddDebt(false)} />}
       {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
