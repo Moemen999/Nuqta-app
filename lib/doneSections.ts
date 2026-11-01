@@ -11,6 +11,13 @@ export function isDebtSettled(d: Debt): boolean {
   return debtGrandTotal(d) - debtPaid(d) <= 0;
 }
 
+/** الدين أو دفعة/زيادة عليه لسه بترفع (`pendingTxIds` من `DataContext`) */
+export function debtHasPendingEntry(d: Debt, pendingTxIds: ReadonlySet<string> | undefined): boolean {
+  if (!pendingTxIds || pendingTxIds.size === 0) return false;
+  const ids = [d.initialTransactionId, ...(d.payments || []).map(p => p.transactionId), ...(d.increases || []).map(e => e.transactionId)];
+  return ids.some(id => !!id && pendingTxIds.has(id));
+}
+
 /** جمعية خلصت = فيها شهور وكلهم اتقفلوا. من غير شهور خالص ← مش "خلصت" (تفضل باينة) */
 export function isGamiyaFinished(g: Gamiya): boolean {
   const months = g.months || [];

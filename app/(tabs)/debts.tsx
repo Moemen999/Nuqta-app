@@ -1,5 +1,5 @@
 import FoldedSection from '@/components/FoldedSection';
-import { isDebtSettled, splitDone } from '@/lib/doneSections';
+import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -93,7 +93,7 @@ export default function DebtsTabScreen() {
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { debts, wallets, categories, transactions, loadErrors, figuresPending, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const { debts, wallets, categories, transactions, loadErrors, figuresPending, pendingTxIds, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
@@ -114,8 +114,11 @@ function DebtsContent() {
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
   const iOwe = debts.filter(d => d.direction === 'i_owe');
   // أقسام "اتسددت" المطوية (2026-11-02): محسوبة، والإجماليات تحت من القوايم الكاملة زي ما هي
-  const owedSplit = splitDone(owedToMe, isDebtSettled);
-  const iOweSplit = splitDone(iOwe, isDebtSettled);
+  // دفعة أو زيادة لسه بترفع ← الدين يفضل باين (silent-failure-hunter): لو اترفضت، كان هيبان
+  // "متسدد" ومطوي والمستخدم مش شايفه
+  const isFolded = (d: Debt) => isDebtSettled(d) && !debtHasPendingEntry(d, pendingTxIds);
+  const owedSplit = splitDone(owedToMe, isFolded);
+  const iOweSplit = splitDone(iOwe, isFolded);
 
   function remainingOf(d: Debt) {
     return debtGrandTotal(d) - debtPaid(d);
@@ -370,14 +373,14 @@ function DebtsContent() {
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
       {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
       {owedSplit.active.map(renderDebt)}
-      <FoldedSection testID="debts_settled_owed" title="اتسددت" count={owedSplit.done.length}>
+      <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yContext="من فلوس ليا" count={owedSplit.done.length}>
         {owedSplit.done.map(renderDebt)}
       </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
       {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
       {iOweSplit.active.map(renderDebt)}
-      <FoldedSection testID="debts_settled_iowe" title="اتسددت" count={iOweSplit.done.length}>
+      <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yContext="من فلوس عليا" count={iOweSplit.done.length}>
         {iOweSplit.done.map(renderDebt)}
       </FoldedSection>
 

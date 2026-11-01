@@ -59,6 +59,7 @@ beforeEach(() => {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     wallets: [W], categories: [], loadErrors: [], figuresPending: [], transactions: [], subscriptions: [], gamiyas: [],
+    pendingTxIds: new Set<string>(),
     deleteDebt: jest.fn(), deleteDebtPayment: jest.fn(), deleteDebtIncrease: jest.fn(), deleteGamiya: jest.fn(),
   });
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
@@ -83,8 +84,11 @@ describe('شاشة الديون — "اتسددت" مطوي', () => {
     expect(screen.queryByText('منى')).toBeNull();
     expect(screen.queryByText('سارة')).toBeNull();
     expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityState).toEqual({ expanded: false });
-    expect(screen.getByText('اتسددت (2)')).toBeTruthy();
-    expect(screen.getByText('اتسددت (1)')).toBeTruthy();
+    expect(screen.getByText('ديون اتسددت (2)')).toBeTruthy();
+    expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
+    // قارئ الشاشة بيفرّق بين القسمين
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا (2)');
+    expect(screen.getByTestId('debts_settled_iowe_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس عليا (1)');
   });
 
   it('الدوس بيفتح القسم وبيبيّن الكروت بنفس الكارت ("اتسدد بالكامل")', async () => {
@@ -109,6 +113,14 @@ describe('شاشة الديون — "اتسددت" مطوي', () => {
     await render(wrap(<DebtsTabScreen />));
     expect(screen.queryByTestId('debts_settled_owed')).toBeNull();
     expect(screen.queryByTestId('debts_settled_iowe')).toBeNull();
+  });
+
+  it('دفعة السداد لسه بترفع ← الدين يفضل في النشط (لو اترفضت ميبقاش مطوي ومتسدد)', async () => {
+    mockData.pendingTxIds = new Set(['tp_d2']);
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.getByText('منى')).toBeTruthy();
+    // كريم بس اللي في المطوي من ناحية ليا
+    expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا (1)');
   });
 
   it('زيادة على دين متسدد (من جهاز تاني) ← بيرجع للنشط لوحده', async () => {
@@ -139,5 +151,28 @@ describe('الجمعية — "جمعيات خلصت" مطوي', () => {
     await render(wrap(<GamiyaView />));
     expect(screen.queryByText('مفيش جمعية مسجلة')).toBeNull();
     expect(screen.getByTestId('gamiyas_finished')).toBeTruthy();
+  });
+});
+
+describe('الدفعة اللي بتسدد الدين بتقول الكارت راح فين', () => {
+  const { DebtPaymentModal, DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY } = jest.requireActual('@/components/DebtEntryModals');
+  beforeEach(() => {
+    mockData.addDebtPayment = jest.fn(async () => ({ outcome: 'done', note: null }));
+  });
+  async function pay(d: Debt, amount: string) {
+    await render(wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), amount); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
+  }
+
+  it('دفعة بالباقي كله ← "الدين اتسدد بالكامل" ومكانه', async () => {
+    await pay(debt('d1', 'أحمد', 'owed_to_me', 1000, 400), '600');
+    expect(screen.getByTestId('notice_title').props.children).toBe(DEBT_SETTLED_TITLE);
+    expect(screen.getByTestId('notice_body').props.children).toBe(DEBT_SETTLED_BODY);
+  });
+
+  it('دفعة جزئية ← مفيش رسالة سداد', async () => {
+    await pay(debt('d1', 'أحمد', 'owed_to_me', 1000, 400), '100');
+    expect(screen.queryByTestId('notice_title')).toBeNull();
   });
 });
