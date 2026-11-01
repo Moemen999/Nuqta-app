@@ -568,3 +568,12 @@ describe('addDebtPayment ← settledNow من السيرفر', () => {
     expect(last.settledNow).toBe(true);
   });
 });
+
+describe('addDebtPayment ← settledNow: دين متسدد أصلاً', () => {
+  it('دفعة زيادة على دين متسدد ← false (مش "اتسدد" تاني)', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    expect((await harness.api().addDebtPayment(debtId, 1000, walletId, '2026-01-15')).settledNow).toBe(true);
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+    expect((await harness.api().addDebtPayment(debtId, 50, walletId, '2026-01-20')).settledNow).toBe(false);
+  });
+});

@@ -308,9 +308,9 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
 /**
  * نتيجة دفعة الدين: النتيجة القاطعة زي أي عملية بتقرا من السيرفر، ومعاها
  * جملة تغيّر الأقساط لو العدد اتحرك (`note`) — الاتنين لازم يرجعوا مع بعض
- * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
+ * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة. و`settledNow` = الدفعة
+ * دي هي اللي سددت الدين، محسوبة جوه الذرة على الدين اللي اتقرا من السيرفر.
  */
-/** `settledNow` = الدفعة دي هي اللي سددت الدين، محسوبة جوه الذرة على الدين اللي اتقرا من السيرفر */
 export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settledNow?: boolean };
 /**
  * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
@@ -1697,6 +1697,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         t.update(debtRef, patch);
 
+        const remainingBefore = debtRemaining(debt);
         // المقارنة بالمبلغ اللي المودال اقترحه (2026-09-30): على القسط الأخير ده
         // المتبقي كله، فاللي دفع القسط المقرّب بدله بيتقاله إن فيه قسط زيادة
         result.note = installmentChangeMessage(
@@ -1705,9 +1706,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           debt.installmentCount ?? 0,
           // العدد اللي اتكتب فعلاً — مش NaN في الرسالة (`??` مبيمسكش NaN)
           count ?? debt.installmentCount ?? 0,
-          debtRemaining(debt) - amount <= PIASTRE_EPS,
+          remainingBefore - amount <= PIASTRE_EPS,
         );
-        result.settledNow = debtRemaining(debt) > PIASTRE_EPS && debtRemaining(debt) - amount <= PIASTRE_EPS;
+        // نفس القيمة اللي فوق، عشان `note` و`settledNow` ميبعدوش عن بعض في تعديل جاي
+        result.settledNow = remainingBefore > PIASTRE_EPS && remainingBefore - amount <= PIASTRE_EPS;
       }));
       return { outcome: 'done', note: result.note, settledNow: result.settledNow };
     } catch (e) {
