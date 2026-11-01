@@ -1,14 +1,18 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
-import { debtGrandTotal, debtPaid } from '@/lib/finance';
+import { PIASTRE_EPS, debtGrandTotal, debtPaid } from '@/lib/finance';
 
 /**
  * أقسام "خلص" المطوية (قرار مؤمن 2026-11-02): **محسوبة وقت العرض، مفيش بيانات بتتغيّر**.
  * زيادة على دين متسدد، أو مسح قسط جمعية، بيرجّعهم للنشط لوحدهم.
  */
 
-/** نفس شرط "اتسدد بالكامل" في كارت الدين بالظبط (`debts.tsx`) — التعريف مبيتغيّرش هنا */
+/**
+ * "اتسدد بالكامل" — الكارت والطيّ مع بعض. **بسماحية نص قرش** (`PIASTRE_EPS`، زي الذرة في
+ * `addDebtPayment`): مجموع الدفعات بالكسور ممكن يسيب باقي زي 2e-12 في دين متسدد بالقرش،
+ * فكان بيفضل "مش متسدد" ويعرض 0.00 (money-reviewer، 2026-11-02). **مستني موافقة مؤمن**
+ */
 export function isDebtSettled(d: Debt): boolean {
-  return debtGrandTotal(d) - debtPaid(d) <= 0;
+  return debtGrandTotal(d) - debtPaid(d) <= PIASTRE_EPS;
 }
 
 /** الدين أو دفعة/زيادة عليه لسه بترفع (`pendingTxIds` من `DataContext`) */
