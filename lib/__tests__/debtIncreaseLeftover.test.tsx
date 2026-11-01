@@ -12,7 +12,7 @@ import { fmt, planInstallments, stampResidue } from '@/lib/finance';
 /**
  * بند 8 D1: سؤال "الباقي من الزيادة" جوه شيت الزيادة (قرار مؤمن 2026-10-30). النصوص
  * بالظبط من TIMELINE، والأرقام بنفس `fmt` بتاع التطبيق (مش فواصل مكتوبة).
- * **اتكتبت قبل الكود — لازم تفشل.** الحساب نفسه في `finance.leftoverChoice.test.ts`.
+ * الحساب نفسه في `finance.leftoverChoice.test.ts`.
  */
 
 const mockData: Record<string, unknown> = {};
@@ -163,20 +163,20 @@ describe('الحفظ', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it('A ← بيبعت { mode: absorb, amount: الباقي } كمعامل خامس', async () => {
+  it('A ← بيبعت الباقي والعدد وآخر قسط اللي شافهم كمعامل خامس', async () => {
     await open();
     await type('100');
     await pick('debt_leftover_absorb');
     await save();
-    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 100, expect.any(String), 'w1', { mode: 'absorb', amount: 16.71 });
+    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 100, expect.any(String), 'w1', { mode: 'absorb', amount: 16.71, count: 13, last: 100.04 });
   });
 
-  it('B ← بيبعت { mode: separate, amount: الباقي }', async () => {
+  it('B ← بيبعت الباقي والعدد وآخر قسط بتوع "منفصل"', async () => {
     await open();
     await type('100');
     await pick('debt_leftover_separate');
     await save();
-    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 100, expect.any(String), 'w1', { mode: 'separate', amount: 16.71 });
+    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 100, expect.any(String), 'w1', { mode: 'separate', amount: 16.71, count: 14, last: 16.71 });
   });
 
   it('+60 ← الباقي المبعوت 60.04 (مش -23.29)', async () => {
@@ -184,7 +184,7 @@ describe('الحفظ', () => {
     await type('60');
     await pick('debt_leftover_absorb');
     await save();
-    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 60, expect.any(String), 'w1', { mode: 'absorb', amount: 60.04 });
+    expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 60, expect.any(String), 'w1', { mode: 'absorb', amount: 60.04, count: 12, last: 143.37 });
   });
 
   it('اختار وبعدين غيّر المبلغ ← الاختيار بيتصفّر وبيتسأل تاني', async () => {
@@ -195,6 +195,42 @@ describe('الحفظ', () => {
     await save();
     expect(mockData.addDebtIncrease).not.toHaveBeenCalled();
     expect(screen.getByText(ERROR_TEXT)).toBeTruthy();
+  });
+
+  it('الدين اتغيّر من جهاز تاني والشيت مفتوحة (نفس المبلغ) ← الاختيار بيتصفّر ومبيتبعتش على أرقام جديدة', async () => {
+    const onClose = jest.fn();
+    const ui = (d: Debt) => <ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={d} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>;
+    const r = await render(ui(debt));
+    await type('100');
+    await pick('debt_leftover_absorb');
+    // دفعة 100 اتسجلت من جهاز تاني ← الذيل بقى 0.04 مش 16.71
+    const paid = { ...debt, payments: [{ id: 'p1', date: '2026-01-15', amount: 100, walletId: 'w1', transactionId: 'tx_p1' }] } as unknown as Debt;
+    await act(async () => { r.rerender(ui(paid)); });
+    expect(screen.getByTestId('debt_leftover_absorb').props.accessibilityState?.selected).toBeFalsy();
+    expect(textOf(screen.getByTestId('debt_leftover_question'))).toContain(`الزيادة سابت ${fmt(0.04)} ج.م`);
+    await save();
+    expect(mockData.addDebtIncrease).not.toHaveBeenCalled();
+    expect(screen.getByText(ERROR_TEXT)).toBeTruthy();
+  });
+
+  it('"اختار الأول" وبعدين مبلغ مالوش سؤال (+500) ← الخطأ القديم بيختفي', async () => {
+    await open();
+    await type('100');
+    await save();
+    expect(screen.getByText(ERROR_TEXT)).toBeTruthy();
+    await type('500');
+    expect(screen.queryByTestId('debt_leftover_question')).toBeNull();
+    expect(screen.queryByText(ERROR_TEXT)).toBeNull();
+  });
+
+  it('رسالة الخطأ برّه الـScrollView (فوق الأزرار) ومعلنة لقارئ الشاشة', async () => {
+    await open();
+    await type('100');
+    await save();
+    const err = screen.getByTestId('debt_increase_error');
+    expect(err.props.accessibilityLiveRegion).toBe('polite');
+    let p: any = err.parent;
+    while (p) { expect(p.type).not.toBe('RCTScrollView'); p = p.parent; }
   });
 
   it('اختار الأول ثم الحفظ: رسالة الخطأ بتختفي', async () => {

@@ -14,7 +14,7 @@ import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
 import {
   categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
-  increaseLeftoverChoice, pinInstallmentAmount, type LeftoverMode,
+  increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -206,16 +206,24 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
-  // D1: مفيش اختيار افتراضي (قرار مؤمن) — وبيتصفّر مع أي تغيير في المبلغ (الأرقام اتغيّرت)
-  const [leftoverMode, setLeftoverMode] = useState<LeftoverMode | null>(null);
   // الأرقام من `money` مش `fmt` (جرد الإخفاء): نفس تنسيق باقي الشاشات
   const { money } = usePrivacy();
-  const changeAmount = (v: string) => { setAmount(v); setLeftoverMode(null); };
   // نفس الدالة اللي الكتابة بتتأكد بيها على السيرفر، على الدين بعد التثبيت زي `addDebtIncrease`
   const choice = useMemo(() => {
     const typed = toMoneyAmount(Number(amount));
     return typed === null ? null : increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, typed);
   }, [debt, amount]);
+  // D1: مفيش اختيار افتراضي (قرار مؤمن). الاختيار مربوط بالأرقام اللي اتختار عليها: لو
+  // الأرقام اتغيّرت (المبلغ، أو الدين من جهاز تاني والشيت مفتوحة) بيرجع من غير اختيار
+  // (silent-failure-hunter، جولة 1) — مش اختيار قديم على أرقام ما اتشافتش
+  const choiceKey = choice
+    ? [choice.leftover, choice.absorb.count, choice.absorb.last, choice.separate.count, choice.separate.last].join('|')
+    : '';
+  const [picked, setPicked] = useState<{ mode: LeftoverMode; key: string } | null>(null);
+  const leftoverMode = picked && picked.key === choiceKey ? picked.mode : null;
+  const setLeftoverMode = (mode: LeftoverMode | null) => setPicked(mode ? { mode, key: choiceKey } : null);
+  // الخطأ القديم ("اختار الأول") مبيفضلش بعد ما المبلغ يتغيّر والسؤال يمشي
+  const changeAmount = (v: string) => { setAmount(v); setLeftoverMode(null); setError(''); };
 
   // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
   const projections = useMemo(() => projectBalances({
@@ -239,7 +247,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         const wallet = linkedToWallet ? walletId : undefined;
         // الباقي اللي المستخدم شافه بيتبعت عشان الذرة تتأكد إنه لسه هو (D1)
         result = seen && leftoverMode
-          ? await addDebtIncrease(debt.id, amt, date, wallet, { mode: leftoverMode, amount: seen.leftover })
+          ? await addDebtIncrease(debt.id, amt, date, wallet, leftoverSeen(seen, leftoverMode))
           : await addDebtIncrease(debt.id, amt, date, wallet);
       } catch {
         // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
@@ -342,10 +350,12 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
             <Text style={styles.dateBtnText}>{date}</Text>
           </TouchableOpacity>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {/* فوق الأزرار مش آخر الـScrollView (جولة 1): "اختار الأول" كانت بتقع تحت الشاشة والحفظ "مبيعملش حاجة" */}
+        {!!error && <Text testID="debt_increase_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <TouchableOpacity testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
@@ -603,6 +613,7 @@ function makeStyles(c: ThemeColors) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    footerError: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

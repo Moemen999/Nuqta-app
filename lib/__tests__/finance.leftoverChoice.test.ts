@@ -3,7 +3,7 @@ import { installmentsPhrase } from '@/lib/archiving';
 import {
   absorbLeftover, debtRemaining, foldInstallmentResidue, increaseLeftoverChoice, installmentCountFor,
   installmentResidueKnown, installmentResidueOf, lastInstalmentOf, pinInstallmentAmount, planInstallments,
-  residueForIncrease, stampResidue, suggestedInstallmentPayment, transactionDeleteDebtPlan, type InstallmentResidue,
+  leftoverSeen, residueForIncrease, sameLeftoverSeen, stampResidue, suggestedInstallmentPayment, transactionDeleteDebtPlan, type InstallmentResidue,
 } from '@/lib/finance';
 import { debtLinkedEditPlan } from '@/lib/linkedEdit';
 
@@ -12,7 +12,7 @@ import { debtLinkedEditPlan } from '@/lib/linkedEdit';
  * تقريب قروش ← بنسأل كل مرة: "يتضاف على آخر قسط" ولا "قسط منفصل في الآخر".
  *
  * العلم `lastAbsorbs` على الفرق المتخزّن بس (مش على الخطة): الرقمين {amount، over}
- * واحد في الاتنين، والعلم بيغيّر العدّ بس. **اتكتبت قبل الكود — لازم تفشل.**
+ * واحد في الاتنين، والعلم بيغيّر العدّ بس.
  *
  * الأمثلة: 1000 على 12، قسط 83.33، فرق 0.04 على 12، بصمة 0.
  */
@@ -351,5 +351,55 @@ describe('residueForIncrease', () => {
     const c = increaseLeftoverChoice(pinned, 100);
     expect(c).not.toBeNull();
     expect(c!.absorb.count).toBe(13);
+  });
+});
+
+/**
+ * جولة 1 (money-reviewer، BLOCKER): دفعة مختلفة عن القسط قبل الزيادة بتحرّك الذيل الحقيقي،
+ * فالباقي المعروض لازم يبقى هو آخر قسط لو اتفصل — مش فرق الخطة (16.71)
+ */
+describe('increaseLeftoverChoice — دفعات مختلفة عن القسط قبل الزيادة', () => {
+  const pay = (amount: number) => ({ id: 'p1', date: '2026-01-05', amount, walletId: 'w1', transactionId: 'tx_p1' });
+
+  it.each([
+    [100, 0.04, 83.37],
+    [90, 10.04, 93.37],
+    [83.33, 16.71, 100.04],
+  ])('دفعة %d ثم +100 ← الباقي %d = آخر قسط "منفصل"، و"يتضاف" آخره %d', (paid, tail, absorbLast) => {
+    const d = created(1000, 12, { payments: [pay(paid)] } as Partial<Debt>);
+    const c = increaseLeftoverChoice({ ...d, ...pinInstallmentAmount(d) }, 100)!;
+    expect(c.leftover).toBe(tail);
+    expect(c.separate.last).toBe(tail);
+    expect(c.absorb.last).toBe(absorbLast);
+    // اللي هيتكتب بيدّي نفس الأرقام اللي اتعرضت
+    for (const mode of ['absorb', 'separate'] as const) {
+      const e = entry(100);
+      const pinned = { ...d, ...pinInstallmentAmount(d) } as Debt;
+      const next = { ...pinned, increases: [e], installmentResidue: residueForIncrease(pinned, 100, [e], mode)! } as Debt;
+      const count = installmentCountFor(next)!;
+      expect(count).toBe(c[mode].count);
+      expect(lastInstalmentOf({ ...next, installmentCount: count } as Debt)).toBe(c[mode].last);
+    }
+  });
+});
+
+describe('sameLeftoverSeen — الذرة بتقارن الباقي والعدد وآخر قسط', () => {
+  const d = created(1000, 12);
+  const c = increaseLeftoverChoice({ ...d, ...pinInstallmentAmount(d) }, 100)!;
+
+  it('نفس اللي اتشاف ← true للاختيارين', () => {
+    expect(sameLeftoverSeen(c, leftoverSeen(c, 'absorb'))).toBe(true);
+    expect(sameLeftoverSeen(c, leftoverSeen(c, 'separate'))).toBe(true);
+  });
+  it('الباقي نفسه والعدد أو آخر قسط مختلف ← false', () => {
+    expect(sameLeftoverSeen(c, { ...leftoverSeen(c, 'absorb'), count: 12 })).toBe(false);
+    expect(sameLeftoverSeen(c, { ...leftoverSeen(c, 'absorb'), last: 100.03 })).toBe(false);
+    expect(sameLeftoverSeen(c, { ...leftoverSeen(c, 'separate'), count: 13 })).toBe(false);
+  });
+  it('الباقي مختلف ← false؛ مفيش سؤال ومفيش اختيار ← true؛ واحد من غير التاني ← false', () => {
+    expect(sameLeftoverSeen(c, { ...leftoverSeen(c, 'absorb'), amount: 16.7 })).toBe(false);
+    expect(sameLeftoverSeen(null, undefined)).toBe(true);
+    expect(sameLeftoverSeen(c, undefined)).toBe(false);
+    expect(sameLeftoverSeen(null, leftoverSeen(c, 'absorb'))).toBe(false);
   });
 });

@@ -1041,7 +1041,28 @@ export function increaseLeftoverChoice(d: Debt, amount: number): LeftoverChoice 
   const a = outcome(absorbed);
   const b = outcome(separate);
   if (!a || !b || (a.count === b.count && a.last === b.last)) return null;
-  return { leftover: absorbedExtra(separate), value: separate.forInstallment, absorb: a, separate: b };
+  // الباقي المعروض = آخر قسط فعلاً لو اتفصل، مش فرق الخطة (money-reviewer، جولة 1): دفعة
+  // مختلفة عن القسط قبل الزيادة بتحرّك الذيل — 100 بدل 83.33 ثم +100 ← الذيل 0.04 مش 16.71
+  return { leftover: b.last, value: separate.forInstallment, absorb: a, separate: b };
+}
+
+/** اللي المستخدم شافه للاختيار اللي اختاره — بيتبعت للذرة عشان تتأكد إنه لسه هو */
+export type LeftoverSeen = { mode: LeftoverMode; amount: number; count: number; last: number };
+
+export function leftoverSeen(choice: LeftoverChoice, mode: LeftoverMode): LeftoverSeen {
+  return { mode, amount: choice.leftover, count: choice[mode].count, last: choice[mode].last };
+}
+
+/**
+ * الذرة بتقارن **الباقي والعدد وآخر قسط** للاختيار نفسه (D1، جولة 1): دفعة من جهاز تاني
+ * ممكن تحرّك العدد أو آخر قسط والباقي ثابت، فالمقارنة بالباقي لوحده كانت بتكتب أرقام ما اتشافتش
+ */
+export function sameLeftoverSeen(server: LeftoverChoice | null, seen: LeftoverSeen | undefined): boolean {
+  if (!seen) return server === null;
+  if (!server) return false;
+  const o = server[seen.mode];
+  return roundMoney(server.leftover) === roundMoney(seen.amount)
+    && o.count === seen.count && roundMoney(o.last) === roundMoney(seen.last);
 }
 
 /**

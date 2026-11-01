@@ -14,7 +14,7 @@ import {
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, type LeftoverMode, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, sameLeftoverSeen, type LeftoverMode, type LeftoverSeen, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -544,7 +544,7 @@ type DataContextType = {
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
-  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: { mode: LeftoverMode; amount: number }) => Promise<DebtIncreaseResult>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
   deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
@@ -1806,7 +1806,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function addDebtIncrease(
     debtId: string, amount: number, date: string, walletId?: string,
-    leftover?: { mode: LeftoverMode; amount: number },
+    leftover?: LeftoverSeen,
   ): Promise<DebtIncreaseResult> {
     if (!uid) return { outcome: 'done' };
     // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
@@ -1840,10 +1840,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // هنا (أو ما اتسألش وفيه سؤال، أو العكس) ← مفيش كتابة خالص ويتسأل تاني — مش تطبيق
         // اختيار على أرقام ما شافهاش، ومش افتراضي. قبل أي `t.set`/`t.update`
         const serverChoice = increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, amount);
-        const sawSame = leftover
-          ? serverChoice !== null && roundMoney(serverChoice.leftover) === roundMoney(leftover.amount)
-          : serverChoice === null;
-        if (!sawSame) throw new LeftoverChangedError();
+        if (!sameLeftoverSeen(serverChoice, leftover)) throw new LeftoverChangedError();
 
         let transactionId: string | undefined;
         if (walletId) {
@@ -1896,7 +1893,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return { outcome: 'done', note: result.note };
     } catch (e) {
       // مش فشل: الدين اتغيّر من جهاز تاني والمستخدم هيتسأل تاني — مش Sentry
-      if (e instanceof LeftoverChangedError) return { outcome: 'leftover-changed' };
+      if (e instanceof LeftoverChangedError) {
+        // المعرّف بس (sentryScrub): لو الرفض اتكرر عند حد يبقى فيه أثر يفسّره
+        console.warn('[debt] increase leftover changed since shown, nothing written', debtId);
+        return { outcome: 'leftover-changed' };
+      }
       noteAtomicFailure('زيادة الدين', e);
       return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
     }
