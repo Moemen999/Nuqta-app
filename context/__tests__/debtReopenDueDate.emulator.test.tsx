@@ -2,6 +2,7 @@ import { reopenedDueDate, todayStr } from '@/lib/finance';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
+import { increaseAsBefore } from '@/test-utils/increaseAsBefore';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -45,7 +46,7 @@ it('3000 على 3 اتسدد، والمعاد فات ← زيادة 500 بتقد
   // المتوقع بالظبط من نفس الدالة على الدين وهو متسدد (silent-failure-hunter: مش ">= النهارده" بس)
   const expected = reopenedDueDate(settledDebt, 500, todayStr(), todayStr());
   expect(expected).not.toBeNull();
-  expect((await harness.api().addDebtIncrease(id, 500, todayStr(), w.id)).outcome).toBe('done');
+  expect(((await increaseAsBefore(harness.api(), id, 500, todayStr(), w.id)) as { outcome: string }).outcome).toBe('done');
   await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
   expect(debt().dueDate).toBe(expected);
   expect(debt().dueDate!.slice(8)).toBe('15');
@@ -58,7 +59,7 @@ it('زيادة على دين لسه مفتوح ← المعاد زي ما هو',
     walletId: w.id, date: '2026-01-01', dueDate: '2026-01-15', reminderDaysBefore: 1,
   });
   await harness.waitForData(api => api.debts.length === 1);
-  expect((await harness.api().addDebtIncrease(debt().id, 500, todayStr(), w.id)).outcome).toBe('done');
+  expect(((await increaseAsBefore(harness.api(), debt().id, 500, todayStr(), w.id)) as { outcome: string }).outcome).toBe('done');
   await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
   expect(debt().dueDate).toBe('2026-01-15');
 });

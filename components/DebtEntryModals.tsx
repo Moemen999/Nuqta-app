@@ -7,12 +7,14 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
+import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions } from '@/lib/archiving';
+import { usePrivacy } from '@/context/PrivacyContext';
+import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
 import {
   categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
+  increaseLeftoverChoice, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -31,6 +33,15 @@ import { Text, TextInput } from '@/components/AppText';
  */
 
 export const INSTALLMENTS_CHANGED_TITLE = 'عدد الأقساط اتظبط';
+
+/**
+ * سؤال الباقي بعد الزيادة (D1، 2026-10-30) — النص اتقرر مع مؤمن بعد arabic-copy-reviewer
+ * (سطر TIMELINE "بند 8 — نص D1 اتقرر")
+ */
+export const LEFTOVER_REQUIRED = 'اختار الأول: يتضاف على آخر قسط ولا قسط منفصل.';
+export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
+/** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
+const NEAR_DOUBLE = 1.5;
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
@@ -195,6 +206,16 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
+  // D1: مفيش اختيار افتراضي (قرار مؤمن) — وبيتصفّر مع أي تغيير في المبلغ (الأرقام اتغيّرت)
+  const [leftoverMode, setLeftoverMode] = useState<LeftoverMode | null>(null);
+  // الأرقام من `money` مش `fmt` (جرد الإخفاء): نفس تنسيق باقي الشاشات
+  const { money } = usePrivacy();
+  const changeAmount = (v: string) => { setAmount(v); setLeftoverMode(null); };
+  // نفس الدالة اللي الكتابة بتتأكد بيها على السيرفر، على الدين بعد التثبيت زي `addDebtIncrease`
+  const choice = useMemo(() => {
+    const typed = toMoneyAmount(Number(amount));
+    return typed === null ? null : increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, typed);
+  }, [debt, amount]);
 
   // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
   const projections = useMemo(() => projectBalances({
@@ -209,14 +230,28 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
     const amt = toMoneyAmount(Number(amount));
     if (amt === null) { setError('دخّل مبلغ صحيح'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
+    if (choice && !leftoverMode) { setError(LEFTOVER_REQUIRED); return; }
+    // اللي المستخدم شافه وقت الاختيار — عشان الأرقام في الرسالة بعد الحفظ تبقى نفسها
+    const seen = choice;
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtIncrease>>;
       try {
-        result = await addDebtIncrease(debt.id, amt, date, linkedToWallet ? walletId : undefined);
+        const wallet = linkedToWallet ? walletId : undefined;
+        // الباقي اللي المستخدم شافه بيتبعت عشان الذرة تتأكد إنه لسه هو (D1)
+        result = seen && leftoverMode
+          ? await addDebtIncrease(debt.id, amt, date, wallet, { mode: leftoverMode, amount: seen.leftover })
+          : await addDebtIncrease(debt.id, amt, date, wallet);
       } catch {
         // الزيادة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي — فاضل للأخطاء
         // المتزامنة بس
         setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      if (result.outcome === 'leftover-changed') {
+        // الدين اتغيّر من جهاز تاني: مفيش حاجة اتسجلت، والسؤال بيتحسب تاني من الدين الحي
+        // ويتسأل من الأول (من غير اختيار قديم)
+        setLeftoverMode(null);
+        notice(LEFTOVER_CHANGED_ALERT.title, LEFTOVER_CHANGED_ALERT.body);
         return;
       }
       if (result.outcome !== 'done') {
@@ -225,8 +260,14 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
-      // مبيتغيّرش لوحده من غير ما حد يقول ليه
-      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
+      // مبيتغيّرش لوحده من غير ما حد يقول ليه. ولو الباقي اتضاف على آخر قسط (D1) ← آخر قسط
+      // اتغيّر فعلاً والمستخدم هيدفع مبلغ مختلف، فبيتقال حتى لو العدد ثابت
+      const absorbed = seen && leftoverMode === 'absorb' ? seen.absorb.last : null;
+      if (result.note) {
+        notice(INSTALLMENTS_CHANGED_TITLE, absorbed === null ? result.note : `${result.note} آخر قسط بقى ${money(absorbed)} ج.م.`);
+      } else if (absorbed !== null && seen) {
+        notice(LAST_INSTALMENT_ADJUSTED_TITLE, `آخر قسط بقى ${money(absorbed)} ج.م بدل ${money(seen.value)} ج.م.`);
+      }
       onClose();
     });
   }
@@ -252,9 +293,35 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           </View>
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
-          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={changeAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
+
+          {/* D1 (قرار مؤمن): الباقي أقل من قسط ← بيتسأل كل مرة، من غير افتراضي، حتى للقروش */}
+          {choice && (
+            <View testID="debt_leftover_question">
+              <Text style={styles.leftoverQuestion}>
+                {`الزيادة سابت ${money(choice.leftover)} ج.م، أقل من قسط كامل. تعمل فيه إيه؟`}
+              </Text>
+              {(['absorb', 'separate'] as const).map(mode => {
+                const selected = leftoverMode === mode;
+                const caption = mode === 'absorb'
+                  ? `الأقساط هتبقى ${installmentsPhrase(choice.absorb.count)}، وآخر قسط ${money(choice.absorb.last)} ج.م بدل ${money(choice.value)} ج.م${choice.absorb.last >= NEAR_DOUBLE * choice.value ? '، يعني تقريبًا ضعف القسط العادي' : ''}.`
+                  : `هيتضاف قسط أخير قيمته ${money(choice.leftover)} ج.م، والأقساط هتبقى ${installmentsPhrase(choice.separate.count)}.`;
+                return (
+                  <TouchableOpacity key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
+                    accessibilityRole="radio" accessibilityState={{ selected }}
+                    onPress={() => { setLeftoverMode(mode); setError(''); }}
+                    style={[styles.leftoverOption, selectionStyle(colors, selected)]}>
+                    <Text style={[styles.leftoverTitle, { color: selected ? colors.text : colors.textSecondary }]}>
+                      {mode === 'absorb' ? 'يتضاف على آخر قسط' : 'قسط منفصل في الآخر'}
+                    </Text>
+                    <Text style={styles.leftoverCaption}>{caption}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
           {linkedToWallet && (
             <>
@@ -528,6 +595,11 @@ function makeStyles(c: ThemeColors) {
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    // اختيارين فوق بعض بعرض كامل، كل واحد بشرحه (arabic-copy-reviewer: جنب بعض مش هيكفي الشرح)
+    leftoverQuestion: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 14, marginBottom: 8, lineHeight: 20 },
+    leftoverOption: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, minHeight: 44 },
+    leftoverTitle: { fontSize: 13.5, fontWeight: '700', textAlign: 'right' },
+    leftoverCaption: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },

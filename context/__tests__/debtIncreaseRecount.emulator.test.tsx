@@ -5,6 +5,7 @@ import { installmentProgressLabel, walletBalance } from '@/lib/finance';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
+import { increaseAsBefore } from '@/test-utils/increaseAsBefore';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -49,7 +50,7 @@ async function makeDebt(over: Partial<{ isInstallment: boolean; installmentCount
 
 async function increase(debtId: string, amount: number, walletId?: string) {
   const before = (debt().increases || []).length;
-  const result = await harness.api().addDebtIncrease(debtId, amount, '2026-02-01', walletId);
+  const result = await increaseAsBefore(harness.api(), debtId, amount, '2026-02-01', walletId) as { outcome: string; note?: string | null };
   expect(result.outcome).toBe('done');
   await harness.waitForData(api => (api.debts[0].increases || []).length === before + 1);
   return result.note;

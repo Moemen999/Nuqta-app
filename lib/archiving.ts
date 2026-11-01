@@ -205,6 +205,11 @@ function countPhrase(n: number, zero: string, one: string, two: string, many: st
   return `${n} ${plural}`;
 }
 
+/** "قسط واحد" / "قسطين" / "3 أقساط" / "13 قسط" — سؤال الباقي بعد الزيادة (D1، 2026-10-30) */
+export function installmentsPhrase(n: number) {
+  return countPhrase(n, 'مفيش أقساط', 'قسط واحد', 'قسطين', 'أقساط', 'قسط');
+}
+
 export function transactionsPhrase(n: number) {
   return countPhrase(n, 'مفيش عمليات', 'عملية واحدة', 'عمليتين', 'عمليات', 'عملية');
 }

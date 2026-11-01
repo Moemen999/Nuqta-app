@@ -14,7 +14,7 @@ import {
 import {
   addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
-  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
+  foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, type LeftoverMode, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
   addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
@@ -106,6 +106,8 @@ export type Settlement = {
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
 class WalletMissingError extends Error { name = 'WalletMissingError'; }
+/** D1: الباقي اللي المستخدم اختار له اتغيّر على السيرفر (جهاز تاني) — مفيش كتابة خالص */
+class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
@@ -309,6 +311,16 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
  * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
  */
 export type DebtPayResult = { outcome: PayOutcome; note?: string | null };
+/**
+ * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
+ * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
+ * نوع لوحده مش جوه `PayOutcome`: باقي شاشات الدفع مالهاش الحالة دي
+ */
+export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null };
+export const LEFTOVER_CHANGED_ALERT = {
+  title: 'الدين اتغيّر',
+  body: 'الدين اتغيّر من جهاز تاني، فمفيش أي زيادة اتسجلت ولا فلوس اتحركت. شوف الباقي الجديد واختار تاني.',
+};
 
 /** أقصى انتظار لتأكيد السيرفر على الرأي قبل ما نقول إنه في الطابور */
 const FEEDBACK_ACK_MS = 8000;
@@ -361,7 +373,7 @@ export type Debt = {
    * (الفرق ما اتبناش في أي بناء من غيره). اختياري هنا عشان القراية بس —
    * الكتابة دايمًا بـ`stampResidue`.
    */
-  installmentResidue?: { amount: number; forInstallment: number; over: number; increasesTotal?: number };
+  installmentResidue?: { amount: number; forInstallment: number; over: number; increasesTotal?: number; lastAbsorbs?: true };
   note?: string;
   createdAt: string;
   payments: DebtPayment[];
@@ -532,7 +544,7 @@ type DataContextType = {
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
-  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string) => Promise<DebtPayResult>;
+  addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: { mode: LeftoverMode; amount: number }) => Promise<DebtIncreaseResult>;
   deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
@@ -1496,10 +1508,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بيتعدّ بيه (type-design-analyzer + silent-failure-hunter). مفيش فرق معروف ←
    * مفيش حاجة تتكتب (مبنخمّنش فرق لدين قديم).
    */
-  function residueAfterIncreaseChange(d: Debt, delta: number, increasesAfter: Debt['increases']): { patch: unknown; forCount: Debt['installmentResidue'] } | null {
+  function residueAfterIncreaseChange(
+    d: Debt, delta: number, increasesAfter: Debt['increases'], mode?: LeftoverMode,
+  ): { patch: unknown; forCount: Debt['installmentResidue'] } | null {
     if (!installmentResidueKnown(d)) return null;
-    // البصمة (D2) من نفس قايمة الزيادات اللي هتتكتب في الـpatch
-    const folded = foldInstallmentResidue(d, { kind: 'increase', delta, increasesAfter });
+    // البصمة (D2) من نفس قايمة الزيادات اللي هتتكتب في الـpatch، واختيار الباقي (D1)
+    // من نفس الدالة اللي بتبني السؤال (`residueForIncrease`)
+    const folded = residueForIncrease(d, delta, increasesAfter, mode);
     if (folded) return { patch: folded, forCount: folded };
     noteOnce(`fold:${d.id}`, '[debt] installmentResidue fold failed, cleared', d.id);
     return { patch: deleteField(), forCount: undefined };
@@ -1789,7 +1804,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * وبترجّع نفس شكل نتيجتها: `note` لو عدد الأقساط اتغيّر، والشاشة بتقوله
    * بنفس الطريقة (2026-09-29).
    */
-  async function addDebtIncrease(debtId: string, amount: number, date: string, walletId?: string): Promise<DebtPayResult> {
+  async function addDebtIncrease(
+    debtId: string, amount: number, date: string, walletId?: string,
+    leftover?: { mode: LeftoverMode; amount: number },
+  ): Promise<DebtIncreaseResult> {
     if (!uid) return { outcome: 'done' };
     // مبلغ مش رقم حقيقي (Infinity/NaN) كان هيتكتب زيادة وعدد أقساط Infinity —
     // القواعد مبتفحصش القيمة، فالحارس هنا (قاعدة 6)
@@ -1818,6 +1836,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (walletId && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) {
           throw new WalletMissingError();
         }
+        // D1 (قرار مؤمن): السؤال بيتحسب تاني من **السيرفر**؛ لو المستخدم شاف باقي غير اللي
+        // هنا (أو ما اتسألش وفيه سؤال، أو العكس) ← مفيش كتابة خالص ويتسأل تاني — مش تطبيق
+        // اختيار على أرقام ما شافهاش، ومش افتراضي. قبل أي `t.set`/`t.update`
+        const serverChoice = increaseLeftoverChoice({ ...debt, ...pinInstallmentAmount(debt) }, amount);
+        const sawSame = leftover
+          ? serverChoice !== null && roundMoney(serverChoice.leftover) === roundMoney(leftover.amount)
+          : serverChoice === null;
+        if (!sawSame) throw new LeftoverChangedError();
 
         let transactionId: string | undefined;
         if (walletId) {
@@ -1845,7 +1871,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const patch: Record<string, unknown> = { increases, ...pin };
         // الزيادة بتدخل الخطة (2026-09-30): لو اللي فاضل تقريب بس القسط الأخير بيشيله
         // (1000/12 + 500 = 18 مش 19 بقسط 0.06)، ولو كسر حقيقي بيفضل قسط أصغر
-        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount, increases);
+        const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount, increases, leftover?.mode);
         if (residue) patch.installmentResidue = residue.patch;
         // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
         // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
@@ -1869,6 +1895,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return { outcome: 'done', note: result.note };
     } catch (e) {
+      // مش فشل: الدين اتغيّر من جهاز تاني والمستخدم هيتسأل تاني — مش Sentry
+      if (e instanceof LeftoverChangedError) return { outcome: 'leftover-changed' };
       noteAtomicFailure('زيادة الدين', e);
       return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
     }

@@ -7,6 +7,7 @@ import {
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
+import { increaseAsBefore } from '@/test-utils/increaseAsBefore';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -195,7 +196,7 @@ describe('ديون قبل الحقل ده', () => {
     let outcome: string;
     if (op === 'payment') outcome = await harness.api().deleteDebtPayment(ref.id, 'p0');
     else if (op === 'deleteIncrease') outcome = await harness.api().deleteDebtIncrease(ref.id, 'i0');
-    else outcome = (await harness.api().addDebtIncrease(ref.id, 50, '2026-02-01')).outcome;
+    else outcome = ((await increaseAsBefore(harness.api(), ref.id, 50, '2026-02-01')) as { outcome: string }).outcome;
     expect(outcome).toBe('done');
 
     const d = await serverDebt(ref.id);
@@ -463,5 +464,65 @@ describe('كتابات النسخة الجديدة بتبصم بمجموع ال�
     expect(afterDelete.installmentResidue.increasesTotal).toBe(serverSum(afterDelete));
     expect(afterDelete.installmentResidue.increasesTotal).toBe(0);
     expect(installmentResidueKnown(harness.api().debts[0])).toBe(true);
+  });
+});
+
+/**
+ * بند 8 D1: الباقي من الزيادة بيتسأل عنه، والسيرفر بيتأكد منه جوه الذرة
+ * (`addDebtIncrease` معامل خامس). 1000 على 12 + 100 ← الباقي 16.71.
+ * **اتكتبت قبل الكود ومااتشغلتش على المحاكي** — `npm run test:db` على اللابتوب.
+ */
+describe('الباقي من الزيادة (D1) على المحاكي', () => {
+  it('A (يتضاف على آخر قسط): علم lastAbsorbs على السيرفر والعدد 13', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const res = await harness.api().addDebtIncrease(debtId, 100, '2026-02-01', walletId, { mode: 'absorb', amount: 16.71 });
+    expect(res.outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
+    const s = await serverDebt(debtId);
+    expect(s.installmentResidue).toEqual({ amount: 16.71, forInstallment: 83.33, over: 13, increasesTotal: 100, lastAbsorbs: true });
+    expect(s.installmentCount).toBe(13);
+    expect(installmentCountFor(harness.api().debts[0])).toBe(13);
+  });
+
+  it('B (قسط منفصل): من غير علم والعدد 14', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const res = await harness.api().addDebtIncrease(debtId, 100, '2026-02-01', walletId, { mode: 'separate', amount: 16.71 });
+    expect(res.outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
+    const s = await serverDebt(debtId);
+    expect(s.installmentResidue).toEqual({ amount: 16.71, forInstallment: 83.33, over: 13, increasesTotal: 100 });
+    expect('lastAbsorbs' in s.installmentResidue).toBe(false);
+    expect(s.installmentCount).toBe(14);
+  });
+
+  it('الباقي المبعوت مش مطابق للسيرفر (16.70 بدل 16.71) ← leftover-changed ومفيش حاجة اتكتبت', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const txBefore = harness.api().transactions.length;
+    const res = await harness.api().addDebtIncrease(debtId, 100, '2026-02-01', walletId, { mode: 'absorb', amount: 16.7 });
+    expect(res.outcome).toBe('leftover-changed');
+    const s = await serverDebt(debtId);
+    expect(s.increases || []).toEqual([]);
+    expect(s.installmentCount).toBe(12);
+    expect(s.installmentResidue).toEqual({ amount: 0.04, forInstallment: 83.33, over: 12, increasesTotal: 0 });
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+
+  it('فيه سؤال ومفيش leftover اتبعت ← leftover-changed ومفيش حاجة اتكتبت', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const txBefore = harness.api().transactions.length;
+    const res = await harness.api().addDebtIncrease(debtId, 100, '2026-02-01', walletId);
+    expect(res.outcome).toBe('leftover-changed');
+    const s = await serverDebt(debtId);
+    expect(s.increases || []).toEqual([]);
+    expect(s.installmentCount).toBe(12);
+    expect(harness.api().transactions.length).toBe(txBefore);
+  });
+
+  it('مفيش سؤال (+0.01 تقريب) ← من غير leftover بيتسجل عادي، ولو اتبعت leftover ← leftover-changed', async () => {
+    const { walletId, debtId } = await makeDebt(1000, 12);
+    const bad = await harness.api().addDebtIncrease(debtId, 0.01, '2026-02-01', walletId, { mode: 'absorb', amount: 0.05 });
+    expect(bad.outcome).toBe('leftover-changed');
+    const ok = await harness.api().addDebtIncrease(debtId, 0.01, '2026-02-01', walletId);
+    expect(ok.outcome).toBe('done');
   });
 });

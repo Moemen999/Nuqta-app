@@ -814,7 +814,16 @@ export type ResiduePlan = { amount: number; forInstallment: number; over: number
  * الفرق زي ما بيتكتب وبيتقري سليم: الخطة + مجموع الزيادات وقت الكتابة (D2، 2026-10-30).
  * `increasesTotal` مطلوب هنا عن قصد: أي مكان بيبني فرق لازم يعدّي على `stampResidue`
  */
-export type InstallmentResidue = ResiduePlan & { increasesTotal: number };
+export type InstallmentResidue = ResiduePlan & {
+  increasesTotal: number;
+  /**
+   * D1 (2026-10-30، قرار مؤمن): المستخدم اختار "يتضاف على آخر قسط" للباقي بعد زيادة.
+   * الأرقام (`amount`/`over`) **زي ما الطيّ طلّعها بالظبط** — العلم بيغيّر العدّ بس
+   * (type-design-analyzer: تطبيع المبلغ كان بيكسر "زوّد وامسح بيرجّع نفس الحالة").
+   * بيتكتب من `absorbLeftover` بس، وأي طيّ بفرق غير صفر بيشيله
+   */
+  lastAbsorbs?: true;
+};
 
 /**
  * مجموع الزيادات **بالقروش الصحيحة** — كل زيادة بتتقرّب لوحدها، فالترتيب وضجيج
@@ -879,6 +888,8 @@ export function planInstallments(base: number, n: number): { value: number; resi
 export function installmentResidueOf(d: Debt): number | null {
   const r = storedResidue(d);
   if (!r) return null;
+  // D1: الباقي اتضاف على آخر قسط ← بيتشال من العدّ زي التقريب
+  if (r.lastAbsorbs && !isRoundingResidue(r)) return absorbedExtra(r);
   // فرق مش تقريب (زيادة سابت كسر حقيقي من قسط) ← 0: القسط الأخير الأصغر
   // بيتعدّ لوحده. 0 هو الأحوط — عمره ما بينزّل العدد
   return isRoundingResidue(r) && r.amount > 0 ? r.amount : 0;
@@ -917,7 +928,16 @@ function storedResidue(d: Debt): InstallmentResidue | null {
   if (typeof stamp !== 'number' || !Number.isFinite(stamp)) return null;
   const current = sumIncreasesCents(d.increases);
   if (current === null || Math.round(stamp * 100) !== current) return null;
-  return { amount: r.amount, forInstallment: r.forInstallment, over: r.over, increasesTotal: stamp };
+  const plan = { amount: r.amount, forInstallment: r.forInstallment, over: r.over, increasesTotal: stamp };
+  // D1: العلم `true` بالظبط وإلا الفرق كله بيتجاهل (القواعد مبتفحصهوش — قاعدة 6)، وعلى
+  // فرق مش تقريب لازم يبقى له معنى؛ على تقريب أصلاً مالوش أثر فبيعدّي
+  if ('lastAbsorbs' in r && (r as { lastAbsorbs?: unknown }).lastAbsorbs !== undefined) {
+    if ((r as { lastAbsorbs?: unknown }).lastAbsorbs !== true) return null;
+    // شكل مستحيل مع العلم (مبلغ 0، أكبر من قسط، مفيش قسط قبله) = بيانات بايظة ← كله بيتجاهل
+    if (!absorbableShape(plan)) return null;
+    return isRoundingResidue(plan) ? plan : { ...plan, lastAbsorbs: true };
+  }
+  return plan;
 }
 
 /**
@@ -944,7 +964,96 @@ export function foldInstallmentResidue(
   if (!shifted) return null;
   // البصمة من القايمة نفسها اللي هتتكتب (مش قديم + فرق): الزيادة ← الزيادات بعد
   // التغيير؛ الأصل ← الزيادات زي ما هي
-  return stampResidue(shifted, change.kind === 'increase' ? change.increasesAfter : d.increases);
+  const stamped = stampResidue(shifted, change.kind === 'increase' ? change.increasesAfter : d.increases);
+  // D1: تعديل تاريخ أو محفظة (فرق صفر) مبيغيّرش الخطة ← اختيار المستخدم بيفضل.
+  // أي فرق تاني بيشيله (السؤال بيتسأل تاني في الزيادة الجاية)
+  if (stamped && r && r.lastAbsorbs && Math.round(change.delta * 100) === 0) return { ...stamped, lastAbsorbs: true };
+  return stamped;
+}
+
+/** الباقي اللي بيتضاف على آخر قسط: موجب زي ما هو، سالب (أقرب قسط لفوق) + القسط */
+function absorbedExtra(r: ResiduePlan): number {
+  return roundMoney(r.amount > 0 ? r.amount : r.amount + r.forInstallment);
+}
+
+/** شكل ينفع يتضاف على آخر قسط — نفس شروط القراية والكتابة */
+function absorbableShape(r: ResiduePlan): boolean {
+  const v = r.forInstallment;
+  if (!(r.amount !== 0) || !(Math.abs(r.amount) < v)) return false;
+  return r.amount > 0 ? r.over >= 1 : r.over >= 2;
+}
+
+/**
+ * الطريق الوحيد لكتابة `lastAbsorbs` (D1). `null` لو الفرق تقريب بس (مفيش سؤال) أو
+ * الشكل مالوش معنى (مبلغ 0، أكبر من قسط، أو مفيش قسط قبله يتضاف عليه)
+ */
+export function absorbLeftover(r: InstallmentResidue): InstallmentResidue | null {
+  if (isRoundingResidue(r) || !absorbableShape(r)) return null;
+  return { ...r, lastAbsorbs: true };
+}
+
+/** آخر قسط هيبقى كام — المتبقي ناقص الأقساط الكاملة قبله. `null` لو مش قسط أو مفيش قيمة */
+export function lastInstalmentOf(d: Debt): number | null {
+  if (!d.isInstallment) return null;
+  // القسط المتخزّن بس: الدين القديم (القسط محسوب الإجمالي ÷ العدد) مبيتسألش أصلاً
+  if (typeof d.installmentAmount !== 'number') return null;
+  const value = installmentValue(d);
+  if (!value) return null;
+  const remaining = debtRemaining(d);
+  if (!(remaining > 0)) return null;
+  const left = installmentsLeft(d, remaining, value);
+  return roundMoney(remaining - (left - 1) * value);
+}
+
+export type LeftoverMode = 'absorb' | 'separate';
+export type LeftoverChoice = {
+  /** الباقي اللي المستخدم بيشوفه (X): الزيادة سابته أقل من قسط */
+  leftover: number;
+  value: number;
+  absorb: { count: number; last: number };
+  separate: { count: number; last: number };
+};
+
+/**
+ * سؤال الباقي بعد زيادة (D1، 2026-10-30، قرار مؤمن: "بيتسأل كل مرة، حتى للقروش").
+ * `d` بعد `pinInstallmentAmount` (زي `addDebtIncrease`). `null` = مفيش سؤال: مش قسط،
+ * مفيش فرق معروف (دين قديم/متجاهَل ← السلوك القديم)، الطيّ فشل، تقريب بس، أو الاختيارين
+ * بيدّوا نفس النتيجة. **نفس الحساب اللي الكتابة بتعمله** (`residueForIncrease`)، والعدد
+ * من `installmentCountFor` نفسه — الشاشة والكتابة مبيختلفوش
+ */
+export function increaseLeftoverChoice(d: Debt, amount: number): LeftoverChoice | null {
+  if (!d.isInstallment) return null;
+  const money = toMoneyAmount(amount);
+  if (money === null) return null;
+  if (!installmentResidueKnown(d)) return null;
+  const increasesAfter = [...(d.increases || []), { id: '__new__', date: '', amount: money }] as Debt['increases'];
+  const separate = foldInstallmentResidue(d, { kind: 'increase', delta: money, increasesAfter });
+  if (!separate || isRoundingResidue(separate)) return null;
+  const absorbed = absorbLeftover(separate);
+  if (!absorbed) return null;
+  const after = { ...d, increases: increasesAfter };
+  const outcome = (r: InstallmentResidue) => {
+    const count = installmentCountFor({ ...after, installmentResidue: r });
+    if (count === null) return null;
+    const last = lastInstalmentOf({ ...after, installmentResidue: r, installmentCount: count });
+    return last === null ? null : { count, last };
+  };
+  const a = outcome(absorbed);
+  const b = outcome(separate);
+  if (!a || !b || (a.count === b.count && a.last === b.last)) return null;
+  return { leftover: absorbedExtra(separate), value: separate.forInstallment, absorb: a, separate: b };
+}
+
+/**
+ * الفرق بعد زيادة — الطريق الوحيد للكتابة والسؤال (D1). من غير `mode` = الطيّ العادي؛
+ * `absorb` ومفيش سؤال (تقريب) ← الطيّ العادي برضه (مفيش علم من غير معنى)
+ */
+export function residueForIncrease(
+  d: Debt, amount: number, increasesAfter: Debt['increases'], mode?: LeftoverMode,
+): InstallmentResidue | null {
+  const folded = foldInstallmentResidue(d, { kind: 'increase', delta: amount, increasesAfter });
+  if (!folded || mode !== 'absorb') return folded;
+  return absorbLeftover(folded) ?? folded;
 }
 
 function shiftInstallmentResidue(r: ResiduePlan, delta: number): ResiduePlan | null {
