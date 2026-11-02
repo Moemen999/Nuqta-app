@@ -368,3 +368,40 @@ describe('القواعد', () => {
     })).rejects.toMatchObject({ code: 'permission-denied' });
   });
 });
+
+/** وقّف الاشتراك (قرار مؤمن 2026-11-02): الواقف مبيتخصمش، والرجوع مبيسجلش اللي فات */
+describe('وقّف الاشتراك ورجّعه على المحاكي', () => {
+  it('"اتخصم" على واقف ← stopped، ومفيش عملية ولا رصيد اتحرك', async () => {
+    const { walletId, id } = await makeSub();
+    const before = balanceOf(walletId);
+    expect(await harness.api().setSubscriptionActive(id, false)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === false && api.pendingWrites === 0);
+    expect(await harness.api().markSubscriptionPaid(id, today)).toBe('stopped');
+    expect(subTxs(id)).toHaveLength(0);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+
+  it('واقف من 3 شهور على "تلقائي" ← الرجوع بيحرّك المعاد، والفترات القديمة مبتتسجلش حتى لو جهاز قديم بعتها', async () => {
+    const old = addMonths(today, -3);
+    const { walletId, id } = await makeSub({ nextDueDate: old, chargeMode: 'auto', autoSince: addMonths(today, -6) });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const before = balanceOf(walletId);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === true && api.pendingWrites === 0);
+    expect(sub().nextDueDate >= today).toBe(true);
+    // جهاز لسه شايف المعاد القديم بيبعت الفترة اللي فاتت
+    await harness.api().recordCharges('subscription', id, [{ key: old, amount: 200 }], { auto: true });
+    expect(subTxs(id)).toHaveLength(0);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+
+  it('الرجوع ومحفظته مؤرشفة ← wallet-missing ومفيش كتابة', async () => {
+    const { walletId, id } = await makeSub();
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await updateDoc(userDoc('wallets', walletId), { archived: true });
+    await harness.waitForData(api => api.subscriptions[0].active === false && !!api.wallets.find(w => w.id === walletId)?.archived);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('wallet-missing');
+    expect(sub().active).toBe(false);
+  });
+});

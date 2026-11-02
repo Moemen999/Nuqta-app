@@ -78,6 +78,18 @@ export function subscriptionNextCycle(sub: Pick<SubscriptionLike, 'frequency' | 
     : addDays(date, sub.customDays || 30);
 }
 
+/**
+ * "رجّع الاشتراك" (2026-11-02، قرار مؤمن: وقّف الاشتراك حقيقي): المعاد الجاي = أول معاد من
+ * النهاردة ولقدام بنفس الدورة (نفس يوم الشهر). **المرات اللي فاتت وهو واقف مبتتسجلش** — من
+ * غيرها اشتراك "بيتسجل لوحده" كان هيسجل كل الشهور اللي وقف فيها أول ما يرجع. نفس سابقة
+ * الدخل الثابت (`setIncomeStatus` بيرجّع من النهاردة)
+ */
+export function subscriptionResumeDate(sub: Pick<SubscriptionLike, 'frequency' | 'customDays' | 'nextDueDate'>, today: string): string {
+  let d = sub.nextDueDate;
+  for (let i = 0; i < LOOP_GUARD && d && d < today; i++) d = subscriptionNextCycle(sub, d);
+  return d && d >= today ? d : today;
+}
+
 function autoAllowed(mode: ChargeMode | undefined, since: string | undefined, due: string) {
   return mode === 'auto' && !!since && due >= since;
 }

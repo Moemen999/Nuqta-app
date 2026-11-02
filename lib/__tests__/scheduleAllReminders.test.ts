@@ -157,6 +157,15 @@ describe('الاشتراكات والجمعية لسه شغالين زي ما ه
     expect(scheduled[0].date).toBe(soon(8));
   });
 
+  it('الاشتراك الواقف (active:false) مبيتجدولش', async () => {
+    const sub = {
+      id: 's1', name: 'نتفليكس', amount: 200, walletId: 'w1', frequency: 'monthly',
+      nextDueDate: soon(10), reminderDaysBefore: 2, active: false, createdAt: '', history: [],
+    } as Subscription;
+    await run({ subscriptions: [sub] });
+    expect(scheduled).toHaveLength(0);
+  });
+
   it('شهور الجمعية المسددة مبتتجدولش', async () => {
     const gamiya = {
       id: 'g1', name: 'جمعية الشغل', monthlyAmount: 500, totalMonths: 2, payoutMonthIndex: 1,

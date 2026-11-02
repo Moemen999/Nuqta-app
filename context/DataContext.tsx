@@ -31,7 +31,7 @@ import {
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
 import {
-  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges,
+  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges, subscriptionResumeDate,
   subscriptionTxId, type ChargeClosed, type ChargeMode,
 } from '@/lib/autoCharge';
 import {
@@ -106,6 +106,7 @@ export type Settlement = {
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
 class WalletMissingError extends Error { name = 'WalletMissingError'; }
+class SubscriptionStoppedError extends Error { name = 'SubscriptionStoppedError'; }
 /** D1: الباقي اللي المستخدم اختار له اتغيّر على السيرفر (جهاز تاني) — مفيش كتابة خالص */
 class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 
@@ -554,7 +555,9 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped'>;
+  /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
+  setSubscriptionActive: (id: string, active: boolean) => Promise<'done' | 'wallet-missing'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
@@ -1983,6 +1986,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
     return { outcome: 'done' };
   }
+  /**
+   * وقّف الاشتراك / رجّعه (قرار مؤمن 2026-11-02). الإيقاف `active:false` بس: مفيش عملية بتتمسح
+   * ولا فترة بتتقفل، والتاريخ زي ما هو — المسح لسه الطريق الوحيد اللي بيمسح التاريخ.
+   * الكروت والتلقائي والتذكيرات بيقروا `active` (`subscriptionOpenCharges`، `scheduleAllReminders`).
+   * الرجوع بيحرّك المعاد لأول معاد من النهاردة (`subscriptionResumeDate`): المرات اللي فاتت وهو
+   * واقف مبتتسجلش. كتابة عادية (`track`) زي `setIncomeStatus` — مبتحركش فلوس، والخصم نفسه
+   * ذري ومن السيرفر (`recordCharges` / `markSubscriptionPaid` بيقروا `active` جواهم)
+   */
+  async function setSubscriptionActive(id: string, active: boolean): Promise<'done' | 'wallet-missing'> {
+    if (!uid) return 'done';
+    const sub = subscriptions.find(s => s.id === id);
+    if (!sub) return 'done';
+    const label = namedLabel(active ? 'رجوع الاشتراك' : 'إيقاف الاشتراك', sub.name);
+    if (!active) {
+      track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), { active: false }), label);
+      return 'done';
+    }
+    // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف) ← مش هيرجع على محفظة
+    // مقفولة ويفشل في أول خصم؛ الشاشة بتقوله يعدّل المحفظة الأول
+    const wallet = wallets.find(w => w.id === sub.walletId);
+    if (!wallet || wallet.archived) return 'wallet-missing';
+    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), { active: true, nextDueDate: subscriptionResumeDate(sub, todayStr()) }), label);
+    return 'done';
+  }
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
     const sub = subscriptions.find(s => s.id === id);
@@ -1997,7 +2024,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today'> {
+  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today' | 'stopped'> {
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
     // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
@@ -2016,6 +2043,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
+        // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
+        if (sub.active === false) throw new SubscriptionStoppedError();
         const history = sub.history || [];
         // دوستين "سدّد" في نفس اليوم ← دفعة واحدة (عقد قديم — duplication.emulator).
         // بس **مش ساكتة**: الشاشة بتقول إنها اتسجلت النهاردة خلاص، وإن الفترة
@@ -2054,6 +2083,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return paidToday ? 'already-paid-today' : 'done';
     } catch (e) {
+      if (e instanceof SubscriptionStoppedError) return 'stopped';
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
@@ -2535,7 +2565,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         setInstallmentCount,
-        addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
+        addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid, setSubscriptionActive,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone, recordCharges, skipSubscriptionCharge,
         addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod, deleteIncome,
       }}>
