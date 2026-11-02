@@ -207,13 +207,13 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 16 },
     label: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6 },
     value: { color: c.text, fontSize: 15, textAlign: 'right' },
-    errorValue: { color: c.danger, fontSize: 15, textAlign: 'right' },
+    errorValue: { color: c.dangerText, fontSize: 15, textAlign: 'right' },
     btn: { backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
     btnBusy: { opacity: 0.6 },
     btnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
     btnDanger: { borderColor: c.dangerBorder, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
-    btnDangerText: { color: c.danger, fontSize: 16, fontWeight: '700' },
+    btnDangerText: { color: c.dangerText, fontSize: 16, fontWeight: '700' },
     status: { color: c.textSecondary, fontSize: 14, textAlign: 'right', marginTop: 8 },
-    error: { color: c.danger, fontSize: 14, textAlign: 'right', marginTop: 8 },
+    error: { color: c.dangerText, fontSize: 14, textAlign: 'right', marginTop: 8 },
   });
 }

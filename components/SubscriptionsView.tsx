@@ -188,7 +188,7 @@ export default function SubscriptionsView() {
           )}
           <TouchableOpacity style={[styles.deleteBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => confirmDelete(s)} disabled={busyKey === `del_${s.id}`}
             accessibilityRole="button" accessibilityLabel={`حذف اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `del_${s.id}`, disabled: busyKey === `del_${s.id}` }}>
-            <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
+            <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -393,7 +393,7 @@ function makeStyles(c: ThemeColors) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

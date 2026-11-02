@@ -118,7 +118,7 @@ export default function GamiyaView() {
                     )}
                   </TouchableOpacity>
                 ) : (
-                  <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>
+                  <Text style={{ color: colors.incomeText, fontSize: 11 }}>✓ خلص</Text>
                 )}
               </View>
             ))}
@@ -127,7 +127,7 @@ export default function GamiyaView() {
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
+                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -321,7 +321,7 @@ function makeStyles(c: ThemeColors) {
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

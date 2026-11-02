@@ -222,7 +222,9 @@ function DebtsContent() {
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
     const settled = isDebtSettled(d);
+    // الشريط بـsuccess/danger (عنصر مش نص، 3:1 كفاية)، والنص بتوكنز النص (4.5)
     const color = settled ? colors.success : d.direction === 'owed_to_me' ? colors.success : colors.danger;
+    const textColor = settled ? colors.incomeText : d.direction === 'owed_to_me' ? colors.incomeText : colors.dangerText;
     const expanded = expandedDebt === d.id;
 
     const timeline = [
@@ -249,7 +251,7 @@ function DebtsContent() {
                 <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>
               )}
             </View>
-            <Text style={[styles.remainingText, { color }]}>
+            <Text style={[styles.remainingText, { color: textColor }]}>
               {settled ? 'اتسدد بالكامل' : <Money value={remaining} />}
             </Text>
           </View>
@@ -277,7 +279,7 @@ function DebtsContent() {
                 const cLabel = 'categoryId' in t && t.categoryId ? categoryLabelById(categories, t.categoryId) : '';
                 const label = t.kind === 'initial' ? 'المبلغ الأساسي' : t.kind === 'increase' ? 'زيادة' : 'دفعة';
                 const sign = t.kind === 'payment' ? '−' : '+';
-                const lineColor = t.kind === 'payment' ? colors.success : colors.textSecondary;
+                const lineColor = t.kind === 'payment' ? colors.incomeText : colors.textSecondary;
                 const entryBusy = t.kind !== 'initial' && busyKey === t.id;
                 return (
                   <View key={t.kind === 'initial' ? 'initial' : `${t.kind}-${t.id}`} style={styles.paymentRow}>
@@ -338,7 +340,7 @@ function DebtsContent() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
+                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -363,11 +365,11 @@ function DebtsContent() {
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>ليا (متبقي)</Text>
-          <Money value={totalOwedToMe} style={[styles.summaryValue, { color: colors.success }]} />
+          <Money value={totalOwedToMe} style={[styles.summaryValue, { color: colors.incomeText }]} />
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>عليا (متبقي)</Text>
-          <Money value={totalIOwe} style={[styles.summaryValue, { color: colors.danger }]} />
+          <Money value={totalIOwe} style={[styles.summaryValue, { color: colors.dangerText }]} />
         </View>
       </View>
 
@@ -620,11 +622,11 @@ function makeStyles(c: ThemeColors) {
     linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
     linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
-    unlinkText: { color: c.danger, fontSize: 12, fontWeight: '700' },
+    unlinkText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     installmentHint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 6, lineHeight: 16 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

@@ -231,7 +231,7 @@ function makeStyles(c: ThemeColors) {
     previewRow: { alignItems: 'center', gap: 4 },
     previewIcon: { fontSize: 44 },
     subtle: { color: c.textMuted, fontSize: 12, textAlign: 'center' },
-    errorText: { color: c.danger, fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
+    errorText: { color: c.dangerText, fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
     footer: stickyFooterStyle(c, c.nav),
     closeBtn: {
       flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10,

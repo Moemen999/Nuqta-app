@@ -204,7 +204,7 @@ function HomeScreen() {
         {staleFigures && !hidden('stale') && (
           <View testID="home_banner_stale" style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.danger }]}>{STALE_FIGURES_TEXT}</Text>
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.dangerText }]}>{STALE_FIGURES_TEXT}</Text>
             <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
@@ -239,7 +239,7 @@ function HomeScreen() {
         )}
         {lowWallets.filter(w => !hidden('lowBalance', w.id)).map(w => (
           <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}>
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.danger }]}
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.dangerText }]}
               accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
               رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
             </Text>
@@ -413,7 +413,7 @@ function EmailVerificationBanner() {
       )}
       {/* بعد "بعتنالك رسالة جديدة" مش قبلها — النصيحة على آخر رسالة اتقال إنها اتبعتت */}
       <Text testID="verify_spam_hint" style={styles.bannerText}>{VERIFY_SPAM_HINT}</Text>
-      {!!error && <Text style={[styles.bannerText, { color: colors.danger }]}>{error}</Text>}
+      {!!error && <Text style={[styles.bannerText, { color: colors.dangerText }]}>{error}</Text>}
     </View>
   );
 }

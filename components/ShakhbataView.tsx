@@ -174,6 +174,7 @@ export default function ShakhbataView() {
             const spend = spendByBucket.get(b.key) || 0;
             const usagePct = target > 0 ? Math.min(100, (spend / target) * 100) : 0;
             const color = usagePct >= 100 ? colors.danger : usagePct >= 80 ? colors.accent : colors.success;
+            const textColor = usagePct >= 100 ? colors.dangerText : usagePct >= 80 ? colors.accentText : colors.incomeText;
             return (
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
@@ -183,7 +184,7 @@ export default function ShakhbataView() {
                 <View style={styles.track}>
                   <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
                 </View>
-                <Text style={[styles.bucketSpend, { color }]}>
+                <Text style={[styles.bucketSpend, { color: textColor }]}>
                   اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
                 </Text>
               </View>

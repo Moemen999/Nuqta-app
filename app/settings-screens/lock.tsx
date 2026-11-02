@@ -115,7 +115,7 @@ export default function LockScreen_Settings() {
               testID="lock_disable_button"
               style={styles.disableBtn}
               onPress={() => setModalMode('disable')}>
-              <Text style={{ color: colors.danger, fontSize: 12.5 }}>إلغاء القفل</Text>
+              <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>إلغاء القفل</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -136,7 +136,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border },
-    status: { color: c.success, fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
+    status: { color: c.incomeText, fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
     row: { flexDirection: 'row-reverse', gap: 8 },
     btnLabel: { color: c.text, fontSize: 12.5 },
     graceLabel: { color: c.text, fontSize: 11.5 },

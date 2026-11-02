@@ -441,7 +441,7 @@ export default function AddTransactionModal() {
     <View style={styles.footer}>
       {isEdit && (
         <TouchableOpacity style={[styles.deleteBtn, (busy || syncing) && styles.btnBusy]} onPress={handleDelete} disabled={busy || syncing}>
-          <Text style={{ color: colors.danger }}>{busy ? '...' : 'حذف'}</Text>
+          <Text style={{ color: colors.dangerText }}>{busy ? '...' : 'حذف'}</Text>
         </TouchableOpacity>
       )}
       <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing}>
@@ -473,7 +473,7 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     lockedHint: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 8, lineHeight: 18 },
     noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: 12, padding: 14, gap: 10, marginBottom: 8 },
     noWalletsText: { color: c.text, fontSize: 14, textAlign: 'right', lineHeight: 21 },

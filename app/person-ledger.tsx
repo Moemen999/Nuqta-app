@@ -113,7 +113,7 @@ export default function PersonLedgerScreen() {
       <>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>الرصيد الحالي</Text>
-        <Text style={[styles.summaryValue, { color: finalBalance > 0 ? colors.success : finalBalance < 0 ? colors.danger : colors.textSecondary }]}>
+        <Text style={[styles.summaryValue, { color: finalBalance > 0 ? colors.incomeText : finalBalance < 0 ? colors.dangerText : colors.textSecondary }]}>
           {finalBalance > 0 ? `ليك عنده ${money(finalBalance)} ج.م` : finalBalance < 0 ? `عليك له ${money(Math.abs(finalBalance))} ج.م` : 'متسدد بالكامل'}
         </Text>
       </View>
@@ -133,10 +133,10 @@ export default function PersonLedgerScreen() {
             <Text style={styles.td}>{r.label}</Text>
             <Text style={styles.rowDebtLabel} numberOfLines={1}>{r.debtLabel}</Text>
           </View>
-          <Text style={[styles.td, { flex: 0.9, color: r.delta >= 0 ? colors.success : colors.danger, fontWeight: '700' }]}>
+          <Text style={[styles.td, { flex: 0.9, color: r.delta >= 0 ? colors.incomeText : colors.dangerText, fontWeight: '700' }]}>
             <Money value={r.delta} sign={r.delta >= 0 ? '+' : ''} currency={false} />
           </Text>
-          <Text style={[styles.td, { flex: 0.9, color: r.balance > 0 ? colors.success : r.balance < 0 ? colors.danger : colors.textSecondary }]}>
+          <Text style={[styles.td, { flex: 0.9, color: r.balance > 0 ? colors.incomeText : r.balance < 0 ? colors.dangerText : colors.textSecondary }]}>
             <Money value={r.balance} currency={false} />
           </Text>
           <Text style={[styles.td, { flex: 0.9, color: colors.textMuted, fontSize: 10.5 }]}>{r.date}</Text>
@@ -180,7 +180,7 @@ export default function PersonLedgerScreen() {
               <View key={d.id} style={styles.debtBlock}>
                 <View style={styles.debtBlockHead}>
                   <Text style={styles.debtBlockTitle}>{debtLabelOf(d)}</Text>
-                  <Text style={[styles.debtBlockRemaining, { color: d.direction === 'owed_to_me' ? colors.success : colors.danger }]}>
+                  <Text style={[styles.debtBlockRemaining, { color: d.direction === 'owed_to_me' ? colors.incomeText : colors.dangerText }]}>
                     متبقي <Money value={remaining} />
                   </Text>
                 </View>

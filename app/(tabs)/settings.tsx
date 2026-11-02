@@ -189,7 +189,7 @@ export default function SettingsScreen() {
                 testID={`settings_row_${row.key}`}
                 style={[styles.row, i > 0 && styles.rowDivider]}
                 onPress={row.onPress}>
-                <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.danger }]}>
+                <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.dangerText }]}>
                   {row.title}
                 </Text>
                 <View style={styles.rowRight}>

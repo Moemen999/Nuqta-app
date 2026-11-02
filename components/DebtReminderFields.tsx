@@ -93,7 +93,7 @@ function makeStyles(c: ThemeColors) {
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
     clearBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 10 },
-    clearText: { color: c.danger, fontSize: 12, fontWeight: '700' },
+    clearText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },

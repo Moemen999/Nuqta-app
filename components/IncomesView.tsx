@@ -115,10 +115,10 @@ export default function IncomesView() {
         {busy ? (
           <View style={styles.btnLoading}>
             <ActivityIndicator size="small" color={colors.danger} />
-            <Text style={{ color: colors.danger, fontSize: 12.5 }}>بنمسح</Text>
+            <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>بنمسح</Text>
           </View>
         ) : (
-          <Text style={{ color: colors.danger, fontSize: 12.5 }}>امسحه</Text>
+          <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>امسحه</Text>
         )}
       </TouchableOpacity>
     );
@@ -158,7 +158,7 @@ export default function IncomesView() {
           <View key={inc.id} style={[styles.card, paused && styles.cardPaused]}>
             <View style={styles.cardHead}>
               <Text style={styles.name}>{inc.name}</Text>
-              <Money value={inc.amount} sign="+" style={[styles.amount, { color: colors.success }]} />
+              <Money value={inc.amount} sign="+" style={[styles.amount, { color: colors.incomeText }]} />
             </View>
             <Text style={styles.sub}>
               {walletHistoryName(wallets, inc.walletId)} · {incomeScheduleLabel(inc)} · {INCOME_MODE_LABEL[inc.mode]}
@@ -196,7 +196,7 @@ export default function IncomesView() {
               {/* اللي عمره ما سجّل: المسح مكان "وقّفه" — التوقيف كان هيسيب كارت مالوش لازمة */}
               {incomeHasRecords(inc, transactions) ? (
                 <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button">
-                  <Text style={{ color: colors.danger, fontSize: 12.5 }}>وقّفه</Text>
+                  <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>وقّفه</Text>
                 </TouchableOpacity>
               ) : deleteButton(inc)}
             </View>
@@ -474,7 +474,7 @@ function makeStyles(c: ThemeColors) {
     modeTitle: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
     modeBody: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4, lineHeight: 18 },
     summary: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 16 },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
