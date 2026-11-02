@@ -1,3 +1,4 @@
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -11,7 +12,7 @@ import {
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
 const BUCKET_META = [
@@ -22,6 +23,7 @@ const BUCKET_META = [
 
 export default function ShakhbataView() {
   const { colors } = useTheme();
+  const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas } = useData();
   // السلفة والجمعية مش مصروف (خطوة 8) — حتى لو اتعدّلت واتدّت فئة
@@ -86,7 +88,7 @@ export default function ShakhbataView() {
     };
     const bad = BUCKET_META.filter(b => parsed[b.key] === null).map(b => b.label);
     if (bad.length > 0) {
-      Alert.alert(percentInvalidTitle(bad.length), percentInvalidBody(bad));
+      notice(percentInvalidTitle(bad.length), percentInvalidBody(bad));
       return;
     }
     runSavePercents(async () => {

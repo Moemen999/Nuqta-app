@@ -1,3 +1,5 @@
+import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import BackButton from '@/components/BackButton';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
@@ -11,7 +13,7 @@ import {
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -42,6 +44,8 @@ export default function DevSeedScreen() {
 }
 
 function DevSeed() {
+  const notice = useNotice();
+  const confirm = useConfirm();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -105,7 +109,7 @@ function DevSeed() {
   }, [phase]);
 
   function confirmThen(title: string, actionLabel: string, action: () => void) {
-    Alert.alert(title, `هيتكتب في الحساب ده:\n\nuid: ${user!.uid}\nالإيميل: ${user!.email ?? '(مفيش إيميل)'}\n\nده حساب الاختبار؟`, [
+    confirm(title, `هيتكتب في الحساب ده:\n\nuid: ${user!.uid}\nالإيميل: ${user!.email ?? '(مفيش إيميل)'}\n\nده حساب الاختبار؟`, [
       { text: 'إلغاء', style: 'cancel' },
       { text: actionLabel, style: 'destructive', onPress: action },
     ]);
@@ -113,7 +117,7 @@ function DevSeed() {
 
   function startSeed() {
     if (existing.length > 0) {
-      Alert.alert('فيه بيانات تجربة موجودة', `لقيت ${documentsPhrase(existing.length)} من التعبئة اللي فاتت. امسحهم الأول وبعدين عبّي من جديد.`);
+      notice('فيه بيانات تجربة موجودة', `لقيت ${documentsPhrase(existing.length)} من التعبئة اللي فاتت. امسحهم الأول وبعدين عبّي من جديد.`);
       return;
     }
     confirmThen('تعبئة بيانات التجربة', 'عبّيها', () => {
@@ -126,9 +130,9 @@ function DevSeed() {
   }
 
   function wipe() {
-    if (existing.length === 0) { Alert.alert('مفيش حاجة تتمسح', 'مفيش أي مستند من بيانات التجربة في الحساب ده.'); return; }
+    if (existing.length === 0) { notice('مفيش حاجة تتمسح', 'مفيش أي مستند من بيانات التجربة في الحساب ده.'); return; }
     // الدفعة مبترفضش وانت أوفلاين، بتفضل مستنية — فنرفض من الأول بدل ما الشاشة تستنى
-    if (!data.serverReachable) { Alert.alert('مفيش نت', 'المسح محتاج نت عشان نتأكد إنه وصل. جرب تاني لما النت يرجع.'); return; }
+    if (!data.serverReachable) { notice('مفيش نت', 'المسح محتاج نت عشان نتأكد إنه وصل. جرب تاني لما النت يرجع.'); return; }
     const n = existing.length;
     confirmThen(`مسح ${documentsPhrase(n)} من بيانات التجربة`, 'امسحها نهائي', () => {
       const batch = writeBatch(db);

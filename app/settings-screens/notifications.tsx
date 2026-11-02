@@ -1,3 +1,5 @@
+import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import BackButton from '@/components/BackButton';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -8,7 +10,7 @@ import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptio
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { exactAlarmStatus } from '@/lib/exactAlarm';
 import { useMemo, useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -53,6 +55,8 @@ export const EXACT_ALARM_FAILED_BODY = 'دوّر في إعدادات الموب�
 export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const notice = useNotice();
+  const confirm = useConfirm();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notifs = useNotifications();
   const banners = useBannerDismiss();
@@ -71,7 +75,7 @@ export default function NotificationsScreen() {
       // بنفتحهاله. وأول ما يرجع، `refreshPermission` في الكونتكست بتعيد
       // الفحص لوحدها فالمفتاح وسطر الحالة بيتحدّثوا من غير ما يعمل حاجة.
       if (!ok) {
-        Alert.alert(PERMISSION_DENIED_TITLE, PERMISSION_DENIED_BODY, [
+        confirm(PERMISSION_DENIED_TITLE, PERMISSION_DENIED_BODY, [
           { text: 'إلغاء', style: 'cancel' },
           { text: OPEN_SETTINGS_LABEL, onPress: () => { Linking.openSettings().catch(() => {}); } },
         ]);
@@ -146,7 +150,7 @@ export default function NotificationsScreen() {
           <Text testID="exact_alarm_status" style={[styles.alarmText, { marginTop: 6 }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
           <TouchableOpacity testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
             onPress={() => runOpenAlarm(async () => {
-              if (!(await notifs.openExactAlarmSettings())) Alert.alert(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
+              if (!(await notifs.openExactAlarmSettings())) notice(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
             })}
             accessibilityRole="button" accessibilityLabel={EXACT_ALARM_BUTTON} accessibilityHint="بيفتح إعدادات الموبايل"
             accessibilityState={{ busy: openingAlarm, disabled: openingAlarm }}>

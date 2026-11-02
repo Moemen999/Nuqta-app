@@ -1,3 +1,4 @@
+import { useNotice } from '@/components/NoticeProvider';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { parseWalletAmountInput } from '@/lib/finance';
@@ -10,7 +11,7 @@ import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
+  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -30,6 +31,7 @@ type Step = 'welcome' | 'wallets' | 'categories';
 type Fail = { kind: 'no-connection' | 'failed' | 'unconfirmed'; choice: SetupChoice };
 
 export default function FirstRunSetup() {
+  const notice = useNotice();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -139,7 +141,7 @@ export default function FirstRunSetup() {
       // الحساب اتجهّز باختيارات تانية (محاولة قديمة وصلت متأخر، أو موبايل تاني).
       // Alert مش شاشة: الشاشة دي بتتقفل على طول (setupStatus بقى done)، والـAlert
       // بيفضل ظاهر فوق التطبيق. ممنوع نقول "اتحفظ" على أرقام مش هي اللي اتكتبت
-      Alert.alert(SETUP_OTHER_MESSAGE.title, SETUP_OTHER_MESSAGE.body, [{ text: 'تمام' }]);
+      notice(SETUP_OTHER_MESSAGE.title, SETUP_OTHER_MESSAGE.body);
       return;
     }
     setFail({ kind: outcome, choice });

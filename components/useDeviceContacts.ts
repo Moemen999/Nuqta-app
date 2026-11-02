@@ -1,7 +1,7 @@
+import { useNotice } from '@/components/NoticeProvider';
 import { makeContactEntry, type ContactEntry } from '@/lib/contacts';
 import * as Contacts from 'expo-contacts';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 
 /**
  * تحميل جهات الاتصال من الموبايل وفتح شاشة الاختيار.
@@ -14,6 +14,7 @@ import { Alert } from 'react-native';
  * غير ما نحتاج نقلّد expo-contacts.
  */
 export function useDeviceContacts() {
+  const notice = useNotice();
   const [contacts, setContacts] = useState<ContactEntry[]>([]);
   const [visible, setVisible] = useState(false);
 
@@ -23,7 +24,7 @@ export function useDeviceContacts() {
       // لازم نطلب الصلاحية صراحةً الأول — من غير كده النظام بيقفل التطبيق
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('محتاج إذن', 'عشان تختار من جهات الاتصال، لازم تسمح للتطبيق يوصلها من إعدادات الموبايل.');
+        notice('محتاج إذن', 'عشان تختار من جهات الاتصال، لازم تسمح للتطبيق يوصلها من إعدادات الموبايل.');
         return null;
       }
       const { data } = await Contacts.getContactsAsync({
@@ -49,7 +50,7 @@ export function useDeviceContacts() {
       setContacts(named);
       return named;
     } catch (e: any) {
-      Alert.alert('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
+      notice('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
       return null;
     }
   }
@@ -58,7 +59,7 @@ export function useDeviceContacts() {
     const loaded = await load();
     if (!loaded) return;
     if (loaded.length === 0) {
-      Alert.alert('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
+      notice('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
       return;
     }
     setVisible(true);
@@ -90,7 +91,7 @@ export function useDeviceContacts() {
         { isNew: true }
       );
     } catch (e: any) {
-      Alert.alert('مقدرتش أفتح', String(e?.message || 'مقدرتش أفتح شاشة إضافة جهة اتصال.'));
+      notice('مقدرتش أفتح', String(e?.message || 'مقدرتش أفتح شاشة إضافة جهة اتصال.'));
       return;
     }
     await load();

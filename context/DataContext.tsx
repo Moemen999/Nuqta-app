@@ -1,3 +1,5 @@
+import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
@@ -23,7 +25,6 @@ import {
   type DocumentReference, type FirestoreError, type Transaction as FirestoreTransaction, type WriteBatch,
 } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Alert } from 'react-native';
 import { WRITE_ERROR_RESET_MS, WRITE_ERROR_TITLE, namedLabel, writeErrorBody } from '@/lib/writeError';
 import {
   incomeHasRecords, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
@@ -672,6 +673,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pendingTxIds, setPendingTxIds] = useState<Set<string>>(new Set());
   const pendingCount = useRef(0);
   const errorShown = useRef(false);
+  const notice = useNotice();
+  const confirm = useConfirm();
   // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
   // التطبيق بنعتبر نفسنا مش متصلين. ده بيمنع إن حد يفتح التطبيق وهو من غير نت
   // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
@@ -799,7 +802,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
      */
     const unlock = () => { errorShown.current = false; };
     const backstop = setTimeout(unlock, WRITE_ERROR_RESET_MS);
-    Alert.alert(
+    confirm(
       WRITE_ERROR_TITLE,
       writeErrorBody(label),
       [{ text: 'تمام', onPress: () => { clearTimeout(backstop); unlock(); } }]
@@ -2442,7 +2445,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         tx.then(r => {
           markDone();
           const msg = r === 'already-done-other' ? SETUP_OTHER_MESSAGE : SETUP_LATE_DONE_MESSAGE;
-          Alert.alert(msg.title, msg.body, [{ text: 'تمام' }]);
+          notice(msg.title, msg.body);
         }).catch(err => noteAtomicFailure('تجهيز الحساب (المحاولة المتأخرة فشلت)', err));
         noteAtomicFailure('تجهيز الحساب (السقف خلص)', e);
         return 'unconfirmed';

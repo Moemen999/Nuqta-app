@@ -1,10 +1,11 @@
+import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -34,6 +35,7 @@ const GOOGLE_REVERSED_SCHEME = 'com.googleusercontent.apps.662258111881-suhr5mgq
 
 export default function AuthScreen() {
   const { colors } = useTheme();
+  const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn, signUp, signInWithGoogleCredential, resetPassword } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
@@ -109,7 +111,7 @@ export default function AuthScreen() {
     setResetBusy(true);
     try {
       await resetPassword(target);
-      Alert.alert(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
+      notice(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
     } catch (e: any) {
       // `auth/user-not-found` بيتعامل **زي النجاح** عن قصد: لو فرّقنا بين
       // "الإيميل ده عنده حساب" و"لأ"، أي حد يقدر يعرف مين مسجّل عندنا بإنه
@@ -117,7 +119,7 @@ export default function AuthScreen() {
       // حماية التعداد تكون مفعّلة، بس مش بنعتمد على إعداد في الكونسول
       // لوحده — الكود بيقفلها كمان.
       if (e?.code === 'auth/user-not-found') {
-        Alert.alert(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
+        notice(RESET_TITLE, `${resetSentBody(target)} ${RESET_GOOGLE_HINT}`);
       } else {
         setError(mapError(e?.code));
       }
