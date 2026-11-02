@@ -442,3 +442,38 @@ describe('وقّف الاشتراك — الجولة 1 على المحاكي', (
     expect(balanceOf(walletId)).toBe(before);
   });
 });
+
+describe('وقّف الاشتراك — الجولة 2 على المحاكي', () => {
+  it('رجوع اشتراك اتمسح ← missing', async () => {
+    const { id } = await makeSub();
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const { deleteDoc } = jest.requireActual('firebase/firestore');
+    await deleteDoc(userDoc('subscriptions', id));
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('missing');
+  });
+
+  it('المرة اللي رجعت تسأل قبل الرجوع لسه بتسأل بعده، والمعاد اتقدّم', async () => {
+    const back = addMonths(today, -2);
+    const { id } = await makeSub({ nextDueDate: addMonths(today, -1) });
+    await updateDoc(userDoc('subscriptions', id), { active: false, closed: { [back]: { reopened: true } } });
+    await harness.waitForData(api => api.subscriptions[0].active === false && !!api.subscriptions[0].closed?.[back]);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === true);
+    const { subscriptionOpenCharges } = jest.requireActual('@/lib/autoCharge');
+    const open = subscriptionOpenCharges(sub(), today).map((c: { key: string }) => c.key);
+    expect(open).toContain(back);
+    expect(sub().nextDueDate >= today).toBe(true);
+  });
+
+  it('واقف والمفتاح اتسجل قبل كده ← مش stopped (اتسجلت قبل كده)', async () => {
+    const { id } = await makeSub();
+    const r1 = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r1.recorded).toEqual([today]);
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const r2 = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r2.recorded).toEqual([]);
+    expect(r2.stopped).toBeUndefined();
+  });
+});

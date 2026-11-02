@@ -106,7 +106,7 @@ describe('شاشة الاشتراكات', () => {
     const [title, body] = alertSpy.mock.calls[0];
     expect(title).toBe('ترجّع الاشتراك ده؟');
     expect(body).toContain(subscriptionResumeDate(sub({ nextDueDate: addMonths(today, -2) }), today));
-    expect(body).toContain('أي مرة معادها قبل النهاردة مش هتتسجل');
+    expect(body).toContain('المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية');
     await pressAlertButton('رجّعه');
     expect(mockData.setSubscriptionActive).toHaveBeenCalledWith('s2', true);
   });
@@ -172,5 +172,24 @@ describe('الجولة 1: تحذير المتأخر، رسايل الرجوع، 
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
     expect(screen.getByText(/لسه فيه مرة مستنية ردك في الرئيسية/)).toBeTruthy();
+  });
+});
+
+describe('الجولة 2', () => {
+  it('رجوع اشتراك اتمسح من جهاز تاني ← "الاشتراك ده اتمسح" مش "رجّعنا"', async () => {
+    mockData.setSubscriptionActive = jest.fn(async () => 'missing');
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_resume_s2')); });
+    await pressAlertButton('رجّعه');
+    expect(screen.getByTestId('notice_title').props.children).toBe('الاشتراك ده اتمسح');
+  });
+
+  it('تحذير الإيقاف مبيعدّش المرة اللي رجعت تسأل (بتفضل تسأل بعد الرجوع)', async () => {
+    const back = addDays(today, -3);
+    mockData.subscriptions = [sub({ nextDueDate: addDays(today, 10), closed: { [back]: { reopened: true } } } as Partial<Subscription>)];
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    expect(alertSpy.mock.calls[0][1]).not.toContain('متأخرة');
   });
 });

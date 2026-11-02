@@ -58,7 +58,7 @@ export default function SubscriptionsView() {
   function confirmStop(s: Subscription) {
     // مرة متأخرة لسه ما اتسجلتش ← الرجوع بعدين بيبدأ من المعاد الجاي فهتتشال، فلازم تتقال دلوقتي
     // (money-reviewer، جولة 1)
-    const overdue = subscriptionOpenCharges(s, todayStr()).length;
+    const overdue = subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened).length;
     const overdueLine = overdue > 0
       ? ` عليه ${overdue === 1 ? 'مرة متأخرة' : `${overdue} مرات متأخرة`} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
       : '';
@@ -75,12 +75,13 @@ export default function SubscriptionsView() {
   }
   function confirmResume(s: Subscription) {
     const next = subscriptionResumeDate(s, todayStr());
-    Alert.alert('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. أي مرة معادها قبل النهاردة مش هتتسجل.`, [
+    Alert.alert('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'رجّعه', onPress: () => runResume(`resume_${s.id}`, async () => {
           const outcome = await setSubscriptionActive(s.id, true);
           if (outcome === 'wallet-missing') notice(SUBSCRIPTION_RESUME_WALLET_ALERT.title, SUBSCRIPTION_RESUME_WALLET_ALERT.body);
+          else if (outcome === 'missing') notice('الاشتراك ده اتمسح', 'اتمسح من جهاز تاني، فمفيش حاجة ترجع.');
           else if (outcome === 'no-connection' || outcome === 'failed') notice(SUBSCRIPTION_RESUME_FAIL_ALERT[outcome].title, SUBSCRIPTION_RESUME_FAIL_ALERT[outcome].body);
           else AccessibilityInfo.announceForAccessibility(`رجّعنا "${s.name}"`);
         }),

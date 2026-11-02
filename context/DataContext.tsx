@@ -557,7 +557,7 @@ type DataContextType = {
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped'>;
   /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
-  setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome>;
+  setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome | 'missing'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
@@ -1999,7 +1999,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * السيرفر مش من نسخة قديمة (جهاز تاني ممكن يكون عدّل المعاد)، والمحفظة بتتفحص هناك كمان —
    * فحص الحالة المحلية كان بيقول "المحفظة اتمسحت" غلط والمحافظ لسه بتحمّل
    */
-  async function setSubscriptionActive(id: string, active: boolean): Promise<PayOutcome> {
+  async function setSubscriptionActive(id: string, active: boolean): Promise<PayOutcome | 'missing'> {
     if (!uid) return 'done';
     const sub = subscriptions.find(s => s.id === id);
     const ref = doc(db, 'users', uid, 'subscriptions', id);
@@ -2012,7 +2012,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(ref);
-        if (!snap.exists()) return;
+        // اتمسح من جهاز تاني ← مش "رجّعنا" (silent-failure-hunter، جولة 2)
+        if (!snap.exists()) throw new ChargeMissingError();
         const server = { id, ...(snap.data() as any) } as Subscription;
         // رجع من جهاز تاني خلاص ← مفيش حاجة تتكتب (ومنحرّكش معاده)
         if (server.active !== false) return;
@@ -2023,6 +2024,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return 'done';
     } catch (e) {
       if (e instanceof WalletMissingError) return 'wallet-missing';
+      if (e instanceof ChargeMissingError) return 'missing';
       noteAtomicFailure('رجوع الاشتراك', e);
       return 'failed';
     }
@@ -2172,7 +2174,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           seen.add(e.key);
           return true;
         });
-        stopped = kind === 'subscription' && (data as Subscription).active === false && entries.some(e => !open.some(o => o.key === e.key));
+        // واقف وفيه مفتاح مطلوب مش مفتوح **ومش مقفول** — المقفول اتسجل فعلاً، فده "اتسجلت قبل كده" مش "اتوقف"
+        stopped = kind === 'subscription' && (data as Subscription).active === false
+          && entries.some(e => !open.some(o => o.key === e.key) && !(data as Subscription).closed?.[e.key]);
         if (todo.length === 0) return;
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
         const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions',
