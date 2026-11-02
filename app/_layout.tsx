@@ -22,6 +22,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import FirstRunSetup from '@/components/FirstRunSetup';
 import { NoticeProvider } from '@/components/NoticeProvider';
+import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
@@ -167,6 +168,7 @@ export default function RootLayout() {
       {/* رسايل النتيجة بشكل التطبيق (بدل Alert الأصلي في مسارات الفلوس) — جوه
           الثيم وفوق كل الشاشات، عشان تفضل بعد ما المودال اللي عرضها يتقفل */}
       <NoticeProvider>
+      <ConfirmProvider>
       {/* فوق NotificationsProvider: الإشعارات بتشيل المبالغ لو مخفية */}
       <PrivacyProvider>
         <AppLockProvider>
@@ -179,6 +181,7 @@ export default function RootLayout() {
           </AuthProvider>
         </AppLockProvider>
       </PrivacyProvider>
+      </ConfirmProvider>
       </NoticeProvider>
     </ThemeProvider>
   );
