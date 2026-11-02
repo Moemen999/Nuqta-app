@@ -83,3 +83,26 @@ it('الخروج ← كاش الحساب ده بيتمسح من الجهاز', a
   await act(async () => { h.rerender(); });
   await waitFor(async () => expect(await AsyncStorage.getItem(coldCacheKey(uid))).toBeNull(), { timeout: 5000 });
 });
+
+it('كنس: كاش حساب تاني فاضل على الجهاز (التطبيق اتقفل قبل المسح) ← بيتمسح أول ما حساب يفتح', async () => {
+  await AsyncStorage.setItem(coldCacheKey('someone-else'), JSON.stringify({ v: COLD_CACHE_VERSION, uid: 'someone-else' }));
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await waitFor(async () => expect(await AsyncStorage.getItem(coldCacheKey('someone-else'))).toBeNull(), { timeout: 5000 });
+});
+
+it('كاش من غير محافظ ← عمره ما يتعرض (كان هيخبّي "مفيش ولا محفظة")', async () => {
+  const uid = getMockUid();
+  await AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify({
+    v: COLD_CACHE_VERSION, uid, savedAt: Date.now() - 1000, wallets: [], recent: [], categories: [],
+  }));
+  const shown: unknown[] = [];
+  function Spy() {
+    const { useData } = require('@/context/DataContext');
+    shown.push(useData().coldSnapshot);
+    return null;
+  }
+  h = await renderDataProvider(<Spy />);
+  await h.waitForReady();
+  expect(shown.every(s => s === null)).toBe(true);
+});

@@ -19,6 +19,7 @@ import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
@@ -119,6 +120,13 @@ function HomeScreen() {
   useEffect(() => {
     if (noWallets) AccessibilityInfo.announceForAccessibility('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
   }, [noWallets]);
+  // الكاش اختفى والأرقام الحقيقية وصلت ← بنقول كده (التبديل بيحصل في رسمة واحدة والفوكس ممكن يقع —
+  // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي
+  const wasCold = useRef(false);
+  useEffect(() => {
+    if (cold) { wasCold.current = true; return; }
+    if (wasCold.current) { wasCold.current = false; AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت'); }
+  }, [cold]);
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -169,7 +177,9 @@ function HomeScreen() {
               accessibilityState={{ checked: amountsHidden }}>
               <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.balanceLabel}>إجمالي رصيدك</Text>
+            {/* كاش: "قديم" جنب الإجمالي نفسه — الرصيد فوق برّه التمرير، والبانر تحت ممكن يتمرر أو قارئ الشاشة يقرا
+                الرقم قبله (a11y-architect) */}
+            <Text style={styles.balanceLabel}>{cold ? 'إجمالي رصيدك (قديم)' : 'إجمالي رصيدك'}</Text>
           </View>
           {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
               وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
@@ -254,7 +264,7 @@ function HomeScreen() {
         {/* باقي التنبيهات (2026-10-28): فوق آخر العمليات كمان — مش تحتها */}
         <EmailVerificationBanner />
         {/* بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي) */}
-        {!hasTodayTx && !offlineEmpty && !noWallets && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
+        {!hasTodayTx && !offlineEmpty && !noWallets && !cold && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
           <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
             <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
             <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />
@@ -333,7 +343,10 @@ function HomeScreen() {
           // نفس شكل transactionWalletLabel ("من … إلى …")، بس من محافظ الكاش؛ محفظة مش فيه (مؤرشفة) ← من غير اسم
           const walletLabel = t.type === 'withdraw' && name(t.walletId) && name(t.toWalletId) ? `من ${name(t.walletId)} إلى ${name(t.toWalletId)}` : name(t.walletId);
           return (
-            <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow}>
+            // عقدة واحدة لقارئ الشاشة زي الصف الحقيقي، وأولها "قديم"، ومن غير button (مبيتفتحش — a11y-architect).
+            // المبلغ ظاهر زي الصف الحقيقي (العين للأرصدة بس)
+            <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
+              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${t.date}`}>
               <View style={styles.txMid}>
                 <Text style={styles.txTitle}>{title}</Text>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}

@@ -92,6 +92,8 @@ describe('parseColdSnapshot — القراية بترفض أي حاجة مش م�
     ['رصيد Infinity', JSON.stringify({ ...build(), wallets: [{ id: 'w1', name: 'x', balance: 1e999 }] })],
     ['عملية مبلغها سالب', JSON.stringify({ ...build(), recent: [{ id: 'a', type: 'expense', amount: -5, walletId: 'w1', date: '2026-11-01' }] })],
     ['نوع مش معروف', JSON.stringify({ ...build(), recent: [{ id: 'a', type: 'gift', amount: 5, walletId: 'w1', date: '2026-11-01' }] })],
+    ['kind مش معروف', JSON.stringify({ ...build(), recent: [{ id: 'a', type: 'expense', amount: 5, walletId: 'w1', date: '2026-11-01', kind: 'loan' }] })],
+    ['createdAt مش نص', JSON.stringify({ ...build(), recent: [{ id: 'a', type: 'expense', amount: 5, walletId: 'w1', date: '2026-11-01', createdAt: 5 }] })],
   ])('%s ← null', (_, r) => expect(parseColdSnapshot(r, 'u1', NOW)).toBeNull());
   it('مفيش حاجة متخزّنة ← null', () => expect(parseColdSnapshot(null, 'u1', NOW)).toBeNull());
 });

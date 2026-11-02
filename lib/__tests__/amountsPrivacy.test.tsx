@@ -197,6 +197,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
   'components/GamiyaView.tsx': { count: 2, why: 'تأكيد قبل خصم/استلام قسط الجمعية' },
   'components/SubscriptionsView.tsx': { count: 1, why: 'تأكيد قبل خصم الاشتراك' },
+  'app/(tabs)/index.tsx': { count: 1, why: 'قارئ الشاشة لصف كاش أول فتحة — مبلغ العملية، وهو ظاهر أصلاً زي الصف الحقيقي (العين للأرصدة بس)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },

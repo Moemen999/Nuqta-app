@@ -89,6 +89,9 @@ it('coldSnapshot موجود ← البانر، الإجمالي من الكاش�
   expect(screen.getByText('من بنك إلى كاش')).toBeTruthy();
   // مبتفتحش المودال: مش زرار
   expect(screen.getByTestId('home_cold_tx_c1').props.onPress).toBeUndefined();
+  // قارئ الشاشة: الإجمالي بيقول "قديم"، والصف عقدة واحدة أولها "قديم" (a11y-architect)
+  expect(screen.getByText('إجمالي رصيدك (قديم)')).toBeTruthy();
+  expect(screen.getByTestId('home_cold_tx_c2').props.accessibilityLabel).toMatch(/^قديم: دين، كاش، 300 جنيه، 2026-10-31$/);
 });
 
 it('مفيش coldSnapshot ← مفيش بانر قديم ولا صفوف كاش', async () => {

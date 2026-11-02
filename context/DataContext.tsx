@@ -1,7 +1,7 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
-import { buildColdSnapshot, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
+import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import { db } from '@/firebaseConfig';
 import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
@@ -889,6 +889,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     if (!uid) return;
     let cancelled = false;
+    // كنس: أي كاش لحساب تاني فاضل على الجهاز (التطبيق اتقفل بين الخروج والمسح، أو المسح فشل) بيتمسح
+    // هنا (silent-failure-hunter + security-reviewer) — المسح اللي فوق لوحده مبيغطيش الفتحة الجاية
+    AsyncStorage.getAllKeys()
+      .then(keys => keys.filter(k => k.startsWith(COLD_CACHE_PREFIX) && k !== coldCacheKey(uid)))
+      .then(stale => (stale.length ? AsyncStorage.multiRemove(stale) : undefined))
+      .catch(e => console.warn('[coldCache] sweep failed', e instanceof Error ? e.name : 'unknown'));
     AsyncStorage.getItem(coldCacheKey(uid))
       .then(raw => { if (!cancelled) setStoredCold(parseColdSnapshot(raw, uid, Date.now())); })
       .catch(e => console.warn('[coldCache] read failed', e instanceof Error ? e.name : 'unknown'));
@@ -896,22 +902,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [uid]);
 
   /**
-   * **الكتابة:** بس لما الأرقام نفسها جاية من السيرفر (`figuresFromServer`) والـlisteners مرفضتش — أرقام من
-   * كاش الذاكرة أو listener واقع ميتكتبوش كـ"آخر أرقام اتشافت". بعد ثانيتين من آخر تغيير (مش كل كتابة).
+   * **الكتابة:** بس لما الأرقام نفسها جاية من السيرفر (`figuresFromServer`) **والاتنين وصلوا** (`figuresPending` فاضي —
+   * `figuresFresh` بيقبل العمليات `null`، فمن غيره كان ممكن يتكتب رصيد افتتاحي بس)، **والفئات والديون وصلوا**
+   * (من غيرهم صف الدين بيتحفظ "مصروف")، ومفيش listener منهم رفض. بعد ثانيتين من آخر تغيير (money-reviewer +
+   * silent-failure-hunter). مفيش محفظة شغالة ← الكاش بيتمسح بدل ما يتكتب فاضي (كان هيخبّي "مفيش ولا محفظة").
+   * **حساب A → حساب B على طول (من غير `null`) مش متغطّي هنا عن قصد:** التطبيق مبيعرضش الدخول غير بعد الخروج،
+   * فالـuid دايمًا بيعدّي على `undefined` والحالة بتتصفّر (security-reviewer SHOULD-FIX 3 — متروك بالسبب ده).
    */
   useEffect(() => {
-    if (!uid || !figuresFromServer) return;
-    if (loadErrors.includes('wallets') || loadErrors.includes('transactions') || loadErrors.includes('categories')) return;
+    if (!uid || !figuresFromServer || figuresPending.length > 0) return;
+    if (!delivered.has('categories') || !delivered.has('debts')) return;
+    if ((['wallets', 'transactions', 'categories', 'debts'] as const).some(n => loadErrors.includes(n))) return;
     const timer = setTimeout(() => {
       const debtTxIds = new Set(debts.flatMap(d => debtTransactionIds(d)));
       const snap = buildColdSnapshot({ uid, wallets, categories, transactions, debtTransactionIds: debtTxIds, now: Date.now() });
-      AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify(snap))
-        .catch(e => console.warn('[coldCache] write failed', e instanceof Error ? e.name : 'unknown'));
+      const write = snap.wallets.length > 0
+        ? AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify(snap))
+        : AsyncStorage.removeItem(coldCacheKey(uid));
+      write.catch(e => console.warn('[coldCache] write failed', e instanceof Error ? e.name : 'unknown'));
     }, COLD_CACHE_WRITE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [uid, figuresFromServer, loadErrors, wallets, categories, transactions, debts]);
-  // للعرض بس، وبس طول ما مفيش ولا محفظة ولا أرقام من السيرفر — أول snapshot حقيقي بيخفيه
-  const coldSnapshot = !figuresFromServer && wallets.length === 0 ? storedCold : null;
+  }, [uid, figuresFromServer, figuresPending, delivered, loadErrors, wallets, categories, transactions, debts]);
+  // للعرض بس، وبس طول ما مفيش ولا محفظة **ولا عملية** حقيقية ولا أرقام من السيرفر — أول snapshot حقيقي من أي
+  // واحد فيهم بيخفيه (مفيش رصيد من الكاش جنب عمليات حقيقية — money-reviewer). كاش من غير محافظ ← مبيتعرضش
+  const coldSnapshot = !figuresFromServer && wallets.length === 0 && transactions.length === 0 && storedCold && storedCold.wallets.length > 0
+    ? storedCold : null;
 
   /**
    * الحساب محتاج تجهيز؟ (شاشة "نبدأ بإيه؟"). اللي اتأكد مرة بيتفكر على الجهاز

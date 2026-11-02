@@ -31,7 +31,8 @@ export type ColdSnapshot = {
   wallets: ColdWallet[]; recent: ColdTransaction[]; categories: ColdCategory[];
 };
 
-export const coldCacheKey = (uid: string) => `nuqta-cold-cache:${uid}`;
+export const COLD_CACHE_PREFIX = 'nuqta-cold-cache:';
+export const coldCacheKey = (uid: string) => `${COLD_CACHE_PREFIX}${uid}`;
 
 /** نفس ترتيب "آخر العمليات" في الرئيسية: التاريخ الأحدث، وبعدين createdAt */
 function newestFirst(a: Transaction, b: Transaction) {
@@ -76,6 +77,7 @@ export function buildColdSnapshot(input: {
 const isStr = (x: unknown): x is string => typeof x === 'string';
 const isMoney = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 const TYPES = new Set(['expense', 'income', 'withdraw']);
+const KINDS = new Set<string>(['debt', 'subscription', 'gamiya', 'income', 'settlement']);
 
 /**
  * القراية بترفض أي حاجة مش متأكدة منها (← `null` = الشاشة الفاضية العادية): حساب تاني، نسخة تانية،
@@ -90,9 +92,12 @@ export function parseColdSnapshot(raw: string | null, uid: string, now: number):
   if (!isMoney(s.savedAt) || s.savedAt > now || now - s.savedAt > COLD_CACHE_MAX_AGE_MS) return null;
   if (!Array.isArray(s.wallets) || !Array.isArray(s.recent) || !Array.isArray(s.categories)) return null;
   if (!s.wallets.every((w: any) => w && isStr(w.id) && isStr(w.name) && isMoney(w.balance))) return null;
+  // الاختيارية كمان (silent-failure-hunter + security-reviewer): `kind` غريب كان هيطلّع عنوان فاضي
+  const optStr = (x: unknown) => x === undefined || isStr(x);
   if (!s.recent.every((t: any) => t && isStr(t.id) && TYPES.has(t.type) && isMoney(t.amount) && t.amount >= 0
+    && optStr(t.toWalletId) && optStr(t.categoryId) && optStr(t.createdAt) && (t.kind === undefined || KINDS.has(t.kind))
     && isStr(t.walletId) && isStr(t.date))) return null;
-  if (!s.categories.every((c: any) => c && isStr(c.id) && isStr(c.name))) return null;
+  if (!s.categories.every((c: any) => c && isStr(c.id) && isStr(c.name) && optStr(c.icon))) return null;
   return s as ColdSnapshot;
 }
 
@@ -110,5 +115,7 @@ function pad2(n: number) { return String(n).padStart(2, '0'); }
 export function coldFiguresText(savedAt: number, formatTime: (iso: string) => string): string {
   const d = new Date(savedAt);
   const day = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-  return `دي آخر أرقام اتشافت (${day} · ${formatTime(d.toISOString())}) — مستنيين النت عشان نحدّثها، ومتقدرش تعدّل عليها لحد ما توصل.`;
+  // arabic-copy-reviewer: جملتين بنقطة، و"مش هتقدر" مش "متقدرش"، ومن غير "تقدر تسجّل جديد" (من غير محافظ
+  // حقيقية المودال مفيهوش محفظة — الجملة كانت هتبقى كدب)
+  return `دي آخر أرقام اتشافت (${day} · ${formatTime(d.toISOString())}). مفيش نت دلوقتي، وأول ما يرجع هنحدّثها. لحد وقتها مش هتقدر تفتح العمليات دي أو تعدّلها.`;
 }
