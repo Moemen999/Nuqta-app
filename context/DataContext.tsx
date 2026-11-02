@@ -111,6 +111,10 @@ class SubscriptionStoppedError extends Error { name = 'SubscriptionStoppedError'
 class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 /** المبلغ اللي اتعرض في التأكيد مش هو اللي على السيرفر (اتعدّل من جهاز تاني) — مفيش كتابة خالص */
 class AmountChangedError extends Error { name = 'AmountChangedError'; }
+/** الرقمين للّوج في نسخ التطوير بس (silent-failure-hunter): رفض من غير تعديل حقيقي يبان */
+const amountChanged = (seen: number | undefined, actual: number) => Object.assign(new AmountChangedError(), { seen, actual });
+/** `[seen, actual]` في التطوير، ولا حاجة في الإنتاج (مفيش رقم فلوس بيخرج — CLAUDE.md: Sentry) */
+const amountsForDevLog = (e: AmountChangedError & { seen?: number; actual?: number }) => (__DEV__ ? [e.seen, e.actual] : []);
 
 /**
  * التأكيد بيعرض المبلغ نص ثابت ("اتخصم 100 ج.م؟")، والذرة بتقرا المبلغ من السيرفر. لو جهاز
@@ -236,17 +240,17 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
 };
 
 /**
- * `amount-changed`: المبلغ اللي في التأكيد اتعدّل من جهاز تاني قبل "تأكيد". نفس قالب D1
+ * `amount-changed`: المبلغ اللي في التأكيد اتعدّل من جهاز تاني قبل "تأكيد". نفس قالب رسالة "الدين اتغيّر" في زيادة الدين
  * (`LEFTOVER_CHANGED_ALERT`): إيه اللي حصل، وإن مفيش فلوس اتحركت، وتعمل إيه.
  */
 export const AMOUNT_CHANGED_ALERT = {
   subscription: {
     title: 'المبلغ اتغيّر',
-    body: 'مبلغ الاشتراك اتعدّل من جهاز تاني، فما اتسجلش أي خصم. شوف المبلغ الجديد وسجّل الدفع تاني لو موافق عليه.',
+    body: 'مبلغ الاشتراك اتعدّل من جهاز تاني، فما اتسجلش أي خصم. شوف المبلغ الجديد وأكّد تاني لو موافق عليه.',
   },
   gamiya: {
     title: 'المبلغ اتغيّر',
-    body: 'مبلغ الشهر ده اتعدّل من جهاز تاني، فمفيش فلوس اتحركت. شوف المبلغ الجديد وسجّل تاني لو موافق عليه.',
+    body: 'مبلغ الشهر ده اتعدّل من جهاز تاني، فمفيش فلوس اتحركت. شوف المبلغ الجديد وأكّد من أول وجديد.',
   },
 } as const;
 
@@ -2092,7 +2096,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const sub = { id, ...(snap.data() as any) } as Subscription;
         // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
         if (sub.active === false) throw new SubscriptionStoppedError();
-        if (seenAmountDiffers(seenAmount, sub.amount)) throw new AmountChangedError();
+        if (seenAmountDiffers(seenAmount, sub.amount)) throw amountChanged(seenAmount, sub.amount);
         const history = sub.history || [];
         // دوستين "سدّد" في نفس اليوم ← دفعة واحدة (عقد قديم — duplication.emulator).
         // بس **مش ساكتة**: الشاشة بتقول إنها اتسجلت النهاردة خلاص، وإن الفترة
@@ -2133,7 +2137,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       if (e instanceof SubscriptionStoppedError) return 'stopped';
       // مش فشل (مش Sentry): الشاشة بتقول إن المبلغ اتغيّر والمستخدم يقرر تاني على الجديد
-      if (e instanceof AmountChangedError) { console.warn('[subscription] amount changed since shown, nothing written', id); return 'amount-changed'; }
+      if (e instanceof AmountChangedError) { console.warn('[subscription] amount changed since shown, nothing written', id, ...amountsForDevLog(e)); return 'amount-changed'; }
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
@@ -2581,7 +2585,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
         const month = (g.months || []).find(m => m.id === monthId);
         if (!month || month.status === 'done') return;
-        if (seenAmountDiffers(seenAmount, month.amount)) throw new AmountChangedError();
+        if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
         const existing = await t.get(txRef);
@@ -2603,7 +2607,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return 'done';
     } catch (e) {
-      if (e instanceof AmountChangedError) { console.warn('[gamiya] month amount changed since shown, nothing written', gamiyaId, monthId); return 'amount-changed'; }
+      if (e instanceof AmountChangedError) { console.warn('[gamiya] month amount changed since shown, nothing written', gamiyaId, monthId, ...amountsForDevLog(e)); return 'amount-changed'; }
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد شهر الجمعية', e);
       return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
     }
