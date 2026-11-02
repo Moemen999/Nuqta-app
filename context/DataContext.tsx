@@ -1,6 +1,7 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
+import { buildColdSnapshot, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import { db } from '@/firebaseConfig';
 import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
@@ -523,6 +524,11 @@ type DataContextType = {
    * قديمة" بس — مبيدخلش في أي حساب.
    */
   figuresFromServer: boolean;
+  /**
+   * آخر أرقام اتشافت قبل كده (كاش أول فتحة باردة، `lib/coldCache.ts`) — **للعرض بس**، ومش `null` غير طول ما
+   * مفيش ولا محفظة ولا أرقام من السيرفر لسه. **ممنوع** يدخل أي حساب أو كتابة أو حراسة: دول من `wallets`/`transactions`.
+   */
+  coldSnapshot: ColdSnapshot | null;
   /** المحافظ/العمليات اللي لسه مرمتش أول snapshot — مسح السجل بعملياته بيستناهم */
   figuresPending: ListenerName[];
   /**
@@ -726,6 +732,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  // كاش أول فتحة باردة — اللي اتقرا من الجهاز للحساب ده (التصميم: reports/2026-11-02-cold-cache-design.md)
+  const [storedCold, setStoredCold] = useState<ColdSnapshot | null>(null);
   // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
@@ -864,6 +872,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
   }, [uid]);
+
+  /**
+   * كاش أول فتحة باردة (`lib/coldCache.ts`). **القراية:** أول ما الحساب يبان. فشل أو حاجة مش مفهومة ← `null`
+   * (الشاشة الفاضية العادية، اللي بانرها بيقول إن السبب النت) — الكاش رفاهية، والتطبيق شغال من غيره.
+   * **المسح:** الحساب اتغيّر من A لأي حاجة تانية (خروج أو حساب تاني) ← كاش A بيتمسح، عشان اللي يمسك
+   * الموبايل بعد الخروج ميلاقيش أرصدة حد تاني (الحساب التاني مبيقراهوش أصلاً — المفتاح بالـuid).
+   */
+  const coldUid = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = coldUid.current;
+    coldUid.current = uid;
+    setStoredCold(null);
+    if (prev && prev !== uid) {
+      AsyncStorage.removeItem(coldCacheKey(prev)).catch(e => console.warn('[coldCache] remove failed', e instanceof Error ? e.name : 'unknown'));
+    }
+    if (!uid) return;
+    let cancelled = false;
+    AsyncStorage.getItem(coldCacheKey(uid))
+      .then(raw => { if (!cancelled) setStoredCold(parseColdSnapshot(raw, uid, Date.now())); })
+      .catch(e => console.warn('[coldCache] read failed', e instanceof Error ? e.name : 'unknown'));
+    return () => { cancelled = true; };
+  }, [uid]);
+
+  /**
+   * **الكتابة:** بس لما الأرقام نفسها جاية من السيرفر (`figuresFromServer`) والـlisteners مرفضتش — أرقام من
+   * كاش الذاكرة أو listener واقع ميتكتبوش كـ"آخر أرقام اتشافت". بعد ثانيتين من آخر تغيير (مش كل كتابة).
+   */
+  useEffect(() => {
+    if (!uid || !figuresFromServer) return;
+    if (loadErrors.includes('wallets') || loadErrors.includes('transactions') || loadErrors.includes('categories')) return;
+    const timer = setTimeout(() => {
+      const debtTxIds = new Set(debts.flatMap(d => debtTransactionIds(d)));
+      const snap = buildColdSnapshot({ uid, wallets, categories, transactions, debtTransactionIds: debtTxIds, now: Date.now() });
+      AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify(snap))
+        .catch(e => console.warn('[coldCache] write failed', e instanceof Error ? e.name : 'unknown'));
+    }, COLD_CACHE_WRITE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [uid, figuresFromServer, loadErrors, wallets, categories, transactions, debts]);
+  // للعرض بس، وبس طول ما مفيش ولا محفظة ولا أرقام من السيرفر — أول snapshot حقيقي بيخفيه
+  const coldSnapshot = !figuresFromServer && wallets.length === 0 ? storedCold : null;
 
   /**
    * الحساب محتاج تجهيز؟ (شاشة "نبدأ بإيه؟"). اللي اتأكد مرة بيتفكر على الجهاز
@@ -2617,7 +2665,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,

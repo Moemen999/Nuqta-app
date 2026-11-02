@@ -16,6 +16,8 @@ export const COLD_CACHE_VERSION = 1;
 /** نفس عدد "آخر العمليات" في الرئيسية (`app/(tabs)/index.tsx`) */
 export const COLD_CACHE_RECENT = 10;
 export const COLD_CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+/** الكتابة بعد هدوء ثانيتين — مش مع كل snapshot */
+export const COLD_CACHE_WRITE_DELAY_MS = 2000;
 
 export type ColdTxKind = 'debt' | 'subscription' | 'gamiya' | 'income' | 'settlement';
 export type ColdWallet = { id: string; name: string; balance: number };
