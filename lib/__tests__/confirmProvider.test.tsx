@@ -193,3 +193,30 @@ describe('التحقق من H1 (react-reviewer)', () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('دوس مزدوج (money-reviewer)', () => {
+  it('نفس التأكيد مرتين ← شباك واحد، والتاني بيتلغي على طول (Promise "لأ")', async () => {
+    await wrap();
+    const results: boolean[] = [];
+    const askOnce = () => new Promise<boolean>(resolve => confirmFn('المبلغ أكبر من المتبقي', 'نسجّله؟', [
+      { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
+      { text: 'أيوة، سجّل', onPress: () => resolve(true) },
+    ])).then(r => { results.push(r); return r; });
+    let first: Promise<boolean> | undefined;
+    let second: Promise<boolean> | undefined;
+    await act(async () => { first = askOnce(); second = askOnce(); });
+    await expect(second).resolves.toBe(false);
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    await expect(first).resolves.toBe(true);
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('تأكيدات مختلفة لسه بتتصف عادي', async () => {
+    await wrap();
+    await ask([{ text: 'تمام' }], 'الأول', 'أ');
+    await ask([{ text: 'تمام' }], 'التاني', 'ب');
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('التاني');
+  });
+});

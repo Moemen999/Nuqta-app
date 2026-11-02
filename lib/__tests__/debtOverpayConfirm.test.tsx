@@ -59,7 +59,8 @@ it('"أيوة، سجّل" ← دفعة بالمبلغ اللي اتكتب', asyn
   expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 700, 'w1', expect.any(String), undefined);
 });
 
-it('التطبيق اتقفل والتأكيد مفتوح ← الـPromise بيتحل "لأ" ومفيش دفعة، والزرار مبيفضلش يلف', async () => {
+// إن الـPromise بيتحل "لأ" مع القفل متثبّت في confirmProvider.test.tsx (H2) — هنا بس إن مفيش دفعة
+it('التطبيق اتقفل والتأكيد مفتوح ← التأكيد بيختفي ومفيش دفعة', async () => {
   const r = await payTooMuch();
   mockLocked = true;
   await act(async () => { r.rerender(ui()); });
@@ -67,7 +68,16 @@ it('التطبيق اتقفل والتأكيد مفتوح ← الـPromise بي
   expect(mockData.addDebtPayment).not.toHaveBeenCalled();
   mockLocked = false;
   await act(async () => { r.rerender(ui()); });
-  // الزرار رجع يتداس (مش "..." للأبد)
-  expect(screen.queryByText('...')).toBeNull();
-  expect(screen.getByText('حفظ')).toBeTruthy();
+});
+
+it('دوستين على "حفظ" قبل ما التأكيد يظهر ← تأكيد واحد ودفعة واحدة (money-reviewer)', async () => {
+  await render(ui());
+  await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '700'); });
+  await act(async () => {
+    fireEvent.press(screen.getByTestId('debt_payment_save'));
+    fireEvent.press(screen.getByTestId('debt_payment_save'));
+  });
+  await act(async () => { fireEvent.press(screen.getByText('أيوة، سجّل')); });
+  expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+  expect(mockData.addDebtPayment).toHaveBeenCalledTimes(1);
 });

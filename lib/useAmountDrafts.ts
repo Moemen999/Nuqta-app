@@ -166,6 +166,8 @@ export function useAmountDrafts(
     if (p.action === 'write') { commitWrite(id, p.value); return; }
 
     const confirmed = p.value;
+    // حد معروف (silent-failure-hunter): التطبيق اتقفل والتأكيد مفتوح، أو الـblur جه من القفل نفسه ←
+    // التأكيد بيتلغي فـ"لأ" بتمسح المسوّدة السالبة. مفيش كتابة، والخانة بترجع للرقم المتخزّن
     confirm(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
       { text: NEGATIVE_CONFIRM_NO, style: 'cancel', onPress: () => clearDraft(id) },
       { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, confirmed) },
