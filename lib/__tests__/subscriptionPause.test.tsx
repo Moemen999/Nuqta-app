@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import SubscriptionsView, { SUBSCRIPTION_RESUME_WALLET_ALERT, SUBSCRIPTION_STOPPED_ALERT } from '@/components/SubscriptionsView';
+import SubscriptionsView, { SUBSCRIPTION_RESUME_FAIL_ALERT, SUBSCRIPTION_RESUME_WALLET_ALERT, SUBSCRIPTION_STOPPED_ALERT } from '@/components/SubscriptionsView';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -87,13 +87,13 @@ describe('شاشة الاشتراكات', () => {
     expect(screen.getAllByText('اتخصم')).toHaveLength(1); // بتاع نتفليكس بس
     expect(screen.queryByTestId('subscription_stop_s2')).toBeNull();
     expect(screen.getByTestId('subscription_resume_s2')).toBeTruthy();
-    expect(screen.getByText('واقف — مش بيتخصم ومش بيفكّرك')).toBeTruthy();
+    expect(screen.getByText('واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه')).toBeTruthy();
   });
 
   it('"وقّف" ← تأكيد ثم setSubscriptionActive(false)', async () => {
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
-    expect(alertSpy.mock.calls[0][0]).toBe('توقّف الاشتراك؟');
+    expect(alertSpy.mock.calls[0][0]).toBe('توقّف الاشتراك ده مؤقتًا؟');
     expect(mockData.setSubscriptionActive).not.toHaveBeenCalled();
     await pressAlertButton('وقّفه');
     expect(mockData.setSubscriptionActive).toHaveBeenCalledWith('s1', false);
@@ -104,9 +104,9 @@ describe('شاشة الاشتراكات', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_resume_s2')); });
     const [title, body] = alertSpy.mock.calls[0];
-    expect(title).toBe('ترجّع الاشتراك؟');
+    expect(title).toBe('ترجّع الاشتراك ده؟');
     expect(body).toContain(subscriptionResumeDate(sub({ nextDueDate: addMonths(today, -2) }), today));
-    expect(body).toContain('المرات اللي فاتت وهو واقف مش هتتسجل');
+    expect(body).toContain('أي مرة معادها قبل النهاردة مش هتتسجل');
     await pressAlertButton('رجّعه');
     expect(mockData.setSubscriptionActive).toHaveBeenCalledWith('s2', true);
   });
@@ -133,5 +133,44 @@ describe('شاشة الاشتراكات', () => {
     await render(wrap());
     expect(screen.getByText('مفيش اشتراكات شغالة دلوقتي')).toBeTruthy();
     expect(screen.queryByText('مفيش اشتراكات مسجلة')).toBeNull();
+  });
+});
+
+describe('الجولة 1: تحذير المتأخر، رسايل الرجوع، والليبلز', () => {
+  it('وقّف وعليه مرة متأخرة ما اتسجلتش ← التأكيد بيقول إنها مش هتتسجل لو رجّعته', async () => {
+    mockData.subscriptions = [sub({ nextDueDate: addDays(today, -5) })];
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    expect(alertSpy.mock.calls[0][1]).toContain('عليه مرة متأخرة لسه ما اتسجلتش');
+  });
+
+  it('وقّف ومفيش متأخر ← مفيش سطر تحذير', async () => {
+    mockData.subscriptions = [sub({ nextDueDate: addDays(today, 5) })];
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    expect(alertSpy.mock.calls[0][1]).not.toContain('متأخرة');
+  });
+
+  it('رجوع من غير نت ← "الاشتراك لسه واقف"', async () => {
+    mockData.setSubscriptionActive = jest.fn(async () => 'no-connection');
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_resume_s2')); });
+    await pressAlertButton('رجّعه');
+    expect(screen.getByTestId('notice_title').props.children).toBe(SUBSCRIPTION_RESUME_FAIL_ALERT['no-connection'].title);
+  });
+
+  it('الأزرار بتقول اسم الاشتراك لقارئ الشاشة', async () => {
+    await render(wrap());
+    expect(screen.getByTestId('subscription_stop_s1').props.accessibilityLabel).toBe('وقّف اشتراك نتفليكس مؤقتًا');
+    expect(screen.getByLabelText('حذف اشتراك نتفليكس')).toBeTruthy();
+    expect(screen.getByLabelText('اتخصم اشتراك نتفليكس')).toBeTruthy();
+  });
+
+  it('واقف وفيه مرة رجعت تسأل ← الكارت بيقول إنها مستنية في الرئيسية', async () => {
+    mockData.subscriptions = [sub({ active: false, nextDueDate: addDays(today, 10), closed: { [addDays(today, -3)]: { reopened: true } } } as Partial<Subscription>)];
+    await render(wrap());
+    await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
+    expect(screen.getByText(/لسه فيه مرة مستنية ردك في الرئيسية/)).toBeTruthy();
   });
 });

@@ -557,7 +557,7 @@ type DataContextType = {
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
   markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped'>;
   /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
-  setSubscriptionActive: (id: string, active: boolean) => Promise<'done' | 'wallet-missing'>;
+  setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
@@ -583,7 +583,8 @@ type DataContextType = {
  * فعلاً — اللي كانت مقفولة قبل كده (جهاز تاني سبقنا) مش بتتحسب، فالرسالة
  * مبتقولش "سجلنا" عن حاجة ما اتسجلتش دلوقتي.
  */
-export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[] };
+/** `stopped` = الاشتراك اتوقف (من جهاز تاني) ففترة مطلوبة مابقتش مفتوحة — مش "اتسجلت قبل كده" */
+export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[]; stopped?: boolean };
 export type ChargeKind = 'subscription' | 'gamiya';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -1991,24 +1992,40 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ولا فترة بتتقفل، والتاريخ زي ما هو — المسح لسه الطريق الوحيد اللي بيمسح التاريخ.
    * الكروت والتلقائي والتذكيرات بيقروا `active` (`subscriptionOpenCharges`، `scheduleAllReminders`).
    * الرجوع بيحرّك المعاد لأول معاد من النهاردة (`subscriptionResumeDate`): المرات اللي فاتت وهو
-   * واقف مبتتسجلش. كتابة عادية (`track`) زي `setIncomeStatus` — مبتحركش فلوس، والخصم نفسه
-   * ذري ومن السيرفر (`recordCharges` / `markSubscriptionPaid` بيقروا `active` جواهم)
+   * واقف مبتتسجلش.
+   *
+   * **الإيقاف** كتابة عادية (`track`) زي `setIncomeStatus` — بيشتغل من غير نت ومبيحركش فلوس.
+   * **الرجوع ذري ومن السيرفر** (silent-failure-hunter، جولة 1): المعاد بيتحسب من المستند اللي على
+   * السيرفر مش من نسخة قديمة (جهاز تاني ممكن يكون عدّل المعاد)، والمحفظة بتتفحص هناك كمان —
+   * فحص الحالة المحلية كان بيقول "المحفظة اتمسحت" غلط والمحافظ لسه بتحمّل
    */
-  async function setSubscriptionActive(id: string, active: boolean): Promise<'done' | 'wallet-missing'> {
+  async function setSubscriptionActive(id: string, active: boolean): Promise<PayOutcome> {
     if (!uid) return 'done';
     const sub = subscriptions.find(s => s.id === id);
-    if (!sub) return 'done';
-    const label = namedLabel(active ? 'رجوع الاشتراك' : 'إيقاف الاشتراك', sub.name);
+    const ref = doc(db, 'users', uid, 'subscriptions', id);
     if (!active) {
-      track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), { active: false }), label);
+      track(updateDoc(ref, { active: false }), namedLabel('إيقاف الاشتراك', sub?.name));
       return 'done';
     }
-    // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف) ← مش هيرجع على محفظة
-    // مقفولة ويفشل في أول خصم؛ الشاشة بتقوله يعدّل المحفظة الأول
-    const wallet = wallets.find(w => w.id === sub.walletId);
-    if (!wallet || wallet.archived) return 'wallet-missing';
-    track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), { active: true, nextDueDate: subscriptionResumeDate(sub, todayStr()) }), label);
-    return 'done';
+    if (!serverReachableRef.current) return 'no-connection';
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(ref);
+        if (!snap.exists()) return;
+        const server = { id, ...(snap.data() as any) } as Subscription;
+        // رجع من جهاز تاني خلاص ← مفيش حاجة تتكتب (ومنحرّكش معاده)
+        if (server.active !== false) return;
+        // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف)
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', server.walletId)))) throw new WalletMissingError();
+        t.update(ref, { active: true, nextDueDate: subscriptionResumeDate(server, todayStr()) });
+      }));
+      return 'done';
+    } catch (e) {
+      if (e instanceof WalletMissingError) return 'wallet-missing';
+      noteAtomicFailure('رجوع الاشتراك', e);
+      return 'failed';
+    }
   }
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
@@ -2105,7 +2122,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
-        if (!subscriptionOpenCharges({ ...sub, active: true }, todayStr()).some(o => o.key === key)) return;
+        // الحالة الحقيقية (money-reviewer): الواقف بيتخطّى اللي رجعت تسأل بس، مش فترة عادية
+        if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) return;
         const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
         t.update(subRef, { closed, nextDueDate: subscriptionAdvance(sub, closed) });
       }));
@@ -2136,9 +2154,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const ref = doc(db, 'users', uid, kind === 'subscription' ? 'subscriptions' : 'gamiyas', id);
     const today = todayStr();
     let recorded: string[] = [];
+    let stopped = false;
     try {
       await countPending(runTransaction(db, async (t) => {
         recorded = [];
+        stopped = false;
         const snap = await t.get(ref);
         if (!snap.exists()) throw new ChargeMissingError();
         const data = { id, ...(snap.data() as any) };
@@ -2152,6 +2172,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           seen.add(e.key);
           return true;
         });
+        stopped = kind === 'subscription' && (data as Subscription).active === false && entries.some(e => !open.some(o => o.key === e.key));
         if (todo.length === 0) return;
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
         const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions',
@@ -2202,7 +2223,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
         t.update(ref, { months });
       }));
-      return { outcome: 'done', recorded };
+      return { outcome: 'done', recorded, ...(stopped ? { stopped } : {}) };
     } catch (e) {
       // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
       if (e instanceof ChargeMissingError) return { outcome: 'done', recorded: [] };

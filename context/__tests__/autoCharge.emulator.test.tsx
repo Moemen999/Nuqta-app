@@ -405,3 +405,40 @@ describe('وقّف الاشتراك ورجّعه على المحاكي', () => {
     expect(sub().active).toBe(false);
   });
 });
+
+describe('وقّف الاشتراك — الجولة 1 على المحاكي', () => {
+  it('الرجوع بيقرا المعاد من السيرفر: جهاز تاني رجّعه ودفع ← الرجوع التاني مبيحرّكش المعاد', async () => {
+    const { id } = await makeSub({ nextDueDate: addMonths(today, -2) });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    // جهاز تاني: رجّعه وحط معاد بعيد
+    const far = addMonths(today, 5);
+    await updateDoc(userDoc('subscriptions', id), { active: true, nextDueDate: far });
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].nextDueDate === far);
+    expect(sub().nextDueDate).toBe(far);
+  });
+
+  it('"فوّت" فترة عادية على واقف ← مبيقفلش حاجة ومبيحرّكش المعاد', async () => {
+    const old = addMonths(today, -1);
+    const { id } = await makeSub({ nextDueDate: old });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    await harness.api().skipSubscriptionCharge(id, old);
+    await harness.waitForData(api => api.pendingWrites === 0);
+    expect(sub().nextDueDate).toBe(old);
+    expect(sub().closed?.[old]).toBeUndefined();
+  });
+
+  it('كارت "اتخصم؟" على اشتراك اتوقف من جهاز تاني ← stopped، ومفيش خصم', async () => {
+    const { walletId, id } = await makeSub();
+    const before = balanceOf(walletId);
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const r = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r.outcome).toBe('done');
+    expect(r.recorded).toEqual([]);
+    expect(r.stopped).toBe(true);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+});

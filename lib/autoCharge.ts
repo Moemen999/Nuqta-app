@@ -115,6 +115,7 @@ export function subscriptionOpenCharges(sub: SubscriptionLike, today: string): O
 }
 
 /** الفترة اللي "سدّد" من شاشة الاشتراكات بيقفلها: الأقدم المفتوحة، ولو مفيش — اللي جاية (دفع بدري) */
+// `active:true` عن قصد: الدالة بتتنادى **بعد** حارس الإيقاف جوه `markSubscriptionPaid` بس
 export function subscriptionManualKey(sub: SubscriptionLike, today: string) {
   const open = subscriptionOpenCharges({ ...sub, active: true }, today);
   if (open.length) return open[0].key;
