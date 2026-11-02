@@ -11,6 +11,10 @@ import { Text } from '@/components/AppText';
  * والشباك بيتقفل قبل الفعل، ودوستين = فعل واحد، و"رجوع" = إلغاء.
  */
 
+let mockLocked = false;
+jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: mockLocked }) }));
+beforeEach(() => { mockLocked = false; });
+
 let confirmFn: ReturnType<typeof useConfirm>;
 let noticeFn: ReturnType<typeof useNotice>;
 function Grab() {
@@ -18,7 +22,8 @@ function Grab() {
   noticeFn = useNotice();
   return <TouchableOpacity testID="noop"><Text>x</Text></TouchableOpacity>;
 }
-const wrap = () => render(<ThemeProvider><NoticeProvider><ConfirmProvider><Grab /></ConfirmProvider></NoticeProvider></ThemeProvider>);
+const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><Grab /></ConfirmProvider></NoticeProvider></ThemeProvider>;
+const wrap = () => render(ui());
 
 async function ask(buttons: ConfirmButton[], title = 'مسح الدين', body = 'هيتمسح الدين ودفعاته.') {
   await act(async () => { confirmFn(title, body, buttons); });
@@ -102,4 +107,64 @@ it('من غير Provider ← Alert الأصلي بنفس الأزرار', async 
   bare!('عنوان', 'جملة', buttons);
   expect(spy).toHaveBeenCalledWith('عنوان', 'جملة', buttons);
   spy.mockRestore();
+});
+
+describe('مراجعة react-reviewer', () => {
+  it('H1: التطبيق اتقفل ← التأكيد المفتوح بيختفي وبيتلغي (cancel بيتنادى، والفعل لأ)', async () => {
+    const r = await wrap();
+    const cancel = jest.fn();
+    const action = jest.fn();
+    await ask([{ text: 'إلغاء', style: 'cancel', onPress: cancel }, { text: 'حذف', style: 'destructive', onPress: action }]);
+    expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
+    mockLocked = true;
+    await act(async () => { r.rerender(ui()); });
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('H2: Promise مستني الإجابة بيتحل false لما القفل يلغيه (مش معلّق للأبد)', async () => {
+    const r = await wrap();
+    let answer: Promise<boolean> | undefined;
+    await act(async () => {
+      answer = new Promise<boolean>(resolve => confirmFn('أكتر من المتبقي', 'تسجّل برضه؟', [
+        { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
+        { text: 'سجّل', onPress: () => resolve(true) },
+      ], { cancelable: true, onDismiss: () => resolve(false) }));
+    });
+    mockLocked = true;
+    await act(async () => { r.rerender(ui()); });
+    await expect(answer).resolves.toBe(false);
+  });
+
+  it('H2: من غير زرار إلغاء، رجوع بينادي onDismiss', async () => {
+    await wrap();
+    const onDismiss = jest.fn();
+    await act(async () => { confirmFn('عنوان', 'جملة', [{ text: 'تمام' }], { cancelable: true, onDismiss }); });
+    let node: any = screen.getByTestId('confirm_dialog');
+    while (node && !node.props?.onRequestClose) node = node.parent;
+    await act(async () => { node.props.onRequestClose(); });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('a11y: الفعل الخطر ليه hint، والليبل هو النص الظاهر', async () => {
+    await wrap();
+    await ask([{ text: 'إلغاء', style: 'cancel' }, { text: 'حذف', style: 'destructive' }]);
+    expect(screen.getByTestId('confirm_action_0').props.accessibilityHint).toBe('تأكيد فعل خطر');
+  });
+
+  it('فعلين + إلغاء ← تحت بعض', async () => {
+    await wrap();
+    await ask([{ text: 'إلغاء', style: 'cancel' }, { text: 'أرشفها' }, { text: 'امسحها', style: 'destructive' }]);
+    let row: any = screen.getByTestId('confirm_action_0').parent;
+    while (row && !(Array.isArray(row.props?.style) || row.props?.style?.flexDirection)) row = row.parent;
+    const flat = require('react-native').StyleSheet.flatten(row.props.style);
+    expect(flat.flexDirection).toBe('column');
+  });
+});
+
+it('التباين: نص الخطر expenseText مش danger (danger كنص على nav تحت 4.5)', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/ConfirmProvider.tsx'), 'utf8');
+  expect(src).not.toMatch(/\bcolor: c\.danger\b/);
+  expect(src).toMatch(/dangerText: \{ color: c\.expenseText/);
 });

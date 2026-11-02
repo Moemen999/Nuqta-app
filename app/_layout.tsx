@@ -168,10 +168,11 @@ export default function RootLayout() {
       {/* رسايل النتيجة بشكل التطبيق (بدل Alert الأصلي في مسارات الفلوس) — جوه
           الثيم وفوق كل الشاشات، عشان تفضل بعد ما المودال اللي عرضها يتقفل */}
       <NoticeProvider>
-      <ConfirmProvider>
       {/* فوق NotificationsProvider: الإشعارات بتشيل المبالغ لو مخفية */}
       <PrivacyProvider>
         <AppLockProvider>
+          {/* جوه القفل: التأكيد المفتوح بيتلغي لما التطبيق يتقفل (ConfirmProvider) */}
+          <ConfirmProvider>
           <AuthProvider>
             <DataProvider>
               <NotificationsProvider>
@@ -179,9 +180,9 @@ export default function RootLayout() {
               </NotificationsProvider>
             </DataProvider>
           </AuthProvider>
+          </ConfirmProvider>
         </AppLockProvider>
       </PrivacyProvider>
-      </ConfirmProvider>
       </NoticeProvider>
     </ThemeProvider>
   );

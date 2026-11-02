@@ -1,7 +1,8 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { useAppLock } from '@/context/AppLockContext';
 import { spoken } from '@/components/NoticeProvider';
-import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { MIN_TOUCH, overlayCenteredStyle, space } from '@/lib/tokens';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
@@ -10,47 +11,70 @@ import { Text } from '@/components/AppText';
  * "مكوّن تأكيد بشكل التطبيق بدل Alert"). نفس شكل `NoticeProvider` (رسالة النتيجة): عربي من
  * اليمين، بألوان الثيمين، والـAlert الأصلي على أندرويد كان عنوانه على الشمال وأبيض في الغامق.
  *
- * **نفس توقيع `Alert.alert(عنوان، جملة، أزرار)`** عشان النقل من الـ63 مكان يبقى سطر بسطر:
- * `const confirm = useConfirm(); confirm(title, body, [{ text: 'إلغاء', style: 'cancel' }, …])`.
+ * **نفس توقيع `Alert.alert(عنوان، جملة، أزرار، {cancelable, onDismiss})`** عشان النقل من الـ63
+ * مكان يبقى سطر بسطر: `const confirm = useConfirm(); confirm(title, body, [...])`.
  *
  * - الشباك بيتقفل **قبل** ما `onPress` يتنادى (زي الـAlert): الفعل ممكن يفتح رسالة نتيجة أو
  *   مودال، ومينفعش يبقوا تحت التأكيد.
  * - دوستين بسرعة ← فعل واحد بس: الزرار بيتنفّذ لو التأكيد اللي اتعرض لسه هو اللي على الشاشة.
- * - "رجوع" في أندرويد = زرار `cancel` لو موجود (بيتنادى `onPress` بتاعه)، ولو مفيش بيقفل بس.
+ * - "رجوع" في أندرويد = زرار `cancel` لو موجود، ولو مفيش `onDismiss`، ولو مفيش بيقفل بس.
+ * - **التطبيق اتقفل (القفل) ← كل التأكيدات المفتوحة بتتلغي** (react-reviewer H1): الـModal نافذة
+ *   لوحدها، فكان هيفضل فوق شاشة القفل ونصه باين وزراره شغّال من غير الكود. الإلغاء بينادي
+ *   `cancel`/`onDismiss` عشان أي `Promise` مستني الإجابة يتحل (H2) ومزرار يفضل يلف.
  * - تأكيدات ورا بعض بتتصف، ومن غير Provider (اختبار، أو برّه الشجرة) بيرجع للـAlert الأصلي.
- * - الترتيب من اليمين: الأفعال بالترتيب اللي اتبعتت بيه، و"إلغاء" آخر واحد على الشمال.
+ * - الترتيب: الفعل على اليمين و"إلغاء" على الشمال — نفس فوتر المودالات في التطبيق كله
+ *   (visual-identity-reviewer). فعلين + إلغاء ← تحت بعض.
+ * - **المبالغ في النص زي ما هي:** المسارات بتبعت المبلغ صريح عن قصد (مش جوه `PrivacyProvider`).
+ * - **أندرويد بس** زي `NoticeProvider`: فتح شيت من `onPress` والتأكيد بيختفي آمن هنا (شباكين
+ *   منفصلين)؛ لو اتضاف iOS لازم يتأجّل لبعد الإغلاق (react-reviewer H3).
  */
 
 export type ConfirmButton = { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => unknown };
-type Confirm = (title: string, body: string, buttons: ConfirmButton[]) => void;
-type Pending = { title: string; body: string; buttons: ConfirmButton[] };
+export type ConfirmOptions = { cancelable?: boolean; onDismiss?: () => unknown };
+type Confirm = (title: string, body: string, buttons: ConfirmButton[], options?: ConfirmOptions) => void;
+type Pending = { title: string; body: string; buttons: ConfirmButton[]; options?: ConfirmOptions };
 
 const ConfirmContext = createContext<Confirm | null>(null);
 
-const nativeConfirm: Confirm = (title, body, buttons) => Alert.alert(title, body, buttons);
+const nativeConfirm: Confirm = (title, body, buttons, options) =>
+  (options ? Alert.alert(title, body, buttons, options) : Alert.alert(title, body, buttons));
 
 export function useConfirm(): Confirm {
   return useContext(ConfirmContext) ?? nativeConfirm;
 }
 
+/** الإلغاء من غير ما المستخدم يختار (رجوع، قفل) — زرار الإلغاء، ولو مفيش `onDismiss` */
+function dismissAction(p: Pending) {
+  return p.buttons.find(b => b.style === 'cancel')?.onPress ?? p.options?.onDismiss;
+}
+
 export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const { isLocked } = useAppLock();
   const [queue, setQueue] = useState<Pending[]>([]);
   // نسخة متزامنة من الطابور: دالة التحديث بتاعة setState مش مضمون تتنادى على طول، فالقرار
   // "الدوسة دي على الشباك اللي على الشاشة؟" لازم يتاخد من هنا
   const live = useRef<Pending[]>([]);
-  const show = useCallback<Confirm>((title, body, buttons) => {
-    live.current = [...live.current, { title, body, buttons }];
+  const show = useCallback<Confirm>((title, body, buttons, options) => {
+    live.current = [...live.current, { title, body, buttons, options }];
     setQueue(live.current);
   }, []);
   const current = queue[0] ?? null;
 
   // بيقفل اللي اتعرض بس، وبعدين بينادي الفعل — دوسة تانية على نفس الشباك وهو بيختفي متتنفّذش
-  const choose = useCallback((shown: Pending, button?: ConfirmButton) => {
+  const choose = useCallback((shown: Pending, action?: () => unknown) => {
     if (live.current[0] !== shown) return;
     live.current = live.current.slice(1);
     setQueue(live.current);
-    button?.onPress?.();
+    action?.();
   }, []);
+
+  useEffect(() => {
+    if (!isLocked || live.current.length === 0) return;
+    const dropped = live.current;
+    live.current = [];
+    setQueue([]);
+    dropped.forEach(p => dismissAction(p)?.());
+  }, [isLocked]);
 
   return (
     <ConfirmContext.Provider value={show}>
@@ -60,39 +84,47 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   );
 }
 
-function ConfirmDialog({ pending, onChoose }: { pending: Pending | null; onChoose: (shown: Pending, b?: ConfirmButton) => void }) {
+function ConfirmDialog({ pending, onChoose }: { pending: Pending | null; onChoose: (shown: Pending, action?: () => unknown) => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  // Dimensions مش useWindowDimensions: زي NoticeProvider (الهوك بيكسر اختبار الـsplash)
   const height = Dimensions.get('window').height;
-  const cancel = pending?.buttons.find(b => b.style === 'cancel');
-  const actions = pending?.buttons.filter(b => b.style !== 'cancel') ?? [];
-  const back = () => { if (pending) onChoose(pending, cancel); };
+  // آخر تأكيد اتعرض بيفضل مرسوم لحد ما الـfade يخلص — من غيره الخلفية بتختفي فاضية (react-reviewer M1)
+  const [shown, setShown] = useState<Pending | null>(pending);
+  useEffect(() => { if (pending) setShown(pending); }, [pending]);
+  const view = pending ?? shown;
+  const cancel = view?.buttons.find(b => b.style === 'cancel');
+  const actions = view?.buttons.filter(b => b.style !== 'cancel') ?? [];
+  const back = () => { if (pending) onChoose(pending, dismissAction(pending)); };
 
   return (
     <Modal visible={!!pending} transparent animationType="fade" onRequestClose={back} statusBarTranslucent>
       <View style={styles.overlay}>
-        {pending && (
-          <View testID="confirm_dialog" style={styles.card} accessibilityViewIsModal>
-            <ScrollView style={{ maxHeight: height * 0.6 }} contentContainerStyle={styles.textBlock}>
-              <View accessible accessibilityLabel={spoken(pending)}>
-                <Text testID="confirm_title" style={styles.title}>{pending.title}</Text>
-                {!!pending.body && <Text testID="confirm_body" style={styles.body}>{pending.body}</Text>}
+        {view && (
+          <View testID={pending ? 'confirm_dialog' : undefined} style={[styles.card, { maxHeight: height * 0.9 }]} accessibilityViewIsModal>
+            {/* بتتسكرول، والأزرار برّه السكرول: بخط 200% الجملة الطويلة متزقّش الأزرار برّه الشاشة */}
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.textBlock}>
+              <View accessible accessibilityLabel={spoken(view)}>
+                <Text testID="confirm_title" style={styles.title}>{view.title}</Text>
+                {!!view.body && <Text testID="confirm_body" style={styles.body}>{view.body}</Text>}
               </View>
             </ScrollView>
-            <View style={styles.row}>
+            <View style={[styles.row, actions.length > 1 && styles.stack]}>
               {actions.map((b, i) => {
                 const danger = b.style === 'destructive';
                 return (
                   <TouchableOpacity key={`${b.text}_${i}`} testID={`confirm_action_${i}`}
                     style={[styles.btn, danger ? styles.dangerBtn : styles.primaryBtn]}
-                    onPress={() => onChoose(pending, b)} accessibilityRole="button">
+                    onPress={() => pending && onChoose(pending, b.onPress)} accessibilityRole="button"
+                    // الخطر مش باللون بس (a11y-architect): القارئ بيقوله، والليبل نفسه = النص الظاهر (أوامر الصوت)
+                    accessibilityHint={danger ? 'تأكيد فعل خطر' : undefined}>
                     <Text style={danger ? styles.dangerText : styles.primaryText}>{b.text}</Text>
                   </TouchableOpacity>
                 );
               })}
               {cancel && (
                 <TouchableOpacity testID="confirm_cancel" style={[styles.btn, styles.cancelBtn]}
-                  onPress={() => onChoose(pending, cancel)} accessibilityRole="button">
+                  onPress={() => pending && onChoose(pending, cancel.onPress)} accessibilityRole="button">
                   <Text style={styles.cancelText}>{cancel.text}</Text>
                 </TouchableOpacity>
               )}
@@ -114,13 +146,18 @@ function makeStyles(c: ThemeColors) {
     textBlock: { gap: 10 },
     title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
     body: { color: c.textSecondary, fontSize: 14.5, lineHeight: 22, textAlign: 'right' },
-    row: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    btn: { flexGrow: 1, minHeight: MIN_TOUCH, borderRadius: 10, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+    row: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
+    stack: { flexDirection: 'column' },
+    btn: {
+      flexGrow: 1, minHeight: MIN_TOUCH, borderRadius: 10, paddingHorizontal: space.xxl, paddingVertical: space.md,
+      alignItems: 'center', justifyContent: 'center',
+    },
     primaryBtn: { backgroundColor: c.accent },
-    primaryText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
+    primaryText: { color: c.onAccent, fontSize: 15, fontWeight: '700', textAlign: 'center' },
     dangerBtn: { borderWidth: 1.5, borderColor: c.danger },
-    dangerText: { color: c.danger, fontSize: 15, fontWeight: '700' },
+    // نص الخطر expenseText مش danger: danger كنص على nav ‏4.14–4.42 تحت 4.5 (visual-identity-reviewer)
+    dangerText: { color: c.expenseText, fontSize: 15, fontWeight: '700', textAlign: 'center' },
     cancelBtn: { borderWidth: 1, borderColor: c.borderStrong },
-    cancelText: { color: c.textSecondary, fontSize: 15 },
+    cancelText: { color: c.textSecondary, fontSize: 15, textAlign: 'center' },
   });
 }
