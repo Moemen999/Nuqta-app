@@ -53,8 +53,8 @@ const pressDelete = async (id: string) => { await act(async () => { fireEvent.pr
 const LAST_ACTIVE_TITLE = 'دي آخر محفظة شغالة';
 const DELETE_BODY = 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.';
 const ARCHIVE_BODY = 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.';
-const expectLastActiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY, [{ text: 'تمام' }]);
-const expectArchiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY, [{ text: 'تمام' }]);
+const expectLastActiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY);
+const expectArchiveRefusal = () => expect(alertSpy).toHaveBeenLastCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY);
 
 describe('walletDeleteBlock', () => {
   it('آخر شغالة ← ممنوع، سواء فيه مؤرشفة ولا لأ', () => {
@@ -146,7 +146,7 @@ describe('شاشة المحافظ', () => {
     await screen.rerender(ui());
     await act(async () => { fireEvent.press(screen.getByTestId('archive_sheet_confirm')); });
     expectArchiveRefusal();
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY, expect.anything());
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY);
     expect(mockData.archiveWallet).not.toHaveBeenCalled();
   });
 
@@ -154,7 +154,7 @@ describe('شاشة المحافظ', () => {
     seed([cash, savings]);
     await render(ui());
     await pressDelete('w1');
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY, expect.anything());
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY);
   });
 });
 
@@ -202,7 +202,7 @@ describe('رفض DataContext بيوصل للشاشة', () => {
     await render(ui());
     await pressDelete('w1');
     await press('حذف');
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, expect.anything(), expect.anything());
+    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, expect.anything());
   });
 });
 
@@ -213,7 +213,7 @@ describe('رمي قبل الكتابة مبيتبلعش', () => {
     await pressDelete('w1');
     await press('حذف');
     expect(reportAtomicFailure).toHaveBeenCalledWith('مسح المحفظة', expect.any(Error));
-    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.', [{ text: 'تمام' }]);
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.');
   });
   it('الأرشفة رمت ← "حصل خطأ" باسم المحفظة', async () => {
     mockData.archiveWallet = jest.fn(async () => { throw new Error('x'); });
@@ -223,6 +223,6 @@ describe('رمي قبل الكتابة مبيتبلعش', () => {
     await press('أرشفها');
     await press('أرشفها');
     expect(reportAtomicFailure).toHaveBeenCalledWith('أرشفة المحفظة', expect.any(Error));
-    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.', [{ text: 'تمام' }]);
+    expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.');
   });
 });

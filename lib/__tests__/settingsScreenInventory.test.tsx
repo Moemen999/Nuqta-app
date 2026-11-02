@@ -209,7 +209,7 @@ describe('الفئات — البيانات ما وصلتش', () => {
     mockData.loadErrors = ['transactions'];
     await wrap(<CategoriesScreen />);
     await act(async () => { fireEvent.press(screen.getByTestId('category_delete_c1')); });
-    expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'), expect.anything());
+    expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'));
     expect(mockData.deleteCategory).not.toHaveBeenCalled();
   });
 });

@@ -14,7 +14,9 @@ import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } fr
 import { categoryIcon } from '@/lib/finance';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useConfirm } from '@/components/ConfirmProvider';
+import { useNotice } from '@/components/NoticeProvider';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,6 +25,8 @@ export default function CategoriesScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const notice = useNotice();
+  const confirm = useConfirm();
   const {
     categories, transactions, debts, subscriptions, budgets, loadErrors,
     addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
@@ -66,21 +70,19 @@ export default function CategoriesScreen() {
 
   function showBlock(block: ArchiveBlock) {
     if (block.kind === 'last-active') {
-      Alert.alert('دي آخر فئة شغالة',
-        'لازم تفضل عندك فئة واحدة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية الأول.',
-        [{ text: 'تمام' }]);
+      notice('دي آخر فئة شغالة',
+        'لازم تفضل عندك فئة واحدة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية الأول.');
       return;
     }
-    Alert.alert('مفيش فئة تانية',
-      'الاشتراكات الشغالة محتاجة فئة تتنقل لها. اعمل فئة تانية الأول.',
-      [{ text: 'تمام' }]);
+    notice('مفيش فئة تانية',
+      'الاشتراكات الشغالة محتاجة فئة تتنقل لها. اعمل فئة تانية الأول.');
   }
 
   /** لو بيانات الاستخدام ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
   function blockedByMissingData() {
     const missing = categoryActionBlockedBy(loadErrors);
     if (missing.length === 0) return false;
-    Alert.alert(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing), [{ text: 'تمام' }]);
+    notice(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing));
     return true;
   }
 
@@ -89,13 +91,13 @@ export default function CategoriesScreen() {
     const refs = refsFor(id);
     if (!categoryHasHistory(refs)) {
       const budgetNote = refs.hasBudget ? ' وميزانيتها هتتمسح معاها.' : '';
-      Alert.alert('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية عليها.${budgetNote}`, [
+      confirm('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية عليها.${budgetNote}`, [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'حذف', style: 'destructive', onPress: () => runDelete(id, () => deleteCategory(id)) },
       ]);
       return;
     }
-    Alert.alert('الفئة دي عليها عمليات',
+    confirm('الفئة دي عليها عمليات',
       `"${name}" عليها ${categoryLinkSummary(refs)}. لو مسحتها العمليات هتظهر باسم فئة ممسوحة. تقدر تأرشفها بدل كده.`,
       [
         { text: 'إلغاء', style: 'cancel' },
@@ -106,7 +108,7 @@ export default function CategoriesScreen() {
 
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
-    Alert.alert('مسح نهائي', categoryDeleteConsequences(refsFor(id)).join('\n'), [
+    confirm('مسح نهائي', categoryDeleteConsequences(refsFor(id)).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(id, () => deleteCategory(id)) },
     ]);
@@ -125,7 +127,7 @@ export default function CategoriesScreen() {
 
     const budgetNote = refs.hasBudget ? ' ونمسح ميزانيتها الشهرية' : '';
     if (refs.activeSubscriptions.length === 0) {
-      Alert.alert('أرشفة فئة', `هنأرشف "${name}"${budgetNote}. العمليات القديمة هتفضل زي ما هي.`, [
+      confirm('أرشفة فئة', `هنأرشف "${name}"${budgetNote}. العمليات القديمة هتفضل زي ما هي.`, [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'أرشفها', onPress: () => archiveCategory(id, {}) },
       ]);
@@ -140,7 +142,7 @@ export default function CategoriesScreen() {
   }
 
   function confirmRestore(id: string, name: string) {
-    Alert.alert('رجّع الفئة', `"${name}" هترجع من غير ميزانية، تقدر تحددلها ميزانية من جديد.`, [
+    confirm('رجّع الفئة', `"${name}" هترجع من غير ميزانية، تقدر تحددلها ميزانية من جديد.`, [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'رجّعها', onPress: () => restoreCategory(id) },
     ]);

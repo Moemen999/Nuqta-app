@@ -86,7 +86,7 @@ it('عملية جديدة على المحفظة والشيت مفتوح ← مف
   mockData.transactions = [...baseTxs, { id: 't9', type: 'expense', amount: 120, walletId: 'w1', date: '2026-09-25' }];
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
-  expect(alertSpy).toHaveBeenCalledWith('رصيدها لسه مش صفر', expect.stringContaining('كاش'), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('رصيدها لسه مش صفر', expect.stringContaining('كاش'));
 });
 
 it('الجمعية اتمسحت من جهاز تاني ومعاها دفعتها ← الرصيد بقى +500، مفيش أرشفة', async () => {
@@ -95,7 +95,7 @@ it('الجمعية اتمسحت من جهاز تاني ومعاها دفعتها
   mockData.transactions = baseTxs.filter(t => t.id !== 't1');
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
-  expect(alertSpy).toHaveBeenCalledWith('رصيدها لسه مش صفر', expect.anything(), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('رصيدها لسه مش صفر', expect.anything());
 });
 
 it('المحفظة نفسها اتمسحت من جهاز تاني والشيت مفتوح ← مفيش أرشفة، ورسالة إنها اتمسحت', async () => {
@@ -103,7 +103,7 @@ it('المحفظة نفسها اتمسحت من جهاز تاني والشيت �
   mockData.wallets = wallets.filter(w => w.id !== 'w1');
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
-  expect(alertSpy).toHaveBeenCalledWith('المحفظة دي اتمسحت', expect.stringContaining('كاش'), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('المحفظة دي اتمسحت', expect.stringContaining('كاش'));
 });
 
 it('الجمعية اختفت بس دفعتها لسه ما اتشالتش من الرصيد (listeners منفصلة) ← مفيش أرشفة على رقم قديم', async () => {
@@ -111,7 +111,7 @@ it('الجمعية اختفت بس دفعتها لسه ما اتشالتش من 
   mockData.gamiyas = [];
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
-  expect(alertSpy).toHaveBeenCalledWith('فيه حاجة اتغيّرت', expect.stringContaining('كاش'), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('فيه حاجة اتغيّرت', expect.stringContaining('كاش'));
 });
 
 /**
@@ -122,7 +122,7 @@ it('العمليات ما وصلتش ← المسح بيقف برسالة بتس
   mockData.loadErrors = ['transactions'];
   await render(ui());
   await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
-  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.stringContaining('العمليات'));
   expect(mockData.deleteWallet).not.toHaveBeenCalled();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
 });
@@ -132,5 +132,5 @@ it('الشيت مفتوح والعمليات وقعت قبل التأكيد ← 
   mockData.loadErrors = ['transactions'];
   await confirm();
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
-  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.anything(), expect.anything());
+  expect(alertSpy).toHaveBeenCalledWith('استنى البيانات توصل', expect.anything());
 });
