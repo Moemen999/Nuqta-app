@@ -1,5 +1,4 @@
 import { useNotice } from '@/components/NoticeProvider';
-import { useConfirm } from '@/components/ConfirmProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { db } from '@/firebaseConfig';
@@ -674,7 +673,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const pendingCount = useRef(0);
   const errorShown = useRef(false);
   const notice = useNotice();
-  const confirm = useConfirm();
   // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
   // التطبيق بنعتبر نفسنا مش متصلين. ده بيمنع إن حد يفتح التطبيق وهو من غير نت
   // ويدوس "سدّد" فيقع في نفس مصيدة الزرار المقفول
@@ -793,20 +791,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (errorShown.current) return;
     errorShown.current = true;
     /**
-     * القفل بيتفك بالزرار **وبمؤقّت احتياطي**.
-     *
-     * لو تنبيه تاني كان مفتوح لحظتها، المنصة ممكن تبلع التنبيه ده خالص —
-     * وساعتها `onPress` عمره ما هيشتغل، والقفل يفضل مقفول لآخر الجلسة. يعني
-     * كل كتابة تفشل بعد كده تبقى صامتة. المؤقّت بيضمن إن أسوأ حالة هي تنبيه
-     * واحد ضايع، مش كل التنبيهات بعده.
+     * `notice` مش `confirm` — عن قصد (silent-failure-hunter، 2026-11-02): `confirm` بيلغي أي
+     * شباك والتطبيق مقفول، ورسالة فشل كتابة اتلغت = فلوس اختفت من غير سبب. `notice` بيصف
+     * الرسايل ومبيرميش حاجة. والقفل بالمؤقّت بس: رسالة واحدة لكل دفعة فشل في
+     * `WRITE_ERROR_RESET_MS`، وبعدها أي فشل جديد بيظهر تاني.
      */
-    const unlock = () => { errorShown.current = false; };
-    const backstop = setTimeout(unlock, WRITE_ERROR_RESET_MS);
-    confirm(
-      WRITE_ERROR_TITLE,
-      writeErrorBody(label),
-      [{ text: 'تمام', onPress: () => { clearTimeout(backstop); unlock(); } }]
-    );
+    setTimeout(() => { errorShown.current = false; }, WRITE_ERROR_RESET_MS);
+    notice(WRITE_ERROR_TITLE, writeErrorBody(label));
   }
 
   /**
