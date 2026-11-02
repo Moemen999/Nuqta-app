@@ -13,7 +13,7 @@ import {
 import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
@@ -58,7 +58,7 @@ export default function WalletsScreen() {
     (id, value) => updateWallet(id, { lowAlert: value }),
   );
   const { busy: adding, run: runAdd } = useBusy();
-  const { busyKey: deletingKey, run: runDelete } = useBusyKey();
+  const { busyKey: deletingKey, run: runDelete } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);

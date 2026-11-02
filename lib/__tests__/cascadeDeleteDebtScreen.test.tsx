@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import DebtsTabScreen from '@/app/(tabs)/debts';
 import { NoticeProvider } from '@/components/NoticeProvider';
+import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 
@@ -17,6 +18,7 @@ jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/Dat
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
+jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: false }) }));
 
 const ACTIVE = { id: 'w1', name: 'الكاش', openingBalance: 0, lowAlert: 0 };
 const ARCHIVED = { id: 'w_old', name: 'المحفظة القديمة', openingBalance: 0, lowAlert: 0, archived: true };
@@ -83,4 +85,18 @@ it('اتمنع لحظة الدوسة ← رسالة المنع بتظهر', asyn
   const destructive = (alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[]).find(b => b.text === 'حذف');
   await act(async () => { await destructive?.onPress?.(); });
   expect(screen.getByTestId('notice_body').props.children).toBe('اتأرشفت من جهاز تاني');
+});
+
+it('بمكوّن التأكيد: التأكيد قبل المسح، الإلغاء مبيمسحش، و"حذف" بيمسح الدين', async () => {
+  mockData.transactions = txOn(ACTIVE.id);
+  await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
+  await act(async () => { fireEvent.press(screen.getByText('أحمد')); });
+  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  expect(screen.getByTestId('confirm_title').props.children).toBe('مسح الدين');
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+  expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+  expect(mockData.deleteDebt).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  expect(mockData.deleteDebt).toHaveBeenCalledWith('d1');
 });

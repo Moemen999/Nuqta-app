@@ -1,5 +1,6 @@
 import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
@@ -11,9 +12,9 @@ import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
@@ -23,7 +24,10 @@ export default function GamiyaView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
-  const { busyKey, run: runBusy } = useBusyKey();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
+  const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
+  const confirm = useConfirm();
+  const { busyKey, run: runBusy } = useBusyKey(onBusy);
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export default function GamiyaView() {
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // الشهور المتسددة والاستلام بيتمسحوا معاها والرصيد بيتحرك — التأكيد لازم يقول كده
     const { title, body } = cascadeDeleteConfirm('gamiya', g.name, linkedTransactions(txIds, transactions).length);
-    Alert.alert(title, body, [
+    confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, async () => {
@@ -46,7 +50,7 @@ export default function GamiyaView() {
     ]);
   }
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {
-    Alert.alert(
+    confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
       isPayout ? `هتستلم ${plainAmount(amount)} ج.م في محفظتك؟` : `هيتخصم ${plainAmount(amount)} ج.م من محفظتك؟`,
       [
@@ -61,7 +65,9 @@ export default function GamiyaView() {
             }
           }),
         },
-      ]
+      ],
+      // نفس النص لشهرين بنفس القسط — المفتاح هو الشهر (money-reviewer)
+      { key: `month_${g.id}_${monthId}` },
     );
   }
 

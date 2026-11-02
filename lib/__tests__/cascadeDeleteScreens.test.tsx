@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { NoticeProvider } from '@/components/NoticeProvider';
+import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 
@@ -21,6 +22,7 @@ import { ThemeProvider } from '@/context/ThemeContext';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: false }) }));
 
 const ACTIVE = { id: 'w1', name: 'الكاش', openingBalance: 0, lowAlert: 0 };
 const ARCHIVED = { id: 'w_old', name: 'المحفظة القديمة', openingBalance: 0, lowAlert: 0, archived: true };
@@ -133,5 +135,23 @@ describe.each(SCREENS)('$kind — زرار الحذف', (cfg) => {
     expect(mockData[del]).toHaveBeenCalledWith(id);
     expect(screen.getByTestId('notice_title').props.children).toBe('المحفظة دي مؤرشفة');
     expect(screen.getByTestId('notice_body').props.children).toBe('اتأرشفت من جهاز تاني');
+  });
+});
+
+/** نقل التأكيدات (الشاشات المالية): نفس التدفق بمكوّن التأكيد نفسه، مش Alert الاحتياطي */
+describe.each(SCREENS)('$kind — بمكوّن التأكيد', (cfg) => {
+  it('التأكيد قبل أي مسح، والإلغاء مبيمسحش، و"حذف" بيمسح', async () => {
+    mockData.transactions = txOn(ACTIVE.id);
+    await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><cfg.Screen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
+    if (cfg.expand) await act(async () => { fireEvent.press(screen.getByText(cfg.expand!)); });
+    await act(async () => { fireEvent.press(screen.getByText(cfg.button)); });
+    expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
+    expect(mockData[cfg.del]).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(mockData[cfg.del]).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(screen.getByText(cfg.button)); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData[cfg.del]).toHaveBeenCalledWith(cfg.id);
   });
 });
