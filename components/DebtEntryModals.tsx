@@ -1,5 +1,6 @@
 import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import AmountPreview from '@/components/AmountPreview';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
@@ -20,7 +21,7 @@ import { selectionStyle, selectionTextColor } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
 /**
@@ -49,6 +50,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, addDebtPayment } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { busy, run: runBusy } = useBusy();
 
   const remaining = debtRemaining(debt);
@@ -90,7 +92,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       ? `مفيش متبقي على ${debt.personName}.\nاللي هيتسجّل: ${plainAmount(amt)} ج.م\nنسجّله؟`
       : `المتبقي على ${debt.personName}: ${plainAmount(remaining)} ج.م\nاللي هيتسجّل: ${plainAmount(amt)} ج.م\nيعني زيادة ${plainAmount(excess)} ج.م — نسجّله؟`;
     return new Promise<boolean>(resolve => {
-      Alert.alert(title, body, [
+      confirm(title, body, [
         { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
         { text: 'أيوة، سجّل', onPress: () => resolve(true) },
       ], { cancelable: true, onDismiss: () => resolve(false) });

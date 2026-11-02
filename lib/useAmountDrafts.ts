@@ -1,6 +1,6 @@
 import { planWalletAmountCommit, type WalletAmountPlan } from '@/lib/finance';
 import { useEffect, useRef, useState } from 'react';
-import { Alert } from 'react-native';
+import { useConfirm } from '@/components/ConfirmProvider';
 
 export const NEGATIVE_CONFIRM_TITLE = 'رصيد بالسالب؟';
 export const NEGATIVE_CONFIRM_BODY = 'ده معناه إن عليك فلوس في المحفظة دي، زي كارت الائتمان.';
@@ -68,6 +68,7 @@ export function useAmountDrafts(
 ) {
   const plan = opts.plan ?? planWalletAmountCommit;
   const blankWhenZero = opts.blankWhenZero ?? false;
+  const confirm = useConfirm();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const pending = useRef<Record<string, string>>({});
 
@@ -165,7 +166,7 @@ export function useAmountDrafts(
     if (p.action === 'write') { commitWrite(id, p.value); return; }
 
     const confirmed = p.value;
-    Alert.alert(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
+    confirm(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
       { text: NEGATIVE_CONFIRM_NO, style: 'cancel', onPress: () => clearDraft(id) },
       { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, confirmed) },
     ]);

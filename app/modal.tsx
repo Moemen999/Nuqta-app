@@ -3,6 +3,7 @@ import { useArchivedSettlement } from '@/components/ArchivedSettlement';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
@@ -16,7 +17,7 @@ import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/se
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -36,6 +37,7 @@ export default function AddTransactionModal() {
     addTransaction, updateTransaction, updateDebtLinkedTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
   const isEdit = !!existing;
   // مربوطة بدين/اشتراك/جمعية/دخل ← النوع مقفول (`lib/linkedEdit.ts`)، والدين
@@ -180,7 +182,7 @@ export default function AddTransactionModal() {
   // نفس سؤال مودال الدفعة: تحذير مش منع (`overpayCheck`)، بس هنا الزيادة جاية من التعديل
   function confirmDebtOverpay(personName: string, excess: number) {
     return new Promise<boolean>(resolve => {
-      Alert.alert('المبلغ أكبر من المتبقي', `بعد التعديل، اللي اتدفع على "${personName}" هيزيد عن الدين بـ ${plainAmount(excess)} ج.م — نحفظه كده؟`, [
+      confirm('المبلغ أكبر من المتبقي', `بعد التعديل، اللي اتدفع على "${personName}" هيزيد عن الدين بـ ${plainAmount(excess)} ج.م — نحفظه كده؟`, [
         { text: 'إلغاء', style: 'cancel', onPress: () => resolve(false) },
         { text: 'أيوة، احفظ', onPress: () => resolve(true) },
       ], { cancelable: true, onDismiss: () => resolve(false) });
@@ -239,7 +241,7 @@ export default function AddTransactionModal() {
       settle.request(changes, run, { intro: message, confirmLabel: 'حذف' });
       return;
     }
-    Alert.alert('حذف العملية', message, [
+    confirm('حذف العملية', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: async () => {
