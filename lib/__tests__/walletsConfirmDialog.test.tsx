@@ -55,3 +55,34 @@ it('آخر محفظة شغالة ← رسالة المنع بزرار "تمام"
   expect(screen.getByTestId('notice_title').props.children).toBe('دي آخر محفظة شغالة');
   expect(mockData.deleteWallet).not.toHaveBeenCalled();
 });
+
+describe('سلاسل التأكيد بالمكوّن نفسه (silent-failure-hunter، دفعة 2)', () => {
+  const withHistory = () => {
+    seed([cash, bank]);
+    mockData.transactions = [{ id: 't1', type: 'expense', amount: 0, walletId: 'w1', date: '2026-01-01' }];
+  };
+
+  it('"ليها تاريخ" ← "امسحها برضه" ← بيفتح "مسح نهائي"، ومفيش مسح لحد التأكيد التاني', async () => {
+    withHistory();
+    await render(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('المحفظة دي ليها تاريخ');
+    await act(async () => { fireEvent.press(screen.getByText('امسحها برضه')); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('مسح نهائي');
+    expect(mockData.deleteWallet).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(screen.getByText('امسحها نهائي')); });
+    expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');
+  });
+
+  it('"ليها تاريخ" ← "أرشفها" ← التأكيد بيتقفل والأرشفة بتكمل (شيت أو تأكيد الأرشفة)', async () => {
+    withHistory();
+    await render(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
+    await act(async () => { fireEvent.press(screen.getByText('أرشفها')); });
+    // من غير حاجات شغالة تتنقل: الأرشفة بتسأل تأكيدها هي، والتأكيد الأول اتقفل
+    const title = screen.queryByTestId('confirm_title')?.props.children;
+    const sheet = screen.queryByTestId('archive_sheet_confirm');
+    expect(title === 'أرشفة محفظة' || !!sheet).toBe(true);
+    expect(title).not.toBe('المحفظة دي ليها تاريخ');
+  });
+});

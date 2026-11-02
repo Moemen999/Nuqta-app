@@ -146,7 +146,8 @@ describe('شاشة المحافظ', () => {
     await screen.rerender(ui());
     await act(async () => { fireEvent.press(screen.getByTestId('archive_sheet_confirm')); });
     expectArchiveRefusal();
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, DELETE_BODY);
+    // أي نداء بالعنوان ده (notice أو confirm) — مش بس بنفس عدد الوسائط
+    expect(alertSpy.mock.calls.some(c => c[0] === LAST_ACTIVE_TITLE && c[1] === DELETE_BODY)).toBe(false);
     expect(mockData.archiveWallet).not.toHaveBeenCalled();
   });
 
@@ -154,7 +155,7 @@ describe('شاشة المحافظ', () => {
     seed([cash, savings]);
     await render(ui());
     await pressDelete('w1');
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, ARCHIVE_BODY);
+    expect(alertSpy.mock.calls.some(c => c[0] === LAST_ACTIVE_TITLE && c[1] === ARCHIVE_BODY)).toBe(false);
   });
 });
 
@@ -202,7 +203,7 @@ describe('رفض DataContext بيوصل للشاشة', () => {
     await render(ui());
     await pressDelete('w1');
     await press('حذف');
-    expect(alertSpy).not.toHaveBeenCalledWith(LAST_ACTIVE_TITLE, expect.anything());
+    expect(alertSpy.mock.calls.some(c => c[0] === LAST_ACTIVE_TITLE)).toBe(false);
   });
 });
 
