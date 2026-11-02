@@ -116,7 +116,13 @@ export default function IncomeHomeCards() {
     const label = incomePeriodLabel(inc, key, today);
     confirm(`"${inc.name}" ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
       { text: 'رجوع', style: 'cancel' },
-      { text: 'ما نزلش', onPress: () => { skipIncomePeriod(inc.id, key); } },
+      {
+        text: 'ما نزلش', onPress: () => {
+          skipIncomePeriod(inc.id, key);
+          // زي كارت الاشتراك: الكارت بيختفي، فقارئ الشاشة لازم يسمع حصل إيه (silent-failure-hunter)
+          AccessibilityInfo.announceForAccessibility(`مش هنسجل "${inc.name}" عن ${label}`);
+        },
+      },
     ]);
   }
 

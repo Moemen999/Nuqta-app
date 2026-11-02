@@ -42,4 +42,6 @@ it('فئة عليها عمليات ← التأكيد الأول، وبعده "�
   await act(async () => { fireEvent.press(destructive); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('مسح نهائي');
   expect(mockData.deleteCategory).not.toHaveBeenCalled();
+  await act(async () => { fireEvent.press(screen.getByText('امسحها نهائي')); });
+  expect(mockData.deleteCategory).toHaveBeenCalledWith('c1');
 });

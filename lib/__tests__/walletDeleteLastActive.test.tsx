@@ -42,6 +42,8 @@ beforeEach(() => {
 });
 afterEach(() => alertSpy.mockRestore());
 
+// من غير ConfirmProvider/NoticeProvider عن قصد: كل حاجة بترجع للـAlert والـspy بيلقطها — لو
+// اتلفّت بالـProviders، النفي (mock.calls.some) هيبقى فاضي من غير ما حد ياخد باله
 const ui = () => <ThemeProvider><WalletsScreen /></ThemeProvider>;
 warmUp(() => { seed([cash, bank]); return ui(); });
 

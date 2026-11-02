@@ -74,15 +74,15 @@ describe('سلاسل التأكيد بالمكوّن نفسه (silent-failure-hu
     expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');
   });
 
-  it('"ليها تاريخ" ← "أرشفها" ← التأكيد بيتقفل والأرشفة بتكمل (شيت أو تأكيد الأرشفة)', async () => {
+  it('"ليها تاريخ" ← "أرشفها" ← تأكيد الأرشفة ← archiveWallet بيتنادى فعلاً', async () => {
     withHistory();
     await render(ui());
     await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
     await act(async () => { fireEvent.press(screen.getByText('أرشفها')); });
-    // من غير حاجات شغالة تتنقل: الأرشفة بتسأل تأكيدها هي، والتأكيد الأول اتقفل
-    const title = screen.queryByTestId('confirm_title')?.props.children;
-    const sheet = screen.queryByTestId('archive_sheet_confirm');
-    expect(title === 'أرشفة محفظة' || !!sheet).toBe(true);
-    expect(title).not.toBe('المحفظة دي ليها تاريخ');
+    // من غير حاجات شغالة تتنقل (مفيش شيت): الأرشفة بتسأل تأكيدها هي، والتأكيد الأول اتقفل
+    expect(screen.getByTestId('confirm_title').props.children).toBe('أرشفة محفظة');
+    expect(mockData.archiveWallet).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.archiveWallet).toHaveBeenCalledWith('w1', expect.anything());
   });
 });
