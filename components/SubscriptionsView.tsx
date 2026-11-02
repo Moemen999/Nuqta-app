@@ -1,5 +1,6 @@
 import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
@@ -15,7 +16,7 @@ import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
 const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي', custom: 'مخصص' };
@@ -45,6 +46,7 @@ export default function SubscriptionsView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid, setSubscriptionActive } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { busyKey, run: runBusy } = useBusyKey();
   // الرجوع بقفل لوحده: "اتخصم" على اشتراك تاني بياخد لحد ~10 ثواني، ونفس القفل كان بيبلع "رجّعه" ساكت
   const { busyKey: resumeBusyKey, run: runResume } = useBusyKey();
@@ -62,7 +64,7 @@ export default function SubscriptionsView() {
     const overdueLine = overdue > 0
       ? ` عليه ${overdue === 1 ? 'مرة متأخرة' : `${overdue} مرات متأخرة`} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
       : '';
-    Alert.alert('توقّف الاشتراك ده مؤقتًا؟', `"${s.name}" مش هيتخصم ولا هيفكّرك بيه لحد ما ترجّعه. الدفعات اللي اتسجلت بتفضل زي ما هي.${overdueLine}`, [
+    confirm('توقّف الاشتراك ده مؤقتًا؟', `"${s.name}" مش هيتخصم ولا هيفكّرك بيه لحد ما ترجّعه. الدفعات اللي اتسجلت بتفضل زي ما هي.${overdueLine}`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'وقّفه', onPress: () => {
@@ -75,7 +77,7 @@ export default function SubscriptionsView() {
   }
   function confirmResume(s: Subscription) {
     const next = subscriptionResumeDate(s, todayStr());
-    Alert.alert('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
+    confirm('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'رجّعه', onPress: () => runResume(`resume_${s.id}`, async () => {
@@ -96,7 +98,7 @@ export default function SubscriptionsView() {
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // المسح بيشيل كل الدفعات اللي اتسجلت والرصيد بيتحرك — التأكيد لازم يقول كده
     const { title, body } = cascadeDeleteConfirm('subscription', s.name, linkedTransactions(txIds, transactions).length);
-    Alert.alert(title, body, [
+    confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, async () => {
@@ -107,7 +109,7 @@ export default function SubscriptionsView() {
     ]);
   }
   function confirmPay(s: Subscription) {
-    Alert.alert('تسجيل الدفع', `اتخصم ${plainAmount(s.amount)} ج.م من محفظتك دلوقتي؟`, [
+    confirm('تسجيل الدفع', `اتخصم ${plainAmount(s.amount)} ج.م من محفظتك دلوقتي؟`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'تأكيد',

@@ -3,6 +3,7 @@ import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { plainAmount, type AmountFormatter } from '@/lib/money';
 import ContactPickerModal from '@/components/ContactPickerModal';
@@ -27,7 +28,7 @@ import { useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -96,6 +97,7 @@ function DebtsContent() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, transactions, loadErrors, figuresPending, pendingTxIds, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
   const personKeyByDebt = useMemo(() => {
@@ -138,7 +140,7 @@ function DebtsContent() {
     const blocked = cascadeDeleteBlock({ kind: 'debt', name: d.personName, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     const { title, body } = cascadeDeleteConfirm('debt', d.personName, linkedTransactions(txIds, transactions).length);
-    Alert.alert(title, body, [
+    confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, async () => {
@@ -161,7 +163,7 @@ function DebtsContent() {
     if (blocked) { notice(blocked.title, blocked.body); return; }
     const walletName = plan.walletId ? walletHistoryName(wallets, plan.walletId) : '';
     const { title, body } = debtEntryDeleteMessage(d, kind, plan, walletName, plainAmount);
-    Alert.alert(title, body, [
+    confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'امسح',
@@ -209,11 +211,11 @@ function DebtsContent() {
     }
     if (d.personPhone) {
       Linking.openURL(`tel:${d.personPhone}`).catch(() => {
-        Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+        notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
       });
       return;
     }
-    Alert.alert('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
+    notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
   }
 
   function renderDebt(d: Debt) {
