@@ -95,3 +95,20 @@ export function parseColdSnapshot(raw: string | null, uid: string, now: number):
   if (!s.categories.every((c: any) => c && isStr(c.id) && isStr(c.name))) return null;
   return s as ColdSnapshot;
 }
+
+/** اسم العملية المربوطة في الكاش — النوع بس، من غير اسم الشخص أو الاشتراك أو الجمعية */
+export const COLD_KIND_LABEL: Record<ColdTxKind, string> = {
+  debt: 'دين', subscription: 'اشتراك', gamiya: 'جمعية', income: 'دخل ثابت', settlement: 'تسوية',
+};
+
+function pad2(n: number) { return String(n).padStart(2, '0'); }
+
+/**
+ * علامة "قديم" (قرار مؤمن): الأرقام دي عمرها ما تتعرض من غير ما يبان إنها مش حية وإمتى اتشافت.
+ * التاريخ بنفس شكل تاريخ العمليات في الرئيسية (`YYYY-MM-DD · 8:15 م`).
+ */
+export function coldFiguresText(savedAt: number, formatTime: (iso: string) => string): string {
+  const d = new Date(savedAt);
+  const day = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return `دي آخر أرقام اتشافت (${day} · ${formatTime(d.toISOString())}) — مستنيين النت عشان نحدّثها، ومتقدرش تعدّل عليها لحد ما توصل.`;
+}

@@ -163,13 +163,15 @@ describe('جرد بانرات الرئيسية في الكود', () => {
 
   it('فيه بانرات أصلاً (الجرد مش فاضي)', () => {
     expect(banners.map(b => b.id).sort()).toEqual(
-      ['budget', 'budget_total', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+      ['budget', 'budget_total', 'cold', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
   });
   it('كلهم مكتوبين قبل "آخر العمليات"', () => {
     // بانر الإيميل كومبوننت لوحده تحت في الملف — المهم مكان استخدامه في الشاشة
     const at = (b: { id: string; at: number }) => (b.id === 'verify_email' ? src.indexOf('<EmailVerificationBanner />') : b.at);
     for (const b of banners) expect({ id: b.id, before: at(b) > -1 && at(b) < titleAt }).toEqual({ id: b.id, before: true });
   });
+  // **استثناء واحد: `cold`** (كاش أول فتحة): أرقام قديمة على الشاشة، و✕ كان هيسيبها من غير علامة "قديم" (قرار مؤمن
+  // على الكاش). مستني تأكيد مؤمن لأنه بيخالف "كل بانر ليه ✕" (2026-10-28) — سؤال في تقرير اللوب
   it('كل بانر ليه ✕', () => {
     const dismissIds = new Set([...src.matchAll(/home_banner_dismiss_([a-z_]+)/g)].map(m => m[1].replace(/_$/, '')));
     expect([...dismissIds].sort()).toEqual(

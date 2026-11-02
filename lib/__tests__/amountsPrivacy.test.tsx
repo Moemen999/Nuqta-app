@@ -278,8 +278,9 @@ describe('جرد الإخفاء في كل الشاشات', () => {
     expect(users).toEqual(['app/(tabs)/index.tsx']);
     const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
     const scopes = home.match(/<AmountsUnmaskedScope>[\s\S]*?<\/AmountsUnmaskedScope>/g) ?? [];
-    expect(scopes).toHaveLength(1);
-    expect(scopes[0]).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
+    // اتنين: صف العملية الحقيقية، وصف كاش أول فتحة (نفس الصف من `coldSnapshot`). الاتنين مبلغ العملية بس
+    expect(scopes).toHaveLength(2);
+    for (const s of scopes) expect(s).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {
