@@ -166,8 +166,13 @@ describe('لون الـ✕', () => {
  * والإطار والشريط والـspinner بس.
  */
 describe('dangerText — الأحمر كنص', () => {
-  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav', (_n, c) => {
-    for (const bgc of [c.bg, c.surface, c.nav]) expect(contrast(c.dangerText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+  // surface2 كمان: الحقول والكروت الداخلية (visual-identity-reviewer: أضعف حالة 4.80 في الفاتح)
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav وsurface2', (_n, c) => {
+    for (const bgc of [c.bg, c.surface, c.nav, c.surface2]) {
+      expect(contrast(c.dangerText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(c.incomeText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(c.accentText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+    }
   });
   it('مش لون جديد: نفس expenseText', () => {
     expect(DARK.dangerText).toBe(DARK.expenseText);
@@ -175,6 +180,7 @@ describe('dangerText — الأحمر كنص', () => {
   });
 });
 
+// حدّه: بيشوف السطر الواحد بس — لون متخزّن في متغير وبعدين color: متغير مبيتمسكش
 it('مفيش color: danger/success كنص في app/ وcomponents/ (شريط وspinner بس)', () => {
   const fs = require('fs');
   const path = require('path');

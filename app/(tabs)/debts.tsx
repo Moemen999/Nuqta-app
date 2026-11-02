@@ -223,8 +223,9 @@ function DebtsContent() {
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
     const settled = isDebtSettled(d);
     // الشريط بـsuccess/danger (عنصر مش نص، 3:1 كفاية)، والنص بتوكنز النص (4.5)
-    const color = settled ? colors.success : d.direction === 'owed_to_me' ? colors.success : colors.danger;
-    const textColor = settled ? colors.incomeText : d.direction === 'owed_to_me' ? colors.incomeText : colors.dangerText;
+    const green = settled || d.direction === 'owed_to_me';
+    const color = green ? colors.success : colors.danger;
+    const textColor = green ? colors.incomeText : colors.dangerText;
     const expanded = expandedDebt === d.id;
 
     const timeline = [
