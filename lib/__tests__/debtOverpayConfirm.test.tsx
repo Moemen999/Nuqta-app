@@ -66,8 +66,6 @@ it('التطبيق اتقفل والتأكيد مفتوح ← التأكيد ب�
   await act(async () => { r.rerender(ui()); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.addDebtPayment).not.toHaveBeenCalled();
-  mockLocked = false;
-  await act(async () => { r.rerender(ui()); });
 });
 
 it('دوستين على "حفظ" قبل ما التأكيد يظهر ← تأكيد واحد ودفعة واحدة (money-reviewer)', async () => {

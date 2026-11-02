@@ -220,3 +220,36 @@ describe('دوس مزدوج (money-reviewer)', () => {
     expect(screen.getByTestId('confirm_title').props.children).toBe('التاني');
   });
 });
+
+describe('هوية التأكيد (silent-failure-hunter، جولة 2)', () => {
+  it('نفس العنوان وجملة مختلفة ← الاتنين بيتصفوا', async () => {
+    await wrap();
+    await ask([{ text: 'تمام' }], 'مسح الدين', 'دين أحمد');
+    await ask([{ text: 'تمام' }], 'مسح الدين', 'دين منى');
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(screen.getByTestId('confirm_body').props.children).toBe('دين منى');
+  });
+
+  it('نفس التأكيد بعد ما الأول يتقفل ← بيظهر عادي', async () => {
+    await wrap();
+    await ask([{ text: 'تمام' }], 'عنوان', 'جملة');
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    await ask([{ text: 'تمام' }], 'عنوان', 'جملة');
+    expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
+  });
+
+  it('نص ثابت لخانتين بـkey مختلف ← الاتنين؛ نفس الـkey ← واحد والتاني بيتلغي', async () => {
+    await wrap();
+    const cancelB = jest.fn();
+    const cancelA2 = jest.fn();
+    await act(async () => {
+      confirmFn('رصيد بالسالب؟', 'متأكد؟', [{ text: 'لأ', style: 'cancel' }, { text: 'أيوة' }], { key: 'negative_a' });
+      confirmFn('رصيد بالسالب؟', 'متأكد؟', [{ text: 'لأ', style: 'cancel', onPress: cancelB }, { text: 'أيوة' }], { key: 'negative_b' });
+      confirmFn('رصيد بالسالب؟', 'متأكد؟', [{ text: 'لأ', style: 'cancel', onPress: cancelA2 }, { text: 'أيوة' }], { key: 'negative_a' });
+    });
+    expect(cancelB).not.toHaveBeenCalled();
+    expect(cancelA2).toHaveBeenCalledTimes(1);
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(screen.getByTestId('confirm_dialog')).toBeTruthy(); // تأكيد b لسه مستني
+  });
+});

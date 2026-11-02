@@ -31,17 +31,30 @@ import { Text } from '@/components/AppText';
  */
 
 export type ConfirmButton = { text: string; style?: 'default' | 'cancel' | 'destructive'; onPress?: () => unknown };
-export type ConfirmOptions = { cancelable?: boolean; onDismiss?: () => unknown };
+/** `key` = هوية التأكيد للتكرار لما النص ثابت لكل العناصر (مثلاً "رصيد بالسالب؟" لكل خانة) — من غيره العنوان والجملة */
+export type ConfirmOptions = { cancelable?: boolean; onDismiss?: () => unknown; key?: string };
 type Confirm = (title: string, body: string, buttons: ConfirmButton[], options?: ConfirmOptions) => void;
 type Pending = { title: string; body: string; buttons: ConfirmButton[]; options?: ConfirmOptions };
 
 const ConfirmContext = createContext<Confirm | null>(null);
 
-const nativeConfirm: Confirm = (title, body, buttons, options) =>
-  (options ? Alert.alert(title, body, buttons, options) : Alert.alert(title, body, buttons));
+const nativeConfirm: Confirm = (title, body, buttons, options) => {
+  const { key: _key, ...alertOptions } = options ?? {};
+  return options && (alertOptions.cancelable !== undefined || alertOptions.onDismiss)
+    ? Alert.alert(title, body, buttons, alertOptions)
+    : Alert.alert(title, body, buttons);
+};
 
 export function useConfirm(): Confirm {
   return useContext(ConfirmContext) ?? nativeConfirm;
+}
+
+/** نفس التأكيد = نفس `key` لو اتبعت، وإلا نفس العنوان والجملة (silent-failure-hunter: نص ثابت لكل الخانات) */
+function sameConfirm(a: Pending, b: Pending) {
+  const ka = a.options?.key;
+  const kb = b.options?.key;
+  if (ka !== undefined || kb !== undefined) return ka === kb;
+  return a.title === b.title && a.body === b.body;
 }
 
 /** واحد رمى ← الباقي لسه بيتلغي (Promise تاني ميعلقش) */
@@ -70,7 +83,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     if (lockedRef.current) { safely(dismissAction(p)); return; }
     // نفس التأكيد معروض أو مستني ← دوستين على "حفظ" قبل ما الشباك يظهر (money-reviewer): الطابور
     // كان هيعرض اتنين، و"أيوة" مرتين = دفعتين. التاني بيتلغي (الـPromise بتاعه بيتحل "لأ")
-    if (live.current.some(q => q.title === title && q.body === body)) { safely(dismissAction(p)); return; }
+    if (live.current.some(q => sameConfirm(q, p))) { safely(dismissAction(p)); return; }
     live.current = [...live.current, p];
     setQueue(live.current);
   }, []);

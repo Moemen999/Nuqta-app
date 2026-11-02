@@ -171,7 +171,7 @@ export function useAmountDrafts(
     confirm(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
       { text: NEGATIVE_CONFIRM_NO, style: 'cancel', onPress: () => clearDraft(id) },
       { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, confirmed) },
-    ]);
+    ], { key: `negative_${id}` });
   }
 
   return { valueFor, numberFor, onChange, onBlur };
