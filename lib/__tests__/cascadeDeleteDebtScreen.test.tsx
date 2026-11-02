@@ -94,6 +94,7 @@ it('بمكوّن التأكيد: التأكيد قبل المسح، الإلغا
   await act(async () => { fireEvent.press(screen.getByText('حذف')); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('مسح الدين');
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+  expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.deleteDebt).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByText('حذف')); });
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });

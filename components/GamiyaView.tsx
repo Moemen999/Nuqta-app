@@ -12,7 +12,7 @@ import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -24,8 +24,10 @@ export default function GamiyaView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
+  const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
   const confirm = useConfirm();
-  const { busyKey, run: runBusy } = useBusyKey();
+  const { busyKey, run: runBusy } = useBusyKey(onBusy);
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -63,7 +65,9 @@ export default function GamiyaView() {
             }
           }),
         },
-      ]
+      ],
+      // نفس النص لشهرين بنفس القسط — المفتاح هو الشهر (money-reviewer)
+      { key: `month_${g.id}_${monthId}` },
     );
   }
 

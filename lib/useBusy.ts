@@ -24,16 +24,25 @@ export function useBusy() {
   return { busy, run };
 }
 
+/** "فيه عملية تانية شغالة" — لما دوسة بتتسقط عشان كتابة تانية لسه بتلف */
+export const BUSY_NOTICE = { title: 'استنى لحظة', body: 'فيه عملية تانية لسه شغالة، فما عملناش دي. جرّب تاني بعد ما تخلص.' };
+
 /**
  * نفس الفكرة بس لقوايم فيها زرار لكل عنصر (زي شهور الجمعية أو كروت الاشتراكات):
  * بنحتفظ بمفتاح العنصر اللي شغال دلوقتي عشان نقفل زراره هو بالذات.
+ *
+ * **القفل واحد للشاشة كلها**، والزرار بيتقفل بمفتاحه هو بس — فدوسة على عنصر تاني والأولى لسه
+ * بتلف (لحد ~10 ثواني) كانت بتتسقط ساكت بعد ما المستخدم أكّد (silent-failure-hunter). `onBusy`
+ * بيتنادى في الحالة دي عشان الشاشة تقول كده، و`run` بيرجّع اتنفّذ ولا لأ
  */
-export function useBusyKey() {
+export function useBusyKey(onBusy?: () => void) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const running = useRef(false);
+  const onBusyRef = useRef(onBusy);
+  onBusyRef.current = onBusy;
 
-  const run = useCallback(async (key: string, action: () => Promise<any> | any) => {
-    if (running.current) return;
+  const run = useCallback(async (key: string, action: () => Promise<any> | any): Promise<boolean> => {
+    if (running.current) { onBusyRef.current?.(); return false; }
     running.current = true;
     setBusyKey(key);
     try {
@@ -42,6 +51,7 @@ export function useBusyKey() {
       running.current = false;
       setBusyKey(null);
     }
+    return true;
   }, []);
 
   return { busyKey, busy: busyKey !== null, run };

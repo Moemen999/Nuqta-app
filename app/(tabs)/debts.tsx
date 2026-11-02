@@ -24,7 +24,7 @@ import {
 } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -97,6 +97,8 @@ function DebtsContent() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, transactions, loadErrors, figuresPending, pendingTxIds, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
+  const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
   const confirm = useConfirm();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
@@ -105,7 +107,7 @@ function DebtsContent() {
     groupDebtsByPerson(debts).forEach(g => g.debts.forEach(d => map.set(d.id, g.key)));
     return map;
   }, [debts]);
-  const { busyKey, run: runBusy } = useBusyKey();
+  const { busyKey, run: runBusy } = useBusyKey(onBusy);
 
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [paymentForDebt, setPaymentForDebt] = useState<Debt | null>(null);

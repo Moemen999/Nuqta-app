@@ -14,7 +14,7 @@ import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -46,10 +46,12 @@ export default function SubscriptionsView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid, setSubscriptionActive } = useData();
   const notice = useNotice();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
+  const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
   const confirm = useConfirm();
-  const { busyKey, run: runBusy } = useBusyKey();
+  const { busyKey, run: runBusy } = useBusyKey(onBusy);
   // الرجوع بقفل لوحده: "اتخصم" على اشتراك تاني بياخد لحد ~10 ثواني، ونفس القفل كان بيبلع "رجّعه" ساكت
-  const { busyKey: resumeBusyKey, run: runResume } = useBusyKey();
+  const { busyKey: resumeBusyKey, run: runResume } = useBusyKey(onBusy);
   const [showAdd, setShowAdd] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
 
@@ -128,7 +130,7 @@ export default function SubscriptionsView() {
           }
         }),
       },
-    ]);
+    ], { key: `pay_${s.id}` });
   }
 
   function renderSubscription(s: Subscription) {
