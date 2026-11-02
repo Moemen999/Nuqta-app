@@ -109,6 +109,22 @@ class WalletMissingError extends Error { name = 'WalletMissingError'; }
 class SubscriptionStoppedError extends Error { name = 'SubscriptionStoppedError'; }
 /** D1: الباقي اللي المستخدم اختار له اتغيّر على السيرفر (جهاز تاني) — مفيش كتابة خالص */
 class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
+/** المبلغ اللي اتعرض في التأكيد مش هو اللي على السيرفر (اتعدّل من جهاز تاني) — مفيش كتابة خالص */
+class AmountChangedError extends Error { name = 'AmountChangedError'; }
+/** الرقمين للّوج في نسخ التطوير بس (silent-failure-hunter): رفض من غير تعديل حقيقي يبان */
+const amountChanged = (seen: number | undefined, actual: number) => Object.assign(new AmountChangedError(), { seen, actual });
+/** `[seen, actual]` في التطوير، ولا حاجة في الإنتاج (مفيش رقم فلوس بيخرج — CLAUDE.md: Sentry) */
+const amountsForDevLog = (e: AmountChangedError & { seen?: number; actual?: number }) => (__DEV__ ? [e.seen, e.actual] : []);
+
+/**
+ * التأكيد بيعرض المبلغ نص ثابت ("اتخصم 100 ج.م؟")، والذرة بتقرا المبلغ من السيرفر. لو جهاز
+ * تاني عدّله والتأكيد مفتوح، "تأكيد" كان بيسجل الجديد (120) والمستخدم وافق على 100. فالشاشة
+ * بتبعت اللي اتشاف، والذرة بترفض بنتيجة صريحة لو اختلف (زي D1 في زيادة الدين).
+ * `undefined` = مفيش مبلغ اتشاف (نداء من غير شاشة) ← مفيش مقارنة.
+ */
+function seenAmountDiffers(seen: number | undefined, actual: number): boolean {
+  return seen !== undefined && roundMoney(seen) !== roundMoney(actual);
+}
 
 /**
  * الدين نفسه مش موجود على السيرفر وإحنا جوه العملية الذرية — يا إما اتمسح من
@@ -222,6 +238,21 @@ export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
   },
 };
+
+/**
+ * `amount-changed`: المبلغ اللي في التأكيد اتعدّل من جهاز تاني قبل "تأكيد". نفس قالب رسالة "الدين اتغيّر" في زيادة الدين
+ * (`LEFTOVER_CHANGED_ALERT`): إيه اللي حصل، وإن مفيش فلوس اتحركت، وتعمل إيه.
+ */
+export const AMOUNT_CHANGED_ALERT = {
+  subscription: {
+    title: 'المبلغ اتغيّر',
+    body: 'مبلغ الاشتراك اتعدّل من جهاز تاني، فما اتسجلش أي خصم. شوف المبلغ الجديد وأكّد تاني لو موافق عليه.',
+  },
+  gamiya: {
+    title: 'المبلغ اتغيّر',
+    body: 'مبلغ الشهر ده اتعدّل من جهاز تاني، فمفيش فلوس اتحركت. شوف المبلغ الجديد وأكّد من أول وجديد.',
+  },
+} as const;
 
 /**
  * تعديل عملية مربوطة بدين (`updateDebtLinkedTransaction`). مش "خصم": المستخدم
@@ -555,7 +586,7 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped'>;
+  markSubscriptionPaid: (id: string, date: string, seenAmount?: number) => Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed'>;
   /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
   setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome | 'missing'>;
   addGamiya: (data: {
@@ -565,7 +596,7 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
-  markGamiyaMonthDone: (gamiyaId: string, monthId: string) => Promise<PayOutcome>;
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number) => Promise<PayOutcome | 'amount-changed'>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
   recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
   /** "ما اتخصمش" — الفترة بتتقفل من غير عملية */
@@ -2044,7 +2075,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today' | 'stopped'> {
+  async function markSubscriptionPaid(id: string, date: string, seenAmount?: number): Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed'> {
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
     // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
@@ -2065,6 +2096,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const sub = { id, ...(snap.data() as any) } as Subscription;
         // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
         if (sub.active === false) throw new SubscriptionStoppedError();
+        if (seenAmountDiffers(seenAmount, sub.amount)) throw amountChanged(seenAmount, sub.amount);
         const history = sub.history || [];
         // دوستين "سدّد" في نفس اليوم ← دفعة واحدة (عقد قديم — duplication.emulator).
         // بس **مش ساكتة**: الشاشة بتقول إنها اتسجلت النهاردة خلاص، وإن الفترة
@@ -2104,6 +2136,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return paidToday ? 'already-paid-today' : 'done';
     } catch (e) {
       if (e instanceof SubscriptionStoppedError) return 'stopped';
+      // مش فشل (مش Sentry): الشاشة بتقول إن المبلغ اتغيّر والمستخدم يقرر تاني على الجديد
+      if (e instanceof AmountChangedError) { console.warn('[subscription] amount changed since shown, nothing written', id, ...amountsForDevLog(e)); return 'amount-changed'; }
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
@@ -2535,7 +2569,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * تبص على حالة الشهر أصلاً، فنداءها مرتين على نفس الشهر كان بيعمل عمليتين خصم،
    * والشهر بيتربط بالتانية فالأولى بتفضل عملية يتيمة في الأرشيف بتقلل الرصيد.
    */
-  async function markGamiyaMonthDone(gamiyaId: string, monthId: string): Promise<PayOutcome> {
+  async function markGamiyaMonthDone(gamiyaId: string, monthId: string, seenAmount?: number): Promise<PayOutcome | 'amount-changed'> {
     if (!uid) return 'done';
     // زي markSubscriptionPaid بالظبط: رفض فوري من غير اتصال، وانتظار اللي لسه
     // بيرفع قبل القراية من السيرفر، والكل متسابق مع "الاتصال وقع"
@@ -2551,6 +2585,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
         const month = (g.months || []).find(m => m.id === monthId);
         if (!month || month.status === 'done') return;
+        if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
         const existing = await t.get(txRef);
@@ -2572,6 +2607,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return 'done';
     } catch (e) {
+      if (e instanceof AmountChangedError) { console.warn('[gamiya] month amount changed since shown, nothing written', gamiyaId, monthId, ...amountsForDevLog(e)); return 'amount-changed'; }
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد شهر الجمعية', e);
       return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
     }

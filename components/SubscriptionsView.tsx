@@ -3,7 +3,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
 import FoldedSection from '@/components/FoldedSection';
@@ -119,8 +119,11 @@ export default function SubscriptionsView() {
           // العملية دي بتقرا من السيرفر، فبتاخد وقتها لحد ما تطلع بإجابة قاطعة
           // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
           // نفس الرسايل بالظبط في شاشة الجمعية
-          const outcome = await markSubscriptionPaid(s.id, todayStr());
-          if (outcome === 'stopped') {
+          // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
+          const outcome = await markSubscriptionPaid(s.id, todayStr(), s.amount);
+          if (outcome === 'amount-changed') {
+            notice(AMOUNT_CHANGED_ALERT.subscription.title, AMOUNT_CHANGED_ALERT.subscription.body);
+          } else if (outcome === 'stopped') {
             notice(SUBSCRIPTION_STOPPED_ALERT.title, SUBSCRIPTION_STOPPED_ALERT.body);
           } else if (outcome === 'already-paid-today') {
             notice('اتسجل النهاردة خلاص', `دفعة "${s.name}" اتسجلت النهاردة بنفس المبلغ، فما سجلناش تاني عشان ميتخصمش مرتين. لو عليه مرة متأخرة تانية، هتلاقيها في الرئيسية "اتخصم؟".`);

@@ -8,6 +8,7 @@ import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { todayStr } from '@/lib/finance';
+import { AMOUNT_CHANGED_ALERT } from '@/context/DataContext';
 
 /**
  * نقل التأكيدات — الشاشات المالية بالمكوّن نفسه (silent-failure-hunter + money-reviewer، جولة 1):
@@ -68,7 +69,7 @@ it('الاشتراك: "اتخصم" ← تأكيد قبل الدفع، بيتقف
   expect(mockData.markSubscriptionPaid).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
-  expect(mockData.markSubscriptionPaid).toHaveBeenCalledWith('s1', today);
+  expect(mockData.markSubscriptionPaid).toHaveBeenCalledWith('s1', today, 150);
   // دوسة أولى عادية ← مفيش "ما اتنفّذش"
   expect(screen.queryByTestId('notice_title')).toBeNull();
 });
@@ -95,7 +96,7 @@ it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة
   expect(mockData.markGamiyaMonthDone).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
-  expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm1');
+  expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm1', 1000);
   expect(screen.queryByTestId('notice_title')).toBeNull();
 });
 
@@ -107,4 +108,35 @@ it('الجمعية: شهرين بنفس القسط ورا بعض بسرعة ← 
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   // من غير المفتاح، التاني كان هيتلغي لأن نصه زي الأول بالظبط
   expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
+});
+
+describe('المبلغ اتعدّل من جهاز تاني والتأكيد مفتوح', () => {
+  it('الاشتراك: المبلغ بقى 200 والتأكيد لسه بيقول 150 ← بيبعت 150 (اللي اتشاف)', async () => {
+    const view = await render(wrap(<SubscriptionsView />));
+    await act(async () => { fireEvent.press(screen.getByLabelText('اتخصم اشتراك نتفليكس')); });
+    expect(screen.getByTestId('confirm_body').props.children).toContain('150');
+    mockData.subscriptions = [{ ...sub('s1', 'نتفليكس'), amount: 200 }, sub('s2', 'سبوتيفاي')];
+    await act(async () => { view.rerender(wrap(<SubscriptionsView />)); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.markSubscriptionPaid).toHaveBeenCalledWith('s1', today, 150);
+  });
+
+  it('الاشتراك: amount-changed ← رسالة "المبلغ اتغيّر"', async () => {
+    mockData.markSubscriptionPaid = jest.fn(async () => 'amount-changed');
+    await render(wrap(<SubscriptionsView />));
+    await act(async () => { fireEvent.press(screen.getByLabelText('اتخصم اشتراك نتفليكس')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(screen.getByTestId('notice_title').props.children).toBe(AMOUNT_CHANGED_ALERT.subscription.title);
+    expect(screen.getByTestId('notice_body').props.children).toBe(AMOUNT_CHANGED_ALERT.subscription.body);
+  });
+
+  it('الجمعية: بيبعت قسط الشهر اللي في التأكيد، وamount-changed ← رسالة', async () => {
+    mockData.markGamiyaMonthDone = jest.fn(async () => 'amount-changed');
+    await render(wrap(<GamiyaView />));
+    await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
+    await act(async () => { fireEvent.press(screen.getAllByText('اتخصم')[0]); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm1', 1000);
+    expect(screen.getByTestId('notice_body').props.children).toBe(AMOUNT_CHANGED_ALERT.gamiya.body);
+  });
 });
