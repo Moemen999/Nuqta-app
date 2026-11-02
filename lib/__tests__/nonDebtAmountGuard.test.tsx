@@ -61,7 +61,7 @@ describe('اشتراك جديد', () => {
     await type(screen.getByPlaceholderText('مثلاً: نتفليكس'), 'شاهد');
     await type(screen.getByPlaceholderText('0'), o.amount ?? '150');
     if (o.custom !== undefined) {
-      await press(screen.getByText('مخصص'));
+      await press(screen.getByText('كل كام يوم'));
       await type(screen.getByDisplayValue('30'), o.custom);
     }
     if (o.reminder !== undefined) await type(screen.getByDisplayValue('3'), o.reminder);

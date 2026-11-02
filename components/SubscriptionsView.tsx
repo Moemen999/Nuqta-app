@@ -4,6 +4,7 @@ import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
+import { CUSTOM_DAYS_FIELD, CUSTOM_FREQUENCY_BUTTON, frequencyLabel } from '@/lib/frequencyLabel';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
 import FoldedSection from '@/components/FoldedSection';
@@ -19,7 +20,7 @@ import { useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
-const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي', custom: 'مخصص' };
+// الاسم من مكان واحد: "كل 45 يوم" بدل "مخصص" (lib/frequencyLabel.ts)
 
 export const SUBSCRIPTION_STOPPED_ALERT = {
   title: 'الاشتراك ده واقف',
@@ -152,7 +153,7 @@ export default function SubscriptionsView() {
           <Money value={s.amount} style={[styles.amount, { color: tone }]} />
         </View>
         <Text style={styles.sub}>
-          {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {FREQ_LABEL[s.frequency]}
+          {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {frequencyLabel(s.frequency, s.customDays)}
         </Text>
         <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
           {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
@@ -324,13 +325,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
               <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>مخصص</Text>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
           {frequency === 'custom' && (
             <>
-              <Text style={styles.label}>كل كام يوم</Text>
+              <Text style={styles.label}>{CUSTOM_DAYS_FIELD}</Text>
               <TextInput style={styles.input} value={customDays} onChangeText={setCustomDays}
                 keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
@@ -507,13 +508,13 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
               <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>مخصص</Text>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
           {frequency === 'custom' && (
             <>
-              <Text style={styles.label}>كل كام يوم</Text>
+              <Text style={styles.label}>{CUSTOM_DAYS_FIELD}</Text>
               <TextInput style={styles.input} value={customDays} onChangeText={setCustomDays}
                 keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>

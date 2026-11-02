@@ -50,7 +50,7 @@ describe('اشتراك جديد', () => {
     await press(screen.getByTestId('subscription_add_button'));
     await type(screen.getByPlaceholderText('مثلاً: نتفليكس'), 'شاهد');
     await type(screen.getByPlaceholderText('0'), '150');
-    if (o.custom !== undefined) { await press(screen.getAllByText('مخصص').at(-1)); await type(screen.getByDisplayValue('30'), o.custom); }
+    if (o.custom !== undefined) { await press(screen.getAllByText('كل كام يوم').at(-1)); await type(screen.getByDisplayValue('30'), o.custom); }
     if (o.reminder !== undefined) await type(screen.getByDisplayValue('3'), o.reminder);
     await press(screen.getByTestId('subscription_add_save'));
   }
