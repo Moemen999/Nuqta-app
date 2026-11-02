@@ -300,7 +300,7 @@ function makeStyles(c: ThemeColors) {
     sub: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6, marginBottom: 14, lineHeight: 20 },
     centerText: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
     hint: { color: c.textMuted, fontSize: 12, textAlign: 'center' },
-    failTitle: { color: c.danger, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+    failTitle: { color: c.dangerText, fontSize: 18, fontWeight: '700', textAlign: 'center' },
     row: {
       flexDirection: 'row-reverse', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderWidth: 1,
       borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, minHeight: MIN_TOUCH + 8,
@@ -325,7 +325,7 @@ function makeStyles(c: ThemeColors) {
     },
     addBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + 16, borderRadius: 10, borderWidth: 1, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' },
     addBtnText: { color: c.accentText, fontSize: 14, fontWeight: '700' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'right', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'right', marginTop: 12 },
     primaryBtn: { backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
     primaryText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
     ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },

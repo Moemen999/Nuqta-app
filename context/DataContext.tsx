@@ -31,7 +31,7 @@ import {
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
 import {
-  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges,
+  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges, subscriptionResumeDate,
   subscriptionTxId, type ChargeClosed, type ChargeMode,
 } from '@/lib/autoCharge';
 import {
@@ -106,6 +106,7 @@ export type Settlement = {
  * كتابة بتحصل، لا العملية ولا تحديث السجل.
  */
 class WalletMissingError extends Error { name = 'WalletMissingError'; }
+class SubscriptionStoppedError extends Error { name = 'SubscriptionStoppedError'; }
 /** D1: الباقي اللي المستخدم اختار له اتغيّر على السيرفر (جهاز تاني) — مفيش كتابة خالص */
 class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 
@@ -308,9 +309,10 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
 /**
  * نتيجة دفعة الدين: النتيجة القاطعة زي أي عملية بتقرا من السيرفر، ومعاها
  * جملة تغيّر الأقساط لو العدد اتحرك (`note`) — الاتنين لازم يرجعوا مع بعض
- * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة.
+ * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة. و`settledNow` = الدفعة
+ * دي هي اللي سددت الدين، محسوبة جوه الذرة على الدين اللي اتقرا من السيرفر.
  */
-export type DebtPayResult = { outcome: PayOutcome; note?: string | null };
+export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settledNow?: boolean };
 /**
  * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
  * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
@@ -553,7 +555,9 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
-  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today'>;
+  markSubscriptionPaid: (id: string, date: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped'>;
+  /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
+  setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome | 'missing'>;
   addGamiya: (data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
@@ -579,7 +583,8 @@ type DataContextType = {
  * فعلاً — اللي كانت مقفولة قبل كده (جهاز تاني سبقنا) مش بتتحسب، فالرسالة
  * مبتقولش "سجلنا" عن حاجة ما اتسجلتش دلوقتي.
  */
-export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[] };
+/** `stopped` = الاشتراك اتوقف (من جهاز تاني) ففترة مطلوبة مابقتش مفتوحة — مش "اتسجلت قبل كده" */
+export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[]; stopped?: boolean };
 export type ChargeKind = 'subscription' | 'gamiya';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -1640,7 +1645,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // الجملة بتتحسب جوه العملية الذرية (على الدين اللي اتقرا من السيرفر) وبتتقري
     // من بره بعد ما تنجح. الحامل ده مش ترف: الـcallback ممكن تتعاد لما العملية
     // تتصادم، والقيمة اللي تهمنا هي بتاعة اللفة اللي نجحت
-    const result: { note: string | null } = { note: null };
+    const result: { note: string | null; settledNow: boolean } = { note: null, settledNow: false };
     try {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
@@ -1696,6 +1701,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
         t.update(debtRef, patch);
 
+        const remainingBefore = debtRemaining(debt);
         // المقارنة بالمبلغ اللي المودال اقترحه (2026-09-30): على القسط الأخير ده
         // المتبقي كله، فاللي دفع القسط المقرّب بدله بيتقاله إن فيه قسط زيادة
         result.note = installmentChangeMessage(
@@ -1704,10 +1710,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
           debt.installmentCount ?? 0,
           // العدد اللي اتكتب فعلاً — مش NaN في الرسالة (`??` مبيمسكش NaN)
           count ?? debt.installmentCount ?? 0,
-          debtRemaining(debt) - amount <= PIASTRE_EPS,
+          remainingBefore - amount <= PIASTRE_EPS,
         );
+        // نفس القيمة اللي فوق، عشان `note` و`settledNow` ميبعدوش عن بعض في تعديل جاي
+        result.settledNow = remainingBefore > PIASTRE_EPS && remainingBefore - amount <= PIASTRE_EPS;
       }));
-      return { outcome: 'done', note: result.note };
+      return { outcome: 'done', note: result.note, settledNow: result.settledNow };
     } catch (e) {
       // ذرية يعني كله أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل، والشاشة
       // بتقول كده صريح بدل ما المستخدم يفضل يتخمّن
@@ -1979,6 +1987,48 @@ export function DataProvider({ children }: { children: ReactNode }) {
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
     return { outcome: 'done' };
   }
+  /**
+   * وقّف الاشتراك / رجّعه (قرار مؤمن 2026-11-02). الإيقاف `active:false` بس: مفيش عملية بتتمسح
+   * ولا فترة بتتقفل، والتاريخ زي ما هو — المسح لسه الطريق الوحيد اللي بيمسح التاريخ.
+   * الكروت والتلقائي والتذكيرات بيقروا `active` (`subscriptionOpenCharges`، `scheduleAllReminders`).
+   * الرجوع بيحرّك المعاد لأول معاد من النهاردة (`subscriptionResumeDate`): المرات اللي فاتت وهو
+   * واقف مبتتسجلش.
+   *
+   * **الإيقاف** كتابة عادية (`track`) زي `setIncomeStatus` — بيشتغل من غير نت ومبيحركش فلوس.
+   * **الرجوع ذري ومن السيرفر** (silent-failure-hunter، جولة 1): المعاد بيتحسب من المستند اللي على
+   * السيرفر مش من نسخة قديمة (جهاز تاني ممكن يكون عدّل المعاد)، والمحفظة بتتفحص هناك كمان —
+   * فحص الحالة المحلية كان بيقول "المحفظة اتمسحت" غلط والمحافظ لسه بتحمّل
+   */
+  async function setSubscriptionActive(id: string, active: boolean): Promise<PayOutcome | 'missing'> {
+    if (!uid) return 'done';
+    const sub = subscriptions.find(s => s.id === id);
+    const ref = doc(db, 'users', uid, 'subscriptions', id);
+    if (!active) {
+      track(updateDoc(ref, { active: false }), namedLabel('إيقاف الاشتراك', sub?.name));
+      return 'done';
+    }
+    if (!serverReachableRef.current) return 'no-connection';
+    if (!(await waitForOurWritesToLand())) return 'no-connection';
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        const snap = await t.get(ref);
+        // اتمسح من جهاز تاني ← مش "رجّعنا" (silent-failure-hunter، جولة 2)
+        if (!snap.exists()) throw new ChargeMissingError();
+        const server = { id, ...(snap.data() as any) } as Subscription;
+        // رجع من جهاز تاني خلاص ← مفيش حاجة تتكتب (ومنحرّكش معاده)
+        if (server.active !== false) return;
+        // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف)
+        if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', server.walletId)))) throw new WalletMissingError();
+        t.update(ref, { active: true, nextDueDate: subscriptionResumeDate(server, todayStr()) });
+      }));
+      return 'done';
+    } catch (e) {
+      if (e instanceof WalletMissingError) return 'wallet-missing';
+      if (e instanceof ChargeMissingError) return 'missing';
+      noteAtomicFailure('رجوع الاشتراك', e);
+      return 'failed';
+    }
+  }
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
     const sub = subscriptions.find(s => s.id === id);
@@ -1993,7 +2043,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today'> {
+  async function markSubscriptionPaid(id: string, date: string): Promise<PayOutcome | 'already-paid-today' | 'stopped'> {
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
     // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
@@ -2012,6 +2062,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
+        // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
+        if (sub.active === false) throw new SubscriptionStoppedError();
         const history = sub.history || [];
         // دوستين "سدّد" في نفس اليوم ← دفعة واحدة (عقد قديم — duplication.emulator).
         // بس **مش ساكتة**: الشاشة بتقول إنها اتسجلت النهاردة خلاص، وإن الفترة
@@ -2050,6 +2102,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return paidToday ? 'already-paid-today' : 'done';
     } catch (e) {
+      if (e instanceof SubscriptionStoppedError) return 'stopped';
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
@@ -2071,7 +2124,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
         const sub = { id, ...(snap.data() as any) } as Subscription;
-        if (!subscriptionOpenCharges({ ...sub, active: true }, todayStr()).some(o => o.key === key)) return;
+        // الحالة الحقيقية (money-reviewer): الواقف بيتخطّى اللي رجعت تسأل بس، مش فترة عادية
+        if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) return;
         const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
         t.update(subRef, { closed, nextDueDate: subscriptionAdvance(sub, closed) });
       }));
@@ -2102,9 +2156,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const ref = doc(db, 'users', uid, kind === 'subscription' ? 'subscriptions' : 'gamiyas', id);
     const today = todayStr();
     let recorded: string[] = [];
+    let stopped = false;
     try {
       await countPending(runTransaction(db, async (t) => {
         recorded = [];
+        stopped = false;
         const snap = await t.get(ref);
         if (!snap.exists()) throw new ChargeMissingError();
         const data = { id, ...(snap.data() as any) };
@@ -2118,6 +2174,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
           seen.add(e.key);
           return true;
         });
+        // واقف وفيه مفتاح مطلوب مش مفتوح **ومش مقفول** — المقفول اتسجل فعلاً، فده "اتسجلت قبل كده" مش "اتوقف"
+        stopped = kind === 'subscription' && (data as Subscription).active === false
+          && entries.some(e => !open.some(o => o.key === e.key) && !(data as Subscription).closed?.[e.key]);
         if (todo.length === 0) return;
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
         const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions',
@@ -2168,7 +2227,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
         t.update(ref, { months });
       }));
-      return { outcome: 'done', recorded };
+      return { outcome: 'done', recorded, ...(stopped ? { stopped } : {}) };
     } catch (e) {
       // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
       if (e instanceof ChargeMissingError) return { outcome: 'done', recorded: [] };
@@ -2531,7 +2590,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setBudget, setMonthlyIncome, setShakhbataPercents,
         addDebt, updateDebt, deleteDebt, addDebtPayment, deleteDebtPayment, addDebtIncrease, deleteDebtIncrease,
         setInstallmentCount,
-        addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid,
+        addSubscription, updateSubscription, deleteSubscription, markSubscriptionPaid, setSubscriptionActive,
         addGamiya, updateGamiya, deleteGamiya, markGamiyaMonthDone, recordCharges, skipSubscriptionCharge,
         addIncome, updateIncome, setIncomeStatus, recordIncomePeriods, skipIncomePeriod, deleteIncome,
       }}>

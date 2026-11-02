@@ -211,7 +211,7 @@ function makeStyles(c: ThemeColors) {
     dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
     dividerText: { color: c.textMuted, fontSize: 12 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center' },
     button: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
     buttonText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
     resetText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 12, textDecorationLine: 'underline' },

@@ -92,7 +92,7 @@ export default function FeedbackScreen() {
           placeholderTextColor={colors.textSecondary}
           textAlign="right"
         />
-        <Text style={[styles.counter, remaining === 0 && { color: colors.danger }]}>
+        <Text style={[styles.counter, remaining === 0 && { color: colors.dangerText }]}>
           {feedbackRemainingLabel(text)}
         </Text>
 
@@ -129,7 +129,7 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
     textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 12, minHeight: 150 },
     counter: { color: c.textMuted, fontSize: 11.5, textAlign: 'left', marginTop: 6 },
     note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 16, lineHeight: 17 },
-    result: { color: c.success, fontSize: 13, textAlign: 'right', marginTop: 16, fontWeight: '700' },
+    result: { color: c.incomeText, fontSize: 13, textAlign: 'right', marginTop: 16, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.nav, bottomInset),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     sendBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

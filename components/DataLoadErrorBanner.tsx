@@ -60,7 +60,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderBottomWidth: 1, borderColor: c.dangerBorder,
       paddingHorizontal: 16, paddingBottom: 12,
     },
-    title: { color: c.danger, fontSize: 15, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.dangerText, fontSize: 15, fontWeight: '700', textAlign: 'right' },
     titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     titleFlex: { flex: 1 },
     body: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 4, lineHeight: 20 },
@@ -68,6 +68,6 @@ function makeStyles(c: ThemeColors) {
       alignSelf: 'flex-end', marginTop: 8, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10,
       paddingVertical: 8, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center',
     },
-    btnText: { color: c.danger, fontSize: 14, fontWeight: '700' },
+    btnText: { color: c.dangerText, fontSize: 14, fontWeight: '700' },
   });
 }

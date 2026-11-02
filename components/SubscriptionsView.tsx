@@ -4,30 +4,90 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionTransactionIds } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
+import FoldedSection from '@/components/FoldedSection';
+import { splitDone } from '@/lib/doneSections';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import type { ChargeMode } from '@/lib/autoCharge';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
 const FREQ_LABEL: Record<string, string> = { monthly: 'شهري', yearly: 'سنوي', custom: 'مخصص' };
 
+export const SUBSCRIPTION_STOPPED_ALERT = {
+  title: 'الاشتراك ده واقف',
+  body: 'ما اتسجلش أي خصم. رجّعه الأول لو عايز تسجّل دفعة.',
+};
+export const SUBSCRIPTION_RESUME_WALLET_ALERT = {
+  title: 'محتاج محفظة تانية',
+  body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت وهو واقف. عدّل الاشتراك واختار محفظة شغالة، وبعدين رجّعه.',
+};
+/** الرجوع ذري من السيرفر — النتيجة قاطعة: رجع ولا لسه واقف */
+export const SUBSCRIPTION_RESUME_FAIL_ALERT = {
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'الاشتراك لسه واقف. الرجوع لازم يتأكد من السيرفر عشان معاده الجاي يبقى صح — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما رجعش',
+    body: 'الاشتراك لسه واقف. اتأكد إن النت شغال وجرب تاني.',
+  },
+};
+
 export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid } = useData();
+  const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid, setSubscriptionActive } = useData();
   const notice = useNotice();
   const { busyKey, run: runBusy } = useBusyKey();
+  // الرجوع بقفل لوحده: "اتخصم" على اشتراك تاني بياخد لحد ~10 ثواني، ونفس القفل كان بيبلع "رجّعه" ساكت
+  const { busyKey: resumeBusyKey, run: runResume } = useBusyKey();
   const [showAdd, setShowAdd] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
 
-  const active = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+  const sorted = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
+  // "اشتراكات واقفة" مطوي تحت (قرار مؤمن 2026-11-02) — نفس غلاف "ديون اتسددت"
+  const { active, done: stopped } = splitDone(sorted, sub => sub.active === false);
+
+  function confirmStop(s: Subscription) {
+    // مرة متأخرة لسه ما اتسجلتش ← الرجوع بعدين بيبدأ من المعاد الجاي فهتتشال، فلازم تتقال دلوقتي
+    // (money-reviewer، جولة 1)
+    const overdue = subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened).length;
+    const overdueLine = overdue > 0
+      ? ` عليه ${overdue === 1 ? 'مرة متأخرة' : `${overdue} مرات متأخرة`} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
+      : '';
+    Alert.alert('توقّف الاشتراك ده مؤقتًا؟', `"${s.name}" مش هيتخصم ولا هيفكّرك بيه لحد ما ترجّعه. الدفعات اللي اتسجلت بتفضل زي ما هي.${overdueLine}`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'وقّفه', onPress: () => {
+          // كتابة عادية بتشتغل من غير نت ومبتستناش — مفيش قفل انشغال (كان بيبلع الضغطة)
+          setSubscriptionActive(s.id, false);
+          AccessibilityInfo.announceForAccessibility(`وقّفنا "${s.name}"، هتلاقيه في اشتراكات واقفة`);
+        },
+      },
+    ]);
+  }
+  function confirmResume(s: Subscription) {
+    const next = subscriptionResumeDate(s, todayStr());
+    Alert.alert('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'رجّعه', onPress: () => runResume(`resume_${s.id}`, async () => {
+          const outcome = await setSubscriptionActive(s.id, true);
+          if (outcome === 'wallet-missing') notice(SUBSCRIPTION_RESUME_WALLET_ALERT.title, SUBSCRIPTION_RESUME_WALLET_ALERT.body);
+          else if (outcome === 'missing') notice('الاشتراك ده اتمسح', 'اتمسح من جهاز تاني، فمفيش حاجة ترجع.');
+          else if (outcome === 'no-connection' || outcome === 'failed') notice(SUBSCRIPTION_RESUME_FAIL_ALERT[outcome].title, SUBSCRIPTION_RESUME_FAIL_ALERT[outcome].body);
+          else AccessibilityInfo.announceForAccessibility(`رجّعنا "${s.name}"`);
+        }),
+      },
+    ]);
+  }
 
   /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
@@ -56,7 +116,9 @@ export default function SubscriptionsView() {
           // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
           // نفس الرسايل بالظبط في شاشة الجمعية
           const outcome = await markSubscriptionPaid(s.id, todayStr());
-          if (outcome === 'already-paid-today') {
+          if (outcome === 'stopped') {
+            notice(SUBSCRIPTION_STOPPED_ALERT.title, SUBSCRIPTION_STOPPED_ALERT.body);
+          } else if (outcome === 'already-paid-today') {
             notice('اتسجل النهاردة خلاص', `دفعة "${s.name}" اتسجلت النهاردة بنفس المبلغ، فما سجلناش تاني عشان ميتخصمش مرتين. لو عليه مرة متأخرة تانية، هتلاقيها في الرئيسية "اتخصم؟".`);
           } else if (outcome !== 'done') {
             const m = PAY_OUTCOME_ALERT[outcome];
@@ -65,6 +127,72 @@ export default function SubscriptionsView() {
         }),
       },
     ]);
+  }
+
+  function renderSubscription(s: Subscription) {
+    const walletLabel = walletHistoryName(wallets, s.walletId);
+    const catLabel = categoryLabelById(categories, s.categoryId);
+    const days = daysUntil(s.nextDueDate);
+    const isStopped = s.active === false;
+    const soon = !isStopped && days <= s.reminderDaysBefore;
+    // واقف وفيه مرة رجعت تسأل (عمليتها اتمسحت) ← كارتها في الرئيسية، فبيتقال هنا كمان
+    const waitingReply = isStopped && subscriptionOpenCharges(s, todayStr()).length > 0;
+    const tone = isStopped ? colors.textSecondary : colors.text;
+    return (
+      <View key={s.id} style={[styles.card, soon && { borderColor: colors.warnBorder }]}>
+        <View style={styles.cardHead}>
+          <Text style={[styles.name, { color: tone }]}>{s.name}</Text>
+          <Money value={s.amount} style={[styles.amount, { color: tone }]} />
+        </View>
+        <Text style={styles.sub}>
+          {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {FREQ_LABEL[s.frequency]}
+        </Text>
+        <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
+          {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
+            : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${s.nextDueDate})`}
+        </Text>
+        <View style={styles.actionsRow}>
+          {isStopped ? (
+            <TouchableOpacity testID={`subscription_resume_${s.id}`} style={[styles.payBtn, resumeBusyKey === `resume_${s.id}` && styles.btnBusy]} onPress={() => confirmResume(s)} disabled={resumeBusyKey === `resume_${s.id}`}
+              accessibilityRole="button" accessibilityLabel={`رجّع اشتراك ${s.name}`} accessibilityState={{ busy: resumeBusyKey === `resume_${s.id}`, disabled: resumeBusyKey === `resume_${s.id}` }}>
+              {resumeBusyKey === `resume_${s.id}` ? (
+                <View style={styles.btnLoading}>
+                  <ActivityIndicator size="small" color={colors.onAccent} />
+                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنرجّعه</Text>
+                </View>
+              ) : (
+                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>رجّعه</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}
+              accessibilityRole="button" accessibilityLabel={`اتخصم اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `pay_${s.id}`, disabled: busyKey === `pay_${s.id}` }}>
+              {busyKey === `pay_${s.id}` ? (
+                <View style={styles.btnLoading}>
+                  <ActivityIndicator size="small" color={colors.onAccent} />
+                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنسجّل</Text>
+                </View>
+              ) : (
+                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
+              )}
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)} accessibilityRole="button" accessibilityLabel={`تعديل اشتراك ${s.name}`}>
+            <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+          </TouchableOpacity>
+          {!isStopped && (
+            <TouchableOpacity testID={`subscription_stop_${s.id}`} style={styles.editBtn} onPress={() => confirmStop(s)}
+              accessibilityRole="button" accessibilityLabel={`وقّف اشتراك ${s.name} مؤقتًا`}>
+              <Text style={{ color: colors.text, fontSize: 12.5 }}>وقّف</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.deleteBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => confirmDelete(s)} disabled={busyKey === `del_${s.id}`}
+            accessibilityRole="button" accessibilityLabel={`حذف اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `del_${s.id}`, disabled: busyKey === `del_${s.id}` }}>
+            <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -80,45 +208,12 @@ export default function SubscriptionsView() {
         <Text style={styles.title}>الاشتراكات</Text>
       </View>
 
-      {active.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات مسجلة</Text>}
-      {active.map(s => {
-        const walletLabel = walletHistoryName(wallets, s.walletId);
-        const catLabel = categoryLabelById(categories, s.categoryId);
-        const days = daysUntil(s.nextDueDate);
-        const soon = days <= s.reminderDaysBefore;
-        return (
-          <View key={s.id} style={[styles.card, soon && { borderColor: colors.warnBorder }]}>
-            <View style={styles.cardHead}>
-              <Text style={styles.name}>{s.name}</Text>
-              <Money value={s.amount} style={styles.amount} />
-            </View>
-            <Text style={styles.sub}>
-              {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {FREQ_LABEL[s.frequency]}
-            </Text>
-            <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
-              {days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${s.nextDueDate})`}
-            </Text>
-            <View style={styles.actionsRow}>
-              <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}>
-                {busyKey === `pay_${s.id}` ? (
-                  <View style={styles.btnLoading}>
-                    <ActivityIndicator size="small" color={colors.onAccent} />
-                    <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنسجّل</Text>
-                  </View>
-                ) : (
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)}>
-                <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.deleteBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => confirmDelete(s)} disabled={busyKey === `del_${s.id}`}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      })}
+      {subscriptions.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات مسجلة</Text>}
+      {subscriptions.length > 0 && active.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات شغالة دلوقتي</Text>}
+      {active.map(renderSubscription)}
+      <FoldedSection testID="subscriptions_stopped" title="اشتراكات واقفة" a11yLabel={`اشتراكات واقفة، ${subscriptionsPhrase(stopped.length)}`} count={stopped.length}>
+        {stopped.map(renderSubscription)}
+      </FoldedSection>
 
       <AddSubscriptionModal visible={showAdd} onClose={() => setShowAdd(false)} />
       {editingSub && <EditSubscriptionModal sub={editingSub} onClose={() => setEditingSub(null)} />}
@@ -279,11 +374,11 @@ function makeStyles(c: ThemeColors) {
     amount: { color: c.text, fontSize: 14, fontWeight: '700' },
     sub: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
     due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
-    actionsRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
-    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
-    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
@@ -298,7 +393,7 @@ function makeStyles(c: ThemeColors) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

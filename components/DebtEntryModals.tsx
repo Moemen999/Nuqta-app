@@ -42,6 +42,10 @@ export const LEFTOVER_REQUIRED = 'اختار الأول: يتضاف على آخ�
 export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
 /** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
 const NEAR_DOUBLE = 1.5;
+export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
+// جملة عامة صح في الشاشتين (الديون وكشف الشخص) — مش "نزل تحت" (arabic-copy-reviewer +
+// silent-failure-hunter، جولة 2)
+export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" في تاب الديون، ودوس عليه عشان تفتحه.';
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
@@ -122,9 +126,16 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         notice(alert.title, alert.body);
         return;
       }
-      // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
-      // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
-      if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
+      // الدفعة دي سددت الدين ← الكارت بيروح "ديون اتسددت" المطوي، فبيتقال بدل ما يختفي من
+      // قدامه (silent-failure-hunter). من **السيرفر** (`settledNow` جوه الذرة)، مش من نسخة الدين
+      // اللي المودال اتفتح بيها — جهاز تاني ممكن يكون غيّره
+      if (result.settledNow) {
+        notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY);
+      } else if (result.note) {
+        // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
+        // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
+        notice(INSTALLMENTS_CHANGED_TITLE, result.note);
+      }
       onClose();
     });
   }
@@ -612,8 +623,8 @@ function makeStyles(c: ThemeColors) {
     leftoverCaption: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    footerError: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    footerError: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

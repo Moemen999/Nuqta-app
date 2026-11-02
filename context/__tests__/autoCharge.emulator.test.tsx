@@ -368,3 +368,112 @@ describe('القواعد', () => {
     })).rejects.toMatchObject({ code: 'permission-denied' });
   });
 });
+
+/** وقّف الاشتراك (قرار مؤمن 2026-11-02): الواقف مبيتخصمش، والرجوع مبيسجلش اللي فات */
+describe('وقّف الاشتراك ورجّعه على المحاكي', () => {
+  it('"اتخصم" على واقف ← stopped، ومفيش عملية ولا رصيد اتحرك', async () => {
+    const { walletId, id } = await makeSub();
+    const before = balanceOf(walletId);
+    expect(await harness.api().setSubscriptionActive(id, false)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === false && api.pendingWrites === 0);
+    expect(await harness.api().markSubscriptionPaid(id, today)).toBe('stopped');
+    expect(subTxs(id)).toHaveLength(0);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+
+  it('واقف من 3 شهور على "تلقائي" ← الرجوع بيحرّك المعاد، والفترات القديمة مبتتسجلش حتى لو جهاز قديم بعتها', async () => {
+    const old = addMonths(today, -3);
+    const { walletId, id } = await makeSub({ nextDueDate: old, chargeMode: 'auto', autoSince: addMonths(today, -6) });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const before = balanceOf(walletId);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === true && api.pendingWrites === 0);
+    expect(sub().nextDueDate >= today).toBe(true);
+    // جهاز لسه شايف المعاد القديم بيبعت الفترة اللي فاتت
+    await harness.api().recordCharges('subscription', id, [{ key: old, amount: 200 }], { auto: true });
+    expect(subTxs(id)).toHaveLength(0);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+
+  it('الرجوع ومحفظته مؤرشفة ← wallet-missing ومفيش كتابة', async () => {
+    const { walletId, id } = await makeSub();
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await updateDoc(userDoc('wallets', walletId), { archived: true });
+    await harness.waitForData(api => api.subscriptions[0].active === false && !!api.wallets.find(w => w.id === walletId)?.archived);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('wallet-missing');
+    expect(sub().active).toBe(false);
+  });
+});
+
+describe('وقّف الاشتراك — الجولة 1 على المحاكي', () => {
+  it('الرجوع بيقرا المعاد من السيرفر: جهاز تاني رجّعه ودفع ← الرجوع التاني مبيحرّكش المعاد', async () => {
+    const { id } = await makeSub({ nextDueDate: addMonths(today, -2) });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    // جهاز تاني: رجّعه وحط معاد بعيد
+    const far = addMonths(today, 5);
+    await updateDoc(userDoc('subscriptions', id), { active: true, nextDueDate: far });
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].nextDueDate === far);
+    expect(sub().nextDueDate).toBe(far);
+  });
+
+  it('"فوّت" فترة عادية على واقف ← مبيقفلش حاجة ومبيحرّكش المعاد', async () => {
+    const old = addMonths(today, -1);
+    const { id } = await makeSub({ nextDueDate: old });
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    await harness.api().skipSubscriptionCharge(id, old);
+    await harness.waitForData(api => api.pendingWrites === 0);
+    expect(sub().nextDueDate).toBe(old);
+    expect(sub().closed?.[old]).toBeUndefined();
+  });
+
+  it('كارت "اتخصم؟" على اشتراك اتوقف من جهاز تاني ← stopped، ومفيش خصم', async () => {
+    const { walletId, id } = await makeSub();
+    const before = balanceOf(walletId);
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const r = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r.outcome).toBe('done');
+    expect(r.recorded).toEqual([]);
+    expect(r.stopped).toBe(true);
+    expect(balanceOf(walletId)).toBe(before);
+  });
+});
+
+describe('وقّف الاشتراك — الجولة 2 على المحاكي', () => {
+  it('رجوع اشتراك اتمسح ← missing', async () => {
+    const { id } = await makeSub();
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const { deleteDoc } = jest.requireActual('firebase/firestore');
+    await deleteDoc(userDoc('subscriptions', id));
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('missing');
+  });
+
+  it('المرة اللي رجعت تسأل قبل الرجوع لسه بتسأل بعده، والمعاد اتقدّم', async () => {
+    const back = addMonths(today, -2);
+    const { id } = await makeSub({ nextDueDate: addMonths(today, -1) });
+    await updateDoc(userDoc('subscriptions', id), { active: false, closed: { [back]: { reopened: true } } });
+    await harness.waitForData(api => api.subscriptions[0].active === false && !!api.subscriptions[0].closed?.[back]);
+    expect(await harness.api().setSubscriptionActive(id, true)).toBe('done');
+    await harness.waitForData(api => api.subscriptions[0].active === true);
+    const { subscriptionOpenCharges } = jest.requireActual('@/lib/autoCharge');
+    const open = subscriptionOpenCharges(sub(), today).map((c: { key: string }) => c.key);
+    expect(open).toContain(back);
+    expect(sub().nextDueDate >= today).toBe(true);
+  });
+
+  it('واقف والمفتاح اتسجل قبل كده ← مش stopped (اتسجلت قبل كده)', async () => {
+    const { id } = await makeSub();
+    const r1 = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r1.recorded).toEqual([today]);
+    await updateDoc(userDoc('subscriptions', id), { active: false });
+    await harness.waitForData(api => api.subscriptions[0].active === false);
+    const r2 = await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    expect(r2.recorded).toEqual([]);
+    expect(r2.stopped).toBeUndefined();
+  });
+});

@@ -221,7 +221,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                     confirmed.current = true;
                     onConfirm(picked);
                   }}>
-                  <Text style={{ color: isDelete && confirmLabel ? colors.danger : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
+                  <Text style={{ color: isDelete && confirmLabel ? colors.dangerText : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
                 </TouchableOpacity>
               </>
             )}

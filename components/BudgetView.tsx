@@ -71,7 +71,7 @@ export default function BudgetView() {
             <>
               <View style={styles.totalRow}>
                 <Text style={styles.totalSub}>موزّع على الفئات: <Money value={allocated} currency={false} /></Text>
-                <Text style={[styles.totalSub, { color: remaining < 0 ? colors.danger : colors.success }]}>
+                <Text style={[styles.totalSub, { color: remaining < 0 ? colors.dangerText : colors.incomeText }]}>
                   {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
                 </Text>
               </View>
@@ -86,6 +86,7 @@ export default function BudgetView() {
           const spend = spendByCategory.get(c.id) || 0;
           const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
           const color = pct >= 100 ? colors.danger : pct >= 80 ? colors.accent : colors.success;
+          const textColor = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.incomeText;
 
           return (
             <View key={c.id} style={styles.card}>
@@ -107,7 +108,7 @@ export default function BudgetView() {
                   <View style={styles.track}>
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
-                  <Text style={[styles.sub, { color }]}><Money value={spend} currency={false} /> / <Money value={limit} /></Text>
+                  <Text style={[styles.sub, { color: textColor }]}><Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                 </>
               )}
             </View>

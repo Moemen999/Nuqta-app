@@ -213,7 +213,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
     dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
-    error: { color: c.danger, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },

@@ -46,6 +46,8 @@ export async function scheduleAllReminders(opts: {
 
   // تذكيرات الاشتراكات
   opts.subscriptions.forEach(s => {
+    // الواقف مبيفكّرش (وقّف الاشتراك، 2026-11-02)
+    if (s.active === false) return;
     candidates.push({
       title: `اشتراك ${s.name}`,
       body:

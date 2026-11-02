@@ -33,6 +33,8 @@ export type ThemeColors = {
    * القدام بالظبط (#D97878/#7FA98F). النسب في theme.contrast.test.ts.
    */
   expenseText: string;
+  /** الأحمر كنص (خطأ، "حذف"، بانر خطر) — `danger` كنص تحت 4.5 (4.42 في الفاتح). نفس قيم expenseText */
+  dangerText: string;
   incomeText: string;
   warnBorder: string;
   /**
@@ -74,7 +76,7 @@ export const DARK: ThemeColors = {
   text: '#F0E6D2', textSecondary: '#9CA8B8', textMuted: '#5C6A7A',
   danger: '#C1554A', dangerBorder: '#5A2E28',
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#C9A961',
-  expenseText: '#D97878', incomeText: '#7FA98F',
+  expenseText: '#D97878', incomeText: '#7FA98F', dangerText: '#D97878',
   warnBorder: '#5A4A20',
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
@@ -88,7 +90,7 @@ export const LIGHT: ThemeColors = {
   text: '#2B2416', textSecondary: '#7A6B4E', textMuted: '#A6997A',
   danger: '#C1554A', dangerBorder: '#E8C4BE',
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
-  expenseText: '#A8453B', incomeText: '#2F654B',
+  expenseText: '#A8453B', incomeText: '#2F654B', dangerText: '#A8453B',
   warnBorder: '#E3D2A0',
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',

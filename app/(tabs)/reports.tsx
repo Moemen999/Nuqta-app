@@ -184,7 +184,7 @@ export default function ReportsScreen() {
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
-          <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.danger : colors.success }]}>
+          <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
             {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
           </Text>
         </View>
@@ -247,7 +247,7 @@ export default function ReportsScreen() {
             onPress={() => router.push({ pathname: '/person-ledger', params: { personKey: s.key } })}>
             <View style={styles.personHead}>
               <Text style={styles.personName}>{s.personName}</Text>
-              <Text style={[styles.personBadge, { color: s.balance > 0 ? colors.success : s.balance < 0 ? colors.danger : colors.textSecondary }]}>
+              <Text style={[styles.personBadge, { color: s.balance > 0 ? colors.incomeText : s.balance < 0 ? colors.dangerText : colors.textSecondary }]}>
                 {s.balance > 0 ? `ليك عنده ${money(s.balance)}` : s.balance < 0 ? `عليك له ${money(Math.abs(s.balance))}` : 'متسدد بالكامل'}
               </Text>
             </View>

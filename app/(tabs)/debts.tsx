@@ -1,3 +1,6 @@
+import { debtsPhrase } from '@/lib/archiving';
+import FoldedSection from '@/components/FoldedSection';
+import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -91,7 +94,7 @@ export default function DebtsTabScreen() {
 function DebtsContent() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { debts, wallets, categories, transactions, loadErrors, figuresPending, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
+  const { debts, wallets, categories, transactions, loadErrors, figuresPending, pendingTxIds, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();
   const notice = useNotice();
   const { money, amountsHidden } = usePrivacy();
   // مفتاح الشخص لكل دين — كشف الحساب بيتفتح بيه مش بالاسم
@@ -111,6 +114,12 @@ function DebtsContent() {
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
   const iOwe = debts.filter(d => d.direction === 'i_owe');
+  // أقسام "اتسددت" المطوية (2026-11-02): محسوبة، والإجماليات تحت من القوايم الكاملة زي ما هي
+  // دفعة أو زيادة لسه بترفع ← الدين يفضل باين (silent-failure-hunter): لو اترفضت، كان هيبان
+  // "متسدد" ومطوي والمستخدم مش شايفه
+  const isFolded = (d: Debt) => isDebtSettled(d) && !debtHasPendingEntry(d, pendingTxIds);
+  const owedSplit = splitDone(owedToMe, isFolded);
+  const iOweSplit = splitDone(iOwe, isFolded);
 
   function remainingOf(d: Debt) {
     return debtGrandTotal(d) - debtPaid(d);
@@ -212,8 +221,11 @@ function DebtsContent() {
     const paid = debtPaid(d);
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
-    const settled = remaining <= 0;
-    const color = settled ? colors.success : d.direction === 'owed_to_me' ? colors.success : colors.danger;
+    const settled = isDebtSettled(d);
+    // الشريط بـsuccess/danger (عنصر مش نص، 3:1 كفاية)، والنص بتوكنز النص (4.5)
+    const green = settled || d.direction === 'owed_to_me';
+    const color = green ? colors.success : colors.danger;
+    const textColor = green ? colors.incomeText : colors.dangerText;
     const expanded = expandedDebt === d.id;
 
     const timeline = [
@@ -240,7 +252,7 @@ function DebtsContent() {
                 <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>
               )}
             </View>
-            <Text style={[styles.remainingText, { color }]}>
+            <Text style={[styles.remainingText, { color: textColor }]}>
               {settled ? 'اتسدد بالكامل' : <Money value={remaining} />}
             </Text>
           </View>
@@ -268,7 +280,7 @@ function DebtsContent() {
                 const cLabel = 'categoryId' in t && t.categoryId ? categoryLabelById(categories, t.categoryId) : '';
                 const label = t.kind === 'initial' ? 'المبلغ الأساسي' : t.kind === 'increase' ? 'زيادة' : 'دفعة';
                 const sign = t.kind === 'payment' ? '−' : '+';
-                const lineColor = t.kind === 'payment' ? colors.success : colors.textSecondary;
+                const lineColor = t.kind === 'payment' ? colors.incomeText : colors.textSecondary;
                 const entryBusy = t.kind !== 'initial' && busyKey === t.id;
                 return (
                   <View key={t.kind === 'initial' ? 'initial' : `${t.kind}-${t.id}`} style={styles.paymentRow}>
@@ -329,7 +341,7 @@ function DebtsContent() {
                 </TouchableOpacity>
               )}
               <TouchableOpacity style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
-                <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
+                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -354,21 +366,27 @@ function DebtsContent() {
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>ليا (متبقي)</Text>
-          <Money value={totalOwedToMe} style={[styles.summaryValue, { color: colors.success }]} />
+          <Money value={totalOwedToMe} style={[styles.summaryValue, { color: colors.incomeText }]} />
         </View>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryLabel}>عليا (متبقي)</Text>
-          <Money value={totalIOwe} style={[styles.summaryValue, { color: colors.danger }]} />
+          <Money value={totalIOwe} style={[styles.summaryValue, { color: colors.dangerText }]} />
         </View>
       </View>
 
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
-      {owedToMe.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
-      {owedToMe.map(renderDebt)}
+      {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
+      {owedSplit.active.map(renderDebt)}
+      <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس ليا، ${debtsPhrase(owedSplit.done.length)}`} count={owedSplit.done.length}>
+        {owedSplit.done.map(renderDebt)}
+      </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
-      {iOwe.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
-      {iOwe.map(renderDebt)}
+      {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
+      {iOweSplit.active.map(renderDebt)}
+      <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس عليا، ${debtsPhrase(iOweSplit.done.length)}`} count={iOweSplit.done.length}>
+        {iOweSplit.done.map(renderDebt)}
+      </FoldedSection>
 
       {showAddDebt && <AddDebtModal onClose={() => setShowAddDebt(false)} />}
       {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
@@ -605,11 +623,11 @@ function makeStyles(c: ThemeColors) {
     linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
     linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
-    unlinkText: { color: c.danger, fontSize: 12, fontWeight: '700' },
+    unlinkText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
     installmentHint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 6, lineHeight: 16 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },

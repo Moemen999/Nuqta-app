@@ -126,7 +126,7 @@ export function ChargeAutoNotices() {
       {notices.map(n => (
         <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
           accessibilityLiveRegion="polite">
-          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.danger }]}>
+          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
@@ -163,6 +163,10 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
       }
       ok = true;
       // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال
+      if (r.recorded.length === 0 && r.stopped) {
+        notice('الاشتراك ده اتوقف', 'اتوقف من جهاز تاني، فما اتسجلش أي خصم. لو عايز تسجّله، رجّعه من شاشة الاشتراكات الأول.');
+        return;
+      }
       if (r.recorded.length === 0) {
         notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
@@ -327,7 +331,7 @@ function makeStyles(c: ThemeColors) {
     },
     title: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right' },
     sub: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4 },
-    amount: { color: c.success, fontSize: 22, fontWeight: '700', textAlign: 'right', marginTop: 8 },
+    amount: { color: c.incomeText, fontSize: 22, fontWeight: '700', textAlign: 'right', marginTop: 8 },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     yesBtn: {
       backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 22, minHeight: MIN_TOUCH,
@@ -353,7 +357,7 @@ function makeStyles(c: ThemeColors) {
       fontSize: 26, fontWeight: '700', paddingVertical: 14, fontVariant: ['tabular-nums'],
     },
     diff: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 10 },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 10 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 10 },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'center', marginTop: 10 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },

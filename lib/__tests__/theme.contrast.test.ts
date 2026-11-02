@@ -159,3 +159,37 @@ describe('لون الـ✕', () => {
     for (const bg of [c.surface, c.bg]) expect(contrast(c[token] as string, bg)).toBeGreaterThanOrEqual(3);
   });
 });
+
+/**
+ * الأحمر والأخضر كنص (TIMELINE 2026-09-29، متأجل لحد خط النهاية): `danger` كنص 4.42 و`success`
+ * كنص 3.18 على surface في الفاتح. النص بـ`dangerText`/`incomeText`، و`danger`/`success` للتعبئة
+ * والإطار والشريط والـspinner بس.
+ */
+describe('dangerText — الأحمر كنص', () => {
+  // surface2 كمان: الحقول والكروت الداخلية (visual-identity-reviewer: أضعف حالة 4.80 في الفاتح)
+  it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: فوق 4.5:1 على bg وsurface وnav وsurface2', (_n, c) => {
+    for (const bgc of [c.bg, c.surface, c.nav, c.surface2]) {
+      expect(contrast(c.dangerText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(c.incomeText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+      expect(contrast(c.accentText, bgc)).toBeGreaterThanOrEqual(TEXT_MIN);
+    }
+  });
+  it('مش لون جديد: نفس expenseText', () => {
+    expect(DARK.dangerText).toBe(DARK.expenseText);
+    expect(LIGHT.dangerText).toBe(LIGHT.expenseText);
+  });
+});
+
+// حدّه: بيشوف السطر الواحد بس — لون متخزّن في متغير وبعدين color: متغير مبيتمسكش
+it('مفيش color: danger/success كنص في app/ وcomponents/ (شريط وspinner بس)', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..', '..');
+  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e: any) =>
+    e.isDirectory() ? (e.name === '__tests__' ? [] : walk(path.join(d, e.name))) : e.name.endsWith('.tsx') ? [path.join(d, e.name)] : []);
+  const offenders = ['app', 'components'].flatMap(d => walk(path.join(root, d))).flatMap(f =>
+    fs.readFileSync(f, 'utf8').split('\n').map((l: string, i: number) => ({ l, i, f }))
+      .filter(({ l }: { l: string }) => /(^|[^A-Za-z])color: [^,}]*\b(c|colors)\.(danger|success)\b(?!Border)/.test(l))
+      .map(({ i, f: file }: { i: number; f: string }) => `${path.relative(root, file)}:${i + 1}`));
+  expect(offenders).toEqual([]);
+});

@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionStyle } from '@/lib/selection';
@@ -15,6 +15,8 @@ import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import FoldedSection from '@/components/FoldedSection';
+import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -63,6 +65,77 @@ export default function GamiyaView() {
     );
   }
 
+  // قسم "جمعيات خلصت" المطوي (2026-11-02): محسوب، ومسح قسط بيرجّعها للنشطة لوحدها
+  const { active: activeGamiyas, done: finishedGamiyas } = splitDone(gamiyas, isGamiyaFinished);
+
+  function renderGamiya(g: Gamiya) {
+    const walletLabel = walletHistoryName(wallets, g.walletId);
+    const doneCount = g.months.filter(m => m.status === 'done').length;
+    const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
+    const nextPending = g.months.find(m => m.status === 'pending');
+    const isExpanded = expanded === g.id;
+
+    return (
+      <View key={g.id} style={styles.card}>
+        <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
+          <View style={styles.cardHead}>
+            <Text style={styles.name}>{g.name}</Text>
+            <Text style={styles.sub2}>{walletLabel}</Text>
+          </View>
+          <Text style={styles.sub}>
+            <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
+          </Text>
+          <View style={styles.track}>
+            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
+          </View>
+          <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
+          {nextPending && (
+            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
+              {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {isExpanded && (
+          <View style={styles.expandedArea}>
+            {g.months.map(m => (
+              <View key={m.id} style={styles.monthRow}>
+                <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
+                  شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
+                </Text>
+                {m.status === 'pending' ? (
+                  <TouchableOpacity
+                    onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
+                    style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
+                    disabled={busyKey === `month_${m.id}`}>
+                    {busyKey === `month_${m.id}` ? (
+                      // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
+                      <ActivityIndicator size="small" color={colors.onAccent} />
+                    ) : (
+                      <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
+                        {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={{ color: colors.incomeText, fontSize: 11 }}>✓ خلص</Text>
+                )}
+              </View>
+            ))}
+            <View style={styles.gamiyaActions}>
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+                <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       style={styles.scrollArea}
@@ -77,73 +150,10 @@ export default function GamiyaView() {
       </View>
 
       {gamiyas.length === 0 && <Text style={styles.emptyState}>مفيش جمعية مسجلة</Text>}
-      {gamiyas.map(g => {
-        const walletLabel = walletHistoryName(wallets, g.walletId);
-        const doneCount = g.months.filter(m => m.status === 'done').length;
-        const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
-        const nextPending = g.months.find(m => m.status === 'pending');
-        const isExpanded = expanded === g.id;
-
-        return (
-          <View key={g.id} style={styles.card}>
-            <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
-              <View style={styles.cardHead}>
-                <Text style={styles.name}>{g.name}</Text>
-                <Text style={styles.sub2}>{walletLabel}</Text>
-              </View>
-              <Text style={styles.sub}>
-                <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
-              </Text>
-              <View style={styles.track}>
-                <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
-              </View>
-              <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
-              {nextPending && (
-                <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
-                  {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {isExpanded && (
-              <View style={styles.expandedArea}>
-                {g.months.map(m => (
-                  <View key={m.id} style={styles.monthRow}>
-                    <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
-                      شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
-                    </Text>
-                    {m.status === 'pending' ? (
-                      <TouchableOpacity
-                        onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
-                        style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
-                        disabled={busyKey === `month_${m.id}`}>
-                        {busyKey === `month_${m.id}` ? (
-                          // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
-                          <ActivityIndicator size="small" color={colors.onAccent} />
-                        ) : (
-                          <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
-                            {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
-                          </Text>
-                        )}
-                      </TouchableOpacity>
-                    ) : (
-                      <Text style={{ color: colors.success, fontSize: 11 }}>✓ خلص</Text>
-                    )}
-                  </View>
-                ))}
-                <View style={styles.gamiyaActions}>
-                  <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
-                    <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
-                    <Text style={{ color: colors.danger, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        );
-      })}
+      {activeGamiyas.map(renderGamiya)}
+      <FoldedSection testID="gamiyas_finished" title="جمعيات خلصت" a11yLabel={`جمعيات خلصت، ${gamiyasPhrase(finishedGamiyas.length)}`} count={finishedGamiyas.length}>
+        {finishedGamiyas.map(renderGamiya)}
+      </FoldedSection>
 
       <AddGamiyaModal visible={showAdd} onClose={() => setShowAdd(false)} />
       {editingGamiya && <EditGamiyaModal gamiya={editingGamiya} onClose={() => setEditingGamiya(null)} />}
@@ -311,7 +321,7 @@ function makeStyles(c: ThemeColors) {
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
     dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.danger, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
