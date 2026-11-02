@@ -3,7 +3,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
@@ -58,8 +58,11 @@ export default function GamiyaView() {
         {
           text: 'تأكيد',
           onPress: () => runBusy(`month_${monthId}`, async () => {
-            const outcome = await markGamiyaMonthDone(g.id, monthId);
-            if (outcome !== 'done') {
+            // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
+            const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
+            if (outcome === 'amount-changed') {
+              notice(AMOUNT_CHANGED_ALERT.gamiya.title, AMOUNT_CHANGED_ALERT.gamiya.body);
+            } else if (outcome !== 'done') {
               const m = PAY_OUTCOME_ALERT_GAMIYA[outcome];
               notice(m.title, m.body);
             }
