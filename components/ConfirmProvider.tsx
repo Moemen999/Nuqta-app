@@ -21,6 +21,7 @@ import { Text } from '@/components/AppText';
  * - **التطبيق اتقفل (القفل) ← كل التأكيدات المفتوحة بتتلغي** (react-reviewer H1): الـModal نافذة
  *   لوحدها، فكان هيفضل فوق شاشة القفل ونصه باين وزراره شغّال من غير الكود. الإلغاء بينادي
  *   `cancel`/`onDismiss` عشان أي `Promise` مستني الإجابة يتحل (H2) ومزرار يفضل يلف.
+ * - **مقفول ← بيتلغي على طول**، فشاشة القفل ("نسيت الكود؟") بتفضل على Alert الأصلي.
  * - تأكيدات ورا بعض بتتصف، ومن غير Provider (اختبار، أو برّه الشجرة) بيرجع للـAlert الأصلي.
  * - الترتيب: الفعل على اليمين و"إلغاء" على الشمال — نفس فوتر المودالات في التطبيق كله
  *   (visual-identity-reviewer). فعلين + إلغاء ← تحت بعض.
@@ -43,7 +44,13 @@ export function useConfirm(): Confirm {
   return useContext(ConfirmContext) ?? nativeConfirm;
 }
 
-/** الإلغاء من غير ما المستخدم يختار (رجوع، قفل) — زرار الإلغاء، ولو مفيش `onDismiss` */
+/** واحد رمى ← الباقي لسه بيتلغي (Promise تاني ميعلقش) */
+function safely(fn?: () => unknown) {
+  try { fn?.(); } catch (e) { console.warn('[confirm] dismiss handler threw', e instanceof Error ? e.name : 'unknown'); }
+}
+
+/** الإلغاء من غير ما المستخدم يختار (رجوع، قفل) — زرار الإلغاء، ولو مفيش `onDismiss`. **`cancelable` مبيتقراش:**
+ * "رجوع" بيلغي دايمًا (Alert على أندرويد افتراضيه بيتجاهله، وده كان بيسيب المستخدم محبوس) */
 function dismissAction(p: Pending) {
   return p.buttons.find(b => b.style === 'cancel')?.onPress ?? p.options?.onDismiss;
 }
@@ -54,8 +61,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   // نسخة متزامنة من الطابور: دالة التحديث بتاعة setState مش مضمون تتنادى على طول، فالقرار
   // "الدوسة دي على الشباك اللي على الشاشة؟" لازم يتاخد من هنا
   const live = useRef<Pending[]>([]);
+  const lockedRef = useRef(isLocked);
+  lockedRef.current = isLocked;
   const show = useCallback<Confirm>((title, body, buttons, options) => {
-    live.current = [...live.current, { title, body, buttons, options }];
+    const p: Pending = { title, body, buttons, options };
+    // مقفول ← مفيش تأكيد فوق شاشة القفل خالص، بيتلغي على طول (react-reviewer: إلغاء بيفتح تأكيد
+    // جديد، أو عملية async خلصت والتطبيق في الخلفية). شاشة القفل نفسها بتستخدم Alert الأصلي
+    if (lockedRef.current) { safely(dismissAction(p)); return; }
+    live.current = [...live.current, p];
     setQueue(live.current);
   }, []);
   const current = queue[0] ?? null;
@@ -73,7 +86,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     const dropped = live.current;
     live.current = [];
     setQueue([]);
-    dropped.forEach(p => dismissAction(p)?.());
+    dropped.forEach(p => safely(dismissAction(p)));
   }, [isLocked]);
 
   return (
@@ -89,10 +102,7 @@ function ConfirmDialog({ pending, onChoose }: { pending: Pending | null; onChoos
   const styles = useMemo(() => makeStyles(colors), [colors]);
   // Dimensions مش useWindowDimensions: زي NoticeProvider (الهوك بيكسر اختبار الـsplash)
   const height = Dimensions.get('window').height;
-  // آخر تأكيد اتعرض بيفضل مرسوم لحد ما الـfade يخلص — من غيره الخلفية بتختفي فاضية (react-reviewer M1)
-  const [shown, setShown] = useState<Pending | null>(pending);
-  useEffect(() => { if (pending) setShown(pending); }, [pending]);
-  const view = pending ?? shown;
+  const view = pending;
   const cancel = view?.buttons.find(b => b.style === 'cancel');
   const actions = view?.buttons.filter(b => b.style !== 'cancel') ?? [];
   const back = () => { if (pending) onChoose(pending, dismissAction(pending)); };

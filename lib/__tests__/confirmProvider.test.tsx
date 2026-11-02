@@ -168,3 +168,28 @@ it('التباين: نص الخطر expenseText مش danger (danger كنص عل�
   expect(src).not.toMatch(/\bcolor: c\.danger\b/);
   expect(src).toMatch(/dangerText: \{ color: c\.expenseText/);
 });
+
+describe('التحقق من H1 (react-reviewer)', () => {
+  it('confirm وهو مقفول ← مبيظهرش خالص، والإلغاء بيتنادى على طول', async () => {
+    mockLocked = true;
+    await wrap();
+    const cancel = jest.fn();
+    const action = jest.fn();
+    await ask([{ text: 'إلغاء', style: 'cancel', onPress: cancel }, { text: 'حذف', style: 'destructive', onPress: action }]);
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(action).not.toHaveBeenCalled();
+  });
+
+  it('إلغاء بيرمي ← التأكيدات التانية لسه بتتلغي', async () => {
+    const r = await wrap();
+    const second = jest.fn();
+    await ask([{ text: 'إلغاء', style: 'cancel', onPress: () => { throw new Error('x'); } }]);
+    await ask([{ text: 'إلغاء', style: 'cancel', onPress: second }]);
+    mockLocked = true;
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await act(async () => { r.rerender(ui()); });
+    warn.mockRestore();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+});
