@@ -35,7 +35,7 @@ const gamiya = (id: string, name: string, statuses: ('done' | 'pending')[]) => (
 }) as unknown as Gamiya;
 
 describe('الحساب', () => {
-  it('isDebtSettled = نفس شرط "اتسدد بالكامل" (الباقي ≤ 0)، والزيادة بترجّعه', () => {
+  it('isDebtSettled = "اتسدد بالكامل" (الباقي ≤ نص قرش)، والزيادة بترجّعه', () => {
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000))).toBe(true);
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1200))).toBe(true);
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
@@ -199,7 +199,19 @@ describe('isDebtSettled بسماحية نص قرش (fix/settled-epsilon)', () =>
     expect(875.37 - amounts.reduce((x, y) => x + y, 0)).toBeGreaterThan(0); // المشكلة نفسها موجودة
     expect(isDebtSettled(d)).toBe(true);
   });
-  it('قرش واحد باقي ← مش متسدد', () => {
+  it('الحد: باقي 0.003 أو 0.005 ← متسدد؛ 0.006 أو قرش ← لأ؛ دفع زيادة ← متسدد', () => {
+    // داتا قديمة قبل تقريب القرش (2026-09-30) ممكن يبقى فيها باقي أقل من قرش
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.003, 100))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.005, 100))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.006, 100))).toBe(false);
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000.5))).toBe(true);
+  });
+
+  it('الكارت والتذكير والدفع متفقين على نفس الدين (باقي 0.004 قديم)', () => {
+    const { overpayCheck, debtRemaining } = jest.requireActual('@/lib/finance');
+    const d = debt('a', 'أ', 'owed_to_me', 100.004, 100);
+    expect(isDebtSettled(d)).toBe(true);
+    expect(overpayCheck(0.01, debtRemaining(d))).toBe('settled');
   });
 });

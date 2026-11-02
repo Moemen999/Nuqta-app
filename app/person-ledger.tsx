@@ -3,6 +3,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
+import { isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
@@ -53,7 +54,8 @@ export default function PersonLedgerScreen() {
    * بتبقى دوسة واحدة وبرضه من غير أي تخمين.
    */
   const openDebts = useMemo(
-    () => (group?.debts || []).filter(d => debtGrandTotal(d) - debtPaid(d) > 0.001),
+    // نفس تعريف تاب الديون (`isDebtSettled`) — الدين اللي هناك مطوي متسدد ميبانش هنا مفتوح
+    () => (group?.debts || []).filter(d => !isDebtSettled(d)),
     [group]
   );
   const soleOpenDebt = openDebts.length === 1 ? openDebts[0] : null;

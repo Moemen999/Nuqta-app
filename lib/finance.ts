@@ -406,7 +406,8 @@ export type OverpayCheck = 'none' | 'exceeds' | 'settled';
  * الدالة دي منفصلة عن الواجهة عشان تتختبر من غير ما نشغّل ديالوج.
  */
 export function overpayCheck(amount: number, remaining: number): OverpayCheck {
-  if (remaining <= MONEY_EPS) return 'settled';
+  // "متسدد" بنفس سماحية الكارت (نص قرش، `isDebtSettled`)؛ "أكتر من المتبقي" لسه بـ`MONEY_EPS`
+  if (remaining <= PIASTRE_EPS) return 'settled';
   if (amount > remaining + MONEY_EPS) return 'exceeds';
   return 'none';
 }
@@ -1026,7 +1027,7 @@ export function lastInstalmentOf(d: Debt): number | null {
   const value = installmentValue(d);
   if (!value) return null;
   const remaining = debtRemaining(d);
-  if (!(remaining > 0)) return null;
+  if (!(remaining > PIASTRE_EPS)) return null;
   const left = installmentsLeft(d, remaining, value);
   return roundMoney(remaining - (left - 1) * value);
 }
