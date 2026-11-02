@@ -3,11 +3,12 @@
  *
  * "مخصص" كانت فصحى ومبتقولش حاجة: الكارت كان بيقول "الكاش · مخصص" والرقم نفسه مستخبي.
  * دلوقتي الكارت بيقول "كل 45 يوم" — بالعدد صح بالعامية: يوم / يومين / 3–10 أيام / 11+ يوم.
+ * والقيمة المتخزّنة الغلط (0، كسر، ناقصة) ← "تكرار بالأيام": مش سؤال على سطر عرض (arabic-copy-reviewer).
  */
 export type Frequency = 'monthly' | 'yearly' | 'custom';
 
 export function everyDaysLabel(days: number): string {
-  if (!Number.isFinite(days) || days < 1 || !Number.isInteger(days)) return 'كل كام يوم';
+  if (!Number.isFinite(days) || days < 1 || !Number.isInteger(days)) return 'تكرار بالأيام';
   if (days === 1) return 'كل يوم';
   if (days === 2) return 'كل يومين';
   if (days <= 10) return `كل ${days} أيام`;

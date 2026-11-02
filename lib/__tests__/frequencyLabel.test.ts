@@ -12,8 +12,8 @@ describe('everyDaysLabel — العدد بالعامية', () => {
     [365, 'كل 365 يوم'],
   ])('%s ← %s', (n, label) => expect(everyDaysLabel(n)).toBe(label));
 
-  it.each([0, -3, 2.5, NaN, Infinity])('قيمة متخزّنة غلط (%s) ← "كل كام يوم" مش رقم غلط', n => {
-    expect(everyDaysLabel(n)).toBe('كل كام يوم');
+  it.each([0, -3, 2.5, NaN, Infinity])('قيمة متخزّنة غلط (%s) ← "تكرار بالأيام" مش رقم غلط ولا سؤال', n => {
+    expect(everyDaysLabel(n)).toBe('تكرار بالأيام');
   });
 });
 
@@ -22,7 +22,7 @@ describe('frequencyLabel', () => {
     expect(frequencyLabel('monthly')).toBe('شهري');
     expect(frequencyLabel('yearly')).toBe('سنوي');
     expect(frequencyLabel('custom', 14)).toBe('كل 14 يوم');
-    expect(frequencyLabel('custom')).toBe('كل كام يوم');
+    expect(frequencyLabel('custom')).toBe('تكرار بالأيام');
   });
 });
 
