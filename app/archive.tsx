@@ -1,3 +1,4 @@
+import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
@@ -15,7 +16,7 @@ import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
@@ -25,6 +26,7 @@ type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable } = useData();
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
@@ -99,10 +101,10 @@ export default function ArchiveScreen() {
           dialogTitle: 'تصدير العمليات',
         });
       } else {
-        Alert.alert('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
+        notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
       }
     } catch (e: any) {
-      Alert.alert('حصل خطأ في التصدير', String(e?.message || e));
+      notice('حصل خطأ في التصدير', String(e?.message || e));
     } finally {
       setExporting(false);
     }

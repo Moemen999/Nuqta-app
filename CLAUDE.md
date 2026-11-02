@@ -28,8 +28,8 @@
 ## البنية (إيه اللي في كل فولدر)
 
 ### `app/` — الشاشات (Expo Router)
-- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `AppLockProvider` → `AuthProvider` → `DataProvider` → `NotificationsProvider`)، بيحمّل خط التطبيق (`useFonts(APP_FONT_SOURCES)`) ويقول للغلاف اتحمّل ولا لأ (`setAppFontReady`) قبل أول رسمة — وفشل التحميل بيروح Sentry، وبيشغّل `initSentry()` وقت تحميل الموديول (برّه الكومبوننت عن قصد — الأخطاء اللي بتحصل في أول render مبتتلقطش لو التهيئة جوه `useEffect`)، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context.
-  **ترتيب الـ Providers مش شكلي:** `NotificationsProvider` **جوّه** `DataProvider` لأنه بينادي `useData()` عشان يراقب الاشتراكات والجمعيات
+- `_layout.tsx` — الـ Root layout: بيلف كل الـ Providers (`ThemeProvider` → `NoticeProvider` → `PrivacyProvider` → `AppLockProvider` → `ConfirmProvider` → `AuthProvider` → `DataProvider` → `NotificationsProvider`)، بيحمّل خط التطبيق (`useFonts(APP_FONT_SOURCES)`) ويقول للغلاف اتحمّل ولا لأ (`setAppFontReady`) قبل أول رسمة — وفشل التحميل بيروح Sentry، وبيشغّل `initSentry()` وقت تحميل الموديول (برّه الكومبوننت عن قصد — الأخطاء اللي بتحصل في أول render مبتتلقطش لو التهيئة جوه `useEffect`)، وبيقرر أي شاشة تظهر (onboarding / قفل / auth / تابات) حسب حالة كل Context.
+  **ترتيب الـ Providers مش شكلي:** `NotificationsProvider` **جوّه** `DataProvider` لأنه بينادي `useData()` عشان يراقب الاشتراكات والجمعيات، و`ConfirmProvider` **جوّه** `AppLockProvider` عشان يلغي التأكيد لما التطبيق يتقفل، و`NoticeProvider` **برّه** القفل عشان رسالة النتيجة متتشالش
 - `(auth)/` — شاشة تسجيل الدخول/التسجيل (`index.tsx`) و`_layout.tsx` بتاعها
 - `(tabs)/` — التابات الخمسة الأساسية:
   - `index.tsx` — الرئيسية: أرصدة المحافظ + بانرات التنبيهات (رصيد قرب يخلص، ميزانية قربت تخلص، اشتراك/قسط جمعية مستحق) + آخر العمليات
@@ -70,7 +70,8 @@
 - `AutoRecordedMark.tsx` — علامة "⚙️ اتسجلت لوحدها" جنب أي عملية `autoRecorded` (دخل ثابت/اشتراك/جمعية تلقائي)
 - `ChargeHomeCards.tsx` + `IncomeHomeCards.tsx` — كروت "اتخصم؟"/"اتدفع؟"/"استلمت؟" و"نزل؟" (جوه شيت "مستنيين ردك")، و`ChargeAutoNotices`/`IncomeAutoNotices` رسايل "سجلنا لوحدنا"/"ما سجلناش" **في الرئيسية نفسها** — وهما اللي بيشغّلوا التسجيل التلقائي، فلازم يفضلوا متركّبين. الزرار العايم "+" **مبيستخبّاش أبدًا** من 2026-09-29 — الكروت هي اللي بتتنقل
 - `PendingSheet.tsx` — سطر "عندك … مستنيين ردك" في الرئيسية (الصيغ في `lib/pendingSummary.ts`، متحددة بالنص) والشيت اللي بيفتحه، متقسم بالنوع. **بانر "مقدرناش نجيب بياناتك" ورسايل "ما سجلناش" مش جواه عن قصد** — لازم يبانوا
-- `NoticeProvider.tsx` — رسالة نتيجة بزرار "تمام" بشكل التطبيق (RTL، الثيمين) بدل `Alert.alert` في **مسارات الفلوس** (2026-09-29): `const notice = useNotice(); notice(عنوان، جملة)`. في الجذر عشان تفضل بعد ما المودال يتقفل، وبتتصف، ومن غير Provider بترجع للأصلي. التأكيدات اللي فيها اختيار (امسح/إلغاء) لسه `Alert` — نمط تاني
+- `NoticeProvider.tsx` — رسالة نتيجة بزرار "تمام" بشكل التطبيق (RTL، الثيمين) بدل `Alert.alert` في **مسارات الفلوس** (2026-09-29): `const notice = useNotice(); notice(عنوان، جملة)`. في الجذر عشان تفضل بعد ما المودال يتقفل، وبتتصف، ومن غير Provider بترجع للأصلي. **برّه القفل** فمبتتشالش لما التطبيق يتقفل — عشان كده رسالة "فيه تعديل ما اتحفظش" بتعدّي عليها مش على `confirm` (2026-11-02)
+- `ConfirmProvider.tsx` — التأكيد اللي فيه اختيار (امسح/إلغاء) بشكل التطبيق: `const confirm = useConfirm(); confirm(عنوان، جملة، أزرار، options)` — نفس توقيع `Alert.alert`. **جوّه القفل:** أي تأكيد مفتوح أو جديد والتطبيق مقفول بيتلغي (زرار `cancel` أو `onDismiss`)، فرسالة من غير اختيار مكانها `notice` مش هنا. **`confirm(` لازم ييجي من `useConfirm()`** — من غيره TypeScript بيقبله كـ`window.confirm` ساكت. `Alert` الأصلي مسموح بس في الـProviderين وشاشة القفل (مخرج "نسيت الكود؟") — اختبار الجرد `nativeAlertInventory.test.ts` بيرفض غير كده
 - `ChargeModePicker.tsx` — اختيار "بيسألك الأول" (الافتراضي) / "بيتسجل لوحده" في فورم الاشتراك والجمعية — نفس أسامي الدخل الثابت من مصدر واحد (`CHARGE_MODE_LABEL`)
 - `BackButton.tsx` — زرار الرجوع في الشاشات الجوّه
 - `AppText.tsx` — `Text` و`TextInput` بخط التطبيق **بنفس الأسامي**: كل الشاشات بتستورد منه مش من `react-native` (اختبار الجرد `appFont.test.tsx` بيرفض غير كده)

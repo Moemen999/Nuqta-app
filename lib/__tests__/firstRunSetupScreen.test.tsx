@@ -117,7 +117,7 @@ describe('الحساب اتجهّز باختيارات تانية', () => {
     mockCompleteSetup.mockResolvedValue('already-done-other');
     await mount();
     await press('setup_skip');
-    expect(alert).toHaveBeenCalledWith(SETUP_OTHER_MESSAGE.title, SETUP_OTHER_MESSAGE.body, expect.anything());
+    expect(alert).toHaveBeenCalledWith(SETUP_OTHER_MESSAGE.title, SETUP_OTHER_MESSAGE.body);
     alert.mockRestore();
   });
 });
