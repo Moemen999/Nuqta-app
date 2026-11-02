@@ -215,3 +215,28 @@ describe('isDebtSettled بسماحية نص قرش (fix/settled-epsilon)', () =>
     expect(overpayCheck(0.01, debtRemaining(d))).toBe('settled');
   });
 });
+
+describe('عتبة "اتسدد" في باقي الأماكن (fix/settled-epsilon، جولة 2)', () => {
+  const fin = jest.requireActual('@/lib/finance');
+  it('overpayCheck: نص قرش ← settled، أكتر ← مش settled، و"exceeds" لسه بالقرش', () => {
+    expect(fin.overpayCheck(0.01, 0.004)).toBe('settled');
+    expect(fin.overpayCheck(0.01, 0.006)).toBe('exceeds');
+    expect(fin.overpayCheck(550.01, 550)).toBe('exceeds');
+    expect(fin.overpayCheck(550, 550)).toBe('none');
+  });
+  it('lastInstalmentOf: باقي كسور (~1e-13) ← مفيش قسط أخير تافه', () => {
+    const amounts = [205.7, 420.39, 4.17, 245.11];
+    const d = { ...debt('a', 'أ', 'i_owe', 875.37, 0), isInstallment: true, installmentAmount: 100, installmentCount: 9,
+      payments: amounts.map((amount, i) => ({ id: `p${i}`, date: '2026-08-01', amount })) } as unknown as Debt;
+    expect(fin.lastInstalmentOf(d)).toBeNull();
+  });
+});
+
+describe('تاب الديون: دين باقيه أقل من نص قرش', () => {
+  it('دين باقيه 0.004 (قديم) بيتطوي متسدد، والنشط باين (فرق الإجمالي أقل من قرش فمش بيتقاس هنا)', async () => {
+    mockData.debts = [debt('d1', 'أحمد', 'owed_to_me', 1000, 400), debt('d2', 'منى', 'owed_to_me', 100.004, 100)];
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.queryByText('منى')).toBeNull();
+    expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
+  });
+});
