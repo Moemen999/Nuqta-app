@@ -148,7 +148,6 @@ describe.each(SCREENS)('$kind — بمكوّن التأكيد', (cfg) => {
     expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
     expect(mockData[cfg.del]).not.toHaveBeenCalled();
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
-  expect(screen.queryByTestId('confirm_dialog')).toBeNull();
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
     expect(mockData[cfg.del]).not.toHaveBeenCalled();
     await act(async () => { fireEvent.press(screen.getByText(cfg.button)); });

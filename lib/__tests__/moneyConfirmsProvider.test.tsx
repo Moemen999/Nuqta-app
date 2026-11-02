@@ -69,6 +69,8 @@ it('الاشتراك: "اتخصم" ← تأكيد قبل الدفع، بيتقف
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.markSubscriptionPaid).toHaveBeenCalledWith('s1', today);
+  // دوسة أولى عادية ← مفيش "ما اتنفّذش"
+  expect(screen.queryByTestId('notice_title')).toBeNull();
 });
 
 it('دفع اشتراك تاني والأول لسه بيلف ← "استنى لحظة" مش سكوت', async () => {
@@ -94,4 +96,15 @@ it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm1');
+  expect(screen.queryByTestId('notice_title')).toBeNull();
+});
+
+it('الجمعية: شهرين بنفس القسط ورا بعض بسرعة ← التأكيد التاني مش بيتبلع (المفتاح هو الشهر)', async () => {
+  await render(wrap(<GamiyaView />));
+  await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
+  const [m1, m2] = screen.getAllByText('اتخصم');
+  await act(async () => { fireEvent.press(m1); fireEvent.press(m2); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+  // من غير المفتاح، التاني كان هيتلغي لأن نصه زي الأول بالظبط
+  expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
 });

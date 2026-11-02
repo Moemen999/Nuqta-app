@@ -12,7 +12,7 @@ import {
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } from '@/lib/listenerErrors';
 import { categoryIcon } from '@/lib/finance';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
@@ -41,7 +41,7 @@ export default function CategoriesScreen() {
   } | null>(null);
 
   const { busy: adding, run: runAdd } = useBusy();
-  const { busyKey: deletingKey, run: runDelete } = useBusyKey();
+  const { busyKey: deletingKey, run: runDelete } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
 
   const activeCategories = useMemo(() => categories.filter(c => !c.archived), [categories]);
   const archivedCategories = useMemo(() => categories.filter(c => c.archived), [categories]);
