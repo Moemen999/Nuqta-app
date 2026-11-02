@@ -1,5 +1,6 @@
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -16,7 +17,7 @@ import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle
 import { useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
+  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -33,6 +34,7 @@ export default function IncomesView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { incomes, wallets, transactions, recordIncomePeriods, setIncomeStatus, deleteIncome } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<RecurringIncome | 'new' | null>(null);
   const [showStopped, setShowStopped] = useState(false);
@@ -51,7 +53,7 @@ export default function IncomesView() {
     if (!key) return;
     const label = incomePeriodLabel(inc, key, today);
     const early = incomeDueDate(inc, key) > today;
-    Alert.alert(
+    confirm(
       `"${inc.name}" نزل؟`,
       `هنسجل ${plainAmount(inc.amount)} ج.م في "${walletHistoryName(wallets, inc.walletId)}" عن ${label}.`
         + (early ? ` ولما ييجي معاده مش هنسألك عنه تاني.` : ''),
@@ -69,7 +71,7 @@ export default function IncomesView() {
   }
 
   function confirmStop(inc: RecurringIncome) {
-    Alert.alert(
+    confirm(
       `توقف "${inc.name}" خالص؟`,
       'مش هيتسجل ولا هيسألك عنه تاني. اللي اتسجل قبل كده بيفضل في الأرشيف ورصيدك زي ما هو.',
       [
@@ -84,7 +86,7 @@ export default function IncomesView() {
    * بتتأكد تاني من السيرفر، فلو جهاز تاني سجّل في النص بيرجع `has-records`.
    */
   function confirmDelete(inc: RecurringIncome) {
-    Alert.alert(
+    confirm(
       `تمسح "${inc.name}"؟`,
       'لسه ما اتسجلش منه أي حاجة، فرصيدك مش هيتلمس. هيتشال خالص ومش هنفكرك بيه تاني.',
       [

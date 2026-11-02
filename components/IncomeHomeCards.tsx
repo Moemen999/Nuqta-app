@@ -1,6 +1,7 @@
 import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -14,7 +15,7 @@ import { useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -85,6 +86,7 @@ export default function IncomeHomeCards() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
@@ -112,7 +114,7 @@ export default function IncomeHomeCards() {
 
   function confirmSkip(inc: RecurringIncome, key: string) {
     const label = incomePeriodLabel(inc, key, today);
-    Alert.alert(`"${inc.name}" ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
+    confirm(`"${inc.name}" ما نزلش ${label}؟`, `مش هنسجل حاجة عن ${label} ومش هنسألك عنه تاني.`, [
       { text: 'رجوع', style: 'cancel' },
       { text: 'ما نزلش', onPress: () => { skipIncomePeriod(inc.id, key); } },
     ]);
