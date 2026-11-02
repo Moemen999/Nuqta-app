@@ -121,12 +121,17 @@ function HomeScreen() {
     if (noWallets) AccessibilityInfo.announceForAccessibility('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
   }, [noWallets]);
   // الكاش اختفى والأرقام الحقيقية وصلت ← بنقول كده (التبديل بيحصل في رسمة واحدة والفوكس ممكن يقع —
-  // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي
+  // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي. **وبس لما الأرقام من السيرفر**
+  // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
+  // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
   const wasCold = useRef(false);
   useEffect(() => {
     if (cold) { wasCold.current = true; return; }
-    if (wasCold.current) { wasCold.current = false; AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت'); }
-  }, [cold]);
+    if (wasCold.current && figuresFromServer) {
+      wasCold.current = false;
+      if (wallets.length > 0) AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت');
+    }
+  }, [cold, figuresFromServer, wallets.length]);
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -191,7 +196,8 @@ function HomeScreen() {
             {cold
               ? cold.wallets.map(w => (
                 <View key={w.id} testID={`home_cold_wallet_${w.id}`} style={styles.walletChip}>
-                  <View style={[styles.dot, { backgroundColor: colors.textSecondary }]} />
+                  {/* حلقة فاضية مش لون: "مش حية" مش "ملقيناش لون" (visual-identity-reviewer) */}
+                  <View style={[styles.dot, { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.textSecondary }]} />
                   <Text style={styles.walletChipName}>{w.name}</Text>
                   <Money value={w.balance} currency={false} style={styles.walletChipVal} />
                 </View>
@@ -221,7 +227,7 @@ function HomeScreen() {
             متثبّت في homeBannerOrder.test.tsx */}
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
         {cold && (
-          <View testID="home_banner_cold" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+          <View testID="home_banner_cold" style={[styles.banner, { borderColor: colors.dangerBorder, minHeight: MIN_TOUCH }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
           </View>
