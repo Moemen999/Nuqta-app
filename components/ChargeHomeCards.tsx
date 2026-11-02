@@ -1,6 +1,7 @@
 import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
+import { useConfirm } from '@/components/ConfirmProvider';
 import {
   PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
@@ -15,7 +16,7 @@ import { useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -144,6 +145,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
   const notice = useNotice();
+  const confirm = useConfirm();
   const { busyKey, run } = useBusyKey();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
@@ -178,7 +180,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
 
   function confirmSkip(p: PendingCharge, charge: OpenCharge) {
     const label = p.labelOf(charge.key);
-    Alert.alert(`اشتراك "${p.name}" ما اتخصمش ${label}؟`, `مش هنسجل خصم عن ${label} ومش هنسألك عنه تاني.`, [
+    confirm(`اشتراك "${p.name}" ما اتخصمش ${label}؟`, `مش هنسجل خصم عن ${label} ومش هنسألك عنه تاني.`, [
       { text: 'رجوع', style: 'cancel' },
       {
         text: 'ما اتخصمش',

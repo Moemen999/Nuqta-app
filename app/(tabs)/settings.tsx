@@ -10,7 +10,8 @@ import { notificationsStatus } from '@/lib/notificationStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -50,12 +51,13 @@ export default function SettingsScreen() {
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
   const { wallets, categories, pendingWrites } = useData();
+  const confirm = useConfirm();
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived).length, [categories]);
 
   function replayOnboarding() {
-    Alert.alert('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
+    confirm('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'تمام',
@@ -73,7 +75,7 @@ export default function SettingsScreen() {
    */
   function confirmLogout() {
     if (pendingWrites > 0) {
-      Alert.alert(
+      confirm(
         'لسه فيه بيانات بترفع',
         `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
         [
@@ -83,7 +85,7 @@ export default function SettingsScreen() {
       );
       return;
     }
-    Alert.alert('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
+    confirm('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'خروج', style: 'destructive', onPress: () => logOut() },
     ]);

@@ -22,6 +22,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import FirstRunSetup from '@/components/FirstRunSetup';
 import { NoticeProvider } from '@/components/NoticeProvider';
+import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
@@ -170,6 +171,8 @@ export default function RootLayout() {
       {/* فوق NotificationsProvider: الإشعارات بتشيل المبالغ لو مخفية */}
       <PrivacyProvider>
         <AppLockProvider>
+          {/* جوه القفل: التأكيد المفتوح بيتلغي لما التطبيق يتقفل (ConfirmProvider) */}
+          <ConfirmProvider>
           <AuthProvider>
             <DataProvider>
               <NotificationsProvider>
@@ -177,6 +180,7 @@ export default function RootLayout() {
               </NotificationsProvider>
             </DataProvider>
           </AuthProvider>
+          </ConfirmProvider>
         </AppLockProvider>
       </PrivacyProvider>
       </NoticeProvider>

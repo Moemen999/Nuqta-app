@@ -15,7 +15,9 @@ import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useConfirm } from '@/components/ConfirmProvider';
+import { useNotice } from '@/components/NoticeProvider';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -33,6 +35,8 @@ export default function WalletsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const notice = useNotice();
+  const confirm = useConfirm();
   const {
     wallets, transactions, debts, subscriptions, gamiyas, incomes, loadErrors,
     addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
@@ -58,7 +62,7 @@ export default function WalletsScreen() {
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
-  // آخر نسخة من المحافظ لفحص المسح **لحظة الدوسة**: زرار الـAlert بينادي
+  // آخر نسخة من المحافظ لفحص المسح **لحظة الدوسة**: زرار التأكيد بينادي
   // نسخة الـrender اللي فتحته، فلو قرا `wallets` كان هيشوف اللي قبل التأكيد
   const latestWallets = useRef(wallets);
   latestWallets.current = wallets;
@@ -67,7 +71,7 @@ export default function WalletsScreen() {
   function blockedByMissingData() {
     const missing = walletActionBlockedBy(loadErrors);
     if (missing.length === 0) return false;
-    Alert.alert(WALLET_BLOCKED_TITLE, walletBlockedBody(missing), [{ text: 'تمام' }]);
+    notice(WALLET_BLOCKED_TITLE, walletBlockedBody(missing));
     return true;
   }
 
@@ -98,22 +102,19 @@ export default function WalletsScreen() {
     if (block.kind === 'last-active') {
       // المسح بيقترح "رجّع واحدة من المؤرشفة" — اللي عنده مؤرشفة مش محتاج يعمل
       // جديدة. في الأرشفة الكلام ده مالوش معنى، فكل واحد ليه جملته
-      Alert.alert('دي آخر محفظة شغالة',
+      notice('دي آخر محفظة شغالة',
         action === 'delete'
           ? 'لازم يفضل عندك محفظة واحدة شغالة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.'
-          : 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.',
-        [{ text: 'تمام' }]);
+          : 'لازم يفضل عندك محفظة واحدة على الأقل عشان تقدر تسجّل عملياتك. اعمل محفظة تانية الأول.');
       return;
     }
     if (block.kind === 'balance') {
-      Alert.alert('رصيدها لسه مش صفر',
-        `رصيد "${name}" ${plainAmount(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`,
-        [{ text: 'تمام' }]);
+      notice('رصيدها لسه مش صفر',
+        `رصيد "${name}" ${plainAmount(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`);
       return;
     }
-    Alert.alert('مفيش محفظة تانية',
-      'الاشتراكات والجمعيات والدخل الثابت الشغالة محتاجة محفظة تتنقل لها. اعمل محفظة تانية الأول.',
-      [{ text: 'تمام' }]);
+    notice('مفيش محفظة تانية',
+      'الاشتراكات والجمعيات والدخل الثابت الشغالة محتاجة محفظة تتنقل لها. اعمل محفظة تانية الأول.');
   }
 
   /** آخر محفظة شغالة مبتتمسحش أبدًا — بيقول كده وبيرجّع true */
@@ -137,7 +138,7 @@ export default function WalletsScreen() {
         // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection.
         // رمي هنا = باج، فبيوصل Sentry (كود الخطأ بس، من غير الاسم)
         reportAtomicFailure('مسح المحفظة', e);
-        Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
+        notice('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`);
       }
     });
   }
@@ -147,13 +148,13 @@ export default function WalletsScreen() {
     if (blockedAsLastActive(id, name)) return;
     const refs = refsFor(id);
     if (!walletHasHistory(refs)) {
-      Alert.alert('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
+      confirm('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'حذف', style: 'destructive', onPress: () => deleteNow(id, name) },
       ]);
       return;
     }
-    Alert.alert('المحفظة دي ليها تاريخ',
+    confirm('المحفظة دي ليها تاريخ',
       `"${name}" مربوط بيها ${walletLinkSummary(refs)}. لو مسحتها التاريخ هيظهر باسم محفظة ممسوحة. تقدر تأرشفها بدل كده — هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`,
       [
         { text: 'إلغاء', style: 'cancel' },
@@ -169,7 +170,7 @@ export default function WalletsScreen() {
     const w = wallets.find(x => x.id === id);
     if (!w) return;
     const balance = roundedWalletBalance(transactions, id, w.openingBalance);
-    Alert.alert('مسح نهائي', walletDeleteConsequences({ balance, refs: refsFor(id) }).join('\n'), [
+    confirm('مسح نهائي', walletDeleteConsequences({ balance, refs: refsFor(id) }).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
     ]);
@@ -202,7 +203,7 @@ export default function WalletsScreen() {
       ...refs.activeIncomes.map(x => ({ ...x, kind: 'دخل ثابت' })),
     ];
     if (items.length === 0) {
-      Alert.alert('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
+      confirm('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'أرشفها', onPress: () => { void archiveNow(id, name, {}); } },
       ]);
@@ -220,12 +221,12 @@ export default function WalletsScreen() {
       reportAtomicFailure('أرشفة المحفظة', e);
       // فشل الكتابة نفسها بيتقال من `track` باسم المحفظة؛ ده للي بيترمي قبلها
       // (تجهيز الدفعة) — كان هيبقى unhandled rejection والشيت اتقفل (silent-failure-hunter)
-      Alert.alert('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`, [{ text: 'تمام' }]);
+      notice('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`);
     }
   }
 
   function confirmRestore(id: string, name: string) {
-    Alert.alert('رجّع المحفظة', `"${name}" هترجع تظهر في الاختيارات تاني.`, [
+    confirm('رجّع المحفظة', `"${name}" هترجع تظهر في الاختيارات تاني.`, [
       { text: 'إلغاء', style: 'cancel' },
       { text: 'رجّعها', onPress: () => restoreWallet(id) },
     ]);
@@ -241,7 +242,7 @@ export default function WalletsScreen() {
     // زي "مفيش مانع"، فكانت بتعدّي لأرشفة مستند مش موجود (silent-failure-hunter)
     if (!wallets.some(w => w.id === sheet.id)) {
       setSheet(null);
-      Alert.alert('المحفظة دي اتمسحت', `"${sheet.name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`, [{ text: 'تمام' }]);
+      notice('المحفظة دي اتمسحت', `"${sheet.name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`);
       return;
     }
     const block = archiveBlockFor(sheet.id);
@@ -252,9 +253,8 @@ export default function WalletsScreen() {
     const live = new Set([...subscriptions, ...gamiyas, ...incomes].map(x => x.id));
     if (sheet.items.some(i => !live.has(i.id))) {
       setSheet(null);
-      Alert.alert('فيه حاجة اتغيّرت',
-        `حاجة من اللي كنت بتنقلها اتمسحت من جهاز تاني. افتح الأرشفة تاني عشان نتأكد إن رصيد "${sheet.name}" لسه صفر.`,
-        [{ text: 'تمام' }]);
+      notice('فيه حاجة اتغيّرت',
+        `حاجة من اللي كنت بتنقلها اتمسحت من جهاز تاني. افتح الأرشفة تاني عشان نتأكد إن رصيد "${sheet.name}" لسه صفر.`);
       return;
     }
     // بالنوع صريح مش "أي حاجة مش اشتراك = جمعية": الدخل الثابت كان هيتبعت
