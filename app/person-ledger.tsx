@@ -5,7 +5,7 @@ import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/
 import { useData, type Debt } from '@/context/DataContext';
 import { isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
+import { PIASTRE_EPS, debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -98,7 +98,9 @@ export default function PersonLedgerScreen() {
     return { ...r, balance: running };
   });
 
-  const finalBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
+  const rawBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
+  // نص قرش زي `isDebtSettled`: الكسور كانت بتطلّع "ليك عنده 0.00" وتحت "كل حاجة متسددة"
+  const finalBalance = Math.abs(rawBalance) <= PIASTRE_EPS ? 0 : rawBalance;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
