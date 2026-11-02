@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
@@ -26,12 +26,16 @@ import { Text } from '@/components/AppText';
  * iOS مبيضمنش ده، ورسالة فشل مختفية أوحش من رسالة شكلها مش بتاعنا.
  */
 
-export type Notice = { title: string; body: string };
-type Show = (title: string, body: string) => void;
+export type Notice = { title: string; body: string; onDismiss?: () => void };
+/** `onDismiss` اختياري: بيتنادى مرة واحدة لما الرسالة دي بالذات تتقفل ("تمام" أو رجوع) */
+type Show = (title: string, body: string, onDismiss?: () => void) => void;
 
 const NoticeContext = createContext<Show | null>(null);
 
-const nativeAlert: Show = (title, body) => Alert.alert(title, body);
+const nativeAlert: Show = (title, body, onDismiss) =>
+  onDismiss
+    ? Alert.alert(title, body, [{ text: 'تمام', onPress: onDismiss }], { onDismiss })
+    : Alert.alert(title, body);
 
 /** `notice(عنوان، جملة)` — نفس توقيع `Alert.alert(عنوان، جملة)` بزرار واحد */
 export function useNotice(): Show {
@@ -41,17 +45,26 @@ export function useNotice(): Show {
 
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Notice[]>([]);
-  const show = useCallback<Show>((title, body) => {
-    setQueue(q => [...q, { title, body }]);
+  const show = useCallback<Show>((title, body, onDismiss) => {
+    setQueue(q => [...q, { title, body, onDismiss }]);
   }, []);
   const current = queue[0] ?? null;
+  // `onDismiss` بيتنادى برّه دالة setQueue (ممكن تتنادى مرتين في الـStrictMode)، ومرة بس:
+  // دوستين في نفس الفريم بيشوفوا نفس الـrender، فالعلامة متزامنة (ref) مش من الطابور
+  const closed = useRef(new WeakSet<Notice>());
+  const dismiss = (shown: Notice) => {
+    if (closed.current.has(shown)) return;
+    closed.current.add(shown);
+    setQueue(q => (q[0] === shown ? q.slice(1) : q));
+    try { shown.onDismiss?.(); } catch (e) { console.warn('[notice] onDismiss threw', e instanceof Error ? e.name : 'unknown'); }
+  };
 
   return (
     <NoticeContext.Provider value={show}>
       {children}
       {/* بيقفل الرسالة اللي اتعرضت بس: دوستين بسرعة على "تمام" وقت الاختفاء كانت
           هتقفل الجاية كمان من غير ما تتشاف — ودي ممكن تبقى "ما اتسجلش" (a11y-architect) */}
-      <NoticeDialog notice={current} onDismiss={shown => setQueue(q => (q[0] === shown ? q.slice(1) : q))} />
+      <NoticeDialog notice={current} onDismiss={dismiss} />
     </NoticeContext.Provider>
   );
 }

@@ -793,11 +793,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     /**
      * `notice` مش `confirm` — عن قصد (silent-failure-hunter، 2026-11-02): `confirm` بيلغي أي
      * شباك والتطبيق مقفول، ورسالة فشل كتابة اتلغت = فلوس اختفت من غير سبب. `notice` بيصف
-     * الرسايل ومبيرميش حاجة. والقفل بالمؤقّت بس: رسالة واحدة لكل دفعة فشل في
-     * `WRITE_ERROR_RESET_MS`، وبعدها أي فشل جديد بيظهر تاني.
+     * الرسايل ومبيرميش حاجة.
+     *
+     * القفل (رسالة واحدة لدفعة فشل، زي حذف دين بكل عملياته) بيتفك بـ"تمام" — فالمستخدم اللي
+     * قفل الرسالة وجرّب تاني وفشل يشوف رسالة جديدة (money-reviewer + silent-failure-hunter
+     * جولة 2: بالمؤقّت لوحده الفشل التاني كان بيتبلع). والمؤقّت احتياطي: لو الرسالة مستنية
+     * ورا رسايل تانية، الفشل الجديد بعد `WRITE_ERROR_RESET_MS` بيتصف وراها مش بيضيع.
      */
-    setTimeout(() => { errorShown.current = false; }, WRITE_ERROR_RESET_MS);
-    notice(WRITE_ERROR_TITLE, writeErrorBody(label));
+    const backstop = setTimeout(() => { errorShown.current = false; }, WRITE_ERROR_RESET_MS);
+    notice(WRITE_ERROR_TITLE, writeErrorBody(label), () => {
+      clearTimeout(backstop);
+      errorShown.current = false;
+    });
   }
 
   /**

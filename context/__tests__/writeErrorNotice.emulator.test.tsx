@@ -33,7 +33,7 @@ afterEach(async () => { await harness.unmount(); });
 
 it('كتابة القواعد رفضتها (محفظة من غير اسم) ← الرسالة بتظهر بـnotice، مش بتعدّي على confirm', async () => {
   await harness.api().addWallet('');
-  await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, writeErrorBody(namedLabel('المحفظة', ''))), { timeout: 10000 });
+  await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, writeErrorBody(namedLabel('المحفظة', '')), expect.any(Function)), { timeout: 10000 });
   expect(mockConfirm).not.toHaveBeenCalled();
 });
 
@@ -44,4 +44,13 @@ it('فشلين ورا بعض ← رسالة واحدة (مش شباكين فوق
   // الفشل التاني بيوصل بعد الأول بلحظة — نستنى شوية عشان لو كان هيطلع رسالة تانية تطلع
   await new Promise(r => setTimeout(r, 1500));
   expect(mockNotice.mock.calls.filter(c => c[0] === WRITE_ERROR_TITLE)).toHaveLength(1);
+});
+
+it('"تمام" على الرسالة ثم فشل جديد ← رسالة جديدة (القفل بيتفك بالدوسة مش بالمؤقّت بس)', async () => {
+  await harness.api().addWallet('');
+  await waitFor(() => expect(mockNotice).toHaveBeenCalledTimes(1), { timeout: 10000 });
+  mockNotice.mock.calls[0][2](); // = المستخدم داس "تمام"
+  await harness.api().addWallet('');
+  // قبل WRITE_ERROR_RESET_MS (10 ثواني) بكتير — بالمؤقّت لوحده كان الفشل ده هيتبلع
+  await waitFor(() => expect(mockNotice).toHaveBeenCalledTimes(2), { timeout: 5000 });
 });

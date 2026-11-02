@@ -43,10 +43,12 @@ function stripComments(src: string): string {
 
 const files = DIRS.flatMap(d => walk(join(ROOT, d))).map(p => relative(ROOT, p).split(sep).join('/'));
 
-function importsNativeAlert(code: string): boolean {
-  const imports = code.match(/import\s*\{[^}]*\}\s*from\s*['"]react-native['"]/g) ?? [];
-  return imports.some(i => /[{,\s]Alert[\s,}]/.test(i));
-}
+/**
+ * أي كلمة `Alert` لوحدها في الكود (مش التعليقات) — مش بس `Alert.alert(` والاستيراد: كده
+ * `require('react-native').Alert` و`RN.Alert` و`const { alert } = Alert` و`Alert.prompt(`
+ * كلهم بيتمسكوا (silent-failure-hunter جولة 2). `lowAlert` و`budgetAlerts` مش كلمة لوحدها.
+ */
+const usesNativeAlert = (code: string) => /\bAlert\b/.test(code);
 
 describe('Alert الأصلي برّه الأماكن المسموحة', () => {
   it('الجرد لاقي ملفات أصلاً (مش بيعدّي وهو فاضي)', () => {
@@ -54,20 +56,23 @@ describe('Alert الأصلي برّه الأماكن المسموحة', () => {
     ALLOWED.forEach(f => expect(files).toContain(f));
   });
 
-  it('مفيش Alert.alert( ولا استيراد Alert من react-native غير في المسموح', () => {
+  it('مفيش Alert (استدعاء ولا استيراد ولا require) غير في المسموح', () => {
     const offenders = files.filter(f => {
       if (ALLOWED.has(f)) return false;
-      const code = stripComments(readFileSync(join(ROOT, f), 'utf-8'));
-      return /\bAlert\s*\.\s*alert\s*\(/.test(code) || importsNativeAlert(code);
+      return usesNativeAlert(stripComments(readFileSync(join(ROOT, f), 'utf-8')));
     });
     expect(offenders).toEqual([]);
   });
 
   it('الفحص نفسه بيمسك الاستخدام (لو اتكسر الريجيكس الاختبار اللي فوق يعدّي ساكت)', () => {
-    const bad = stripComments("import { View, Alert } from 'react-native';\nAlert.alert('x', 'y');");
-    expect(/\bAlert\s*\.\s*alert\s*\(/.test(bad)).toBe(true);
-    expect(importsNativeAlert(bad)).toBe(true);
-    const comment = stripComments("// بدل Alert.alert('x')\n/* Alert.alert( */ const a = 1;");
-    expect(/\bAlert\s*\.\s*alert\s*\(/.test(comment)).toBe(false);
+    for (const bad of [
+      "import { View, Alert } from 'react-native';",
+      "const { Alert } = require('react-native');",
+      "RN.Alert.alert('x');",
+      "const A = RN.Alert; A.alert('x');",
+      "Alert.prompt('x');",
+    ]) expect(usesNativeAlert(stripComments(bad))).toBe(true);
+    const ok = stripComments("// بدل Alert.alert('x')\n/* Alert.alert( */ const lowAlert = 1; const budgetAlerts = [];");
+    expect(usesNativeAlert(ok)).toBe(false);
   });
 });

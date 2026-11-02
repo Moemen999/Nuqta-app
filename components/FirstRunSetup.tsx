@@ -139,8 +139,8 @@ export default function FirstRunSetup() {
     }
     if (outcome === 'already-done-other') {
       // الحساب اتجهّز باختيارات تانية (محاولة قديمة وصلت متأخر، أو موبايل تاني).
-      // Alert مش شاشة: الشاشة دي بتتقفل على طول (setupStatus بقى done)، والـAlert
-      // بيفضل ظاهر فوق التطبيق. ممنوع نقول "اتحفظ" على أرقام مش هي اللي اتكتبت
+      // رسالة مش شاشة: الشاشة دي بتتقفل على طول (setupStatus بقى done)، و`notice` في
+      // الجذر فبتفضل ظاهرة فوق التطبيق. ممنوع نقول "اتحفظ" على أرقام مش هي اللي اتكتبت
       notice(SETUP_OTHER_MESSAGE.title, SETUP_OTHER_MESSAGE.body);
       return;
     }

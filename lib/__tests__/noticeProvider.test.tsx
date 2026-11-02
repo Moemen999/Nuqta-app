@@ -94,3 +94,38 @@ it('قارئ الشاشة بيقرا العنوان والجملة عنصر وا
   await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
   expect(screen.getByLabelText('ما اتسجلش. جرب تاني.')).toBeTruthy();
 });
+
+describe('onDismiss (رسالة "فيه تعديل ما اتحفظش" بتفك قفلها بيه)', () => {
+  function WithDismiss({ onDismiss }: { onDismiss: () => void }) {
+    const notice = useNotice();
+    return (
+      <TouchableOpacity testID="fire" onPress={() => { notice('أ', 'أولى', onDismiss); notice('ب', 'تانية'); }}>
+        <Text>fire</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  it('بيتنادى مرة واحدة لما الرسالة دي تتقفل — مش قبلها، ومش مع اللي بعدها، ودوستين = مرة', async () => {
+    const onDismiss = jest.fn();
+    await render(<ThemeProvider><NoticeProvider><WithDismiss onDismiss={onDismiss} /></NoticeProvider></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
+    expect(onDismiss).not.toHaveBeenCalled();
+    const ok = screen.getByTestId('notice_ok');
+    await act(async () => { fireEvent.press(ok); fireEvent.press(ok); });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('notice_title').props.children).toBe('ب');
+    await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('من غير Provider ← الأصلي بزرار "تمام" بيناديه', async () => {
+    const onDismiss = jest.fn();
+    await render(<ThemeProvider><WithDismiss onDismiss={onDismiss} /></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
+    const [, , buttons, options] = alertSpy.mock.calls[0];
+    expect(buttons[0].text).toBe('تمام');
+    buttons[0].onPress();
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(options.onDismiss).toBe(onDismiss);
+  });
+});
