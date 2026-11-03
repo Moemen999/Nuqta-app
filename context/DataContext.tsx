@@ -2524,7 +2524,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function readAllFromServer(): Promise<{ outcome: 'done'; data: FullExportInput } | { outcome: 'no-connection' | 'failed' }> {
     if (!uid) return { outcome: 'failed' };
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
-    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    // مش كل false معناها "مفيش نت" (silent-failure-hunter جولة 2): سقف الانتظار أو طابور بطيء والنت شغال ← failed
+    // بالرسالة العامة، مش "مفيش نت" والمستخدم يدوّر على مشكلة مش موجودة
+    if (!(await waitForOurWritesToLand())) return { outcome: serverReachableRef.current ? 'failed' : 'no-connection' };
     const col = (name: string) => getDocsFromServer(collection(db, 'users', uid, name));
     try {
       const [w, c, t, b, si, sp, d, s, g, i] = await withTimeout(Promise.all([
@@ -2533,9 +2535,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         col('debts'), col('subscriptions'), col('gamiyas'), col('incomes'),
       ]), EXPORT_READ_TIMEOUT_MS);
       const budgetsMap: Budgets = {};
-      b.docs.forEach(x => { budgetsMap[x.id] = (x.data() as any).limit; });
+      // مستند من غير رقم بيتخطّى (كان هيطلع خلية فاضية في الإكسيل من غير ما حد يعرف) — NIT جولة 2
+      b.docs.forEach(x => { const v = (x.data() as any).limit; if (typeof v === 'number' && Number.isFinite(v)) budgetsMap[x.id] = v; });
       const incomeMap: ShakhbataIncome = {};
-      si.docs.forEach(x => { incomeMap[x.id] = (x.data() as any).income; });
+      si.docs.forEach(x => { const v = (x.data() as any).income; if (typeof v === 'number' && Number.isFinite(v)) incomeMap[x.id] = v; });
       const p = sp.exists() ? (sp.data() as any) : null;
       return {
         outcome: 'done',
@@ -2555,7 +2558,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.warn('[export] read from server failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '');
       const code = (e as { code?: string })?.code;
-      return { outcome: code === 'unavailable' || (e instanceof Error && e.message === 'timeout') ? 'no-connection' : 'failed' };
+      // "مفيش نت" بس لو النت فعلاً واقع دلوقتي — timeout أو unavailable والنت شغال (بطء) ← failed بالرسالة العامة
+      const offline = !serverReachableRef.current && (code === 'unavailable' || (e instanceof Error && e.message === 'timeout'));
+      return { outcome: offline ? 'no-connection' : 'failed' };
     }
   }
 
