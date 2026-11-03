@@ -71,6 +71,10 @@ module.exports = ({ config }) => {
     android: {
       ...config.android,
       versionCode,
+      // قرار مؤمن 2026-11-03 (كاش أول فتحة — reports/2026-11-02-cold-cache-design.md): مفيش باك أب للتطبيق كله. AsyncStorage على
+      // أندرويد قاعدة واحدة فاستثناء الكاش لوحده مش ممكن، والبيانات كلها على السيرفر أصلاً؛ وبيقفل كمان توكن فايربيز من الباك أب.
+      // **فاضل:** على أندرويد 12+ بعض الشركات بتسيب النقل من موبايل لموبايل شغال — dataExtractionRules بعدين (محتاج بناء يتجرّب)
+      allowBackup: false,
       ...(IS_DEV_BUILD ? { package: 'com.nuqta.app.dev' } : {}),
     },
     extra: { ...config.extra, buildNumber, sentryDsn: resolveSentryDsn() },
