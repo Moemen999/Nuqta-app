@@ -27,6 +27,12 @@ type AppLockContextType = {
    * المحلي — مش أضعف منه.
    */
   clearLock: () => Promise<void>;
+  /**
+   * مسح الحساب (`app/settings-screens/delete-account.tsx`): كل أثر للقفل **ومعاه مهلة السماح**. `clearLock` ("نسيت الكود؟")
+   * بيسيب المهلة لأنها اختيار نفس المستخدم؛ هنا الحساب اتمسح، واللي يسجّل على نفس الموبايل ميلاقيش قفل أو مهلة حد تاني
+   * (بحث rnd-researcher 2026-11-03 + قرار مؤمن على الترشيح)
+   */
+  wipeLockForDeletedAccount: () => Promise<void>;
   changeCode: (oldCode: string, newCode: string, newType: LockType) => Promise<boolean>;
   setFrequency: (f: LockFrequency) => void;
   graceMinutes: number;
@@ -128,6 +134,18 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     await wipeLock();
   }
 
+  async function wipeLockForDeletedAccount() {
+    // الحالة الأول (silent-failure-hunter): لو التخزين رمى في النص، الحالة القديمة (enabled=true) كانت هتطلّع شاشة القفل
+    // على شاشة الدخول لحساب اتمسح. وكل مفتاح في محاولة لوحده — رمية واحدة متوقّفش مسح الباقي
+    setEnabled(false);
+    setIsLocked(false);
+    setGraceMinutesState(0);
+    for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE]) {
+      try { await SecureStore.deleteItemAsync(key); }
+      catch (e) { console.warn('[lock] wipe key failed', key, e instanceof Error ? e.name : 'unknown'); }
+    }
+  }
+
   async function changeCode(oldCode: string, newCode: string, newType: LockType) {
     const ok = await verify(oldCode);
     if (!ok) return false;
@@ -164,7 +182,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, clearLock, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
+    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, setupLock, disableLock, clearLock, wipeLockForDeletedAccount, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
       {children}
     </AppLockContext.Provider>
   );

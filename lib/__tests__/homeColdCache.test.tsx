@@ -100,3 +100,20 @@ it('مفيش coldSnapshot ← مفيش بانر قديم ولا صفوف كاش'
   expect(screen.queryByTestId('home_banner_cold')).toBeNull();
   expect(screen.queryByTestId('home_cold_tx_c1')).toBeNull();
 });
+
+it('مسح الحساب ما خلصش ← بانر خطر من غير ✕، و"كمّل المسح" بيفتح الشاشة', async () => {
+  const { router } = require('expo-router');
+  const { fireEvent } = require('@testing-library/react-native');
+  setData({ deletionPending: true });
+  await mount();
+  expect(screen.getByTestId('home_banner_delete_pending')).toBeTruthy();
+  expect(screen.queryByTestId('home_banner_dismiss_delete_pending')).toBeNull();
+  await act(async () => { fireEvent.press(screen.getByTestId('home_delete_pending_go')); });
+  expect(router.push).toHaveBeenCalledWith('/settings-screens/delete-account');
+});
+
+it('مفيش مسح معلّق ← مفيش بانر', async () => {
+  setData({ deletionPending: false });
+  await mount();
+  expect(screen.queryByTestId('home_banner_delete_pending')).toBeNull();
+});

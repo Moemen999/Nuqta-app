@@ -50,7 +50,7 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites } = useData();
+  const { wallets, categories, pendingWrites, deletionPending } = useData();
   const confirm = useConfirm();
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
@@ -167,11 +167,14 @@ export default function SettingsScreen() {
       subtitle: user?.email ?? undefined,
       rows: [
         { key: 'logout', title: 'تسجيل الخروج', onPress: confirmLogout, tone: 'danger' },
+        // جوجل بلاي بتطلب المسار ده ظاهر في إعدادات الحساب (reports/2026-11-03-account-delete-export.md)
+        // مسح بدأ ومخلصش ← السطر بيقول كده (التسجيل التلقائي واقف لحد ما يخلص — جولة 2 SHOULD-FIX 1)
+        { key: 'deleteAccount', title: 'مسح الحساب', status: deletionPending ? 'ما خلصش — كمّل المسح' : undefined, onPress: () => router.push('/settings-screens/delete-account'), tone: 'danger' },
       ],
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour,
-      lockEnabled, theme, user?.email, pendingWrites]);
+      lockEnabled, theme, user?.email, pendingWrites, deletionPending]);
 
   return (
     <ScrollView
