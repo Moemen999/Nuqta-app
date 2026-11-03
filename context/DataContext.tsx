@@ -539,6 +539,12 @@ type DataContextType = {
   linkSourcesReady: boolean;
   /** التصدير الكامل: كل المجموعات من السيرفر مرة واحدة (مش من حالة الـlisteners) — كامل يا إما رسالة صريحة */
   readAllFromServer: () => Promise<{ outcome: 'done'; data: FullExportInput } | { outcome: 'no-connection' | 'failed' }>;
+  /**
+   * مسح الحساب — الخطوة 1: كل بيانات المستخدم من السيرفر (المجموعات العشرة ثم `users/{uid}`). **مش** حساب الدخول نفسه
+   * (ده في `AuthContext` بعده). بيتعاد بأمان: لو وقف في النص، مرة تانية بتمسح الباقي. `remaining` = اللي لسه فاضل لو
+   * مكملش — الشاشة مبتقولش "اتمسح" غير على `done`.
+   */
+  deleteAllMyData: () => Promise<{ outcome: 'done' } | { outcome: 'no-connection' | 'failed'; remaining: number }>;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -641,6 +647,10 @@ const SETUP_RECHECK_MS = 20000;
 const SETUP_SAVE_TIMEOUT_MS = 20000;
 /** سقف قراية التصدير الكامل (10 مجموعات من السيرفر) — أوفلاين getDocsFromServer بيرفض، بس منعتمدش على ده */
 const EXPORT_READ_TIMEOUT_MS = 20000;
+/** كل المجموعات اللي تحت `users/{uid}` — نفس العشرة اللي ليها listeners. مجموعة جديدة لازم تتضاف هنا (اختبار المحاكي بيتأكد إن مفيش حاجة فاضلة) */
+export const ACCOUNT_COLLECTIONS = ['wallets', 'categories', 'transactions', 'budgets', 'shakhbata_income', 'shakhbata_settings', 'debts', 'subscriptions', 'gamiyas', 'incomes'] as const;
+/** حد الـbatch في فايرستور 500 — 400 بهامش */
+const ACCOUNT_DELETE_BATCH = 400;
 
 /** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -2516,6 +2526,43 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   /**
+   * مسح الحساب — الخطوة 1 (`reports/2026-11-03-account-delete-export.md`): كل مستند تحت `users/{uid}` من **السيرفر**
+   * (مش من حالة الـlisteners — ممكن تكون نص من الكاش)، على دفعات (حد الـbatch 500 — بنستخدم 400)، **وبنستنى تأكيد كل دفعة**:
+   * ده الاستثناء من قاعدة "متستناش السيرفر" — المستخدم لازم يعرف إن المسح حصل فعلاً قبل ما حساب الدخول يتمسح ويبقى مفيش
+   * طريق يرجع يكمّل. `users/{uid}` آخر حاجة. قبلها كتاباتنا اللي لسه بترفع لازم توصل (من غيرها كتابة في الطابور ترجع
+   * تعمل مستند بعد المسح). بيتعاد بأمان: كل مرة بتقرا اللي فاضل وتمسحه. **مبيلمسش** `feedback` (القواعد مبتسمحش — سؤال لمؤمن).
+   */
+  async function deleteAllMyData(): Promise<{ outcome: 'done' } | { outcome: 'no-connection' | 'failed'; remaining: number }> {
+    if (!uid) return { outcome: 'failed', remaining: 0 };
+    const offline = () => ({ outcome: 'no-connection' as const, remaining: -1 });
+    if (!serverReachableRef.current) return offline();
+    if (!(await waitForOurWritesToLand())) return serverReachableRef.current ? { outcome: 'failed', remaining: -1 } : offline();
+    const refs: DocumentReference[] = [];
+    try {
+      const snaps = await withTimeout(Promise.all(ACCOUNT_COLLECTIONS.map(name => getDocsFromServer(collection(db, 'users', uid, name)))), EXPORT_READ_TIMEOUT_MS);
+      snaps.forEach(s => s.docs.forEach(d => refs.push(d.ref)));
+    } catch (e) {
+      console.warn('[delete-account] read failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '');
+      return serverReachableRef.current ? { outcome: 'failed', remaining: -1 } : offline();
+    }
+    // آخر حاجة: مستند المستخدم نفسه (فيه `seeded`) — لو اتمسح الأول والباقي وقع، أول فتحة كانت هتعرض "نبدأ بإيه؟" على حساب فيه بيانات
+    refs.push(doc(db, 'users', uid));
+    let done = 0;
+    try {
+      for (let i = 0; i < refs.length; i += ACCOUNT_DELETE_BATCH) {
+        const batch = writeBatch(db);
+        refs.slice(i, i + ACCOUNT_DELETE_BATCH).forEach(r => batch.delete(r));
+        await withTimeout(batch.commit(), EXPORT_READ_TIMEOUT_MS);
+        done = Math.min(refs.length, i + ACCOUNT_DELETE_BATCH);
+      }
+      return { outcome: 'done' };
+    } catch (e) {
+      console.warn('[delete-account] batch failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '', `${done}/${refs.length}`);
+      return { outcome: serverReachableRef.current ? 'failed' : 'no-connection', remaining: refs.length - done };
+    }
+  }
+
+  /**
    * التصدير الكامل بيقرا **من السيرفر مرة واحدة** مش من حالة الـlisteners (silent-failure-hunter): `delivered` بيتملى
    * من snapshot الكاش كمان، و`fromCache` متتبّع للمحافظ والعمليات بس — فالديون مثلاً كانت ممكن تطلع ورقة فاضية
    * والملف يبان "كل بياناتي". هنا يا الملف كامل من السيرفر، يا رسالة صريحة. **قبلها** بنستنى كتاباتنا اللي لسه بترفع
@@ -2674,7 +2721,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
-        readAllFromServer,
+        readAllFromServer, deleteAllMyData,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
