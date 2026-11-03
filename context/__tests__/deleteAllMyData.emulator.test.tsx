@@ -1,5 +1,6 @@
 import { db } from '@/firebaseConfig';
-import { ACCOUNT_COLLECTIONS } from '@/context/DataContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ACCOUNT_COLLECTIONS, deletePendingKey } from '@/context/DataContext';
 import { LISTENER_LABELS } from '@/lib/listenerErrors';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { addOneGam, addOneSub } from '@/test-utils/entryFixtures';
@@ -53,4 +54,15 @@ it('حساب فيه من كل نوع ← كله بيتمسح من السيرفر
 
   // بيتعاد بأمان (المستخدم داس تاني، أو المرة الأولى وقفت في النص)
   expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
+});
+
+it('بعد ما المسح يبدأ ← التسجيل التلقائي والتجهيز بيترفضوا ومبيكتبوش، والعلامة على الجهاز (money + security)', async () => {
+  const subId = await addOneSub(h);
+  expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
+  expect(await AsyncStorage.getItem(deletePendingKey(getMockUid()))).toBe('1');
+  // تسجيل تلقائي متأخر (رجوع من الخلفية) بعد المسح — كان هيعمل عملية يتيمة بمبلغ
+  const r = await h.api().recordCharges('subscription', subId, [{ key: '2026-11-01', amount: 100 }], { auto: true });
+  expect(r.outcome).toBe('failed');
+  expect(await h.api().completeSetup({ wallets: [{ name: 'x', openingBalance: 0 }], categories: [] } as never)).toBe('failed');
+  expect(await remaining()).toEqual({});
 });

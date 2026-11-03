@@ -34,7 +34,7 @@ type AuthContextType = {
 
 export type ReauthProof = { kind: 'password'; password: string } | { kind: 'google'; idToken: string };
 /** `mismatch` = حساب جوجل تاني غير اللي فاتح التطبيق */
-export type ReauthOutcome = 'done' | 'wrong-password' | 'mismatch' | 'no-connection' | 'failed';
+export type ReauthOutcome = 'done' | 'wrong-password' | 'mismatch' | 'too-many-requests' | 'no-connection' | 'failed';
 export type DeleteSignInOutcome = 'done' | 'requires-recent-login' | 'no-connection' | 'failed';
 
 const authCode = (e: unknown) => (e as { code?: string })?.code ?? '';
@@ -128,7 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       const code = authCode(e);
       console.warn('[auth] reauthenticate failed', code || (e instanceof Error ? e.name : 'unknown'));
-      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') return 'wrong-password';
+      // جوجل مالوش باسورد: توكن منتهي أو مش صالح بيرجع invalid-credential — مش "الباسورد مش صح" (silent-failure-hunter)
+      if (proof.kind === 'password' && (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials')) return 'wrong-password';
+      if (code === 'auth/too-many-requests') return 'too-many-requests';
       if (code === 'auth/user-mismatch') return 'mismatch';
       if (code === 'auth/network-request-failed') return 'no-connection';
       return 'failed';
@@ -141,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!u) return 'failed';
     try {
       await deleteUser(u);
+      // deleteUser بيخرّج المستخدم — لو لسه داخل، منقولش "اتمسح" (silent-failure-hunter)
+      if (auth.currentUser) { console.warn('[auth] deleteUser resolved but still signed in'); return 'failed'; }
       return 'done';
     } catch (e) {
       const code = authCode(e);

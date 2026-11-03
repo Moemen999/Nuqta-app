@@ -544,7 +544,7 @@ type DataContextType = {
    * (ده في `AuthContext` بعده). بيتعاد بأمان: لو وقف في النص، مرة تانية بتمسح الباقي. `remaining` = اللي لسه فاضل لو
    * مكملش — الشاشة مبتقولش "اتمسح" غير على `done`.
    */
-  deleteAllMyData: () => Promise<{ outcome: 'done' } | { outcome: 'no-connection' | 'failed'; remaining: number }>;
+  deleteAllMyData: () => Promise<DeleteDataResult>;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -648,6 +648,15 @@ const SETUP_SAVE_TIMEOUT_MS = 20000;
 /** سقف قراية التصدير الكامل (10 مجموعات من السيرفر) — أوفلاين getDocsFromServer بيرفض، بس منعتمدش على ده */
 const EXPORT_READ_TIMEOUT_MS = 20000;
 /** كل المجموعات اللي تحت `users/{uid}` — نفس العشرة اللي ليها listeners. مجموعة جديدة لازم تتضاف هنا (اختبار المحاكي بيتأكد إن مفيش حاجة فاضلة) */
+/**
+ * نتيجة مسح البيانات. `deleted` = اللي **اتأكد** إنه اتمسح؛ `uncertain` = دفعة عدّت السقف الزمني ومش عارفين وصلت ولا لأ
+ * (السقف مبيلغيش الكتابة) — الشاشة مبتجزمش في الحالة دي. الصفر بيتقال "مفيش حاجة اتمسحت" (silent-failure + money).
+ */
+export type DeleteDataResult = { outcome: 'done' } | { outcome: 'no-connection' | 'failed'; deleted: number; uncertain: boolean };
+/** علامة على الجهاز إن مسح الحساب بدأ ومخلصش — بتفضل بعد قفل التطبيق (money-reviewer) */
+export const deletePendingKey = (uid: string) => `nuqta-delete-pending:${uid}`;
+/** لفّات التأكد بعد المسح: لو حاجة اتكتبت في النص (تسجيل تلقائي) بتتمسح وبنقرا تاني */
+const ACCOUNT_DELETE_VERIFY_ROUNDS = 3;
 export const ACCOUNT_COLLECTIONS = ['wallets', 'categories', 'transactions', 'budgets', 'shakhbata_income', 'shakhbata_settings', 'debts', 'subscriptions', 'gamiyas', 'incomes'] as const;
 /** حد الـbatch في فايرستور 500 — 400 بهامش */
 const ACCOUNT_DELETE_BATCH = 400;
@@ -741,6 +750,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  /**
+   * مسح الحساب شغال (أو بدأ ومخلصش — علامة على الجهاز). طول ما هو true: التسجيل التلقائي والدفع والتجهيز بيرجعوا بدري
+   * (money-reviewer + security-reviewer: عملية تلقائية كانت ممكن تتكتب بعد قراية المسح وتفضل يتيمة، وشاشة "نبدأ بإيه؟"
+   * كانت ممكن تزرع محافظ على حساب بيتمسح). مبيرجعش false غير بحساب تاني.
+   */
+  const deletingRef = useRef(false);
   // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
@@ -875,6 +890,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       figuresCache.current = { wallets: null, transactions: null };
       setFiguresFromServer(false);
       setFiguresPending(['wallets', 'transactions']);
+      deletingRef.current = false;
       return;
     }
 
@@ -892,6 +908,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setSetupStatus('checking');
     const run = async () => {
       try {
+        // مسح الحساب بدأ ومخلصش ← مفيش "نبدأ بإيه؟" (كانت هتزرع محافظ على حساب بيتمسح) ومفيش تسجيل تلقائي
+        if ((await AsyncStorage.getItem(deletePendingKey(uid))) === '1') { deletingRef.current = true; if (!cancelled) setSetupStatus('done'); return; }
         if ((await AsyncStorage.getItem(setupDoneKey(uid))) === '1') { if (!cancelled) setSetupStatus('done'); return; }
       } catch {
         // لو القراية وقعت نسأل السيرفر عادي
@@ -2091,6 +2109,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * غير تعديل قواعد Firestore في الكونسول).
    */
   async function markSubscriptionPaid(id: string, date: string, seenAmount?: number): Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed'> {
+    if (deletingRef.current) return 'failed';
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
     // على طول برسالة واضحة بدل ما المستخدم يستنى قدام زرار مقفول ويطلعله خطأ بعدين
@@ -2199,6 +2218,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function recordCharges(
     kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {},
   ): Promise<IncomeRecordResult> {
+    if (deletingRef.current) return { outcome: 'failed', recorded: [] };
     if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
     if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection', recorded: [] };
@@ -2388,6 +2408,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * وكل القرايات قبل كل الكتابات.
    */
   async function recordIncomePeriods(incomeId: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {}): Promise<IncomeRecordResult> {
+    if (deletingRef.current) return { outcome: 'failed', recorded: [] };
     if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
     if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection', recorded: [] };
@@ -2455,7 +2476,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بعد ما السقف خلص، المحاولة الجاية بتلاقيه ← `already-done` مش تكرار.
    */
   async function completeSetup(choice: SetupChoice): Promise<SetupOutcome> {
-    if (!uid) return 'failed';
+    if (!uid || deletingRef.current) return 'failed';
     const invalid = validateSetupChoice(choice);
     if (invalid) { console.warn('[setup] اختيارات مش صحيحة وصلت للحفظ', invalid); return 'failed'; }
     const userRef = doc(db, 'users', uid);
@@ -2532,33 +2553,49 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * طريق يرجع يكمّل. `users/{uid}` آخر حاجة. قبلها كتاباتنا اللي لسه بترفع لازم توصل (من غيرها كتابة في الطابور ترجع
    * تعمل مستند بعد المسح). بيتعاد بأمان: كل مرة بتقرا اللي فاضل وتمسحه. **مبيلمسش** `feedback` (القواعد مبتسمحش — سؤال لمؤمن).
    */
-  async function deleteAllMyData(): Promise<{ outcome: 'done' } | { outcome: 'no-connection' | 'failed'; remaining: number }> {
-    if (!uid) return { outcome: 'failed', remaining: 0 };
-    const offline = () => ({ outcome: 'no-connection' as const, remaining: -1 });
-    if (!serverReachableRef.current) return offline();
-    if (!(await waitForOurWritesToLand())) return serverReachableRef.current ? { outcome: 'failed', remaining: -1 } : offline();
-    const refs: DocumentReference[] = [];
-    try {
+  async function deleteAllMyData(): Promise<DeleteDataResult> {
+    if (!uid) return { outcome: 'failed', deleted: 0, uncertain: false };
+    let deleted = 0;
+    const fail = (uncertain = false): DeleteDataResult =>
+      ({ outcome: serverReachableRef.current ? 'failed' : 'no-connection', deleted, uncertain });
+    if (!serverReachableRef.current) return fail();
+    // من دلوقتي مفيش تسجيل تلقائي ولا دفع ولا "نبدأ بإيه؟" — والعلامة على الجهاز بتفضل بعد قفل التطبيق. الكتابة بتتستنى:
+    // لو العلامة مااتكتبتش والمسح كمّل، قفل التطبيق في النص كان هيرجّع شاشة التجهيز
+    deletingRef.current = true;
+    try { await AsyncStorage.setItem(deletePendingKey(uid), '1'); } catch (e) { console.warn('[delete-account] pending flag failed', e instanceof Error ? e.name : 'unknown'); }
+    if (!(await waitForOurWritesToLand())) return fail();
+    const readAll = async (): Promise<DocumentReference[]> => {
       const snaps = await withTimeout(Promise.all(ACCOUNT_COLLECTIONS.map(name => getDocsFromServer(collection(db, 'users', uid, name)))), EXPORT_READ_TIMEOUT_MS);
-      snaps.forEach(s => s.docs.forEach(d => refs.push(d.ref)));
-    } catch (e) {
-      console.warn('[delete-account] read failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '');
-      return serverReachableRef.current ? { outcome: 'failed', remaining: -1 } : offline();
-    }
-    // آخر حاجة: مستند المستخدم نفسه (فيه `seeded`) — لو اتمسح الأول والباقي وقع، أول فتحة كانت هتعرض "نبدأ بإيه؟" على حساب فيه بيانات
-    refs.push(doc(db, 'users', uid));
-    let done = 0;
-    try {
+      return snaps.flatMap(s => s.docs.map(d => d.ref));
+    };
+    const deleteRefs = async (refs: DocumentReference[]) => {
       for (let i = 0; i < refs.length; i += ACCOUNT_DELETE_BATCH) {
         const batch = writeBatch(db);
-        refs.slice(i, i + ACCOUNT_DELETE_BATCH).forEach(r => batch.delete(r));
+        const chunk = refs.slice(i, i + ACCOUNT_DELETE_BATCH);
+        chunk.forEach(r => batch.delete(r));
         await withTimeout(batch.commit(), EXPORT_READ_TIMEOUT_MS);
-        done = Math.min(refs.length, i + ACCOUNT_DELETE_BATCH);
+        deleted += chunk.length;
       }
-      return { outcome: 'done' };
+    };
+    // لفّات: امسح اللي اتقرا، واقرا تاني من السيرفر — حاجة اتكتبت في النص (تسجيل تلقائي بدأ قبل العلامة) بتتمسح في
+    // اللفّة الجاية. `done` بس بعد قراية فاضية (money-reviewer: من غيرها عملية بمبلغ كانت بتفضل بعد "اتمسح حسابك")
+    try {
+      for (let round = 0; round < ACCOUNT_DELETE_VERIFY_ROUNDS; round++) {
+        const refs = await readAll();
+        if (refs.length === 0) {
+          // آخر حاجة: مستند المستخدم (فيه `seeded`) — لو اتمسح الأول والباقي وقع، الفتحة الجاية كانت هتعرض "نبدأ بإيه؟"
+          await withTimeout(deleteDoc(doc(db, 'users', uid)), EXPORT_READ_TIMEOUT_MS);
+          return { outcome: 'done' };
+        }
+        await deleteRefs(refs);
+      }
+      console.warn('[delete-account] still not empty after rounds', ACCOUNT_DELETE_VERIFY_ROUNDS);
+      return fail();
     } catch (e) {
-      console.warn('[delete-account] batch failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '', `${done}/${refs.length}`);
-      return { outcome: serverReachableRef.current ? 'failed' : 'no-connection', remaining: refs.length - done };
+      const timedOut = e instanceof Error && e.message === 'timeout';
+      console.warn('[delete-account] failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '', `deleted=${deleted}`, timedOut ? 'timeout' : '');
+      // السقف الزمني مبيلغيش الكتابة: الدفعة ممكن توصل بعدين ← "مش متأكدين" مش رقم مجزوم
+      return fail(timedOut);
     }
   }
 
@@ -2671,6 +2708,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * والشهر بيتربط بالتانية فالأولى بتفضل عملية يتيمة في الأرشيف بتقلل الرصيد.
    */
   async function markGamiyaMonthDone(gamiyaId: string, monthId: string, seenAmount?: number): Promise<PayOutcome | 'amount-changed'> {
+    if (deletingRef.current) return 'failed';
     if (!uid) return 'done';
     // زي markSubscriptionPaid بالظبط: رفض فوري من غير اتصال، وانتظار اللي لسه
     // بيرفع قبل القراية من السيرفر، والكل متسابق مع "الاتصال وقع"
