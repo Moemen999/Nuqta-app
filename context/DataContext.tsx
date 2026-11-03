@@ -1,6 +1,7 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
+import type { FullExportInput } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
@@ -29,7 +30,7 @@ import {
   incomeHasRecords, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { LISTENER_LABELS, type ListenerName } from '@/lib/listenerErrors';
+import type { ListenerName } from '@/lib/listenerErrors';
 import {
   chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges, subscriptionResumeDate,
   subscriptionTxId, type ChargeClosed, type ChargeMode,
@@ -536,12 +537,8 @@ type DataContextType = {
    * وصلوا كلهم ومفيش منهم مرفوض. قبلها مودال العملية مبيعرفش هي مربوطة ولا لأ
    */
   linkSourcesReady: boolean;
-  /**
-   * **كل** الـlisteners العشرة وصل منها snapshot ومفيش ولا واحد رفض — للتصدير الكامل: ملف ناقص بيتقري "دي كل
-   * بياناتي" (والمستخدم ممكن يعتمد عليه قبل ما يمسح حسابه). لوحده مش كفاية: snapshot فاضي من الكاش أوفلاين بيعدّ
-   * "وصل"، فالتصدير بيشترط `figuresFromServer` كمان.
-   */
-  allSourcesReady: boolean;
+  /** التصدير الكامل: كل المجموعات من السيرفر مرة واحدة (مش من حالة الـlisteners) — كامل يا إما رسالة صريحة */
+  readAllFromServer: () => Promise<{ outcome: 'done'; data: FullExportInput } | { outcome: 'no-connection' | 'failed' }>;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -642,6 +639,8 @@ const SETUP_CHECK_TIMEOUT_MS = 8000;
 const SETUP_RECHECK_MS = 20000;
 /** سقف لحفظ التجهيز — runTransaction نفسها بترفض أوفلاين بعد ~10 ثواني */
 const SETUP_SAVE_TIMEOUT_MS = 20000;
+/** سقف قراية التصدير الكامل (10 مجموعات من السيرفر) — أوفلاين getDocsFromServer بيرفض، بس منعتمدش على ده */
+const EXPORT_READ_TIMEOUT_MS = 20000;
 
 /** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -2516,6 +2515,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  /**
+   * التصدير الكامل بيقرا **من السيرفر مرة واحدة** مش من حالة الـlisteners (silent-failure-hunter): `delivered` بيتملى
+   * من snapshot الكاش كمان، و`fromCache` متتبّع للمحافظ والعمليات بس — فالديون مثلاً كانت ممكن تطلع ورقة فاضية
+   * والملف يبان "كل بياناتي". هنا يا الملف كامل من السيرفر، يا رسالة صريحة. **قبلها** بنستنى كتاباتنا اللي لسه بترفع
+   * توصل (من غيرها عملية اتسجلت حالًا كانت هتغيب عن الملف). نفس شكل البيانات اللي الـlisteners بتبنيه.
+   */
+  async function readAllFromServer(): Promise<{ outcome: 'done'; data: FullExportInput } | { outcome: 'no-connection' | 'failed' }> {
+    if (!uid) return { outcome: 'failed' };
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    const col = (name: string) => getDocsFromServer(collection(db, 'users', uid, name));
+    try {
+      const [w, c, t, b, si, sp, d, s, g, i] = await withTimeout(Promise.all([
+        col('wallets'), col('categories'), col('transactions'), col('budgets'), col('shakhbata_income'),
+        getDocFromServer(doc(db, 'users', uid, 'shakhbata_settings', 'percents')),
+        col('debts'), col('subscriptions'), col('gamiyas'), col('incomes'),
+      ]), EXPORT_READ_TIMEOUT_MS);
+      const budgetsMap: Budgets = {};
+      b.docs.forEach(x => { budgetsMap[x.id] = (x.data() as any).limit; });
+      const incomeMap: ShakhbataIncome = {};
+      si.docs.forEach(x => { incomeMap[x.id] = (x.data() as any).income; });
+      const p = sp.exists() ? (sp.data() as any) : null;
+      return {
+        outcome: 'done',
+        data: {
+          wallets: w.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
+          categories: c.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
+          transactions: t.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
+          debts: d.docs.map(x => ({ id: x.id, payments: [], increases: [], ...(x.data() as any) })),
+          subscriptions: s.docs.map(x => ({ id: x.id, history: [], ...(x.data() as any) })),
+          gamiyas: g.docs.map(x => ({ id: x.id, months: [], ...(x.data() as any) })),
+          incomes: i.docs.map(x => ({ id: x.id, closed: {}, ...(x.data() as any) })),
+          budgets: budgetsMap, shakhbataIncome: incomeMap,
+          // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
+          shakhbataPercents: p ? { needs: p.needs ?? DEFAULT_PERCENTS.needs, wants: p.wants ?? DEFAULT_PERCENTS.wants, future: p.future ?? DEFAULT_PERCENTS.future } : null,
+        },
+      };
+    } catch (e) {
+      console.warn('[export] read from server failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '');
+      const code = (e as { code?: string })?.code;
+      return { outcome: code === 'unavailable' || (e instanceof Error && e.message === 'timeout') ? 'no-connection' : 'failed' };
+    }
+  }
+
   async function addGamiya(data: {
     name: string; monthlyAmount: number; totalMonths: number; payoutMonthIndex: number;
     payoutAmount: number; walletId: string; startDate: string; reminderDaysBefore: number;
@@ -2626,7 +2669,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
-        allSourcesReady: (Object.keys(LISTENER_LABELS) as ListenerName[]).every(n => delivered.has(n) && !loadErrors.includes(n)),
+        readAllFromServer,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
