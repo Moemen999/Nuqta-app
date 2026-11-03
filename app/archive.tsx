@@ -7,6 +7,7 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { buildFullExportSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
@@ -28,7 +29,7 @@ export default function ArchiveScreen() {
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable } = useData();
+  const { transactions, wallets, categories, debts, gamiyas, subscriptions, incomes, budgets, shakhbataIncome, shakhbataPercents, pendingTxIds, serverReachable, allSourcesReady, figuresFromServer } = useData();
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
@@ -37,6 +38,7 @@ export default function ArchiveScreen() {
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const range = useMemo(() => {
     const today = todayStr();
@@ -84,29 +86,48 @@ export default function ArchiveScreen() {
         };
       });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-      const wbout: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-      const filename = `nuqta-export-${range.from}-to-${range.to}.xlsx`;
-      const baseDir = ((FileSystem as any).documentDirectory ?? (FileSystem as any).cacheDirectory ?? '') as string;
-      const uri = `${baseDir}${filename}`;
-      await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          dialogTitle: 'تصدير العمليات',
-        });
-      } else {
-        notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
-      }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
+      await saveAndShare(wb, `nuqta-export-${range.from}-to-${range.to}.xlsx`, 'تصدير العمليات');
     } catch (e: any) {
       notice('حصل خطأ في التصدير', String(e?.message || e));
     } finally {
       setExporting(false);
+    }
+  }
+
+  /** نفس الكتابة والمشاركة للتصديرين — الملف في مجلد التطبيق، والمشاركة لو متاحة */
+  async function saveAndShare(wb: XLSX.WorkBook, filename: string, dialogTitle: string) {
+    const wbout: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    const baseDir = ((FileSystem as any).documentDirectory ?? (FileSystem as any).cacheDirectory ?? '') as string;
+    const uri = `${baseDir}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle });
+    } else {
+      notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
+    }
+  }
+
+  /**
+   * التصدير الكامل (`lib/fullExport.ts`): كل اللي متخزّن، ورقة لكل نوع. **بس لما كل البيانات وصلت من السيرفر**
+   * (`allSourcesReady` + `figuresFromServer`) — ملف ناقص بيتقري "دي كل بياناتي". من غير كده الزرار مقفول وسطر بيقول ليه.
+   */
+  const fullExportReady = allSourcesReady && figuresFromServer;
+  async function handleFullExport() {
+    if (!fullExportReady) return;
+    setExportingAll(true);
+    try {
+      const wb = XLSX.utils.book_new();
+      for (const sh of buildFullExportSheets({ wallets, categories, transactions, debts, subscriptions, gamiyas, incomes, budgets, shakhbataIncome, shakhbataPercents })) {
+        // ورقة فاضية بعناوين بس مش من غير ولا خلية — عشان الملف يقول "مفيش" مش "ناقص"
+        XLSX.utils.book_append_sheet(wb, sh.rows.length ? XLSX.utils.json_to_sheet(sh.rows) : XLSX.utils.aoa_to_sheet([['(فاضي)']]), sh.name);
+      }
+      await saveAndShare(wb, `nuqta-all-data-${todayStr()}.xlsx`, 'تصدير كل بياناتك');
+    } catch (e: any) {
+      notice('حصل خطأ في التصدير', String(e?.message || e));
+    } finally {
+      setExportingAll(false);
     }
   }
 
@@ -162,6 +183,25 @@ export default function ArchiveScreen() {
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
+
+      {/* كل البيانات (مش الفترة بس): المحافظ والديون والاشتراكات والجمعية والدخل والميزانية والشخبطة */}
+      <TouchableOpacity
+        testID="archive_full_export_button"
+        style={[styles.fullExportBtn, { opacity: !fullExportReady || exportingAll ? 0.5 : 1 }]}
+        onPress={handleFullExport}
+        disabled={!fullExportReady || exportingAll}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !fullExportReady || exportingAll, busy: exportingAll }}
+        accessibilityHint="ملف إكسيل فيه كل حاجة متسجلة في حسابك، ورقة لكل نوع">
+        {exportingAll ? <ActivityIndicator color={colors.accent} /> : (
+          <Text style={styles.fullExportText}>صدّر كل بياناتك (إكسيل)</Text>
+        )}
+      </TouchableOpacity>
+      {!fullExportReady && (
+        <Text testID="archive_full_export_wait" style={styles.fullExportWait}>
+          مستنيين كل بياناتك توصل من النت عشان الملف ميطلعش ناقص.
+        </Text>
+      )}
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
       {filtered.length === 0 && (
@@ -226,6 +266,10 @@ function makeStyles(c: ThemeColors) {
     metricLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
     metricValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     exportBtn: { backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 13, marginTop: 16 },
+    // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
+    fullExportBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, paddingVertical: 11, marginTop: 10 },
+    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
+    fullExportWait: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 6 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 22, marginBottom: 6 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },

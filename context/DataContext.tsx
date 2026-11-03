@@ -29,7 +29,7 @@ import {
   incomeHasRecords, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeTxDate, incomeTxId,
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import type { ListenerName } from '@/lib/listenerErrors';
+import { LISTENER_LABELS, type ListenerName } from '@/lib/listenerErrors';
 import {
   chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges, subscriptionResumeDate,
   subscriptionTxId, type ChargeClosed, type ChargeMode,
@@ -536,6 +536,12 @@ type DataContextType = {
    * وصلوا كلهم ومفيش منهم مرفوض. قبلها مودال العملية مبيعرفش هي مربوطة ولا لأ
    */
   linkSourcesReady: boolean;
+  /**
+   * **كل** الـlisteners العشرة وصل منها snapshot ومفيش ولا واحد رفض — للتصدير الكامل: ملف ناقص بيتقري "دي كل
+   * بياناتي" (والمستخدم ممكن يعتمد عليه قبل ما يمسح حسابه). لوحده مش كفاية: snapshot فاضي من الكاش أوفلاين بيعدّ
+   * "وصل"، فالتصدير بيشترط `figuresFromServer` كمان.
+   */
+  allSourcesReady: boolean;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -2620,6 +2626,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
+        allSourcesReady: (Object.keys(LISTENER_LABELS) as ListenerName[]).every(n => delivered.has(n) && !loadErrors.includes(n)),
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,
