@@ -167,6 +167,8 @@ export default function SettingsScreen() {
       subtitle: user?.email ?? undefined,
       rows: [
         { key: 'logout', title: 'تسجيل الخروج', onPress: confirmLogout, tone: 'danger' },
+        // جوجل بلاي بتطلب المسار ده ظاهر في إعدادات الحساب (reports/2026-11-03-account-delete-export.md)
+        { key: 'deleteAccount', title: 'مسح الحساب', onPress: () => router.push('/settings-screens/delete-account'), tone: 'danger' },
       ],
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

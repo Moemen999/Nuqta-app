@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
+import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REVERSED_SCHEME, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
@@ -26,12 +27,6 @@ export function resetSentBody(email: string) {
 export const RESET_GOOGLE_HINT =
   'ولو انت سجّلت بجوجل من الأول، مش هيوصلك حاجة — ادخل بزرار جوجل فوق على طول.';
 
-// الـ Web Client ID بتاع مشروع Firebase "nuqta" — عمومي وآمن يتحط في الكود
-const GOOGLE_WEB_CLIENT_ID = '662258111881-r6c7jaudqjeud0oa7dsn119rf0tsv4tu.apps.googleusercontent.com';
-// الـ Android Client ID (مرتبط بـ SHA-1 بتاع نسخة preview) — لازم يتحدث لو الـ keystore اتغيّر
-const GOOGLE_ANDROID_CLIENT_ID = '662258111881-suhr5mgqa116f56p5439mq5gmaj8682e.apps.googleusercontent.com';
-// جوجل بترفض الـ scheme العادي لتطبيقات أندرويد وبتطلب الصيغة دي المبنية على الـ Client ID نفسه (معكوسة)
-const GOOGLE_REVERSED_SCHEME = 'com.googleusercontent.apps.662258111881-suhr5mgqa116f56p5439mq5gmaj8682e';
 
 export default function AuthScreen() {
   const { colors } = useTheme();
