@@ -112,3 +112,45 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
       : { Needs: DEFAULT_PERCENTS.needs, Wants: DEFAULT_PERCENTS.wants, Future: DEFAULT_PERCENTS.future, IsDefault: true }] },
   ];
 }
+
+/**
+ * أسامي الأوراق والأعمدة بالعربي (قرار مؤمن 2026-11-03 + بحث rnd-researcher): المستخدم بيفتح الملف بعينه، وGDPR م20 مبيشترطش
+ * لغة. **المعرّفات والقيم الخام (`expense`، `monthly`، `w1`…) بتفضل زي ما هي** — هي مفتاح الربط بين الأوراق (machine-readable).
+ * مفاتيح الصفوف جوّه الكود بتفضل إنجليزي (الاختبارات والجرد عليها)، والترجمة وقت كتابة الملف بس (`localizeSheets`).
+ * أسامي الأوراق ≤ 31 حرف ومن غير `/ \ ? * : [ ]` (حدود Excel) — اختبار بيتأكد.
+ */
+export const SHEET_NAMES_AR: Record<string, string> = {
+  Wallets: 'المحافظ', Categories: 'الفئات', Transactions: 'العمليات', Debts: 'الديون', DebtPayments: 'دفعات الديون',
+  DebtIncreases: 'زيادات الديون', Subscriptions: 'الاشتراكات', SubscriptionPayments: 'دفعات الاشتراكات',
+  SubscriptionPeriods: 'فترات الاشتراكات', Gamiyas: 'الجمعيات', GamiyaMonths: 'شهور الجمعيات', FixedIncomes: 'الدخل الثابت',
+  IncomePeriods: 'فترات الدخل الثابت', Budgets: 'الميزانية', Shakhbata: 'شخبطة', ShakhbataPercents: 'نسب شخبطة',
+};
+
+export const COLUMN_NAMES_AR: Record<string, string> = {
+  Id: 'المعرّف', Name: 'الاسم', Amount: 'المبلغ', Date: 'التاريخ', CreatedAt: 'اتعمل في', Type: 'النوع', Note: 'ملاحظة',
+  Wallet: 'المحفظة', WalletId: 'معرّف المحفظة', ToWallet: 'إلى محفظة', ToWalletId: 'معرّف المحفظة المستلمة',
+  Category: 'الفئة', CategoryId: 'معرّف الفئة', Icon: 'الأيقونة', Bucket: 'قسم شخبطة',
+  OpeningBalance: 'الرصيد الافتتاحي', LowAlert: 'حد التنبيه', Archived: 'مؤرشفة', ArchivedAt: 'اتأرشفت في',
+  SubscriptionId: 'معرّف الاشتراك', Subscription: 'الاشتراك', GamiyaId: 'معرّف الجمعية', Gamiya: 'الجمعية',
+  IncomeId: 'معرّف الدخل', Income: 'الدخل', PeriodKey: 'الفترة', Settlement: 'تسوية', ArchivedWalletId: 'معرّف المحفظة المؤرشفة',
+  AutoRecorded: 'اتسجلت لوحدها', Direction: 'الاتجاه', Person: 'الشخص', Phone: 'التليفون', ContactId: 'معرّف جهة الاتصال',
+  TotalAmount: 'المبلغ الكلي', IsInstallment: 'بالقسط', InstallmentCount: 'عدد الأقساط', InstallmentAmount: 'قيمة القسط',
+  ResidueAmount: 'فرق آخر قسط', ResidueForInstallment: 'الفرق محسوب على قسط', ResidueOver: 'الفرق على عدد',
+  ResidueIncreasesTotal: 'الفرق بعد زيادات', ResidueLastAbsorbs: 'آخر قسط بيشيل الفرق', DueDate: 'المعاد',
+  ReminderDaysBefore: 'التذكير قبلها بأيام', InitialWalletId: 'معرّف محفظة البداية', InitialTransactionId: 'معرّف عملية البداية',
+  DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
+  NextDueDate: 'المعاد الجاي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من',
+  Auto: 'تلقائي', Skipped: 'اتفوّت', Reopened: 'رجع يسأل', At: 'الوقت', MonthlyAmount: 'القسط الشهري',
+  TotalMonths: 'عدد الشهور', PayoutMonthIndex: 'شهر الاستلام', PayoutAmount: 'مبلغ الاستلام', StartDate: 'البداية',
+  MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر الاستلام؟', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',
+  Mode: 'الطريقة', MonthlyLimit: 'الحد الشهري', Month: 'الشهر', Needs: 'احتياجات', Wants: 'رفاهيات', Future: 'خطط مستقبلية',
+  IsDefault: 'الافتراضي',
+};
+
+/** نفس الأوراق والقيم، بالأسامي العربي (عمود من غير ترجمة بيفضل باسمه — الاختبار بيمنع ده) */
+export function localizeSheets(sheets: ExportSheet[]): ExportSheet[] {
+  return sheets.map(sh => ({
+    name: SHEET_NAMES_AR[sh.name] ?? sh.name,
+    rows: sh.rows.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [COLUMN_NAMES_AR[k] ?? k, v]))),
+  }));
+}

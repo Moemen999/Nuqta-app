@@ -7,7 +7,7 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
-import { buildFullExportSheets } from '@/lib/fullExport';
+import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
@@ -139,10 +139,13 @@ export default function ArchiveScreen() {
         return;
       }
       const wb = XLSX.utils.book_new();
-      for (const sh of buildFullExportSheets(read.data)) {
+      // أسامي الأوراق والأعمدة بالعربي والقيم خام (قرار مؤمن + بحث 2026-11-03)
+      for (const sh of localizeSheets(buildFullExportSheets(read.data))) {
         // ورقة فيها سطر واحد صريح مش ورقة من غير ولا خلية — عشان الملف يقول "مفيش" مش "ناقص"
         XLSX.utils.book_append_sheet(wb, sh.rows.length ? XLSX.utils.json_to_sheet(sh.rows) : XLSX.utils.aoa_to_sheet([['(مفيش بيانات)']]), sh.name);
       }
+      // الأوراق من اليمين للشمال (اتجرّب: SheetJS بيكتب sheetView rightToLeft="1")
+      wb.Workbook = { ...(wb.Workbook ?? {}), Views: [{ RTL: true }] };
       await saveAndShare(wb, `nuqta-all-data-${todayStr()}.xlsx`, 'تصدير كل بياناتك');
     } catch (e) {
       // نص الخطأ الخام إنجليزي وفيه مسارات — للّوج (اسمه بس)، والمستخدم جملة ثابتة (arabic-copy + silent-failure)

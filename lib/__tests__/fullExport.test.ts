@@ -117,3 +117,28 @@ it('نسب الشخبطة مش متخزّنة ← الافتراضي بعلام�
   expect(sheet('ShakhbataPercents')[0].IsDefault).toBe(false);
 });
 
+
+describe('localizeSheets — الأسامي بالعربي والقيم زي ما هي', () => {
+  const { localizeSheets, SHEET_NAMES_AR, COLUMN_NAMES_AR } = require('@/lib/fullExport');
+  const ar = localizeSheets(sheets);
+  it('كل ورقة وكل عمود ليهم اسم عربي (مفيش اسم إنجليزي فاضل)', () => {
+    for (const sh of sheets) {
+      expect(SHEET_NAMES_AR[sh.name]).toBeTruthy();
+      for (const k of Object.keys(sh.rows[0] ?? {})) expect({ sheet: sh.name, key: k, ar: COLUMN_NAMES_AR[k] }).toMatchObject({ ar: expect.any(String) });
+    }
+  });
+  it('أسامي الأوراق تنفع في Excel: ≤ 31 حرف، من غير / \ ? * : [ ]، ومفيش تكرار', () => {
+    const names = ar.map((s: { name: string }) => s.name);
+    for (const n of names) { expect(n.length).toBeLessThanOrEqual(31); expect(n).not.toMatch(/[/\?*:[\]]/); }
+    expect(new Set(names).size).toBe(names.length);
+  });
+  it('أسامي الأعمدة مش متكررة جوه نفس الورقة (كانت هتمسح عمود)', () => {
+    for (const sh of ar) { const ks = Object.keys(sh.rows[0] ?? {}); expect(new Set(ks).size).toBe(ks.length); }
+  });
+  it('القيم نفسها مااتغيّرتش (المعرّفات والأنواع الخام)', () => {
+    const tx = ar.find((s: { name: string }) => s.name === 'العمليات').rows[0];
+    expect(tx['المعرّف']).toBe('t1');
+    expect(tx['النوع']).toBe('withdraw');
+    expect(tx['المبلغ']).toBe(100);
+  });
+});
