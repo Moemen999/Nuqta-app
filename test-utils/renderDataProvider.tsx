@@ -42,12 +42,25 @@ export async function renderDataProvider(extra?: React.ReactNode) {
     return holder.current;
   }
 
+  /**
+   * حالة البروفايدر في سطر — بتتلزق في رسالة الـtimeout (بند 10: الوقعات المتقلّبة كلها timeout من غير أي معلومة،
+   * والمرة الجاية لازم تقول هي وقفت فين). من غير أرقام فلوس.
+   */
+  function stateLine(phase: string, startedAt: number): string {
+    const a = holder.current;
+    if (!a) return `[${phase}] بعد ${Date.now() - startedAt}ms — البروفايدر لسه ما اشتغلش`;
+    return `[${phase}] بعد ${Date.now() - startedAt}ms — setupStatus=${a.setupStatus} wallets=${a.wallets.length} `
+      + `transactions=${a.transactions.length} serverReachable=${a.serverReachable} figuresFromServer=${a.figuresFromServer} `
+      + `figuresPending=${a.figuresPending.join(',') || '-'} loadErrors=${a.loadErrors.join(',') || '-'} pendingWrites=${a.pendingWrites}`;
+  }
+
   /** بيستنى لحد ما شرط معين يتحقق على البيانات الجاية من المحاكي */
-  function waitForData(check: (api: DataApi) => boolean, timeout = 15000) {
+  function waitForData(check: (api: DataApi) => boolean, timeout = 15000, phase = 'waitForData') {
+    const startedAt = Date.now();
     return waitFor(
       () => {
         if (!holder.current || !check(holder.current)) {
-          throw new Error('لسه البيانات ما وصلتش للشرط المطلوب');
+          throw new Error(`لسه البيانات ما وصلتش للشرط المطلوب ${stateLine(phase, startedAt)}`);
         }
       },
       { timeout, interval: 50 }
@@ -65,12 +78,14 @@ export async function renderDataProvider(extra?: React.ReactNode) {
     // الحساب الجديد مبقاش بيتعبّى لوحده (شاشة "نبدأ بإيه؟") — فالاختبار بيجهّزه
     // بنفس الطريق الحقيقي (completeSetup) وبنفس المحافظ والفئات اللي الاختبارات
     // القديمة متعودة عليها
-    await waitForData(api => api.setupStatus !== 'checking');
+    // كل مرحلة باسمها في رسالة الـtimeout (بند 10) — الوقعة كانت دايمًا في السطر الأخير ومن غير ما نعرف أي شرط فيه ناقص
+    await waitForData(api => api.setupStatus !== 'checking', 15000, 'ready:setupStatus');
     if (holder.current?.setupStatus === 'needed') {
+      const t = Date.now();
       const outcome = await holder.current.completeSetup(TEST_SETUP);
-      if (outcome !== 'done' && outcome !== 'already-done') throw new Error(`تجهيز حساب الاختبار فشل: ${outcome}`);
+      if (outcome !== 'done' && outcome !== 'already-done') throw new Error(`تجهيز حساب الاختبار فشل: ${outcome} (بعد ${Date.now() - t}ms)`);
     }
-    return waitForData(api => api.wallets.length >= minWallets && api.serverReachable);
+    return waitForData(api => api.wallets.length >= minWallets && api.serverReachable, 15000, `ready:wallets>=${minWallets}+serverReachable`);
   }
 
   /**
