@@ -66,3 +66,13 @@ it('بعد ما المسح يبدأ ← التسجيل التلقائي والت
   expect(await h.api().completeSetup({ wallets: [{ name: 'x', openingBalance: 0 }], categories: [] } as never)).toBe('failed');
   expect(await remaining()).toEqual({});
 });
+
+it('فشل قبل ما أي حاجة تتمسح ← القفل والعلامة بيتفكوا (من غيرها التسجيل التلقائي كان بيقف للأبد ساكت — جولة 2)', async () => {
+  const { auth } = require('@/firebaseConfig');
+  const { signOut } = require('firebase/auth');
+  await signOut(auth); // القراية من السيرفر هترفض (permission-denied) قبل أي مسح
+  const r = await h.api().deleteAllMyData();
+  expect(r).toMatchObject({ outcome: 'failed', deleted: 0, uncertain: false });
+  expect(await AsyncStorage.getItem(deletePendingKey(getMockUid()))).toBeNull();
+  await h.waitForData(api => api.deletionPending === false);
+});

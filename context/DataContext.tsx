@@ -545,6 +545,8 @@ type DataContextType = {
    * مكملش — الشاشة مبتقولش "اتمسح" غير على `done`.
    */
   deleteAllMyData: () => Promise<DeleteDataResult>;
+  /** مسح الحساب بدأ ومخلصش (العلامة على الجهاز) — التسجيل التلقائي والدفع واقفين لحد ما يخلص */
+  deletionPending: boolean;
   /** بيفتح الـlisteners من الأول (زرار "جرّب تاني") */
   retryLoad: () => void;
   /** الحساب متجهّز ولا لأ — `needed` معناها السيرفر أكّد إنه جديد (شاشة "نبدأ بإيه؟") */
@@ -756,6 +758,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * كانت ممكن تزرع محافظ على حساب بيتمسح). مبيرجعش false غير بحساب تاني.
    */
   const deletingRef = useRef(false);
+  /** نفس العلامة كحالة للشاشات (صف "مسح الحساب" بيقول "ما خلصش") — جولة 2 SHOULD-FIX 1 */
+  const [deletionPending, setDeletionPending] = useState(false);
   // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
@@ -891,6 +895,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setFiguresFromServer(false);
       setFiguresPending(['wallets', 'transactions']);
       deletingRef.current = false;
+      setDeletionPending(false);
       return;
     }
 
@@ -909,7 +914,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const run = async () => {
       try {
         // مسح الحساب بدأ ومخلصش ← مفيش "نبدأ بإيه؟" (كانت هتزرع محافظ على حساب بيتمسح) ومفيش تسجيل تلقائي
-        if ((await AsyncStorage.getItem(deletePendingKey(uid))) === '1') { deletingRef.current = true; if (!cancelled) setSetupStatus('done'); return; }
+        if ((await AsyncStorage.getItem(deletePendingKey(uid))) === '1') { deletingRef.current = true; if (!cancelled) { setDeletionPending(true); setSetupStatus('done'); } return; }
         if ((await AsyncStorage.getItem(setupDoneKey(uid))) === '1') { if (!cancelled) setSetupStatus('done'); return; }
       } catch {
         // لو القراية وقعت نسأل السيرفر عادي
@@ -2556,13 +2561,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteAllMyData(): Promise<DeleteDataResult> {
     if (!uid) return { outcome: 'failed', deleted: 0, uncertain: false };
     let deleted = 0;
-    const fail = (uncertain = false): DeleteDataResult =>
-      ({ outcome: serverReachableRef.current ? 'failed' : 'no-connection', deleted, uncertain });
+    /**
+     * الفشل **قبل ما أي حاجة تتمسح** بيفك القفل والعلامة (silent-failure-hunter جولة 2 BLOCKER: كان بيسيب الحساب من غير
+     * تسجيل تلقائي ولا دفع للأبد، وساكت). المسح الجزئي أو المش متأكد بيسيب القفل عن قصد — البيانات اتفرمتت فعلاً
+     */
+    const fail = (uncertain = false): DeleteDataResult => {
+      if (deleted === 0 && !uncertain) {
+        deletingRef.current = false;
+        setDeletionPending(false);
+        AsyncStorage.removeItem(deletePendingKey(uid)).catch(e => console.warn('[delete-account] clear pending failed', e instanceof Error ? e.name : 'unknown'));
+      }
+      return { outcome: serverReachableRef.current ? 'failed' : 'no-connection', deleted, uncertain };
+    };
     if (!serverReachableRef.current) return fail();
     // من دلوقتي مفيش تسجيل تلقائي ولا دفع ولا "نبدأ بإيه؟" — والعلامة على الجهاز بتفضل بعد قفل التطبيق. الكتابة بتتستنى:
     // لو العلامة مااتكتبتش والمسح كمّل، قفل التطبيق في النص كان هيرجّع شاشة التجهيز
     deletingRef.current = true;
-    try { await AsyncStorage.setItem(deletePendingKey(uid), '1'); } catch (e) { console.warn('[delete-account] pending flag failed', e instanceof Error ? e.name : 'unknown'); }
+    setDeletionPending(true);
+    // العلامة مااتكتبتش ← منمسحش ولا حاجة (قفل التطبيق في النص كان هيرجّع "نبدأ بإيه؟" على حساب بيتمسح)
+    try { await AsyncStorage.setItem(deletePendingKey(uid), '1'); }
+    catch (e) { console.warn('[delete-account] pending flag failed', e instanceof Error ? e.name : 'unknown'); return fail(); }
     if (!(await waitForOurWritesToLand())) return fail();
     const readAll = async (): Promise<DocumentReference[]> => {
       const snaps = await withTimeout(Promise.all(ACCOUNT_COLLECTIONS.map(name => getDocsFromServer(collection(db, 'users', uid, name)))), EXPORT_READ_TIMEOUT_MS);
@@ -2584,7 +2602,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const refs = await readAll();
         if (refs.length === 0) {
           // آخر حاجة: مستند المستخدم (فيه `seeded`) — لو اتمسح الأول والباقي وقع، الفتحة الجاية كانت هتعرض "نبدأ بإيه؟"
-          await withTimeout(deleteDoc(doc(db, 'users', uid)), EXPORT_READ_TIMEOUT_MS);
+          // فشله بعد قراية فاضية ← "مش متأكدين": محاولة قبلها ممكن تكون مسحت الباقي، فـ"مفيش حاجة اتمسحت" مش صح (جولة 2)
+          try { await withTimeout(deleteDoc(doc(db, 'users', uid)), EXPORT_READ_TIMEOUT_MS); }
+          catch (e) { console.warn('[delete-account] user doc failed', e instanceof Error ? e.name : 'unknown'); return fail(true); }
           return { outcome: 'done' };
         }
         await deleteRefs(refs);
@@ -2759,7 +2779,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
-        readAllFromServer, deleteAllMyData,
+        readAllFromServer, deleteAllMyData, deletionPending,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
         submitFeedback,

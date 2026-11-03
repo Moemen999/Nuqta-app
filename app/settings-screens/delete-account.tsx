@@ -54,18 +54,26 @@ export const DELETE_MSG = {
   done: ['اتمسح حسابك', 'بياناتك وحساب الدخول اتمسحوا من عندنا. الرأي اللي بعتّه قبل كده بس هو اللي فضل.'] as [string, string],
 };
 
-/** تنضيف الجهاز بعد مسح البيانات (silent-failure + money): التذكيرات المجدولة (التذكير اليومي كان بيفضل) وعلامات الحساب */
-async function cleanDevice(uid: string) {
+/** بعد مسح البيانات وقبل حساب الدخول: التذكيرات المجدولة (التذكير اليومي كان بيفضل) وتفضيلات الإشعارات — بياناتها اتمسحت */
+async function cleanReminders() {
   try { await cancelAllReminders(); } catch (e) { console.warn('[delete-account] cancel reminders failed', e instanceof Error ? e.name : 'unknown'); }
-  try {
-    await AsyncStorage.multiRemove(['nuqta_notifs_enabled', 'nuqta_notifs_daily', 'nuqta_notifs_daily_hour', setupDoneKey(uid), deletePendingKey(uid)]);
-  } catch (e) { console.warn('[delete-account] local keys failed', e instanceof Error ? e.name : 'unknown'); }
+  try { await AsyncStorage.multiRemove(['nuqta_notifs_enabled', 'nuqta_notifs_daily', 'nuqta_notifs_daily_hour']); }
+  catch (e) { console.warn('[delete-account] notif keys failed', e instanceof Error ? e.name : 'unknown'); }
+}
+/**
+ * **بعد** ما حساب الدخول يتمسح بس (جولة 2 SHOULD-FIX 2): علامة المسح وعلامة التجهيز. قبلها، لو حساب الدخول ما اتمسحش
+ * والتطبيق اتقفل، العلامتين لو راحوا كانت "نبدأ بإيه؟" هتظهر على حساب فاضي وتزرع محافظ عليه
+ */
+async function clearAccountMarks(uid: string) {
+  try { await AsyncStorage.multiRemove([setupDoneKey(uid), deletePendingKey(uid)]); }
+  catch (e) { console.warn('[delete-account] marks failed', e instanceof Error ? e.name : 'unknown'); }
 }
 
 export default function DeleteAccountScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  // الـinset بالبارامتر التالت زي باقي الشاشات (visual-identity-reviewer) مش paddingBottom مكتوب فوق التوكن
+  const styles = useMemo(() => makeStyles(colors, insets.bottom), [colors, insets.bottom]);
   const notice = useNotice();
   const { user, reauthenticate, deleteSignInAccount } = useAuth();
   const { deleteAllMyData, serverReachable } = useData();
@@ -118,7 +126,8 @@ export default function DeleteAccountScreen() {
       AccessibilityInfo.announceForAccessibility('بنمسح بياناتك، متقفلش التطبيق');
       const data = await deleteAllMyData();
       if (data.outcome !== 'done') { notice(...DELETE_MSG.dataNotDone(data)); return; }
-      if (user) await cleanDevice(user.uid);
+      const uid = user?.uid;
+      await cleanReminders();
       const acc = await deleteSignInAccount();
       if (acc !== 'done') {
         // الإثبات بيتمسح بس لما فايربيز تطلبه تاني — النت والفشل العام مالهمش دعوة بالباسورد (silent-failure-hunter)
@@ -126,6 +135,7 @@ export default function DeleteAccountScreen() {
         notice(...DELETE_MSG.account[acc]);
         return;
       }
+      if (uid) await clearAccountMarks(uid);
       // user بقى null ← التطبيق بيرجع لشاشة الدخول لوحده؛ الرسالة في الجذر فبتفضل ظاهرة
       notice(...DELETE_MSG.done);
     } finally {
@@ -177,7 +187,7 @@ export default function DeleteAccountScreen() {
         )}
       </ScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+      <View style={styles.footer}>
         {/* دايمًا متركّب عشان قارئ الشاشة ينطق التغيير (liveRegion على عنصر بيتركّب متأخر مبيتنطقش بثبات) */}
         <View accessibilityLiveRegion="polite" style={styles.reasonWrap}>
           {!!reason && <Text testID="delete_reason" style={styles.hint}>{reason}</Text>}
@@ -192,12 +202,13 @@ export default function DeleteAccountScreen() {
   );
 }
 
-const makeStyles = (c: ThemeColors) =>
+const makeStyles = (c: ThemeColors, bottomInset: number) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 24 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 10, marginBottom: 16 },
-    title: { color: c.text, fontSize: 20, fontWeight: '700', textAlign: 'right' },
+    // نفس رأس feedback.tsx وlock.tsx (visual-identity-reviewer)
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.dangerBorder, padding: 14, gap: 8 },
     cardTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right' },
     body: { color: c.textSecondary, fontSize: 13.5, lineHeight: 21, textAlign: 'right' },
@@ -205,10 +216,10 @@ const makeStyles = (c: ThemeColors) =>
     label: { color: c.text, fontSize: 13.5, textAlign: 'right', marginTop: 18, marginBottom: 6 },
     input: { backgroundColor: c.surface2, borderRadius: 10, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 12, minHeight: MIN_TOUCH, fontSize: 15 },
     reasonWrap: { width: '100%' },
-    hint: { color: c.textSecondary, fontSize: 12.5, lineHeight: 19, textAlign: 'right', marginBottom: 8 },
-    secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 14 },
+    hint: { color: c.textSecondary, fontSize: 12.5, lineHeight: 19, textAlign: 'right' },
+    secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 14, paddingHorizontal: 16 },
     secondaryText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
-    footer: { ...stickyFooterStyle(c, c.bg), flexDirection: 'column' },
+    footer: { ...stickyFooterStyle(c, c.bg, bottomInset), flexDirection: 'column' },
     // نفس شكل زرار الخطر في التأكيد (ConfirmProvider): إطار danger ونص dangerText — danger كنص تحت 4.5
     dangerBtn: { alignSelf: 'stretch', borderWidth: 1.5, borderColor: c.danger, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + 4 },
     dangerText: { color: c.dangerText, fontWeight: '700', fontSize: 15 },
