@@ -1,6 +1,7 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
+import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
@@ -524,6 +525,11 @@ type DataContextType = {
    * قديمة" بس — مبيدخلش في أي حساب.
    */
   figuresFromServer: boolean;
+  /**
+   * آخر أرقام اتشافت قبل كده (كاش أول فتحة باردة، `lib/coldCache.ts`) — **للعرض بس**، ومش `null` غير طول ما
+   * مفيش ولا محفظة ولا أرقام من السيرفر لسه. **ممنوع** يدخل أي حساب أو كتابة أو حراسة: دول من `wallets`/`transactions`.
+   */
+  coldSnapshot: ColdSnapshot | null;
   /** المحافظ/العمليات اللي لسه مرمتش أول snapshot — مسح السجل بعملياته بيستناهم */
   figuresPending: ListenerName[];
   /**
@@ -731,6 +737,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
+  // كاش أول فتحة باردة — اللي اتقرا من الجهاز للحساب ده (التصميم: reports/2026-11-02-cold-cache-design.md)
+  const [storedCold, setStoredCold] = useState<ColdSnapshot | null>(null);
   // الـlisteners اللي وصل منها snapshot واحد على الأقل (حتى لو فاضي) — من غيرها
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
@@ -869,6 +877,61 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
 
   }, [uid]);
+
+  /**
+   * كاش أول فتحة باردة (`lib/coldCache.ts`). **القراية:** أول ما الحساب يبان. فشل أو حاجة مش مفهومة ← `null`
+   * (الشاشة الفاضية العادية، اللي بانرها بيقول إن السبب النت) — الكاش رفاهية، والتطبيق شغال من غيره.
+   * **المسح:** الحساب اتغيّر من A لأي حاجة تانية (خروج أو حساب تاني) ← كاش A بيتمسح، عشان اللي يمسك
+   * الموبايل بعد الخروج ميلاقيش أرصدة حد تاني (الحساب التاني مبيقراهوش أصلاً — المفتاح بالـuid).
+   */
+  const coldUid = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = coldUid.current;
+    coldUid.current = uid;
+    setStoredCold(null);
+    if (prev && prev !== uid) {
+      AsyncStorage.removeItem(coldCacheKey(prev)).catch(e => console.warn('[coldCache] remove failed', e instanceof Error ? e.name : 'unknown'));
+    }
+    if (!uid) return;
+    let cancelled = false;
+    // كنس: أي كاش لحساب تاني فاضل على الجهاز (التطبيق اتقفل بين الخروج والمسح، أو المسح فشل) بيتمسح
+    // هنا (silent-failure-hunter + security-reviewer) — المسح اللي فوق لوحده مبيغطيش الفتحة الجاية
+    AsyncStorage.getAllKeys()
+      .then(keys => keys.filter(k => k.startsWith(COLD_CACHE_PREFIX) && k !== coldCacheKey(uid)))
+      .then(stale => (stale.length ? AsyncStorage.multiRemove(stale) : undefined))
+      .catch(e => console.warn('[coldCache] sweep failed', e instanceof Error ? e.name : 'unknown'));
+    AsyncStorage.getItem(coldCacheKey(uid))
+      .then(raw => { if (!cancelled) setStoredCold(parseColdSnapshot(raw, uid, Date.now())); })
+      .catch(e => console.warn('[coldCache] read failed', e instanceof Error ? e.name : 'unknown'));
+    return () => { cancelled = true; };
+  }, [uid]);
+
+  /**
+   * **الكتابة:** بس لما الأرقام نفسها جاية من السيرفر (`figuresFromServer`) **والاتنين وصلوا** (`figuresPending` فاضي —
+   * `figuresFresh` بيقبل العمليات `null`، فمن غيره كان ممكن يتكتب رصيد افتتاحي بس)، **والفئات والديون وصلوا**
+   * (من غيرهم صف الدين بيتحفظ "مصروف")، ومفيش listener منهم رفض. بعد ثانيتين من آخر تغيير (money-reviewer +
+   * silent-failure-hunter). مفيش محفظة شغالة ← الكاش بيتمسح بدل ما يتكتب فاضي (كان هيخبّي "مفيش ولا محفظة").
+   * **حساب A → حساب B على طول (من غير `null`) مش متغطّي هنا عن قصد:** التطبيق مبيعرضش الدخول غير بعد الخروج،
+   * فالـuid دايمًا بيعدّي على `undefined` والحالة بتتصفّر (security-reviewer SHOULD-FIX 3 — متروك بالسبب ده).
+   */
+  useEffect(() => {
+    if (!uid || !figuresFromServer || figuresPending.length > 0) return;
+    if (!delivered.has('categories') || !delivered.has('debts')) return;
+    if ((['wallets', 'transactions', 'categories', 'debts'] as const).some(n => loadErrors.includes(n))) return;
+    const timer = setTimeout(() => {
+      const debtTxIds = new Set(debts.flatMap(d => debtTransactionIds(d)));
+      const snap = buildColdSnapshot({ uid, wallets, categories, transactions, debtTransactionIds: debtTxIds, now: Date.now() });
+      const write = snap.wallets.length > 0
+        ? AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify(snap))
+        : AsyncStorage.removeItem(coldCacheKey(uid));
+      write.catch(e => console.warn('[coldCache] write failed', e instanceof Error ? e.name : 'unknown'));
+    }, COLD_CACHE_WRITE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [uid, figuresFromServer, figuresPending, delivered, loadErrors, wallets, categories, transactions, debts]);
+  // للعرض بس، وبس طول ما مفيش ولا محفظة **ولا عملية** حقيقية ولا أرقام من السيرفر — أول snapshot حقيقي من أي
+  // واحد فيهم بيخفيه (مفيش رصيد من الكاش جنب عمليات حقيقية — money-reviewer). كاش من غير محافظ ← مبيتعرضش
+  const coldSnapshot = !figuresFromServer && wallets.length === 0 && transactions.length === 0 && storedCold && storedCold.wallets.length > 0
+    ? storedCold : null;
 
   /**
    * الحساب محتاج تجهيز؟ (شاشة "نبدأ بإيه؟"). اللي اتأكد مرة بيتفكر على الجهاز
@@ -2671,7 +2734,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         readAllFromServer,
