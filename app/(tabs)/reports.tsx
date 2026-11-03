@@ -63,11 +63,13 @@ export default function ReportsScreen() {
 
   const expenseByCat = useMemo(
     () => buildCategorySpend(periodExpenses, categories, {
-      colorFor: id => categoryColors.get(id) || colors.textMuted,
-      deletedColor: colors.textMuted,
+      // الشرايح المحايدة (ممسوحة، من غير فئة، فئات تانية) textSecondary مش textMuted: كعمود على surface2 الـMuted
+      // كان تحت 3:1 في الثيمين (visual-identity-reviewer) — مش نص، فحد العنصر غير النصي 3:1
+      colorFor: id => categoryColors.get(id) || colors.textSecondary,
+      deletedColor: colors.textSecondary,
       visibleIds,
     }),
-    [periodExpenses, categories, categoryColors, colors.textMuted, visibleIds]
+    [periodExpenses, categories, categoryColors, colors.textSecondary, visibleIds]
   );
 
   const periodExpense = useMemo(
@@ -78,8 +80,8 @@ export default function ReportsScreen() {
   // الشرايح الزيادة بتتلمّ في شريحة واحدة بلون محايد برّه باليتة الفئات.
   // التفاصيل (وليه اسمها بالعدد) في `buildPieSlices`.
   const pieSlices = useMemo(
-    () => buildPieSlices(expenseByCat, colors.textMuted),
-    [expenseByCat, colors.textMuted]
+    () => buildPieSlices(expenseByCat, colors.textSecondary),
+    [expenseByCat, colors.textSecondary]
   );
 
   const change = useMemo(() => {
@@ -210,15 +212,16 @@ export default function ReportsScreen() {
               والنسبة في سطر، والعمود تحته بطوله نسبةً لأكبر فئة. نفس الشرايح والألوان (`buildPieSlices`)، من غير اعتمادية */}
           <View testID="reports_bars" style={styles.bars}>
             {barRows(pieSlices, periodExpense).map(c => (
-              <View key={c.id} testID={`reports_bar_${c.id}`} style={styles.barRow} accessible
-                accessibilityLabel={`${c.name}، ${c.percent} من المصروف`}>
+              // الصف مش عنصر واحد لقارئ الشاشة (a11y-architect BLOCKER): كان بيبلع المبلغ وزرار الكشف بتاع Money والعين
+              // مقفولة. الاسم، والمبلغ (Money أخ مستقل)، والنسبة — كل واحد محطة، بنفس ترتيب العين
+              <View key={c.id} testID={`reports_bar_${c.id}`} style={styles.barRow}>
                 <View style={styles.barHead}>
-                  <Text style={styles.barName} numberOfLines={1}>{c.name}</Text>
-                  <Text style={styles.barValue}>
-                    <Money value={c.amount} currency={false} /> · {c.percent}
-                  </Text>
+                  <Text style={styles.barName}>{c.name}</Text>
+                  <Money value={c.amount} currency={false} style={styles.barValue} />
+                  <Text style={styles.barPercent} accessibilityLabel={`${c.percent.replace('%', ' بالمية')} من المصروف`}>{c.percent}</Text>
                 </View>
-                <View style={styles.barTrack}>
+                {/* زخرفي: الرقم والنسبة مكتوبين فوقه */}
+                <View style={styles.barTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                   <View style={[styles.barFill, { width: `${Math.max(c.share * 100, c.amount > 0 ? 2 : 0)}%`, backgroundColor: c.color }]} />
                 </View>
               </View>
@@ -282,16 +285,14 @@ function makeStyles(c: ThemeColors) {
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     bars: { marginTop: 8, gap: 14 },
     barRow: { gap: 6 },
-    barHead: { flexDirection: 'row-reverse', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 },
-    barName: { flex: 1, color: c.text, fontSize: 13.5, textAlign: 'right' },
-    barValue: { color: c.textSecondary, fontSize: 12.5 },
+    // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
+    barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
+    barName: { flex: 1, minWidth: 120, color: c.text, fontSize: 13, textAlign: 'right' },
+    barValue: { color: c.text, fontSize: 13 },
+    barPercent: { color: c.textSecondary, fontSize: 12.5, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
     barTrack: { height: 10, borderRadius: 5, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: 5 },
-    legendWrap: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10, marginTop: 14, justifyContent: 'flex-end' },
-    legendItem: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    legendText: { color: c.textSecondary, fontSize: 11.5 },
     personCard: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: c.border },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
     personName: { color: c.text, fontSize: 14, fontWeight: '700' },

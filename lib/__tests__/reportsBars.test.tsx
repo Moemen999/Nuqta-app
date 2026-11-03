@@ -27,9 +27,18 @@ beforeEach(() => {
   });
 });
 
-it('عمود لكل فئة، بالنسبة من الإجمالي، والقارئ بيسمع الاسم والنسبة', async () => {
+it('عمود لكل فئة، بالنسبة من الإجمالي، والنسبة ليها جملة لقارئ الشاشة', async () => {
   await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
   expect(screen.getByTestId('reports_bars')).toBeTruthy();
-  expect(screen.getByTestId('reports_bar_c1').props.accessibilityLabel).toMatch(/أكل، 75% من المصروف$/);
-  expect(screen.getByTestId('reports_bar_c2').props.accessibilityLabel).toMatch(/مواصلات، 25% من المصروف$/);
+  expect(screen.getByLabelText('75 بالمية من المصروف')).toBeTruthy();
+  expect(screen.getByLabelText('25 بالمية من المصروف')).toBeTruthy();
+});
+
+it('الصف مش عنصر واحد (a11y-architect BLOCKER): المبلغ والاسم كل واحد محطة لوحده — Money ما اتبلعش', async () => {
+  await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+  const row = screen.getByTestId('reports_bar_c1');
+  expect(row.props.accessible).toBeFalsy();
+  expect(row.props.accessibilityLabel).toBeUndefined();
+  // المبلغ نفسه موجود كنص جوه الصف (مش مكتوب في label الصف)
+  expect(screen.getAllByText(/300/).length).toBeGreaterThan(0);
 });
