@@ -171,7 +171,7 @@ describe('جرد بانرات الرئيسية في الكود', () => {
     for (const b of banners) expect({ id: b.id, before: at(b) > -1 && at(b) < titleAt }).toEqual({ id: b.id, before: true });
   });
   // **استثناء واحد: `cold`** (كاش أول فتحة): أرقام قديمة على الشاشة، و✕ كان هيسيبها من غير علامة "قديم" (قرار مؤمن
-  // على الكاش). مستني تأكيد مؤمن لأنه بيخالف "كل بانر ليه ✕" (2026-10-28) — سؤال في تقرير اللوب
+  // على الكاش). **قرار مؤمن 2026-11-03: من غير ✕** — استثناء مقصود من "كل بانر ليه ✕" (2026-10-28)
   it('كل بانر ليه ✕', () => {
     const dismissIds = new Set([...src.matchAll(/home_banner_dismiss_([a-z_]+)/g)].map(m => m[1].replace(/_$/, '')));
     expect([...dismissIds].sort()).toEqual(

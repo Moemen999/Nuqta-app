@@ -102,3 +102,9 @@ it('المفتاح متربط بالحساب', () => {
   expect(coldCacheKey('u1')).not.toBe(coldCacheKey('u2'));
   expect(coldCacheKey('u1')).toContain('u1');
 });
+
+it('الباك أب مقفول للتطبيق كله (قرار مؤمن 2026-11-03 — الكاش على الجهاز من غير تشفير)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const resolved = require('../../app.config.js')({ config: require('../../app.json').expo });
+  expect(resolved.android.allowBackup).toBe(false);
+});

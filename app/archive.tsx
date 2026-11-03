@@ -7,6 +7,7 @@ import AutoRecordedMark from '@/components/AutoRecordedMark';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { buildFullExportSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
@@ -16,19 +17,27 @@ import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
 
+/** سطر "ليه الزرار مقفول" تحت زرار التصدير الكامل — وهو نفسه الـhint بتاعه لقارئ الشاشة */
+export const FULL_EXPORT_WAIT = 'الزرار هيشتغل أول ما النت يرجع — الملف بيتعمل من السيرفر عشان ميطلعش ناقص.';
+/** نتيجة التصدير الكامل لما ميكملش — جملة ثابتة مش نص الخطأ الخام */
+export const FULL_EXPORT_FAIL: Record<'no-connection' | 'failed', [string, string]> = {
+  'no-connection': ['الملف ما اتعملش', 'مفيش نت دلوقتي، والملف لازم يتعمل من السيرفر عشان ميطلعش ناقص. جرّب تاني أول ما النت يرجع.'],
+  failed: ['الملف ما اتعملش', 'حصلت مشكلة وإحنا بنجهّز الملف. جرّب تاني.'],
+};
+
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable } = useData();
+  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer } = useData();
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
@@ -37,6 +46,7 @@ export default function ArchiveScreen() {
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
 
   const range = useMemo(() => {
     const today = todayStr();
@@ -84,29 +94,62 @@ export default function ArchiveScreen() {
         };
       });
 
-      const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
-      const wbout: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-
-      const filename = `nuqta-export-${range.from}-to-${range.to}.xlsx`;
-      const baseDir = ((FileSystem as any).documentDirectory ?? (FileSystem as any).cacheDirectory ?? '') as string;
-      const uri = `${baseDir}${filename}`;
-      await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
-
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          dialogTitle: 'تصدير العمليات',
-        });
-      } else {
-        notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
-      }
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
+      await saveAndShare(wb, `nuqta-export-${range.from}-to-${range.to}.xlsx`, 'تصدير العمليات');
     } catch (e: any) {
       notice('حصل خطأ في التصدير', String(e?.message || e));
     } finally {
       setExporting(false);
+    }
+  }
+
+  /** نفس الكتابة والمشاركة للتصديرين — الملف في مجلد التطبيق، والمشاركة لو متاحة */
+  async function saveAndShare(wb: XLSX.WorkBook, filename: string, dialogTitle: string) {
+    const wbout: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+    // الكاش الأول (silent-failure-hunter): الملف فيه بيانات مالية كاملة، والمشاركة بتاخد نسخة — مش لازم يفضل في
+    // مجلد التطبيق الدائم (حتى بعد مسح الحساب). ومن غير مجلد خالص ← خطأ صريح مش مسار نسبي ساكت
+    const baseDir = ((FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory) as string | undefined;
+    if (!baseDir) throw new Error('no-directory');
+    const uri = `${baseDir}${filename}`;
+    await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle });
+    } else {
+      notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
+    }
+  }
+
+  /**
+   * التصدير الكامل (`lib/fullExport.ts`): كل اللي متخزّن، ورقة لكل نوع، **مقري من السيرفر وقت الدوسة**
+   * (`readAllFromServer`) مش من اللي على الشاشة — يا الملف كامل يا رسالة صريحة (silent-failure-hunter: حالة الـlisteners
+   * ممكن تكون نص من الكاش). من غير نت الزرار مقفول وسطر بيقول ليه.
+   */
+  const fullExportReady = serverReachable;
+  async function handleFullExport() {
+    if (!fullExportReady || exportingAll) return;
+    setExportingAll(true);
+    AccessibilityInfo.announceForAccessibility('بنجهّز الملف');
+    // الرسمة الأولى (اللفّافة) قبل الشغل المتزامن التقيل — في حساب كبير الشاشة كانت بتتجمّد من غير مؤشر
+    await new Promise(r => setTimeout(r, 0));
+    try {
+      const read = await readAllFromServer();
+      if (read.outcome !== 'done') {
+        notice(...FULL_EXPORT_FAIL[read.outcome]);
+        return;
+      }
+      const wb = XLSX.utils.book_new();
+      for (const sh of buildFullExportSheets(read.data)) {
+        // ورقة فيها سطر واحد صريح مش ورقة من غير ولا خلية — عشان الملف يقول "مفيش" مش "ناقص"
+        XLSX.utils.book_append_sheet(wb, sh.rows.length ? XLSX.utils.json_to_sheet(sh.rows) : XLSX.utils.aoa_to_sheet([['(مفيش بيانات)']]), sh.name);
+      }
+      await saveAndShare(wb, `nuqta-all-data-${todayStr()}.xlsx`, 'تصدير كل بياناتك');
+    } catch (e) {
+      // نص الخطأ الخام إنجليزي وفيه مسارات — للّوج (اسمه بس)، والمستخدم جملة ثابتة (arabic-copy + silent-failure)
+      console.warn('[export] full export failed', e instanceof Error ? e.name : 'unknown');
+      notice(...FULL_EXPORT_FAIL.failed);
+    } finally {
+      setExportingAll(false);
     }
   }
 
@@ -162,6 +205,27 @@ export default function ArchiveScreen() {
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
+
+      {/* كل البيانات (مش الفترة بس): المحافظ والديون والاشتراكات والجمعية والدخل والميزانية والشخبطة */}
+      <TouchableOpacity
+        testID="archive_full_export_button"
+        style={[styles.fullExportBtn, { opacity: !fullExportReady || exportingAll ? 0.5 : 1 }]}
+        onPress={handleFullExport}
+        disabled={!fullExportReady || exportingAll}
+        accessibilityRole="button"
+        // اسم ثابت: وقت التحميل اللفّافة بتاخد مكان النص، والزرار كان من غير اسم لقارئ الشاشة (a11y-architect BLOCKER)
+        accessibilityLabel={exportingAll ? 'بنجهّز ملف كل بياناتك' : 'صدّر كل بياناتك (إكسيل)'}
+        accessibilityState={{ disabled: !fullExportReady || exportingAll, busy: exportingAll }}
+        accessibilityHint={fullExportReady ? 'هيطلع ملف إكسيل فيه كل حاجة متسجلة في حسابك، في ورقة لكل نوع' : FULL_EXPORT_WAIT}>
+        {exportingAll ? <ActivityIndicator color={colors.accent} /> : (
+          <Text style={styles.fullExportText}>صدّر كل بياناتك (إكسيل)</Text>
+        )}
+      </TouchableOpacity>
+      {!fullExportReady && (
+        <Text testID="archive_full_export_wait" style={styles.fullExportWait} accessibilityLiveRegion="polite">
+          {FULL_EXPORT_WAIT}
+        </Text>
+      )}
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
       {filtered.length === 0 && (
@@ -226,6 +290,10 @@ function makeStyles(c: ThemeColors) {
     metricLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
     metricValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     exportBtn: { backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 13, marginTop: 16 },
+    // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
+    fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 10 },
+    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
+    fullExportWait: { color: c.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'right', marginTop: 6 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 22, marginBottom: 6 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
