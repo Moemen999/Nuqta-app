@@ -80,7 +80,15 @@ export async function renderDataProvider(extra?: React.ReactNode) {
     // القديمة متعودة عليها
     // كل مرحلة باسمها في رسالة الـtimeout (بند 10) — الوقعة كانت دايمًا في السطر الأخير ومن غير ما نعرف أي شرط فيه ناقص
     await waitForData(api => api.setupStatus !== 'checking', 15000, 'ready:setupStatus');
-    if (holder.current?.setupStatus === 'needed') {
+    /**
+     * `unknown` كمان (بند 10 — السبب الحقيقي للوقعات المتقلّبة، 2026-11-03): فحص التجهيز (`detectSetup`) بيرجع `unknown`
+     * لما سؤال السيرفر يعدّي سقفه (8 ثواني) تحت ضغط المحاكي، والتطبيق بيعيد السؤال بعد 20 ثانية — بعد سقف الـ15 ثانية هنا.
+     * الـharness كان بيجهّز على `needed` بس، فكان بيستنى محافظ عمرها ما هتيجي. رسالة التشخيص قالت كده بالحرف:
+     * `setupStatus=unknown wallets=0 serverReachable=true`. `completeSetup` آمن على حساب متجهّز (بيفحص `seeded` جوه الذرة
+     * ويرجّع `already-done`) — ده نفس طريق التطبيق لو المستخدم اختار، مش اختصار. **صالح لحسابات المحاكي الفاضية بس**
+     * (code-reviewer): حساب قديم من غير `seeded` وعنده محافظ كان هيتجهّز فوقه — مش حالة حسابات الاختبار.
+     */
+    if (holder.current?.setupStatus === 'needed' || holder.current?.setupStatus === 'unknown') {
       const t = Date.now();
       const outcome = await holder.current.completeSetup(TEST_SETUP);
       if (outcome !== 'done' && outcome !== 'already-done') throw new Error(`تجهيز حساب الاختبار فشل: ${outcome} (بعد ${Date.now() - t}ms)`);

@@ -19,6 +19,8 @@ import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { plainAmount } from '@/lib/money';
+import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
@@ -47,7 +49,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -86,6 +88,13 @@ function HomeScreen() {
   // (lib/staleFigures.ts). من غير أرقام ده "مفيش نت" اللي فوق، مش ده
   const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0);
   /**
+   * كاش أول فتحة باردة (`lib/coldCache.ts`): آخر أرقام اتشافت، **للعرض بس** — طول ما مفيش ولا محفظة من
+   * الـlisteners. الرصيد والشرايح وآخر العمليات بيتعرضوا منه، بعلامة "قديم" مبتتقفلش، والصفوف مبتفتحش
+   * المودال (العملية مش موجودة في البيانات اللي التعديل بيقرا منها). أول snapshot حقيقي بيخفيه لوحده.
+   */
+  const cold = coldSnapshot;
+  const shownTotal = cold ? cold.wallets.reduce((s, w) => s + w.balance, 0) : totalBalance;
+  /**
    * حساب مسح (أو أرشف) كل محافظه: مفيش شاشة تجهيز تاني (عدّاها قبل كده)، ومن غير
    * محفظة مفيش ولا عملية تتسجل — فبنقول كده وبنودّيه يضيف واحدة. بس لما نكون
    * متأكدين من السيرفر: من غير نت ده بانر "مفيش نت" اللي فوق، ولو listener المحافظ
@@ -111,6 +120,18 @@ function HomeScreen() {
   useEffect(() => {
     if (noWallets) AccessibilityInfo.announceForAccessibility('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
   }, [noWallets]);
+  // الكاش اختفى والأرقام الحقيقية وصلت ← بنقول كده (التبديل بيحصل في رسمة واحدة والفوكس ممكن يقع —
+  // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي. **وبس لما الأرقام من السيرفر**
+  // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
+  // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
+  const wasCold = useRef(false);
+  useEffect(() => {
+    if (cold) { wasCold.current = true; return; }
+    if (wasCold.current && figuresFromServer) {
+      wasCold.current = false;
+      if (wallets.length > 0) AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت');
+    }
+  }, [cold, figuresFromServer, wallets.length]);
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -161,16 +182,27 @@ function HomeScreen() {
               accessibilityState={{ checked: amountsHidden }}>
               <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.balanceLabel}>إجمالي رصيدك</Text>
+            {/* كاش: "قديم" جنب الإجمالي نفسه — الرصيد فوق برّه التمرير، والبانر تحت ممكن يتمرر أو قارئ الشاشة يقرا
+                الرقم قبله (a11y-architect) */}
+            <Text style={styles.balanceLabel}>{cold ? 'إجمالي رصيدك (قديم)' : 'إجمالي رصيدك'}</Text>
           </View>
           {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
               وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
           <View style={styles.balanceValueRow}>
-            <Money value={totalBalance} currency={false} style={styles.balanceValue} />
+            <Money value={shownTotal} currency={false} style={styles.balanceValue} />
             <Text style={styles.currency}>ج.م</Text>
           </View>
           <View style={styles.walletsRow}>
-            {activeWallets.map(w => (
+            {cold
+              ? cold.wallets.map(w => (
+                <View key={w.id} testID={`home_cold_wallet_${w.id}`} style={styles.walletChip}>
+                  {/* حلقة فاضية مش لون: "مش حية" مش "ملقيناش لون" (visual-identity-reviewer) */}
+                  <View style={[styles.dot, { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.textSecondary }]} />
+                  <Text style={styles.walletChipName}>{w.name}</Text>
+                  <Money value={w.balance} currency={false} style={styles.walletChipVal} />
+                </View>
+              ))
+              : activeWallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
                 <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
                 <Text style={styles.walletChipName}>{w.name}</Text>
@@ -193,7 +225,28 @@ function HomeScreen() {
             "مستنيين ردك"، وبعده الباقي. "مقدرناش نجيب بياناتك" فوق الـStack كله. كل بانر
             ليه ✕ وبيرجع بعد المدة اللي المستخدم اختارها (lib/bannerDismiss.ts).
             متثبّت في homeBannerOrder.test.tsx */}
-        {offlineEmpty && !hidden('offline') && (
+        {/* مسح الحساب بدأ ومخلصش ← بانر خطر **من غير ✕** (بحث rnd-researcher + قرار مؤمن 2026-11-03): حساب نص-ممسوح والتسجيل
+            التلقائي واقف — لو اتقفل بـ✕ المستخدم كان هيعيش ببيانات ناقصة من غير ما يعرف. المخرج الوحيد: يكمّل المسح (أو يخرج) */}
+        {deletionPending && (
+          <View testID="home_banner_delete_pending" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>
+              مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف لحد ما تكمّله.
+            </Text>
+            <TouchableOpacity testID="home_delete_pending_go" onPress={() => router.push('/settings-screens/delete-account')}
+              accessibilityRole="button" style={styles.bannerAction}>
+              <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>كمّل المسح</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
+        {cold && (
+          <View testID="home_banner_cold" style={[styles.banner, { borderColor: colors.dangerBorder, minHeight: MIN_TOUCH }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
+          </View>
+        )}
+        {offlineEmpty && !cold && !hidden('offline') && (
           <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
@@ -208,7 +261,7 @@ function HomeScreen() {
             <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
-        {noWallets && (
+        {noWallets && !cold && (
           <View testID="home_no_wallets" style={styles.noWallets}>
             <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
             <Text style={styles.noWalletsTitle} accessibilityRole="header">مفيش ولا محفظة</Text>
@@ -231,7 +284,7 @@ function HomeScreen() {
         {/* باقي التنبيهات (2026-10-28): فوق آخر العمليات كمان — مش تحتها */}
         <EmailVerificationBanner />
         {/* بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي) */}
-        {!hasTodayTx && !offlineEmpty && !noWallets && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
+        {!hasTodayTx && !offlineEmpty && !noWallets && !cold && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
           <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
             <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
             <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />
@@ -296,11 +349,37 @@ function HomeScreen() {
           );
         })}
         <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
-        {recent.length === 0 && (
+        {recent.length === 0 && !(cold && cold.recent.length > 0) && (
           <Text style={styles.emptyState}>
             {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
           </Text>
         )}
+        {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
+        {cold && recent.length === 0 && cold.recent.map(t => {
+          const T = TYPE_LABELS[t.type];
+          const catLabel = categoryLabelById(cold.categories, t.categoryId);
+          const title = t.kind ? COLD_KIND_LABEL[t.kind] : t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
+          const name = (id?: string) => cold.wallets.find(w => w.id === id)?.name ?? '';
+          // نفس شكل transactionWalletLabel ("من … إلى …")، بس من محافظ الكاش؛ محفظة مش فيه (مؤرشفة) ← من غير اسم
+          const walletLabel = t.type === 'withdraw' && name(t.walletId) && name(t.toWalletId) ? `من ${name(t.walletId)} إلى ${name(t.toWalletId)}` : name(t.walletId);
+          return (
+            // عقدة واحدة لقارئ الشاشة زي الصف الحقيقي، وأولها "قديم"، ومن غير button (مبيتفتحش — a11y-architect).
+            // المبلغ ظاهر زي الصف الحقيقي (العين للأرصدة بس)
+            <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
+              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${t.date}`}>
+              <View style={styles.txMid}>
+                <Text style={styles.txTitle}>{title}</Text>
+                {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
+              </View>
+              <View style={styles.txRight}>
+                <AmountsUnmaskedScope>
+                  <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
+                </AmountsUnmaskedScope>
+                <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+              </View>
+            </View>
+          );
+        })}
         {recent.map(t => {
           const T = TYPE_LABELS[t.type];
           // الفئة الممسوحة بتطلع باسمها الصريح، مش بتترجع لـ"مصروف" العامة —

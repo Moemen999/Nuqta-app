@@ -197,6 +197,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
   'components/GamiyaView.tsx': { count: 2, why: 'تأكيد قبل خصم/استلام قسط الجمعية' },
   'components/SubscriptionsView.tsx': { count: 1, why: 'تأكيد قبل خصم الاشتراك' },
+  'app/(tabs)/index.tsx': { count: 1, why: 'قارئ الشاشة لصف كاش أول فتحة — مبلغ العملية، وهو ظاهر أصلاً زي الصف الحقيقي (العين للأرصدة بس)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
@@ -278,8 +279,9 @@ describe('جرد الإخفاء في كل الشاشات', () => {
     expect(users).toEqual(['app/(tabs)/index.tsx']);
     const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
     const scopes = home.match(/<AmountsUnmaskedScope>[\s\S]*?<\/AmountsUnmaskedScope>/g) ?? [];
-    expect(scopes).toHaveLength(1);
-    expect(scopes[0]).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
+    // اتنين: صف العملية الحقيقية، وصف كاش أول فتحة (نفس الصف من `coldSnapshot`). الاتنين مبلغ العملية بس
+    expect(scopes).toHaveLength(2);
+    for (const s of scopes) expect(s).toMatch(/^<AmountsUnmaskedScope>\s*<Money value=\{t\.amount\}[^>]*\/>\s*<\/AmountsUnmaskedScope>$/);
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {

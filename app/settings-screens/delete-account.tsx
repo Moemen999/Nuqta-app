@@ -2,6 +2,7 @@ import BackButton from '@/components/BackButton';
 import { Text, TextInput } from '@/components/AppText';
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth, type DeleteSignInOutcome, type ReauthOutcome } from '@/context/AuthContext';
+import { useAppLock } from '@/context/AppLockContext';
 import { deletePendingKey, useData, type DeleteDataResult } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { setupDoneKey } from '@/lib/firstRunSetup';
@@ -76,6 +77,7 @@ export default function DeleteAccountScreen() {
   const styles = useMemo(() => makeStyles(colors, insets.bottom), [colors, insets.bottom]);
   const notice = useNotice();
   const { user, reauthenticate, deleteSignInAccount } = useAuth();
+  const { wipeLockForDeletedAccount } = useAppLock();
   const { deleteAllMyData, serverReachable } = useData();
   const usesGoogle = !!user?.providerData.some(p => p.providerId === 'google.com');
   const [phrase, setPhrase] = useState('');
@@ -136,6 +138,8 @@ export default function DeleteAccountScreen() {
         return;
       }
       if (uid) await clearAccountMarks(uid);
+      // قفل التطبيق ومهلته (بحث + قرار مؤمن 2026-11-03): الثيم والترحيب بيفضلوا — إعدادات جهاز مش بيانات حساب
+      try { await wipeLockForDeletedAccount(); } catch (e) { console.warn('[delete-account] wipe lock failed', e instanceof Error ? e.name : 'unknown'); }
       // user بقى null ← التطبيق بيرجع لشاشة الدخول لوحده؛ الرسالة في الجذر فبتفضل ظاهرة
       notice(...DELETE_MSG.done);
     } finally {

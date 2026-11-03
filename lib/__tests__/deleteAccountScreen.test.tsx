@@ -18,10 +18,13 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 jest.mock('expo-auth-session/providers/google', () => ({ useAuthRequest: () => [null, null, jest.fn()] }));
 const mockCancel = jest.fn(async () => {});
 jest.mock('@/lib/notifications', () => ({ cancelAllReminders: () => mockCancel() }));
+const mockWipeLock = jest.fn(async () => {});
+jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ wipeLockForDeletedAccount: () => mockWipeLock() }) }));
 
 function setUp(o: { reauth?: string; data?: object; acc?: string; online?: boolean } = {}) {
   calls.length = 0;
   mockCancel.mockClear();
+  mockWipeLock.mockClear();
   Object.assign(mockAuth, {
     user: { uid: 'u1', providerData: [{ providerId: 'password' }] },
     reauthenticate: jest.fn(async () => { calls.push('reauth'); return o.reauth ?? 'done'; }),
@@ -80,6 +83,8 @@ it('كله نجح ← بالترتيب، التذكيرات بتتلغي، ور�
   await press();
   expect(calls).toEqual(['reauth', 'data', 'account']);
   expect(mockCancel).toHaveBeenCalledTimes(1);
+  // قفل التطبيق بيتمسح بعد ما حساب الدخول يتمسح بس (قرار مؤمن على ترشيح البحث)
+  expect(mockWipeLock).toHaveBeenCalledTimes(1);
   expect(screen.getByTestId('notice_title').props.children).toBe(DELETE_MSG.done[0]);
 });
 
@@ -113,6 +118,8 @@ it.each(['requires-recent-login', 'no-connection', 'failed'] as const)('البي
   await press();
   expect(calls).toEqual(['reauth', 'data', 'account']);
   expect(screen.getByTestId('notice_body').props.children).toBe(DELETE_MSG.account[acc][1]);
+  // الحساب لسه موجود ← القفل بيفضل
+  expect(mockWipeLock).not.toHaveBeenCalled();
   // الباسورد بيتمسح بس لما فايربيز تطلب دخول تاني
   expect(screen.getByTestId('delete_password').props.value).toBe(acc === 'requires-recent-login' ? '' : 'x');
 });
