@@ -231,10 +231,10 @@ function HomeScreen() {
           <View testID="home_banner_delete_pending" style={[styles.banner, { borderColor: colors.dangerBorder }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>
-              مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف لحد ما تكمّله.
+              مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف. كمّل المسح، أو اخرج من الحساب.
             </Text>
             <TouchableOpacity testID="home_delete_pending_go" onPress={() => router.push('/settings-screens/delete-account')}
-              accessibilityRole="button" style={styles.bannerAction}>
+              accessibilityRole="button" accessibilityHint="بيفتح شاشة مسح الحساب" style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>كمّل المسح</Text>
             </TouchableOpacity>
           </View>
@@ -525,7 +525,8 @@ function makeStyles(c: ThemeColors) {
     bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     bannerFlex: { flex: 1 },
     bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
-    bannerAction: { alignSelf: 'flex-end', marginTop: 6 },
+    // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"أعد إرسال التأكيد" بيستفيد كمان
+    bannerAction: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
     bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },

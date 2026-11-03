@@ -977,7 +977,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const run = async () => {
       try {
         // مسح الحساب بدأ ومخلصش ← مفيش "نبدأ بإيه؟" (كانت هتزرع محافظ على حساب بيتمسح) ومفيش تسجيل تلقائي
-        if ((await AsyncStorage.getItem(deletePendingKey(uid))) === '1') { deletingRef.current = true; if (!cancelled) { setDeletionPending(true); setSetupStatus('done'); } return; }
+        // قراية العلامة فشلت ← محاولة تانية مش بلع ساكت (silent-failure-hunter: من غيرها التسجيل التلقائي كان بيشتغل على
+        // حساب نص-ممسوح والبانر مبيظهرش). الفشلين ← لوج ونكمّل عادي (الأغلبية الساحقة مالهاش مسح معلّق)
+        let pending: string | null = null;
+        try { pending = await AsyncStorage.getItem(deletePendingKey(uid)); }
+        catch (e) {
+          console.warn('[delete-account] pending read failed, retrying', e instanceof Error ? e.name : 'unknown');
+          try { pending = await AsyncStorage.getItem(deletePendingKey(uid)); }
+          catch (e2) { console.warn('[delete-account] pending read failed twice', e2 instanceof Error ? e2.name : 'unknown'); }
+        }
+        if (pending === '1') { deletingRef.current = true; if (!cancelled) { setDeletionPending(true); setSetupStatus('done'); } return; }
         if ((await AsyncStorage.getItem(setupDoneKey(uid))) === '1') { if (!cancelled) setSetupStatus('done'); return; }
       } catch {
         // لو القراية وقعت نسأل السيرفر عادي

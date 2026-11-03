@@ -135,9 +135,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   async function wipeLockForDeletedAccount() {
-    await wipeLock();
-    await SecureStore.deleteItemAsync(K_GRACE);
+    // الحالة الأول (silent-failure-hunter): لو التخزين رمى في النص، الحالة القديمة (enabled=true) كانت هتطلّع شاشة القفل
+    // على شاشة الدخول لحساب اتمسح. وكل مفتاح في محاولة لوحده — رمية واحدة متوقّفش مسح الباقي
+    setEnabled(false);
+    setIsLocked(false);
     setGraceMinutesState(0);
+    for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE]) {
+      try { await SecureStore.deleteItemAsync(key); }
+      catch (e) { console.warn('[lock] wipe key failed', key, e instanceof Error ? e.name : 'unknown'); }
+    }
   }
 
   async function changeCode(oldCode: string, newCode: string, newType: LockType) {

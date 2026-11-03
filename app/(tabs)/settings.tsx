@@ -169,7 +169,7 @@ export default function SettingsScreen() {
         { key: 'logout', title: 'تسجيل الخروج', onPress: confirmLogout, tone: 'danger' },
         // جوجل بلاي بتطلب المسار ده ظاهر في إعدادات الحساب (reports/2026-11-03-account-delete-export.md)
         // مسح بدأ ومخلصش ← السطر بيقول كده (التسجيل التلقائي واقف لحد ما يخلص — جولة 2 SHOULD-FIX 1)
-        { key: 'deleteAccount', title: 'مسح الحساب', status: deletionPending ? 'ما خلصش — كمّله' : undefined, onPress: () => router.push('/settings-screens/delete-account'), tone: 'danger' },
+        { key: 'deleteAccount', title: 'مسح الحساب', status: deletionPending ? 'ما خلصش — كمّل المسح' : undefined, onPress: () => router.push('/settings-screens/delete-account'), tone: 'danger' },
       ],
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
