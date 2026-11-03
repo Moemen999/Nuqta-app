@@ -1,6 +1,9 @@
 import { auth, db } from '@/firebaseConfig';
 import {
     createUserWithEmailAndPassword,
+    deleteUser,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
     signOut as firebaseSignOut,
     GoogleAuthProvider,
     onAuthStateChanged,
@@ -23,7 +26,18 @@ type AuthContextType = {
   logOut: () => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  /** مسح الحساب — قبل أي مسح: فايربيز بتطلب دخول حديث لـ`deleteUser`، فبنعيده **الأول** عشان ميطلعش بعد ما البيانات راحت */
+  reauthenticate: (proof: ReauthProof) => Promise<ReauthOutcome>;
+  /** مسح الحساب — آخر خطوة، بعد `deleteAllMyData`: حساب الدخول نفسه (بيخرّج المستخدم) */
+  deleteSignInAccount: () => Promise<DeleteSignInOutcome>;
 };
+
+export type ReauthProof = { kind: 'password'; password: string } | { kind: 'google'; idToken: string };
+/** `mismatch` = حساب جوجل تاني غير اللي فاتح التطبيق */
+export type ReauthOutcome = 'done' | 'wrong-password' | 'mismatch' | 'no-connection' | 'failed';
+export type DeleteSignInOutcome = 'done' | 'requires-recent-login' | 'no-connection' | 'failed';
+
+const authCode = (e: unknown) => (e as { code?: string })?.code ?? '';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -98,6 +112,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(auth, email);
   }
 
+  /**
+   * مسح الحساب — إعادة الدخول. **بتتستنى** (طلب للسيرفر، ونتيجته بتقرر نمسح ولا لأ). الأكواد من فايربيز Auth؛ أي حاجة
+   * تانية `failed` باسمها في اللوج (من غير الباسورد ولا التوكن).
+   */
+  async function reauthenticate(proof: ReauthProof): Promise<ReauthOutcome> {
+    const u = auth.currentUser;
+    if (!u) return 'failed';
+    try {
+      const credential = proof.kind === 'password'
+        ? EmailAuthProvider.credential(u.email ?? '', proof.password)
+        : GoogleAuthProvider.credential(proof.idToken);
+      await reauthenticateWithCredential(u, credential);
+      return 'done';
+    } catch (e) {
+      const code = authCode(e);
+      console.warn('[auth] reauthenticate failed', code || (e instanceof Error ? e.name : 'unknown'));
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential' || code === 'auth/invalid-login-credentials') return 'wrong-password';
+      if (code === 'auth/user-mismatch') return 'mismatch';
+      if (code === 'auth/network-request-failed') return 'no-connection';
+      return 'failed';
+    }
+  }
+
+  /** مسح الحساب — حساب الدخول نفسه. `requires-recent-login` = إعادة الدخول اتأخرت (الشاشة بتطلبها تاني) */
+  async function deleteSignInAccount(): Promise<DeleteSignInOutcome> {
+    const u = auth.currentUser;
+    if (!u) return 'failed';
+    try {
+      await deleteUser(u);
+      return 'done';
+    } catch (e) {
+      const code = authCode(e);
+      console.warn('[auth] deleteUser failed', code || (e instanceof Error ? e.name : 'unknown'));
+      if (code === 'auth/requires-recent-login') return 'requires-recent-login';
+      if (code === 'auth/network-request-failed') return 'no-connection';
+      return 'failed';
+    }
+  }
+
   async function resendVerificationEmail() {
     if (auth.currentUser) {
       await sendEmailVerification(auth.currentUser);
@@ -105,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogleCredential, logOut, resendVerificationEmail, resetPassword }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInWithGoogleCredential, logOut, resendVerificationEmail, resetPassword, reauthenticate, deleteSignInAccount }}>
       {children}
     </AuthContext.Provider>
   );
