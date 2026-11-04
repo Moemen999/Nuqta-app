@@ -117,3 +117,42 @@ it('نسب الشخبطة مش متخزّنة ← الافتراضي بعلام�
   expect(sheet('ShakhbataPercents')[0].IsDefault).toBe(false);
 });
 
+
+describe('localizeSheets — الأسامي بالعربي والقيم زي ما هي', () => {
+  const { localizeSheets, SHEET_NAMES_AR, COLUMN_NAMES_AR } = require('@/lib/fullExport');
+  const ar = localizeSheets(sheets);
+  it('كل ورقة وكل عمود ليهم اسم عربي (مفيش اسم إنجليزي فاضل)', () => {
+    for (const sh of sheets) {
+      expect(SHEET_NAMES_AR[sh.name]).toBeTruthy();
+      // كل الصفوف مش أول صف بس — حقل في صف تاني من غير ترجمة كان هيعدّي بالإنجليزي (code-reviewer)
+      for (const r of sh.rows) for (const k of Object.keys(r)) expect({ sheet: sh.name, key: k, ar: COLUMN_NAMES_AR[k] }).toMatchObject({ ar: expect.any(String) });
+    }
+    // والناتج نفسه: مفيش ولا مفتاح من غير حرف عربي (الـ`?? k` في localizeSheets بيرجّع الإنجليزي ساكت)
+    for (const sh of ar) for (const r of sh.rows) for (const k of Object.keys(r)) expect({ sheet: sh.name, key: k }).toMatchObject({ key: expect.stringMatching(/[؀-ۿ]/) });
+  });
+  it('عمود واحد = معنى واحد: "الدخل الثابت" اسم و"الدخل الشهري" مبلغ (كانوا الاتنين "الدخل")', () => {
+    expect(Object.keys(ar.find((s: { name: string }) => s.name === 'شخبطة').rows[0])).toEqual(['الشهر', 'الدخل الشهري']);
+    expect(Object.keys(ar.find((s: { name: string }) => s.name === 'فترات الدخل الثابت').rows[0])).toContain('الدخل الثابت');
+  });
+  it('أسامي الأوراق تنفع في Excel: ≤ 31 حرف، من غير / \ ? * : [ ]، ومفيش تكرار', () => {
+    const names = ar.map((s: { name: string }) => s.name);
+    for (const n of names) { expect(n.length).toBeLessThanOrEqual(31); expect(n).not.toMatch(/[/\\?*:[\]]/); }
+    expect(new Set(names).size).toBe(names.length);
+  });
+  it('أسامي الأعمدة مش متكررة جوه نفس الورقة (كانت هتمسح عمود)', () => {
+    for (const sh of ar) for (const r of sh.rows) { const ks = Object.keys(r); expect(new Set(ks).size).toBe(ks.length); }
+  });
+  it('كل قيمة في كل ورقة وكل صف زي ما هي وبنفس الترتيب (تواريخ وأرقام وصح/غلط)', () => {
+    expect(ar.length).toBe(sheets.length);
+    sheets.forEach((sh, i) => {
+      expect(ar[i].rows.length).toBe(sh.rows.length);
+      sh.rows.forEach((r, j) => expect(Object.values(ar[i].rows[j])).toEqual(Object.values(r)));
+    });
+  });
+  it('القيم نفسها مااتغيّرتش (المعرّفات والأنواع الخام)', () => {
+    const tx = ar.find((s: { name: string }) => s.name === 'العمليات').rows[0];
+    expect(tx['المعرّف']).toBe('t1');
+    expect(tx['النوع']).toBe('withdraw');
+    expect(tx['المبلغ']).toBe(100);
+  });
+});

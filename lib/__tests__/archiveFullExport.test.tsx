@@ -78,3 +78,19 @@ it('الكتابة رمت ← جملة ثابتة مش نص الخطأ الخا�
   await press();
   expect(screen.getByTestId('notice_body').props.children).toBe(FULL_EXPORT_FAIL.failed[1]);
 });
+
+it('الملف نفسه: الأوراق بالعربي، والأعمدة بالعربي، ومن اليمين للشمال', async () => {
+  const XLSX = require('xlsx');
+  setData({});
+  await mount();
+  await press();
+  const [, b64] = (FileSystem.writeAsStringAsync as jest.Mock).mock.calls[0];
+  const wb = XLSX.read(b64, { type: 'base64' });
+  expect(wb.SheetNames).toContain('العمليات');
+  expect(wb.SheetNames).toContain('المحافظ');
+  expect(wb.SheetNames.some((n: string) => /^[A-Za-z]+$/.test(n))).toBe(false);
+  const header = XLSX.utils.sheet_to_json(wb.Sheets['العمليات'], { header: 1 })[0];
+  expect(header).toContain('المبلغ');
+  expect(header).not.toContain('Amount');
+  expect(wb.Workbook?.Views?.[0]?.RTL).toBe(true);
+});
