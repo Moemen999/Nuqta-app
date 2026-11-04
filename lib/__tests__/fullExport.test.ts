@@ -175,6 +175,8 @@ describe('feedbackFromDoc — مفيش قيمة متخزّنة بتتبلع (sil
   it('حقل نوعه غلط بيطلع نصّه، مش خلية فاضية', () => {
     const r = feedbackFromDoc('f1', { type: 7, text: 123, buildNumber: 9, createdAt: '2026-11-01' });
     expect(r).toMatchObject({ type: '7', text: '123', buildNumber: '9', createdAt: '2026-11-01' });
+    // object (مستند متعدّل من الكونسول) بقيمته مش [object Object] — جولة 2 NIT
+    expect(feedbackFromDoc('f1', { text: { a: 1 } }).text).toBe('{"a":1}');
   });
   it('createdAt مش Timestamp ومش نص ← بيطلع زي ما هو (مش فاضي)', () => {
     expect(feedbackFromDoc('f1', { createdAt: { seconds: 5 } }).createdAt).toBe('{"seconds":5}');

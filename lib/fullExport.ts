@@ -38,7 +38,7 @@ export type ExportFeedback = {
  * معناها "الحقل مش متخزّن" بس (رأي اتبعت قبل ما الحقل يتضاف).
  */
 export function feedbackFromDoc(id: string, f: Record<string, unknown>): ExportFeedback {
-  const str = (v: unknown) => (v === undefined || v === null ? '' : typeof v === 'string' ? v : String(v));
+  const str = (v: unknown) => (v === undefined || v === null ? '' : typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v));
   const at = f.createdAt as { toDate?: () => Date } | Date | string | undefined | null;
   const createdAt = at instanceof Date ? at.toISOString()
     : at && typeof at === 'object' && typeof at.toDate === 'function' ? at.toDate().toISOString()
