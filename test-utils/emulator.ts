@@ -62,6 +62,17 @@ export async function writeLegacyDoc(path: string, data: Record<string, string |
   if (!res.ok) throw new Error(`مقدرتش أكتب المستند القديم: ${res.status} ${await res.text()}`);
 }
 
+/** المستند موجود؟ **من غير القواعد** (`Bearer owner`) — لمستند المستخدم الحالي ممنوع يقراه (رأي حد تاني مثلاً) */
+export async function legacyDocExists(path: string): Promise<boolean> {
+  const res = await fetch(
+    `http://${emulatorHost()}/v1/projects/${PROJECT_ID}/databases/(default)/documents/${path}`,
+    { headers: { Authorization: 'Bearer owner' } }
+  );
+  if (res.status === 404) return false;
+  if (!res.ok) throw new Error(`مقدرتش أقرا المستند: ${res.status}`);
+  return true;
+}
+
 /** بيستنى شوية عشان نتأكد إن مفيش كتابات زيادة في السكة (للاختبارات اللي بتتأكد من عدم التكرار) */
 export function settle(ms = 1500) {
   return new Promise(resolve => setTimeout(resolve, ms));
