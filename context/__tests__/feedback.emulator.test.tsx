@@ -1,9 +1,9 @@
 import { db } from '@/firebaseConfig';
-import { clearFirestore, settle, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, settle, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
 import { setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 import {
-  addDoc, collection, deleteDoc, doc, getDocs, getDocsFromServer, serverTimestamp, setDoc, updateDoc,
+  addDoc, collection, deleteDoc, doc, getDocFromServer, getDocs, getDocsFromServer, query, serverTimestamp, setDoc, updateDoc, where,
 } from 'firebase/firestore';
 
 jest.mock('@/context/AuthContext', () => ({
@@ -160,18 +160,52 @@ describe('قواعد مجموعة الآراء', () => {
    * `getDocsFromServer` بتجبره يسأل السيرفر فعلاً، وهي دي القاعدة اللي
    * بنختبرها.
    */
-  it('القراية ممنوعة — حتى على رأيك انت', async () => {
+  it('استعلام على المجموعة كلها مرفوض — حتى لو كل اللي فيها بتاعك', async () => {
     const uid = await signInTestUser();
     await addDoc(collection(db, 'feedback'), validDoc(uid));
     await expectDenied(getDocsFromServer(collection(db, 'feedback')));
   });
 
-  it('التعديل والحذف ممنوعين', async () => {
+  /** مسح الحساب (قرار مؤمن 2026-11-03): صاحب الرأي بيلاقيه بالـ`uid` ويمسحه — ورأي حد تاني لا بيتقري ولا بيتمسح */
+  it('رأيك انت: بيتلاقي بـwhere uid ويتمسح — والتعديل لسه ممنوع', async () => {
     const uid = await signInTestUser();
     const ref = await addDoc(collection(db, 'feedback'), validDoc(uid));
+    const mine = await getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid)));
+    expect(mine.docs.map(d => d.id)).toEqual([ref.id]);
+    await expect(getDocFromServer(ref)).resolves.toBeDefined();
     await expectDenied(updateDoc(ref, { text: 'اتغير' }));
-    await expectDenied(deleteDoc(ref));
     await expectDenied(setDoc(doc(db, 'feedback', ref.id), validDoc(uid)));
+    await expect(deleteDoc(ref)).resolves.toBeUndefined();
+    expect((await getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid)))).size).toBe(0);
+  });
+
+  it('رأي حد تاني: مبيتقريش ومبيتمسحش، ولا باستعلام على الـuid بتاعه', async () => {
+    const owner = await signInTestUser();
+    const ref = await addDoc(collection(db, 'feedback'), validDoc(owner));
+    await signInTestUser(); // مستخدم تاني
+    await expectDenied(getDocFromServer(ref));
+    await expectDenied(getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', owner))));
+    await expectDenied(deleteDoc(ref));
+    await expectDenied(updateDoc(ref, { text: 'اتغير' }));
+    // ولا استعلام على المجموعة كلها من المستخدم التاني (security-reviewer)
+    await expectDenied(getDocsFromServer(collection(db, 'feedback')));
+  });
+
+  it('رأي قديم من غير uid: محدش يقراه ولا يمسحه (القاعدة بتغلط ← رفض)', async () => {
+    await writeLegacyDoc('feedback/legacy-no-uid', { type: 'bug', text: 'قديم' });
+    await signInTestUser();
+    await expectDenied(getDocFromServer(doc(db, 'feedback', 'legacy-no-uid')));
+    await expectDenied(deleteDoc(doc(db, 'feedback', 'legacy-no-uid')));
+  });
+
+  it('من غير تسجيل دخول: لا قراية ولا مسح', async () => {
+    const uid = await signInTestUser();
+    const ref = await addDoc(collection(db, 'feedback'), validDoc(uid));
+    const { signOut, getAuth } = require('firebase/auth');
+    await signOut(getAuth());
+    await expectDenied(getDocFromServer(ref));
+    await expectDenied(getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid))));
+    await expectDenied(deleteDoc(ref));
   });
 });
 

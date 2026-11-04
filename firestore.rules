@@ -30,8 +30,11 @@ service cloud.firestore {
     }
 
     /**
-     * "شاركنا رأيك". المستخدم بيكتب بس — مبيقراش ومبيعدّلش ومبيمسحش، لا بتاعه
-     * ولا بتاع غيره. القراية من الكونسول.
+     * "شاركنا رأيك". المستخدم بيكتب، و**بيقرا ويمسح رأيه هو بس** (مسح الحساب — قرار مؤمن
+     * 2026-11-03: جوجل بلاي بتطلب البيانات المرتبطة بالحساب تتمسح، والرأي فيه `uid`).
+     * القراية بالاستعلام لازم تبقى `where('uid', '==', انت)` — استعلام على المجموعة كلها
+     * بيترفض لأن القاعدة مبتتحققش لكل نتيجة ممكنة. التعديل ممنوع (الرأي اللي اتبعت ميتغيّرش)،
+     * ورأي حد تاني لا بيتقري ولا بيتمسح. الباقي من الكونسول.
      *
      * `createdAt == request.time` معناها الوقت بييجي من السيرفر
      * (`serverTimestamp()`)، فمحدش يقدر يزوّر تاريخ.
@@ -40,7 +43,8 @@ service cloud.firestore {
      * فالعميل بيقلّم و`size() > 0` بترفض الفاضي والمسافات لوحدها.
      */
     match /feedback/{feedbackId} {
-      allow read, update, delete: if false;
+      allow read, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow update: if false;
       allow create: if request.auth != null
         && request.resource.data.uid == request.auth.uid
         && request.resource.data.type in ['bug', 'idea', 'praise']

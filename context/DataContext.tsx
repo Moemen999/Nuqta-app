@@ -20,7 +20,7 @@ import {
   foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, sameLeftoverSeen, type LeftoverMode, type LeftoverSeen, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
 import {
-  addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query,
+  addDoc, arrayRemove, collection, deleteDoc, deleteField, doc, FieldPath, getDocFromServer, getDocsFromServer, limit, onSnapshot, query, where,
   runTransaction, serverTimestamp,
   setDoc, updateDoc, waitForPendingWrites, writeBatch,
   type DocumentReference, type FirestoreError, type Transaction as FirestoreTransaction, type WriteBatch,
@@ -1233,6 +1233,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function submitFeedback(type: FeedbackType, text: string): Promise<FeedbackOutcome> {
     if (!uid) return 'failed';
+    // الحساب بيتمسح: رأي بيتكتب بعد آخر قراية فاضية كان هيفضل بعد "اتمسح حسابك" (silent-failure-hunter + database-reviewer)
+    if (deletingRef.current) return 'failed';
     const payload = { ...buildFeedbackDoc(uid, type, text), createdAt: serverTimestamp() };
     const write = countPending(addDoc(collection(db, 'feedback'), payload));
     // الأخطاء بتتلقط هنا مش في track: الشاشة بتعرض النتيجة بنفسها
@@ -2628,17 +2630,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * (مش من حالة الـlisteners — ممكن تكون نص من الكاش)، على دفعات (حد الـbatch 500 — بنستخدم 400)، **وبنستنى تأكيد كل دفعة**:
    * ده الاستثناء من قاعدة "متستناش السيرفر" — المستخدم لازم يعرف إن المسح حصل فعلاً قبل ما حساب الدخول يتمسح ويبقى مفيش
    * طريق يرجع يكمّل. `users/{uid}` آخر حاجة. قبلها كتاباتنا اللي لسه بترفع لازم توصل (من غيرها كتابة في الطابور ترجع
-   * تعمل مستند بعد المسح). بيتعاد بأمان: كل مرة بتقرا اللي فاضل وتمسحه. **مبيلمسش** `feedback` (القواعد مبتسمحش — سؤال لمؤمن).
+   * تعمل مستند بعد المسح). بيتعاد بأمان: كل مرة بتقرا اللي فاضل وتمسحه. **والرأي** (`feedback` برّه `users/{uid}`) بيتمسح معاهم
+   * بالـ`uid` (قرار مؤمن 2026-11-03 — محتاج القاعدة الجديدة منشورة قبل أي بناء فيه الكود ده).
    */
   async function deleteAllMyData(): Promise<DeleteDataResult> {
     if (!uid) return { outcome: 'failed', deleted: 0, uncertain: false };
     let deleted = 0;
+    /** السقف خلص وإحنا **بنمسح** (الدفعة ممكن توصل بعدين) ← مش متأكدين. وإحنا بنقرا بس ← مفيش حاجة اتمسحت (جولة 1 — كان بيقول "ممكن جزء اتمسح" ويسيب القفل) */
+    let committing = false;
+    /**
+     * محاولة قبل كده سابت العلامة (مسحت جزء، أو "مش متأكدين") ← الحساب ممكن يكون اتفرمت فعلاً، فالفشل هنا عمره ما يفك
+     * القفل حتى لو المحاولة دي ما مسحتش حاجة (silent-failure-hunter جولة 2: كان التسجيل التلقائي و"نبدأ بإيه؟" بيرجعوا
+     * على حساب نصه ممسوح). العلامة بتتشال لما المحاولة الأولى تقع قبل أي مسح، فـ`resumed` هنا معناه "فيه مسح حصل أو ممكن يكون حصل"
+     */
+    const resumed = deletingRef.current || deletionPending;
     /**
      * الفشل **قبل ما أي حاجة تتمسح** بيفك القفل والعلامة (silent-failure-hunter جولة 2 BLOCKER: كان بيسيب الحساب من غير
      * تسجيل تلقائي ولا دفع للأبد، وساكت). المسح الجزئي أو المش متأكد بيسيب القفل عن قصد — البيانات اتفرمتت فعلاً
      */
     const fail = (uncertain = false): DeleteDataResult => {
-      if (deleted === 0 && !uncertain) {
+      if (deleted === 0 && !uncertain && !resumed) {
         deletingRef.current = false;
         setDeletionPending(false);
         AsyncStorage.removeItem(deletePendingKey(uid)).catch(e => console.warn('[delete-account] clear pending failed', e instanceof Error ? e.name : 'unknown'));
@@ -2655,7 +2666,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     catch (e) { console.warn('[delete-account] pending flag failed', e instanceof Error ? e.name : 'unknown'); return fail(); }
     if (!(await waitForOurWritesToLand())) return fail();
     const readAll = async (): Promise<DocumentReference[]> => {
-      const snaps = await withTimeout(Promise.all(ACCOUNT_COLLECTIONS.map(name => getDocsFromServer(collection(db, 'users', uid, name)))), EXPORT_READ_TIMEOUT_MS);
+      // والرأي اللي بعته (برّه `users/{uid}` — بالـ`uid`؛ القواعد بتسمح لصاحبه بس، قرار مؤمن 2026-11-03). لو القاعدة لسه
+      // مش منشورة الاستعلام بيترفض ← المسح كله بيقف قبل أي حاجة (`fail` بيفك القفل) — مش بيتخطّى الرأي ساكت
+      const snaps = await withTimeout(Promise.all([
+        ...ACCOUNT_COLLECTIONS.map(name => getDocsFromServer(collection(db, 'users', uid, name))),
+        getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid))),
+      ]), EXPORT_READ_TIMEOUT_MS);
       return snaps.flatMap(s => s.docs.map(d => d.ref));
     };
     const deleteRefs = async (refs: DocumentReference[]) => {
@@ -2663,7 +2679,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const batch = writeBatch(db);
         const chunk = refs.slice(i, i + ACCOUNT_DELETE_BATCH);
         chunk.forEach(r => batch.delete(r));
+        committing = true;
         await withTimeout(batch.commit(), EXPORT_READ_TIMEOUT_MS);
+        committing = false;
         deleted += chunk.length;
       }
     };
@@ -2686,8 +2704,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       const timedOut = e instanceof Error && e.message === 'timeout';
       console.warn('[delete-account] failed', e instanceof Error ? e.name : 'unknown', (e as { code?: string })?.code ?? '', `deleted=${deleted}`, timedOut ? 'timeout' : '');
-      // السقف الزمني مبيلغيش الكتابة: الدفعة ممكن توصل بعدين ← "مش متأكدين" مش رقم مجزوم
-      return fail(timedOut);
+      // الكود بس لـSentry (مش الرسالة): `permission-denied` هنا غالبًا قاعدة الرأي مش منشورة — من غيره كانت هتبان "جرّب تاني" بس
+      noteAtomicFailure('مسح الحساب', e);
+      // السقف الزمني مبيلغيش الكتابة: الدفعة ممكن توصل بعدين ← "مش متأكدين" مش رقم مجزوم — بس لو السقف خلص وإحنا بنمسح
+      return fail(timedOut && committing);
     }
   }
 

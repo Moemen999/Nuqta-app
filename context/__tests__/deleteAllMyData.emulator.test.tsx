@@ -2,11 +2,11 @@ import { db } from '@/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ACCOUNT_COLLECTIONS, deletePendingKey } from '@/context/DataContext';
 import { LISTENER_LABELS } from '@/lib/listenerErrors';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, legacyDocExists, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
 import { addOneGam, addOneSub } from '@/test-utils/entryFixtures';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
-import { collection, doc, getDocFromServer, getDocsFromServer } from 'firebase/firestore';
+import { collection, doc, getDocFromServer, getDocsFromServer, query, waitForPendingWrites, where } from 'firebase/firestore';
 
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: require('@/test-utils/mockAuth').getMockUid() } }),
@@ -56,6 +56,19 @@ it('حساب فيه من كل نوع ← كله بيتمسح من السيرفر
   expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
 });
 
+it('الرأي اللي بعته بيتمسح معاه (قرار مؤمن 2026-11-03) — ورأي حد تاني مبيتلمسش', async () => {
+  const uid = getMockUid();
+  expect(await h.api().submitFeedback('idea', 'اقتراح')).not.toBe('failed');
+  await writeLegacyDoc('feedback/other-user-fb', { uid: 'someone-else', type: 'bug', text: 'رأي حد تاني' });
+  const mine = () => getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid)));
+  // submitFeedback ممكن يرجّع pending تحت الضغط — نستنى يوصل ونتأكد إنه على السيرفر (من غيرها الاختبار بيعدّي على فاضي)
+  await waitForPendingWrites(db);
+  expect((await mine()).size).toBe(1);
+  expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
+  expect((await mine()).size).toBe(0);
+  expect(await legacyDocExists('feedback/other-user-fb')).toBe(true);
+});
+
 it('بعد ما المسح يبدأ ← التسجيل التلقائي والتجهيز بيترفضوا ومبيكتبوش، والعلامة على الجهاز (money + security)', async () => {
   const subId = await addOneSub(h);
   expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
@@ -64,7 +77,10 @@ it('بعد ما المسح يبدأ ← التسجيل التلقائي والت
   const r = await h.api().recordCharges('subscription', subId, [{ key: '2026-11-01', amount: 100 }], { auto: true });
   expect(r.outcome).toBe('failed');
   expect(await h.api().completeSetup({ wallets: [{ name: 'x', openingBalance: 0 }], categories: [] } as never)).toBe('failed');
+  // ولا رأي — كان هيفضل بعد "اتمسح حسابك" (silent-failure-hunter جولة 1)
+  expect(await h.api().submitFeedback('idea', 'بعد المسح')).toBe('failed');
   expect(await remaining()).toEqual({});
+  expect((await getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', getMockUid())))).size).toBe(0);
 });
 
 it('فشل قبل ما أي حاجة تتمسح ← القفل والعلامة بيتفكوا (من غيرها التسجيل التلقائي كان بيقف للأبد ساكت — جولة 2)', async () => {
@@ -75,4 +91,18 @@ it('فشل قبل ما أي حاجة تتمسح ← القفل والعلامة 
   expect(r).toMatchObject({ outcome: 'failed', deleted: 0, uncertain: false });
   expect(await AsyncStorage.getItem(deletePendingKey(getMockUid()))).toBeNull();
   await h.waitForData(api => api.deletionPending === false);
+});
+
+it('محاولة قبلها سابت العلامة (مسح جزئي/مش متأكدين) ← فشل قبل أي مسح دلوقتي مبيفكّش القفل (silent-failure-hunter جولة 2)', async () => {
+  await h.unmount();
+  await AsyncStorage.setItem(deletePendingKey(getMockUid()), '1');
+  h = await renderDataProvider();
+  await h.waitForData(api => api.deletionPending === true && api.serverReachable === true);
+  const { auth } = require('@/firebaseConfig');
+  const { signOut } = require('firebase/auth');
+  await signOut(auth); // القراية بترفض قبل أي مسح
+  const r = await h.api().deleteAllMyData();
+  expect(r).toMatchObject({ outcome: 'failed', deleted: 0 });
+  expect(await AsyncStorage.getItem(deletePendingKey(getMockUid()))).toBe('1');
+  expect(h.api().deletionPending).toBe(true);
 });
