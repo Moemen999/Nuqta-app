@@ -2725,10 +2725,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!(await waitForOurWritesToLand())) return { outcome: serverReachableRef.current ? 'failed' : 'no-connection' };
     const col = (name: string) => getDocsFromServer(collection(db, 'users', uid, name));
     try {
-      const [w, c, t, b, si, sp, d, s, g, i] = await withTimeout(Promise.all([
+      const [w, c, t, b, si, sp, d, s, g, i, fb] = await withTimeout(Promise.all([
         col('wallets'), col('categories'), col('transactions'), col('budgets'), col('shakhbata_income'),
         getDocFromServer(doc(db, 'users', uid, 'shakhbata_settings', 'percents')),
         col('debts'), col('subscriptions'), col('gamiyas'), col('incomes'),
+        // الرأي برّه `users/{uid}` — الاستعلام لازم `where uid` (القاعدة بترفض غيره). محتاج قاعدة الرأي الجديدة منشورة،
+        // ومن غيرها التصدير كله بيرجع `failed` برسالة صريحة (مش ملف ناقص ساكت) — نفس ترتيب النشر بتاع مسح الحساب
+        getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid))),
       ]), EXPORT_READ_TIMEOUT_MS);
       const budgetsMap: Budgets = {};
       // مستند من غير رقم بيتخطّى (كان هيطلع خلية فاضية في الإكسيل من غير ما حد يعرف) — NIT جولة 2
@@ -2749,6 +2752,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
           budgets: budgetsMap, shakhbataIncome: incomeMap,
           // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
           shakhbataPercents: p ? { needs: p.needs ?? DEFAULT_PERCENTS.needs, wants: p.wants ?? DEFAULT_PERCENTS.wants, future: p.future ?? DEFAULT_PERCENTS.future } : null,
+          feedback: fb.docs.map(x => {
+            const f = x.data() as Record<string, unknown>;
+            const str = (v: unknown) => (typeof v === 'string' ? v : '');
+            const at = f.createdAt as { toDate?: () => Date } | undefined;
+            return {
+              id: x.id, type: str(f.type), text: str(f.text),
+              createdAt: typeof at?.toDate === 'function' ? at.toDate().toISOString() : '',
+              appVersion: str(f.appVersion), buildNumber: str(f.buildNumber), fullVersion: str(f.fullVersion),
+              platform: str(f.platform), deviceModel: str(f.deviceModel), osVersion: str(f.osVersion),
+            };
+          }),
         },
       };
     } catch (e) {

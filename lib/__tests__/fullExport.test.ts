@@ -42,6 +42,10 @@ const input: FullExportInput = {
   budgets: { c1: 2000 },
   shakhbataIncome: { '2026-11': 9000, '2026-10': 8500 },
   shakhbataPercents: { needs: 50, wants: 30, future: 20 },
+  feedback: [
+    { id: 'f2', type: 'idea', text: 'زرار أسرع', createdAt: '2026-11-03T10:00:00.000Z', appVersion: '1.0.0', buildNumber: '9', fullVersion: '1.0.0.004', platform: 'android', deviceModel: 'Xiaomi 11', osVersion: '13' },
+    { id: 'f1', type: 'bug', text: 'الرصيد مش ظاهر', createdAt: '2026-11-01T08:00:00.000Z', appVersion: '1.0.0', buildNumber: '8', fullVersion: '1.0.0.003', platform: 'android', deviceModel: 'Galaxy A56', osVersion: '15' },
+  ],
 };
 const sheets = buildFullExportSheets(input);
 const sheet = (name: string) => sheets.find(x => x.name === name)!.rows;
@@ -49,7 +53,7 @@ const sheet = (name: string) => sheets.find(x => x.name === name)!.rows;
 it('ورقة لكل نوع متخزّن', () => {
   expect(sheets.map(x => x.name)).toEqual([
     'Wallets', 'Categories', 'Transactions', 'Debts', 'DebtPayments', 'DebtIncreases', 'Subscriptions',
-    'SubscriptionPayments', 'SubscriptionPeriods', 'Gamiyas', 'GamiyaMonths', 'FixedIncomes', 'IncomePeriods', 'Budgets', 'Shakhbata', 'ShakhbataPercents',
+    'SubscriptionPayments', 'SubscriptionPeriods', 'Gamiyas', 'GamiyaMonths', 'FixedIncomes', 'IncomePeriods', 'Budgets', 'Shakhbata', 'ShakhbataPercents', 'Feedback',
   ]);
 });
 
@@ -80,8 +84,8 @@ it('مفيش خلية undefined/NaN/object (الإكسيل بيكتبها غلط
 });
 
 it('حساب فاضي ← نفس الأوراق من غير صفوف (مبيقعش)', () => {
-  const empty = buildFullExportSheets({ ...input, wallets: [], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {} });
-  expect(empty).toHaveLength(16);
+  const empty = buildFullExportSheets({ ...input, wallets: [], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {}, feedback: [] });
+  expect(empty).toHaveLength(17);
   expect(empty.find(x => x.name === 'Transactions')!.rows).toEqual([]);
 });
 
@@ -109,6 +113,11 @@ it('كل قيمة متخزّنة في المدخل طالعة في الملف (�
   };
   walk(input, 'input');
   expect(missing).toEqual([]);
+});
+
+it('الرأي اللي بعته بالترتيب، والنوع خام', () => {
+  expect(sheet('Feedback').map(r => r.Id)).toEqual(['f1', 'f2']);
+  expect(sheet('Feedback')[0]).toMatchObject({ Type: 'bug', Text: 'الرصيد مش ظاهر', SentAt: '2026-11-01T08:00:00.000Z', FullVersion: '1.0.0.003' });
 });
 
 it('نسب الشخبطة مش متخزّنة ← الافتراضي بعلامة IsDefault، مش كأن المستخدم اختارها', () => {

@@ -22,6 +22,14 @@ export type FullExportInput = {
   budgets: Budgets; shakhbataIncome: ShakhbataIncome;
   /** `null` = مستند النسب مش متخزّن (المستخدم ما غيّرهاش) — الملف بيقول "الافتراضي" */
   shakhbataPercents: ShakhbataPercents | null;
+  /** "شاركنا رأيك" — اللي المستخدم بعته بنفسه (`feedback where uid == انت`). بيتمسح مع الحساب، فلازم يطلع في الملف قبلها */
+  feedback: ExportFeedback[];
+};
+
+/** مستند الرأي زي ما اتقرا من السيرفر. `createdAt` نص ISO (الـTimestamp بيتحوّل وقت القراية) أو فاضي */
+export type ExportFeedback = {
+  id: string; type: string; text: string; createdAt: string;
+  appVersion: string; buildNumber: string; fullVersion: string; platform: string; deviceModel: string; osVersion: string;
 };
 
 const s = (x: string | undefined | null) => x ?? '';
@@ -110,6 +118,11 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     { name: 'ShakhbataPercents', rows: [d.shakhbataPercents
       ? { Needs: d.shakhbataPercents.needs, Wants: d.shakhbataPercents.wants, Future: d.shakhbataPercents.future, IsDefault: false }
       : { Needs: DEFAULT_PERCENTS.needs, Wants: DEFAULT_PERCENTS.wants, Future: DEFAULT_PERCENTS.future, IsDefault: true }] },
+    // النوع خام (`bug`/`idea`/`praise`) زي باقي القيم. الجهاز والإصدار جوّه لأنهم اتبعتوا مع الرأي (متخزّنين)
+    { name: 'Feedback', rows: [...d.feedback].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(f => ({
+      Id: f.id, SentAt: f.createdAt, Type: f.type, Text: f.text, FullVersion: f.fullVersion, AppVersion: f.appVersion,
+      BuildNumber: f.buildNumber, Platform: f.platform, DeviceModel: f.deviceModel, OsVersion: f.osVersion,
+    })) },
   ];
 }
 
@@ -124,6 +137,7 @@ export const SHEET_NAMES_AR: Record<string, string> = {
   DebtIncreases: 'زيادات الديون', Subscriptions: 'الاشتراكات', SubscriptionPayments: 'دفعات الاشتراكات',
   SubscriptionPeriods: 'فترات الاشتراكات', Gamiyas: 'الجمعيات', GamiyaMonths: 'شهور الجمعيات', FixedIncomes: 'الدخل الثابت',
   IncomePeriods: 'فترات الدخل الثابت', Budgets: 'الميزانية', Shakhbata: 'شخبطة', ShakhbataPercents: 'نسب شخبطة',
+  Feedback: 'رأيك اللي بعتّه',
 };
 
 export const COLUMN_NAMES_AR: Record<string, string> = {
@@ -145,6 +159,8 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',
   Mode: 'طريقة التسجيل', MonthlyLimit: 'الحد الشهري', Month: 'الشهر', Needs: 'احتياجات', Wants: 'رفاهيات', Future: 'خطط مستقبلية',
   IsDefault: 'الافتراضي',
+  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
+  Platform: 'النظام', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار النظام',
 };
 
 /** نفس الأوراق والقيم، بالأسامي العربي (عمود من غير ترجمة بيفضل باسمه — الاختبار بيمنع ده) */
