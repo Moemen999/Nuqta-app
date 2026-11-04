@@ -32,6 +32,24 @@ export type ExportFeedback = {
   appVersion: string; buildNumber: string; fullVersion: string; platform: string; deviceModel: string; osVersion: string;
 };
 
+/**
+ * مستند رأي من السيرفر ← صف التصدير. **مفيش قيمة متخزّنة بتتبلع** (silent-failure-hunter جولة 1): حقل نوعه غلط (مستند قديم
+ * أو متعدّل من الكونسول) بيطلع نصّه بـ`String` مش خلية فاضية، و`createdAt` اللي مش Timestamp بيطلع زي ما هو. الخلية الفاضية
+ * معناها "الحقل مش متخزّن" بس (رأي اتبعت قبل ما الحقل يتضاف).
+ */
+export function feedbackFromDoc(id: string, f: Record<string, unknown>): ExportFeedback {
+  const str = (v: unknown) => (v === undefined || v === null ? '' : typeof v === 'string' ? v : String(v));
+  const at = f.createdAt as { toDate?: () => Date } | Date | string | undefined | null;
+  const createdAt = at instanceof Date ? at.toISOString()
+    : at && typeof at === 'object' && typeof at.toDate === 'function' ? at.toDate().toISOString()
+    : at && typeof at === 'object' ? JSON.stringify(at) : str(at);
+  return {
+    id, type: str(f.type), text: str(f.text), createdAt,
+    appVersion: str(f.appVersion), buildNumber: str(f.buildNumber), fullVersion: str(f.fullVersion),
+    platform: str(f.platform), deviceModel: str(f.deviceModel), osVersion: str(f.osVersion),
+  };
+}
+
 const s = (x: string | undefined | null) => x ?? '';
 const n = (x: number | undefined | null) => (typeof x === 'number' && Number.isFinite(x) ? x : '');
 const DEFAULT_PERCENTS = { needs: 50, wants: 30, future: 20 };
@@ -119,7 +137,8 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
       ? { Needs: d.shakhbataPercents.needs, Wants: d.shakhbataPercents.wants, Future: d.shakhbataPercents.future, IsDefault: false }
       : { Needs: DEFAULT_PERCENTS.needs, Wants: DEFAULT_PERCENTS.wants, Future: DEFAULT_PERCENTS.future, IsDefault: true }] },
     // النوع خام (`bug`/`idea`/`praise`) زي باقي القيم. الجهاز والإصدار جوّه لأنهم اتبعتوا مع الرأي (متخزّنين)
-    { name: 'Feedback', rows: [...d.feedback].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map(f => ({
+    { name: 'Feedback', rows: // من غير تاريخ في الآخر (مش أول الورقة كأنه أقدم رأي)، والتعادل بالمعرّف
+    [...d.feedback].sort((a, b) => (!a.createdAt ? 1 : 0) - (!b.createdAt ? 1 : 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).map(f => ({
       Id: f.id, SentAt: f.createdAt, Type: f.type, Text: f.text, FullVersion: f.fullVersion, AppVersion: f.appVersion,
       BuildNumber: f.buildNumber, Platform: f.platform, DeviceModel: f.deviceModel, OsVersion: f.osVersion,
     })) },

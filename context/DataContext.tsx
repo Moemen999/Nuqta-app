@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
+import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
@@ -2752,17 +2753,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           budgets: budgetsMap, shakhbataIncome: incomeMap,
           // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
           shakhbataPercents: p ? { needs: p.needs ?? DEFAULT_PERCENTS.needs, wants: p.wants ?? DEFAULT_PERCENTS.wants, future: p.future ?? DEFAULT_PERCENTS.future } : null,
-          feedback: fb.docs.map(x => {
-            const f = x.data() as Record<string, unknown>;
-            const str = (v: unknown) => (typeof v === 'string' ? v : '');
-            const at = f.createdAt as { toDate?: () => Date } | undefined;
-            return {
-              id: x.id, type: str(f.type), text: str(f.text),
-              createdAt: typeof at?.toDate === 'function' ? at.toDate().toISOString() : '',
-              appVersion: str(f.appVersion), buildNumber: str(f.buildNumber), fullVersion: str(f.fullVersion),
-              platform: str(f.platform), deviceModel: str(f.deviceModel), osVersion: str(f.osVersion),
-            };
-          }),
+          feedback: fb.docs.map(x => feedbackFromDoc(x.id, x.data() as Record<string, unknown>)),
         },
       };
     } catch (e) {

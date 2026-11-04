@@ -165,3 +165,29 @@ describe('localizeSheets — الأسامي بالعربي والقيم زي م�
     expect(tx['المبلغ']).toBe(100);
   });
 });
+
+describe('feedbackFromDoc — مفيش قيمة متخزّنة بتتبلع (silent-failure-hunter جولة 1)', () => {
+  const { feedbackFromDoc } = require('@/lib/fullExport');
+  it('Timestamp ← نص ISO', () => {
+    const r = feedbackFromDoc('f1', { type: 'bug', text: 'x', createdAt: { toDate: () => new Date('2026-11-01T08:00:00Z') } });
+    expect(r.createdAt).toBe('2026-11-01T08:00:00.000Z');
+  });
+  it('حقل نوعه غلط بيطلع نصّه، مش خلية فاضية', () => {
+    const r = feedbackFromDoc('f1', { type: 7, text: 123, buildNumber: 9, createdAt: '2026-11-01' });
+    expect(r).toMatchObject({ type: '7', text: '123', buildNumber: '9', createdAt: '2026-11-01' });
+  });
+  it('createdAt مش Timestamp ومش نص ← بيطلع زي ما هو (مش فاضي)', () => {
+    expect(feedbackFromDoc('f1', { createdAt: { seconds: 5 } }).createdAt).toBe('{"seconds":5}');
+    expect(feedbackFromDoc('f1', { createdAt: 1700000000 }).createdAt).toBe('1700000000');
+  });
+  it('الحقل مش متخزّن ← فاضي (ده المعنى الوحيد للخلية الفاضية)', () => {
+    expect(feedbackFromDoc('f1', { type: 'idea', text: 'x' })).toMatchObject({ createdAt: '', fullVersion: '', osVersion: '' });
+  });
+  it('رأي من غير تاريخ في آخر الورقة، والتعادل بالمعرّف', () => {
+    const base = { type: 'idea', text: 't', appVersion: '', buildNumber: '', fullVersion: '', platform: '', deviceModel: '', osVersion: '' };
+    const rows = buildFullExportSheets({ ...input, feedback: [
+      { ...base, id: 'z', createdAt: '' }, { ...base, id: 'b', createdAt: '2026-11-02T00:00:00.000Z' }, { ...base, id: 'a', createdAt: '2026-11-02T00:00:00.000Z' },
+    ] }).find(x => x.name === 'Feedback')!.rows;
+    expect(rows.map(r => r.Id)).toEqual(['a', 'b', 'z']);
+  });
+});
