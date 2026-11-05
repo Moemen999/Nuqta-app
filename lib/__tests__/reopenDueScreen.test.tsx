@@ -28,14 +28,14 @@ const debt = {
   increases: [{ id: 'i1', date: '2026-11-05', amount: 500, walletId: 'w1', transactionId: 'ti1', reopenedFrom: '2026-03-15', reopenedTo: '2026-12-15' }],
 };
 
-function seed(restored: string | null) {
+function seed(restored: string | null, entryGone = false) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     debts: [debt], wallets: [W], categories: [], transactions: [], loadErrors: [], figuresPending: [], pendingTxIds: new Set(),
     subscriptions: [], gamiyas: [],
     deleteDebt: jest.fn(), deleteDebtPayment: jest.fn(),
-    deleteDebtIncrease: jest.fn(async (_d: string, _e: string, out?: { dueRestored?: string | null }) => {
-      if (out) out.dueRestored = restored;
+    deleteDebtIncrease: jest.fn(async (_d: string, _e: string, out?: { dueRestored?: string | null; entryGone?: boolean }) => {
+      if (out) { out.dueRestored = entryGone ? undefined : restored; out.entryGone = entryGone; }
       return 'done';
     }),
   });
@@ -61,4 +61,10 @@ it('الذرة ما رجّعتوش ← "المعاد ما رجعش"', async () =
   seed(null);
   await deleteIncrease();
   expect(screen.getByText(DUE_NOT_RESTORED.title)).toBeTruthy();
+});
+
+it('الزيادة كانت اتمسحت من جهاز تاني ← مفيش "المعاد ما رجعش" (جولة 2)', async () => {
+  seed(null, true);
+  await deleteIncrease();
+  expect(screen.queryByText(DUE_NOT_RESTORED.title)).toBeNull();
 });

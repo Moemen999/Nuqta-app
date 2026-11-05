@@ -355,6 +355,7 @@ export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settled
  * نوع لوحده مش جوه `PayOutcome`: باقي شاشات الدفع مالهاش الحالة دي
  */
 /** `dueNote`: "المعاد الجاي بقى …" لما الزيادة فتحت دين أقساط متسدد (بند 12) */
+export type DebtIncreaseDeleteOut = { dueRestored?: string | null; entryGone?: boolean };
 export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null; dueNote?: string | null };
 export const LEFTOVER_CHANGED_ALERT = {
   title: 'الدين اتغيّر',
@@ -608,8 +609,11 @@ type DataContextType = {
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
   addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
-  /** `out.dueRestored`: المعاد اللي رجع فعلاً من الذرة (بند 12) — الشاشة بتقارنه باللي التأكيد وعد بيه */
-  deleteDebtIncrease: (debtId: string, entryId: string, out?: { dueRestored?: string | null }) => Promise<PayOutcome>;
+  /**
+   * `out.dueRestored`: المعاد اللي رجع فعلاً من الذرة (بند 12) — الشاشة بتقارنه باللي التأكيد وعد بيه.
+   * `out.entryGone`: الزيادة كانت اتمسحت قبل كده (جهاز تاني) — مفيش حاجة تتقارن
+   */
+  deleteDebtIncrease: (debtId: string, entryId: string, out?: DebtIncreaseDeleteOut) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
@@ -2084,7 +2088,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * حذف الزيادة — ذري زي حذف الدفعة بالظبط، وبيتنادى من نفس المكان وبنفس
    * منع المحفظة المؤرشفة (شوف الملحوظة اللي فوق `deleteDebtPayment`)
    */
-  async function deleteDebtIncrease(debtId: string, entryId: string, out?: { dueRestored?: string | null }): Promise<PayOutcome> {
+  async function deleteDebtIncrease(debtId: string, entryId: string, out?: DebtIncreaseDeleteOut): Promise<PayOutcome> {
+    if (out) { out.dueRestored = undefined; out.entryGone = false; }
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
@@ -2095,6 +2100,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!snap.exists()) throw new DebtMissingError();
         const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
         const entry = (debt.increases || []).find(e => e.id === entryId);
+        // اتمسحت من جهاز تاني: مفيش وعد يتقارن ("المعاد ما رجعش" هنا كانت هتبقى كدب — silent-failure-hunter جولة 2)
+        if (out) out.entryGone = !entry;
         if (!entry) return;
         if (entry.transactionId && entry.walletId
           && await walletArchived(t, doc(db, 'users', uid!, 'wallets', entry.walletId))) {
