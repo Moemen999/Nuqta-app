@@ -17,9 +17,10 @@ import type { Debt, Gamiya } from '@/context/DataContext';
  * في المصروف والدخل. بنعرفها من المعرّفات المتخزّنة أصلاً جوه الدين والجمعية
  * (`transactionId`) — مفيش migration ولا حقل جديد.
  *
- * **برّه القرار ومتساب زي ما هو:** ناحية "عليك له" (`i_owe`) — الاستلاف
- * بيتسجل دخل، والسداد مصروف **بفئة المستخدم اختارها**. شيلهم محتاج قرار
- * (TIMELINE).
+ * **و"عليك له" (`i_owe`) كمان** (قرار مؤمن 2026-11-05): الاستلاف (اتسجل دخل) وزيادته
+ * وسداده (اتسجل مصروف، وساعات بفئة) برّه الدخل والمصروف — فلوس مش بتاعتك داخلة
+ * وراجعة لصاحبها. نفس القاعدة: العملية زي ما هي والرصيد زي ما هو، وفئة السداد القديمة
+ * بتفضل متخزّنة بس مبتتعدّش في الفئة ولا الميزانية.
  */
 export function transferTransactionIds(
   debts: Pick<Debt, 'direction' | 'initialTransactionId' | 'payments' | 'increases'>[] | undefined,
@@ -28,8 +29,8 @@ export function transferTransactionIds(
   const ids = new Set<string>();
   const add = (id: string | undefined) => { if (id) ids.add(id); };
   // `?? []`: قايمة لسه ما وصلتش (أو mock قديم) ← مفيش تحويلات، مش كراش
+  // الاتجاهين: "له عندك" (السلفة وسدادها) و"عليك له" (الاستلاف وسداده)
   for (const d of debts ?? []) {
-    if (d.direction !== 'owed_to_me') continue;
     add(d.initialTransactionId);
     (d.increases || []).forEach(e => add(e.transactionId));
     (d.payments || []).forEach(p => add(p.transactionId));
@@ -88,4 +89,4 @@ export function cashTotals(tx: Tx[], transfers: Set<string>): { income: number; 
 }
 
 /** سطر تحت إجماليات الأرشيف لما فيه سلفة أو جمعية في الفترة — عشان الإجمالي ميبانش غلط قدام القايمة */
-export const TRANSFERS_NOTE = 'السلفة والجمعية مش محسوبين في الإجماليات دي — دي فلوسك بتتنقل، مش مصروف ولا دخل.';
+export const TRANSFERS_NOTE = 'الديون (سلفة أو استلاف) والجمعية مش محسوبين في الإجماليات دي — دي فلوس بتتنقل، مش مصروف ولا دخل.';

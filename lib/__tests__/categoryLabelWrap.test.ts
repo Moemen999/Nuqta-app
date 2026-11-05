@@ -82,6 +82,7 @@ describe('نص شريحة الفئة المكتوب مباشرة: سطر واح�
     const count = SOURCE_DIRS.flatMap(d => sourceFiles(path.join(ROOT, d)))
       .map(f => (fs.readFileSync(f, 'utf8').match(/>\{categoryLabel\(/g) || []).length)
       .reduce((a, b) => a + b, 0);
-    expect(count).toBeGreaterThanOrEqual(7);
+    // 6: شريحة فئة سداد "عليك له" اتشالت (2026-11-05 — السداد مبقاش مصروف)
+    expect(count).toBeGreaterThanOrEqual(6);
   });
 });

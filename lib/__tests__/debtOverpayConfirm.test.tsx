@@ -56,7 +56,7 @@ it('"إلغاء" ← مفيش دفعة', async () => {
 it('"أيوة، سجّل" ← دفعة بالمبلغ اللي اتكتب', async () => {
   await payTooMuch();
   await act(async () => { fireEvent.press(screen.getByText('أيوة، سجّل')); });
-  expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 700, 'w1', expect.any(String), undefined);
+  expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 700, 'w1', expect.any(String));
 });
 
 // إن الـPromise بيتحل "لأ" مع القفل متثبّت في confirmProvider.test.tsx (H2) — هنا بس إن مفيش دفعة
