@@ -42,3 +42,26 @@ it('الصف مش عنصر واحد (a11y-architect BLOCKER): المبلغ وا�
   // المبلغ نفسه موجود كنص جوه الصف (مش مكتوب في label الصف)
   expect(screen.getAllByText(/300/).length).toBeGreaterThan(0);
 });
+
+describe('رسم الاتجاه (آخر 6 شهور)', () => {
+  const thisMonth = today.slice(0, 7);
+  it('6 أعمدة، والشهر ده فيه مصروفه، والعمود زخرفي', async () => {
+    await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+    expect(screen.getByTestId('reports_trend')).toBeTruthy();
+    expect(screen.getByTestId(`reports_trend_${thisMonth}`)).toBeTruthy();
+    expect(screen.getByTestId('reports_trend').children.length).toBe(6);
+    expect(screen.getByText('الشهر ده لسه ما خلصش، فعموده محسوب لحد النهارده بس')).toBeTruthy();
+    // القارئ بيعرف أنهي شهر لسه ما خلصش (الإشارة مش بصرية بس)
+    expect(screen.getByLabelText(/، لسه ما خلصش$/)).toBeTruthy();
+  });
+
+  it('السلفة مش في الاتجاه (نفس spendingExpenses)', async () => {
+    Object.assign(mockData, {
+      transactions: [{ id: 'loan', type: 'expense', amount: 500, date: today, walletId: 'w' }],
+      debts: [{ id: 'd', personName: 'أ', totalAmount: 500, direction: 'owed_to_me', payments: [], initialTransactionId: 'loan', date: today }],
+    });
+    await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+    expect(screen.queryByTestId('reports_trend')).toBeNull();
+    expect(screen.getByText('مفيش مصاريف في آخر 6 شهور')).toBeTruthy();
+  });
+});

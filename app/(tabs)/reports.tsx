@@ -6,6 +6,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
+import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
 import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { selectionStyle } from '@/lib/selection';
@@ -84,6 +85,9 @@ export default function ReportsScreen() {
     [expenseByCat, colors.textSecondary]
   );
 
+  // كل المصروف الحقيقي (من غير سلفة وجمعية) على كل التواريخ — للفترة اللي فاتت وللاتجاه
+  const allSpending = useMemo(() => spendingExpenses(transactions, transfers), [transactions, transfers]);
+
   const change = useMemo(() => {
     const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
     const prevFrom = addDays(range.from, -days);
@@ -91,11 +95,20 @@ export default function ReportsScreen() {
     // نفس قاعدة الفترة الحالية بالظبط. قبل كده الفترة السابقة كانت بتتفلتر
     // على الفئات الموجودة حتى وإحنا مش فالتين حاجة، فالمصروف اللي فئته
     // اتمسحت كان بيتشال من فترة واحدة بس — ومقارنة بقاعدتين بتدي نسبة غلط
-    const prevExpenses = spendingExpenses(transactions, transfers)
+    const prevExpenses = allSpending
       .filter(t => t.date >= prevFrom && t.date <= prevTo);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
     return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
-  }, [range, visibleIds, transactions, transfers, periodExpense]);
+  }, [range, visibleIds, allSpending, periodExpense]);
+
+  // الاتجاه شهور كاملة دايمًا (مش فلتر الفترة)، بس بيمشي مع فلتر الفئات — `lib/monthlyTrend.ts`
+  // اليوم في الـdeps: لو الشاشة اترسمت تاني بعد نص الليل/أول الشهر، الشهر الحالي بيتحرّك (silent-failure-hunter)
+  const today = todayStr();
+  const trend = useMemo(
+    () => monthlyTrend(allSpending, today, visibleIds),
+    [allSpending, today, visibleIds]
+  );
+  const trendEmpty = trend.every(m => m.amount === 0);
 
   /**
    * الفئة المؤرشفة مالهاش لازمة في الفلتر إلا لو ليها مصروف في الفترة دي
@@ -230,6 +243,35 @@ export default function ReportsScreen() {
         </>
       )}
 
+      <Text style={styles.sectionTitle}>مصروفك آخر {TREND_MONTHS} شهور{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+      {trendEmpty ? (
+        <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في آخر {TREND_MONTHS} شهور</Text>
+      ) : (
+        <>
+          {/* عمود لكل شهر، الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع الشهر (و"لسه ما خلصش" للحالي)
+              وبعده المبلغ — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
+          <View testID="reports_trend" style={styles.trendRow}>
+            {trend.map(m => (
+              <View key={m.key} testID={`reports_trend_${m.key}`} style={styles.trendCol}>
+                <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                  <View style={[
+                    styles.trendFill,
+                    { height: `${Math.max(m.share * 100, m.amount > 0 ? 2 : 0)}%` },
+                    m.partial && styles.trendFillPartial,
+                    // الشهر الحالي إطار من غير ملو، فالعمود لازم يبان حتى لو صغير
+                    m.partial && m.amount > 0 && { minHeight: 6 },
+                  ]} />
+                </View>
+                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
+                  accessibilityLabel={m.partial ? `${m.label}، لسه ما خلصش` : undefined}>{m.label}</Text>
+                <Money value={m.amount} currency={false} style={styles.trendValue} />
+              </View>
+            ))}
+          </View>
+          <Text style={styles.hintText}>الشهر ده لسه ما خلصش، فعموده محسوب لحد النهارده بس</Text>
+        </>
+      )}
+
       <Text style={styles.sectionTitle}>كشف حساب الأشخاص</Text>
       <Text style={styles.hintText}>دوس على أي شخص تشوف كشف حساب تفصيلي زي كشف البنك</Text>
       {personSummaries.length === 0 ? (
@@ -293,6 +335,16 @@ function makeStyles(c: ThemeColors) {
     // العمود بيبدأ من اليمين (RTL)
     barTrack: { height: 10, borderRadius: 5, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: 5 },
+    trendRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 8, marginBottom: 6 },
+    trendCol: { flex: 1, alignItems: 'center', gap: 4 },
+    // العمود بيطلع من تحت
+    trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
+    // accentText مش accent: الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect)
+    trendFill: { width: '100%', backgroundColor: c.accentText, borderRadius: 6 },
+    // الشهر اللي لسه ما خلصش: إطار بس من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل"
+    trendFillPartial: { backgroundColor: 'transparent', borderWidth: 2, borderColor: c.accentText },
+    trendLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'center' },
+    trendValue: { color: c.text, fontSize: 11, textAlign: 'center' },
     personCard: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: c.border },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
     personName: { color: c.text, fontSize: 14, fontWeight: '700' },
