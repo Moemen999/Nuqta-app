@@ -1,9 +1,10 @@
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
-import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
+import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, currentMonth, monthSpend, planBudgetCommit } from '@/lib/finance';
+import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
+import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -20,7 +21,20 @@ export default function BudgetView() {
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
   // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
-  const nowMonth = currentMonth();
+  // نداء واحد: أول يوم في الشهر `nowMonth` و`today` ميطلعوش من شهرين مختلفين (silent-failure-hunter)
+  const today = todayStr();
+  const nowMonth = today.slice(0, 7);
+  // مصاريف الشهر **لحد النهارده** من غير السلفة والجمعية — عملية بتاريخ قدام مبتنفخش التوقع (money-reviewer)
+  const monthRowsToDate = useMemo(
+    () => spendingExpenses(transactions, transfers).filter(t => t.date.slice(0, 7) === nowMonth && t.date <= today),
+    [transactions, transfers, nowMonth, today]
+  );
+  // "لو كمّلت بنفس المعدل، الميزانية هتخلص يوم …" — سطر معلومة (مش لون خطر)، بيختفي أول 7 أيام ولما "قربت تخلص" يبان.
+  // السقف المحفوظ مش المسوّدة: السطر ميظهرش ويختفي مع كل رقم بيتكتب
+  const forecast = (id: string, rows: typeof monthRowsToDate, savedLimit: number, shownSpend: number) => {
+    const day = budgetRunOutDay(rows, savedLimit, today, shownSpend);
+    return day === null ? null : <Text testID={`budget_forecast_${id}`} style={styles.forecast}>{budgetForecastText(day, today)}</Text>;
+  };
 
   // المسوّدة والحفظ التلقائي وflush الخروج كلهم في `useAmountDrafts` دلوقتي.
   // كانت النسخة المحلية هنا نسخة تالتة من نفس الكود (مع المحافظ وشخبطة)،
@@ -76,6 +90,7 @@ export default function BudgetView() {
                 </Text>
               </View>
               <Text style={styles.totalSub}>مصروف الشهر الفعلي: <Money value={totalMonthSpend} currency={false} /> / <Money value={totalBudget} currency={false} /></Text>
+              {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
             </>
           )}
         </View>
@@ -109,6 +124,7 @@ export default function BudgetView() {
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
                   <Text style={[styles.sub, { color: textColor }]}><Money value={spend} currency={false} /> / <Money value={limit} /></Text>
+                  {forecast(c.id, monthRowsToDate.filter(t => t.categoryId === c.id), budgets[c.id] || 0, spend)}
                 </>
               )}
             </View>
@@ -136,5 +152,6 @@ function makeStyles(c: ThemeColors) {
     track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 12, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 3 },
     sub: { fontSize: 11.5, marginTop: 6, textAlign: 'right' },
+    forecast: { color: c.textSecondary, fontSize: 12, marginTop: 6, textAlign: 'right' },
   });
 }
