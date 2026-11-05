@@ -41,11 +41,17 @@ describe('debtLinkedEditPlan — دفعة', () => {
     expect(payments[1]).toEqual({ id: 'p2', date: '2026-04-01', amount: 250, walletId: 'w2', transactionId: 'tx_p2' });
   });
 
-  it('عليك له: الفئة بتتنقل، ومن غير فئة بتتشال', () => {
-    const withCat = debtLinkedEditPlan(debt(), 'tx_p1', next({ categoryId: 'c9' }))!;
+  it('عليك له شرا بالأجل (من غير محفظة): الفئة بتتنقل، ومن غير فئة بتتشال', () => {
+    const credit = debt({ initialTransactionId: undefined });
+    const withCat = debtLinkedEditPlan(credit, 'tx_p1', next({ categoryId: 'c9' }))!;
     expect((withCat.patch.payments as Debt['payments'])[0].categoryId).toBe('c9');
-    const noCat = debtLinkedEditPlan(debt(), 'tx_p1', next())!;
+    const noCat = debtLinkedEditPlan(credit, 'tx_p1', next())!;
     expect('categoryId' in (noCat.patch.payments as Debt['payments'])[0]).toBe(false);
+  });
+
+  it('عليك له من محفظة (استلاف): السداد تحويل، فمفيش فئة حتى لو اتبعتت (قرار مؤمن 2026-11-05)', () => {
+    const plan = debtLinkedEditPlan(debt({ initialTransactionId: 'tx_init' }), 'tx_p1', next({ categoryId: 'c9' }))!;
+    expect('categoryId' in (plan.patch.payments as Debt['payments'])[0]).toBe(false);
   });
 
   it('له عندك: مفيش فئة على الدفعة حتى لو اتبعتت', () => {

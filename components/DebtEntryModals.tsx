@@ -12,6 +12,7 @@ import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } fr
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
+import { isCreditPurchase } from '@/lib/spending';
 import {
   categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
@@ -73,6 +74,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
   const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  // الفئة لسداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05)؛ باقي الديون تحويل والفئة مكانتش هتتعدّ
+  const creditPurchase = isCreditPurchase(debt);
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
@@ -113,7 +116,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtPayment>>;
       try {
-        result = await addDebtPayment(debt.id, amt, walletId, date, debt.direction === 'i_owe' ? categoryId : undefined);
+        result = await addDebtPayment(debt.id, amt, walletId, date, creditPurchase ? categoryId : undefined);
       } catch {
         // الدفعة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي، فالرمي هنا مابقاش
         // متوقع خالص — فاضل للأخطاء المتزامنة (تجهيز البيانات، التنقل)
@@ -167,7 +170,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
             ))}
           </View>
 
-          {debt.direction === 'i_owe' && (
+          {creditPurchase && (
             <>
               <Text style={styles.label}>الفئة (اختياري)</Text>
               <View style={styles.chipRow}>

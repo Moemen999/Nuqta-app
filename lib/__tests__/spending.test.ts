@@ -1,6 +1,6 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
 import { monthSpend } from '@/lib/finance';
-import { cashTotals, monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { cashTotals, isCreditPurchase, monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 
 /**
  * السلفة والجمعية مش مصروف ولا دخل (خطوة 8). بتتعرف من المعرّفات المتخزّنة
@@ -34,9 +34,14 @@ const ALL = [
 ];
 
 describe('transferTransactionIds', () => {
-  it('السلفة (أصلها وزيادتها وسدادها) وكل شهور الجمعية — مش ناحية "عليك له"', () => {
+  it('السلفة (أصلها وزيادتها وسدادها) وكل شهور الجمعية، و"عليك له" كمان (قرار مؤمن 2026-11-05)', () => {
     expect([...transferTransactionIds([lend, borrow], [gam])].sort())
-      .toEqual(['t_back', 't_g1', 't_inc', 't_lend', 't_payout']);
+      .toEqual(['t_back', 't_borrow', 't_g1', 't_inc', 't_lend', 't_payout', 't_repay']);
+  });
+  it('"عليك له": الاستلاف وزيادته وسداده — حتى السداد اللي ليه فئة', () => {
+    const b2 = { ...borrow, increases: [{ id: 'i2', date: '', amount: 100, transactionId: 't_borrow_more' }],
+      payments: [{ id: 'p3', date: '', amount: 50, walletId: 'w', transactionId: 't_repay_cat', categoryId: 'food' }] } as unknown as Debt;
+    expect([...transferTransactionIds([b2], [])].sort()).toEqual(['t_borrow', 't_borrow_more', 't_repay_cat']);
   });
   it('من غير ديون ولا جمعيات ← فاضي', () => {
     expect(transferTransactionIds([], []).size).toBe(0);
@@ -46,18 +51,18 @@ describe('transferTransactionIds', () => {
 describe('المصروف والدخل', () => {
   const transfers = transferTransactionIds([lend, borrow], [gam]);
 
-  it('spendingExpenses: الأكل وسداد "عليك له" (فئة المستخدم) أيوه — السلفة والجمعية لأ', () => {
-    expect(spendingExpenses(ALL, transfers).map(t => t.id).sort()).toEqual(['food', 'old', 't_repay']);
+  it('spendingExpenses: الأكل أيوه — السلفة والجمعية وسداد "عليك له" لأ', () => {
+    expect(spendingExpenses(ALL, transfers).map(t => t.id).sort()).toEqual(['food', 'old']);
   });
 
-  it('monthSpendTotal: مصروف سبتمبر من غير السلفة وقسط الجمعية', () => {
+  it('monthSpendTotal: مصروف سبتمبر من غير السلفة وقسط الجمعية وسداد "عليك له"', () => {
     // قبل كده: 2000 + 500 + 200 + 1000 + 150 = 3850
-    expect(monthSpendTotal(ALL, '2026-09', transfers)).toBe(350);
+    expect(monthSpendTotal(ALL, '2026-09', transfers)).toBe(150);
     expect(monthSpendTotal(ALL, '2026-09', new Set())).toBe(3850);
   });
 
-  it('cashTotals: الدخل من غير السداد واستلام الجمعية، والمصروف من غير السلفة والقسط', () => {
-    expect(cashTotals(ALL, transfers)).toEqual({ income: 9000, expense: 1349, transfers: 5 });
+  it('cashTotals: الدخل من غير السداد واستلام الجمعية والاستلاف، والمصروف من غير السلفة والقسط وسداد "عليك له"', () => {
+    expect(cashTotals(ALL, transfers)).toEqual({ income: 8000, expense: 1149, transfers: 7 });
   });
 
   it('الرصيد مش شغل الدوال دي: التحويل مبيتغيّرش نوعه', () => {
@@ -80,5 +85,22 @@ describe('المراجعة: سلفة اتدّت فئة بالتعديل مبتت
 
   it('من غير transfers (زي قبل) بتتحسب — الفرق هو التصليح', () => {
     expect(monthSpend(txs as never, 'food', '2026-09')).toBe(2150);
+  });
+});
+
+describe('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك له" من غير محفظة سداده مصروف', () => {
+  const credit = {
+    direction: 'i_owe', // مفيش initialTransactionId: حاجة اتاخدت ومادخلش فلوس
+    increases: [], payments: [{ id: 'pc', date: '', amount: 400, walletId: 'w', transactionId: 't_credit_pay', categoryId: 'food' }],
+  } as unknown as Debt;
+  const txs = [tx('t_credit_pay', 'expense', 400), tx('t_repay', 'expense', 200), tx('t_borrow', 'income', 1000)];
+
+  it('السداد مش تحويل — بيتعدّ مصروف؛ والاستلاف من محفظة وسداده لسه تحويل', () => {
+    const transfers = transferTransactionIds([credit, borrow], []);
+    expect(transfers.has('t_credit_pay')).toBe(false);
+    expect(spendingExpenses(txs, transfers).map(t => t.id)).toEqual(['t_credit_pay']);
+    expect(isCreditPurchase(credit)).toBe(true);
+    expect(isCreditPurchase(borrow)).toBe(false);
+    expect(isCreditPurchase({ direction: 'owed_to_me' } as Debt)).toBe(false);
   });
 });
