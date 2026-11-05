@@ -1,6 +1,7 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
+import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
@@ -544,6 +545,11 @@ type DataContextType = {
    * وصلوا كلهم ومفيش منهم مرفوض. قبلها مودال العملية مبيعرفش هي مربوطة ولا لأ
    */
   linkSourcesReady: boolean;
+  /**
+   * الديون والجمعية وصلوا (بند 11، قرار مؤمن 2026-11-05): من غيرهم `transferTransactionIds` فاضية والسلفة وقسط
+   * الجمعية بيتعدّوا مصروف. `loading` ← الشاشة مبتعرضش رقم المصروف خالص؛ `failed` ← بتعرضه بسطر إنه ممكن يكون فيه سلف
+   */
+  transfersStatus: TransfersStatus;
   /** التصدير الكامل: كل المجموعات من السيرفر مرة واحدة (مش من حالة الـlisteners) — كامل يا إما رسالة صريحة */
   readAllFromServer: () => Promise<{ outcome: 'done'; data: FullExportInput } | { outcome: 'no-connection' | 'failed' }>;
   /**
@@ -773,6 +779,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
   const [delivered, setDelivered] = useState<Set<ListenerName>>(() => new Set());
+  const deliveredUid = useRef<string | null | undefined>(undefined);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
@@ -1013,6 +1020,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // يعيد التحقق من التجهيز (شوف setupStatus)
   useEffect(() => {
     if (!uid) { setLoadErrors([]); return; }
+    // حساب اتبدّل بحساب من غير ما يعدّي على null: `delivered` بتاع الأول كان هيخلّي التاني `ready` قبل ما ديونه توصل
+    // (silent-failure-hunter جولة 1، بند 11). على "جرّب تاني" لأ — اللي وصل لسه وصل
+    if (deliveredUid.current !== uid) { deliveredUid.current = uid; setDelivered(new Set()); }
 
     /**
      * فايربيز بتقفل الـlistener نهائي لما يترفض — من غير الـcallback ده كان
@@ -2876,6 +2886,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
+        transfersStatus: transfersStatusFrom(delivered, loadErrors),
         readAllFromServer, deleteAllMyData, deletionPending,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

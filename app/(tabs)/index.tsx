@@ -11,6 +11,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
+import { TransfersFailedNote } from '@/components/SpendStatus';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useDailyReminderHour } from '@/context/NotificationsContext';
 import DismissButton from '@/components/DismissButton';
@@ -50,7 +51,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -139,15 +140,17 @@ function HomeScreen() {
   const lowWallets = activeWallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
   // السلفة والجمعية مش مصروف (خطوة 8) — لا في الفئة ولا في الإجمالي
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
+  // بند 11: وهي بتحمّل السلفة بتتعدّ مصروف — بانر "قربت تخلص" مبيولّعش عليها. لو الديون فشلت، بانر "مقدرناش نجيب بياناتك" ظاهر
+  const spendKnown = transfersStatus !== 'loading';
   const budgetAlerts = activeCategories
-    .filter(c => budgets[c.id] > 0)
+    .filter(c => spendKnown && budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
     .filter(b => b.spend / b.limit >= BUDGET_NEAR_RATIO);
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
   // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
   const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
-  const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
+  const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
   const dueSubscriptions = subscriptions.filter(s => s.active !== false
@@ -319,6 +322,12 @@ function HomeScreen() {
             <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
+        {/* الديون/الجمعية فشلوا: البانرات بتظهر (قرار مؤمن: الرقم بيظهر بتحذير) وتحتها إن الرقم ممكن يكون زيادة (money-reviewer + silent-failure-hunter) */}
+        {/* بعد ✕: السطر بيمشي مع البانرات الظاهرة بس، مش يفضل لوحده (silent-failure-hunter جولة 2) */}
+        {transfersStatus === 'failed' && ((totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`))
+          || budgetAlerts.some(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`))) && (
+          <TransfersFailedNote testID="home_budget_transfers_failed" style={{ marginTop: 6 }} />
+        )}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
         {dueSubscriptions.filter(s => !hidden('subscriptionDue', `${s.id}@${s.nextDueDate}`)).map(s => {
           const d = daysUntil(s.nextDueDate);

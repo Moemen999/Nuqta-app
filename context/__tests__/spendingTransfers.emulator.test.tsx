@@ -63,3 +63,19 @@ it('السلفة (أصل، زيادة، سداد) وقسط الجمعية كله
   const totals = cashTotals(api().transactions, transfers);
   expect(totals).toEqual({ income: 0, expense: 150, transfers: 4 });
 });
+
+it('بند 11: الديون والجمعية وصلوا (حتى فاضيين) ← transfersStatus = ready', async () => {
+  // مستخدم مالوش ولا دين ولا جمعية: الـlistener على مجموعة فاضية لازم يقول "وصلت" — غير كده الأرقام هتفضل "بنحمّل…" للأبد
+  await harness.waitForData(a => a.transfersStatus === 'ready');
+  expect(harness.api().transfersStatus).toBe('ready');
+});
+
+it('بند 11: حساب اتبدّل بحساب من غير null ← مش ready بتاع الحساب القديم', async () => {
+  await harness.waitForData(a => a.transfersStatus === 'ready');
+  // حساب تاني حقيقي (القواعد بتسمحله): `delivered` بتاع الأول مينفعش يخليه ready قبل ما ديونه توصل.
+  // (uid مزيّف كان بيسيب listeners مرفوضة وjest بيطلع بكود 1 بعد السويت)
+  setMockUid(await signInTestUser());
+  await harness.rerender();
+  expect(harness.api().transfersStatus).not.toBe('ready');
+  await harness.waitForData(a => a.transfersStatus === 'ready');
+});

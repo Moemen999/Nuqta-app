@@ -2,6 +2,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionStyle } from '@/lib/selection';
@@ -25,7 +26,9 @@ export default function ShakhbataView() {
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas } = useData();
+  const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas, transfersStatus } = useData();
+  // بند 11: "اتصرف" مبيظهرش لحد ما الديون والجمعية يوصلوا
+  const spendLoading = transfersStatus === 'loading';
   // السلفة والجمعية مش مصروف (خطوة 8) — حتى لو اتعدّلت واتدّت فئة
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
@@ -183,15 +186,20 @@ export default function ShakhbataView() {
                   <Text style={styles.bucketLabel}>{b.label} ({percents[b.key]}%)</Text>
                   <Money value={target} style={styles.bucketTarget} />
                 </View>
-                <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
-                </View>
-                <Text style={[styles.bucketSpend, { color: textColor }]}>
-                  اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
-                </Text>
+                {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} style={styles.bucketSpend} /> : (
+                  <>
+                    <View style={styles.track}>
+                      <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
+                    </View>
+                    <Text style={[styles.bucketSpend, { color: textColor }]}>
+                      اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
+                    </Text>
+                  </>
+                )}
               </View>
             );
           })}
+          {transfersStatus === 'failed' && <TransfersFailedNote testID="shakhbata_transfers_failed" />}
         </View>
       )}
 

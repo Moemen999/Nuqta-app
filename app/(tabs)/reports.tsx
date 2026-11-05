@@ -9,6 +9,7 @@ import { barRows } from '@/lib/barRows';
 import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
 import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
@@ -23,7 +24,9 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, debts, gamiyas } = useData();
+  const { categories, transactions, debts, gamiyas, transfersStatus } = useData();
+  // بند 11: من غير الديون والجمعية السلفة بتتعدّ مصروف — الأرقام مبتظهرش لحد ما يوصلوا
+  const spendLoading = transfersStatus === 'loading';
   // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
@@ -189,15 +192,18 @@ export default function ReportsScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-          <Money value={periodExpense} style={styles.metricValue} />
+          {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.metricValue} /> : <Money value={periodExpense} style={styles.metricValue} />}
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
-          <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
-            {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
-          </Text>
+          {spendLoading ? <SpendLoading style={styles.metricValue} /> : (
+            <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
+              {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
+            </Text>
+          )}
         </View>
       </View>
+      {transfersStatus === 'failed' && <TransfersFailedNote testID="reports_transfers_failed" />}
 
       <Text style={styles.sectionTitle}>توزيع المصاريف حسب الفئة</Text>
       <View style={styles.chipRow}>
@@ -217,7 +223,9 @@ export default function ReportsScreen() {
         )}
       </View>
 
-      {expenseByCat.length === 0 ? (
+      {spendLoading ? (
+        <SpendLoading testID="reports_bars_loading" style={styles.emptyState} />
+      ) : expenseByCat.length === 0 ? (
         <Text style={styles.emptyState}>مفيش مصاريف في الفترة دي</Text>
       ) : (
         <>
@@ -244,7 +252,9 @@ export default function ReportsScreen() {
       )}
 
       <Text style={styles.sectionTitle}>مصروفك آخر {TREND_MONTHS} شهور{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-      {trendEmpty ? (
+      {spendLoading ? (
+        <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
+      ) : trendEmpty ? (
         <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في آخر {TREND_MONTHS} شهور</Text>
       ) : (
         <>
