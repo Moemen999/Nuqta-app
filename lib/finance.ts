@@ -1,4 +1,5 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
+import { dueDateAfterIncreaseRemoval, dueRestoreLine } from '@/lib/reopenDue';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -1177,6 +1178,8 @@ export type TransactionDeleteDebtPlan = {
   residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
   countBefore: number | undefined;
   countAfter: number | null;
+  /** الزيادة دي هي اللي فتحت الدين ← المعاد القديم بيرجع (بند 12) */
+  dueRestore?: string | null;
 };
 
 export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDeleteDebtPlan | null {
@@ -1194,7 +1197,10 @@ export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDel
       residue = folded ? { op: 'set', value: folded } : { op: 'clear' };
     }
     const forCount = residue === null ? {} : { installmentResidue: residue.op === 'set' ? residue.value : undefined };
-    return { kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }) };
+    return {
+      kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }),
+      dueRestore: dueDateAfterIncreaseRemoval(d, removed, increases),
+    };
   }
   return null;
 }
@@ -1216,7 +1222,8 @@ export function debtLinkWarning(d: Debt, txId: string): string | null {
     ? `دي دفعة في دين "${d.personName}" — هتتشال من الدين كمان.`
     : `دي زيادة على دين "${d.personName}" — هتتشال من الدين كمان.`;
   const countLine = installmentCountBackLine(plan.countBefore, plan.countAfter);
-  return countLine ? `${sentence}\n${countLine}` : sentence;
+  const dueLine = plan.dueRestore ? dueRestoreLine(plan.dueRestore) : null;
+  return [sentence, countLine, dueLine].filter(Boolean).join('\n');
 }
 
 /**
@@ -1248,6 +1255,8 @@ export type DebtEntryDeletePlan = {
   /** الاتنين `null` لو العدد مش هيتغيّر — نفس شرط `deleteDebtPayment` بالظبط */
   countBefore: number | null;
   countAfter: number | null;
+  /** مسح زيادة فتحت الدين ← المعاد القديم بيرجع (بند 12)، نفس deleteDebtIncrease */
+  dueRestore: string | null;
 };
 
 /**
@@ -1288,6 +1297,7 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
     walletId: linked ? entry.walletId! : null,
     countBefore: moves ? before : null,
     countAfter: moves ? recount : null,
+    dueRestore: kind === 'increase' ? dueDateAfterIncreaseRemoval(d, [entry], increases.filter(e => e.id !== entryId)) : null,
   };
 }
 
@@ -1331,6 +1341,7 @@ export function debtEntryDeleteMessage(
   const countLine = plan.countBefore !== null && plan.countAfter !== null
     ? installmentCountBackLine(plan.countBefore, plan.countAfter) : null;
   if (countLine) lines.push(countLine);
+  if (plan.dueRestore) lines.push(dueRestoreLine(plan.dueRestore));
   if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
   else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
   else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');

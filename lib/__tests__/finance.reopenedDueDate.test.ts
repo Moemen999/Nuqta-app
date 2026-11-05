@@ -70,5 +70,8 @@ it('DataContext: addDebtIncrease بيكتب المعاد الجديد في نف�
   const src = readFileSync('context/DataContext.tsx', 'utf8');
   const start = src.indexOf('  async function addDebtIncrease(');
   const body = src.slice(start, src.indexOf('\n  }\n', start));
-  expect(body).toMatch(/const nextDue = reopenedDueDate\(debt, amount, date, todayStr\(\)\);\s*if \(nextDue\) patch\.dueDate = nextDue;/);
+  expect(body).toMatch(/const nextDue = reopenedDueDate\(debt, amount, date, todayStr\(\)\);/);
+  // بند 12: المعاد بيتكتب في نفس الـpatch ومعاه الرسالة، والقديم بيتخزّن في الزيادة
+  expect(body).toMatch(/if \(nextDue\) \{\s*patch\.dueDate = nextDue;\s*result\.dueNote = reopenedDueMessage\(nextDue\);/);
+  expect(body).toContain('reopenedFrom: debt.dueDate, reopenedTo: nextDue');
 });

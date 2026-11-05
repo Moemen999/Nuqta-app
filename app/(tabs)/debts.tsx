@@ -1,4 +1,6 @@
 import { debtsPhrase } from '@/lib/archiving';
+import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
+import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
@@ -171,10 +173,15 @@ function DebtsContent() {
         text: 'امسح',
         style: 'destructive',
         onPress: () => runBusy(entryId, async () => {
-          const outcome = await (kind === 'payment' ? deleteDebtPayment : deleteDebtIncrease)(d.id, entryId);
+          const out: DebtIncreaseDeleteOut = {};
+          const outcome = kind === 'payment' ? await deleteDebtPayment(d.id, entryId) : await deleteDebtIncrease(d.id, entryId, out);
           if (outcome !== 'done') {
             notice(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
             return;
+          }
+          // التأكيد وعد إن المعاد هيرجع والذرة (من السيرفر) ما رجّعتوش ← بنقول، مش بنسيب الوعد ساكت (بند 12)
+          if (kind === 'increase' && plan.dueRestore && !out.entryGone && out.dueRestored !== plan.dueRestore) {
+            notice(DUE_NOT_RESTORED.title, DUE_NOT_RESTORED.body);
           }
           // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال
           AccessibilityInfo.announceForAccessibility(kind === 'payment' ? 'اتمسحت الدفعة' : 'اتمسحت الزيادة');
@@ -263,7 +270,7 @@ function DebtsContent() {
           {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
           {!!d.dueDate && !settled && (
             <Text style={styles.dueText}>
-              معاده {d.dueDate}{d.reminderDaysBefore !== undefined ? ' · فيه تذكير 🔔' : ''}
+              معاده {dueDateLabel(d.dueDate)}{d.reminderDaysBefore !== undefined ? ' · فيه تذكير 🔔' : ''}
             </Text>
           )}
           <View style={styles.track}>

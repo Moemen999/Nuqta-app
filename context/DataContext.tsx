@@ -2,6 +2,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
+import { dueDateAfterIncreaseRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
@@ -353,7 +354,9 @@ export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settled
  * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
  * نوع لوحده مش جوه `PayOutcome`: باقي شاشات الدفع مالهاش الحالة دي
  */
-export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null };
+/** `dueNote`: "المعاد الجاي بقى …" لما الزيادة فتحت دين أقساط متسدد (بند 12) */
+export type DebtIncreaseDeleteOut = { dueRestored?: string | null; entryGone?: boolean };
+export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null; dueNote?: string | null };
 export const LEFTOVER_CHANGED_ALERT = {
   title: 'الدين اتغيّر',
   body: 'الدين اتغيّر من جهاز تاني، فمفيش أي زيادة اتسجلت ولا فلوس اتحركت. شوف الباقي الجديد واختار تاني.',
@@ -367,7 +370,11 @@ export type ShakhbataIncome = Record<string, number>;
 export type ShakhbataPercents = { needs: number; wants: number; future: number };
 
 export type DebtPayment = { id: string; date: string; amount: number; walletId: string; categoryId?: string; transactionId?: string };
-export type DebtEntry = { id: string; date: string; amount: number; walletId?: string; transactionId?: string };
+export type DebtEntry = {
+  id: string; date: string; amount: number; walletId?: string; transactionId?: string;
+  /** زيادة فتحت دين أقساط متسدد (بند 12): المعاد قبلها، واللي هي حطّته — مسحها بيرجّع القديم (`lib/reopenDue.ts`) */
+  reopenedFrom?: string; reopenedTo?: string;
+};
 export type Debt = {
   id: string;
   direction: 'owed_to_me' | 'i_owe';
@@ -602,7 +609,11 @@ type DataContextType = {
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
   addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
-  deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
+  /**
+   * `out.dueRestored`: المعاد اللي رجع فعلاً من الذرة (بند 12) — الشاشة بتقارنه باللي التأكيد وعد بيه.
+   * `out.entryGone`: الزيادة كانت اتمسحت قبل كده (جهاز تاني) — مفيش حاجة تتقارن
+   */
+  deleteDebtIncrease: (debtId: string, entryId: string, out?: DebtIncreaseDeleteOut) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
@@ -1482,6 +1493,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const count = countToWrite(plan.countAfter, d.installmentCount, d.id);
         if (count !== undefined) patch.installmentCount = count;
+        // مسح عملية الزيادة اللي فتحت الدين ← المعاد القديم بيرجع (بند 12) — نفس debtLinkWarning
+        if (plan.dueRestore) patch.dueDate = plan.dueRestore;
         batch.update(doc(db, 'users', uid, 'debts', d.id), patch);
         return;
       }
@@ -1987,10 +2000,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
     // نفس حامل `addDebtPayment`: الـcallback ممكن تتعاد، والجملة بتاعة اللفة اللي نجحت
-    const result: { note: string | null } = { note: null };
+    const result: { note: string | null; dueNote: string | null } = { note: null, dueNote: null };
     try {
       await countPending(runTransaction(db, async (t) => {
         result.note = null;
+        result.dueNote = null;
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
         const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
@@ -2016,10 +2030,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
           t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
           transactionId = txRef.id;
         }
+        // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
+        // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة). القديم بيتخزّن في الزيادة
+        // عشان مسحها يرجّعه، والرسالة بتقول الجديد (بند 12، قرار مؤمن 2026-11-05)
+        const nextDue = reopenedDueDate(debt, amount, date, todayStr());
         const entry: DebtEntry = {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
           date, amount,
           ...(walletId ? { walletId, transactionId } : {}),
+          ...(nextDue && debt.dueDate ? { reopenedFrom: debt.dueDate, reopenedTo: nextDue } : {}),
         };
         const increases = [...(debt.increases || []), entry];
         // **العدد لازم يتحسب تاني** (2026-09-29): المتبقي بيشمل الزيادات، فدين
@@ -2033,10 +2052,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // (1000/12 + 500 = 18 مش 19 بقسط 0.06)، ولو كسر حقيقي بيفضل قسط أصغر
         const residue = residueAfterIncreaseChange({ ...debt, ...pin }, amount, increases, leftover?.mode);
         if (residue) patch.installmentResidue = residue.patch;
-        // دين أقساط كان اتسدد والزيادة فتحته ← معاد القسط الجاي يتقدّم بدل ما
-        // التذكير يرجع على يوم فات (بيتحسب من الدين قبل الزيادة)
-        const nextDue = reopenedDueDate(debt, amount, date, todayStr());
-        if (nextDue) patch.dueDate = nextDue;
+        if (nextDue) {
+          patch.dueDate = nextDue;
+          result.dueNote = reopenedDueMessage(nextDue);
+        }
         else if (debt.isInstallment && debt.dueDate && !isDateStr(debt.dueDate)) {
           // المعاد المتخزّن بايظ ← سايبينه زي ما هو بدل ما نخترع واحد. المعرّف بس (sentryScrub)
           console.warn('[debt] stored dueDate is not YYYY-MM-DD, left as is', debtId);
@@ -2053,7 +2072,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         t.update(debtRef, patch);
       }));
-      return { outcome: 'done', note: result.note };
+      return { outcome: 'done', note: result.note, dueNote: result.dueNote };
     } catch (e) {
       // مش فشل: الدين اتغيّر من جهاز تاني والمستخدم هيتسأل تاني — مش Sentry
       if (e instanceof LeftoverChangedError) {
@@ -2069,7 +2088,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * حذف الزيادة — ذري زي حذف الدفعة بالظبط، وبيتنادى من نفس المكان وبنفس
    * منع المحفظة المؤرشفة (شوف الملحوظة اللي فوق `deleteDebtPayment`)
    */
-  async function deleteDebtIncrease(debtId: string, entryId: string): Promise<PayOutcome> {
+  async function deleteDebtIncrease(debtId: string, entryId: string, out?: DebtIncreaseDeleteOut): Promise<PayOutcome> {
+    if (out) { out.dueRestored = undefined; out.entryGone = false; }
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
@@ -2080,6 +2100,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!snap.exists()) throw new DebtMissingError();
         const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
         const entry = (debt.increases || []).find(e => e.id === entryId);
+        // اتمسحت من جهاز تاني: مفيش وعد يتقارن ("المعاد ما رجعش" هنا كانت هتبقى كدب — silent-failure-hunter جولة 2)
+        if (out) out.entryGone = !entry;
         if (!entry) return;
         if (entry.transactionId && entry.walletId
           && await walletArchived(t, doc(db, 'users', uid!, 'wallets', entry.walletId))) {
@@ -2095,6 +2117,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const recount = installmentCountFor({ ...debt, ...pin, ...(residue ? { installmentResidue: residue.forCount } : {}), increases });
         const count = countToWrite(recount, debt.installmentCount, debtId);
         if (count !== undefined) patch.installmentCount = count;
+        // الزيادة دي هي اللي فتحت الدين وقدّمت المعاد ← بيرجع القديم (بند 12)، من الدين اللي اتقرا جوه الذرة
+        const restore = dueDateAfterIncreaseRemoval(debt, [entry], increases);
+        if (restore) patch.dueDate = restore;
+        // الذرة ممكن تتعاد: آخر لفة هي اللي بتتكتب. التأكيد اتحسب من حالة الرياكت، فالشاشة بتقارن (silent-failure-hunter + money-reviewer)
+        if (out) out.dueRestored = restore;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
         t.update(debtRef, patch);
       }));

@@ -13,6 +13,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
 import { isCreditPurchase } from '@/lib/spending';
+import { DUE_MOVED_TITLE } from '@/lib/reopenDue';
 import {
   categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
@@ -287,10 +288,15 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
       // مبيتغيّرش لوحده من غير ما حد يقول ليه. ولو الباقي اتضاف على آخر قسط (D1) ← آخر قسط
       // اتغيّر فعلاً والمستخدم هيدفع مبلغ مختلف، فبيتقال حتى لو العدد ثابت
       const absorbed = seen && leftoverMode === 'absorb' ? seen.absorb.last : null;
+      // "المعاد الجاي بقى …" (بند 12): الزيادة فتحت دين متسدد وقدّمت المعاد — ميتغيّرش ساكت. بيتلزق في نفس
+      // الرسالة لو فيه واحدة، ولوحده لو مفيش
+      const withDue = (body: string) => (result.dueNote ? `${body}\n${result.dueNote}` : body);
       if (result.note) {
-        notice(INSTALLMENTS_CHANGED_TITLE, absorbed === null ? result.note : `${result.note} آخر قسط بقى ${money(absorbed)} ج.م.`);
+        notice(INSTALLMENTS_CHANGED_TITLE, withDue(absorbed === null ? result.note : `${result.note} آخر قسط بقى ${money(absorbed)} ج.م.`));
       } else if (absorbed !== null && seen) {
-        notice(LAST_INSTALMENT_ADJUSTED_TITLE, `آخر قسط بقى ${money(absorbed)} ج.م بدل ${money(seen.value)} ج.م.`);
+        notice(LAST_INSTALMENT_ADJUSTED_TITLE, withDue(`آخر قسط بقى ${money(absorbed)} ج.م بدل ${money(seen.value)} ج.م.`));
+      } else if (result.dueNote) {
+        notice(DUE_MOVED_TITLE, result.dueNote);
       }
       onClose();
     });
