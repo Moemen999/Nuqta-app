@@ -22,7 +22,33 @@ export type FullExportInput = {
   budgets: Budgets; shakhbataIncome: ShakhbataIncome;
   /** `null` = مستند النسب مش متخزّن (المستخدم ما غيّرهاش) — الملف بيقول "الافتراضي" */
   shakhbataPercents: ShakhbataPercents | null;
+  /** "شاركنا رأيك" — اللي المستخدم بعته بنفسه (`feedback where uid == انت`). بيتمسح مع الحساب، فلازم يطلع في الملف قبلها */
+  feedback: ExportFeedback[];
 };
+
+/** مستند الرأي زي ما اتقرا من السيرفر. `createdAt` نص ISO (الـTimestamp بيتحوّل وقت القراية) أو فاضي */
+export type ExportFeedback = {
+  id: string; type: string; text: string; createdAt: string;
+  appVersion: string; buildNumber: string; fullVersion: string; platform: string; deviceModel: string; osVersion: string;
+};
+
+/**
+ * مستند رأي من السيرفر ← صف التصدير. **مفيش قيمة متخزّنة بتتبلع** (silent-failure-hunter جولة 1): حقل نوعه غلط (مستند قديم
+ * أو متعدّل من الكونسول) بيطلع نصّه بـ`String` مش خلية فاضية، و`createdAt` اللي مش Timestamp بيطلع زي ما هو. الخلية الفاضية
+ * معناها "الحقل مش متخزّن" بس (رأي اتبعت قبل ما الحقل يتضاف).
+ */
+export function feedbackFromDoc(id: string, f: Record<string, unknown>): ExportFeedback {
+  const str = (v: unknown) => (v === undefined || v === null ? '' : typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const at = f.createdAt as { toDate?: () => Date } | Date | string | undefined | null;
+  const createdAt = at instanceof Date ? at.toISOString()
+    : at && typeof at === 'object' && typeof at.toDate === 'function' ? at.toDate().toISOString()
+    : at && typeof at === 'object' ? JSON.stringify(at) : str(at);
+  return {
+    id, type: str(f.type), text: str(f.text), createdAt,
+    appVersion: str(f.appVersion), buildNumber: str(f.buildNumber), fullVersion: str(f.fullVersion),
+    platform: str(f.platform), deviceModel: str(f.deviceModel), osVersion: str(f.osVersion),
+  };
+}
 
 const s = (x: string | undefined | null) => x ?? '';
 const n = (x: number | undefined | null) => (typeof x === 'number' && Number.isFinite(x) ? x : '');
@@ -110,6 +136,12 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     { name: 'ShakhbataPercents', rows: [d.shakhbataPercents
       ? { Needs: d.shakhbataPercents.needs, Wants: d.shakhbataPercents.wants, Future: d.shakhbataPercents.future, IsDefault: false }
       : { Needs: DEFAULT_PERCENTS.needs, Wants: DEFAULT_PERCENTS.wants, Future: DEFAULT_PERCENTS.future, IsDefault: true }] },
+    // النوع خام (`bug`/`idea`/`praise`) زي باقي القيم. الجهاز والإصدار جوّه لأنهم اتبعتوا مع الرأي (متخزّنين)
+    { name: 'Feedback', rows: // من غير تاريخ في الآخر (مش أول الورقة كأنه أقدم رأي)، والتعادل بالمعرّف
+    [...d.feedback].sort((a, b) => (!a.createdAt ? 1 : 0) - (!b.createdAt ? 1 : 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id)).map(f => ({
+      Id: f.id, SentAt: f.createdAt, Type: f.type, Text: f.text, FullVersion: f.fullVersion, AppVersion: f.appVersion,
+      BuildNumber: f.buildNumber, Platform: f.platform, DeviceModel: f.deviceModel, OsVersion: f.osVersion,
+    })) },
   ];
 }
 
@@ -124,6 +156,7 @@ export const SHEET_NAMES_AR: Record<string, string> = {
   DebtIncreases: 'زيادات الديون', Subscriptions: 'الاشتراكات', SubscriptionPayments: 'دفعات الاشتراكات',
   SubscriptionPeriods: 'فترات الاشتراكات', Gamiyas: 'الجمعيات', GamiyaMonths: 'شهور الجمعيات', FixedIncomes: 'الدخل الثابت',
   IncomePeriods: 'فترات الدخل الثابت', Budgets: 'الميزانية', Shakhbata: 'شخبطة', ShakhbataPercents: 'نسب شخبطة',
+  Feedback: 'رأيك اللي بعتّه',
 };
 
 export const COLUMN_NAMES_AR: Record<string, string> = {
@@ -145,6 +178,8 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',
   Mode: 'طريقة التسجيل', MonthlyLimit: 'الحد الشهري', Month: 'الشهر', Needs: 'احتياجات', Wants: 'رفاهيات', Future: 'خطط مستقبلية',
   IsDefault: 'الافتراضي',
+  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
+  Platform: 'النظام', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار النظام',
 };
 
 /** نفس الأوراق والقيم، بالأسامي العربي (عمود من غير ترجمة بيفضل باسمه — الاختبار بيمنع ده) */

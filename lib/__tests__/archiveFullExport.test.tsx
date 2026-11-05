@@ -22,7 +22,7 @@ jest.mock('expo-file-system/legacy', () => ({ cacheDirectory: 'file:///cache/', 
 const serverData = {
   wallets: [{ id: 'w', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [],
   transactions: [{ id: 't1', type: 'expense', amount: 10, date: '2026-11-01', walletId: 'w' }],
-  debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {}, shakhbataPercents: null,
+  debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {}, shakhbataPercents: null, feedback: [],
 };
 function setData(over: Record<string, unknown>) {
   for (const k of Object.keys(mockData)) delete mockData[k];

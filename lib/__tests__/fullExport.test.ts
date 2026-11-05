@@ -42,6 +42,10 @@ const input: FullExportInput = {
   budgets: { c1: 2000 },
   shakhbataIncome: { '2026-11': 9000, '2026-10': 8500 },
   shakhbataPercents: { needs: 50, wants: 30, future: 20 },
+  feedback: [
+    { id: 'f2', type: 'idea', text: 'زرار أسرع', createdAt: '2026-11-03T10:00:00.000Z', appVersion: '1.0.0', buildNumber: '9', fullVersion: '1.0.0.004', platform: 'android', deviceModel: 'Xiaomi 11', osVersion: '13' },
+    { id: 'f1', type: 'bug', text: 'الرصيد مش ظاهر', createdAt: '2026-11-01T08:00:00.000Z', appVersion: '1.0.0', buildNumber: '8', fullVersion: '1.0.0.003', platform: 'android', deviceModel: 'Galaxy A56', osVersion: '15' },
+  ],
 };
 const sheets = buildFullExportSheets(input);
 const sheet = (name: string) => sheets.find(x => x.name === name)!.rows;
@@ -49,7 +53,7 @@ const sheet = (name: string) => sheets.find(x => x.name === name)!.rows;
 it('ورقة لكل نوع متخزّن', () => {
   expect(sheets.map(x => x.name)).toEqual([
     'Wallets', 'Categories', 'Transactions', 'Debts', 'DebtPayments', 'DebtIncreases', 'Subscriptions',
-    'SubscriptionPayments', 'SubscriptionPeriods', 'Gamiyas', 'GamiyaMonths', 'FixedIncomes', 'IncomePeriods', 'Budgets', 'Shakhbata', 'ShakhbataPercents',
+    'SubscriptionPayments', 'SubscriptionPeriods', 'Gamiyas', 'GamiyaMonths', 'FixedIncomes', 'IncomePeriods', 'Budgets', 'Shakhbata', 'ShakhbataPercents', 'Feedback',
   ]);
 });
 
@@ -80,8 +84,8 @@ it('مفيش خلية undefined/NaN/object (الإكسيل بيكتبها غلط
 });
 
 it('حساب فاضي ← نفس الأوراق من غير صفوف (مبيقعش)', () => {
-  const empty = buildFullExportSheets({ ...input, wallets: [], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {} });
-  expect(empty).toHaveLength(16);
+  const empty = buildFullExportSheets({ ...input, wallets: [], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [], budgets: {}, shakhbataIncome: {}, feedback: [] });
+  expect(empty).toHaveLength(17);
   expect(empty.find(x => x.name === 'Transactions')!.rows).toEqual([]);
 });
 
@@ -109,6 +113,11 @@ it('كل قيمة متخزّنة في المدخل طالعة في الملف (�
   };
   walk(input, 'input');
   expect(missing).toEqual([]);
+});
+
+it('الرأي اللي بعته بالترتيب، والنوع خام', () => {
+  expect(sheet('Feedback').map(r => r.Id)).toEqual(['f1', 'f2']);
+  expect(sheet('Feedback')[0]).toMatchObject({ Type: 'bug', Text: 'الرصيد مش ظاهر', SentAt: '2026-11-01T08:00:00.000Z', FullVersion: '1.0.0.003' });
 });
 
 it('نسب الشخبطة مش متخزّنة ← الافتراضي بعلامة IsDefault، مش كأن المستخدم اختارها', () => {
@@ -154,5 +163,33 @@ describe('localizeSheets — الأسامي بالعربي والقيم زي م�
     expect(tx['المعرّف']).toBe('t1');
     expect(tx['النوع']).toBe('withdraw');
     expect(tx['المبلغ']).toBe(100);
+  });
+});
+
+describe('feedbackFromDoc — مفيش قيمة متخزّنة بتتبلع (silent-failure-hunter جولة 1)', () => {
+  const { feedbackFromDoc } = require('@/lib/fullExport');
+  it('Timestamp ← نص ISO', () => {
+    const r = feedbackFromDoc('f1', { type: 'bug', text: 'x', createdAt: { toDate: () => new Date('2026-11-01T08:00:00Z') } });
+    expect(r.createdAt).toBe('2026-11-01T08:00:00.000Z');
+  });
+  it('حقل نوعه غلط بيطلع نصّه، مش خلية فاضية', () => {
+    const r = feedbackFromDoc('f1', { type: 7, text: 123, buildNumber: 9, createdAt: '2026-11-01' });
+    expect(r).toMatchObject({ type: '7', text: '123', buildNumber: '9', createdAt: '2026-11-01' });
+    // object (مستند متعدّل من الكونسول) بقيمته مش [object Object] — جولة 2 NIT
+    expect(feedbackFromDoc('f1', { text: { a: 1 } }).text).toBe('{"a":1}');
+  });
+  it('createdAt مش Timestamp ومش نص ← بيطلع زي ما هو (مش فاضي)', () => {
+    expect(feedbackFromDoc('f1', { createdAt: { seconds: 5 } }).createdAt).toBe('{"seconds":5}');
+    expect(feedbackFromDoc('f1', { createdAt: 1700000000 }).createdAt).toBe('1700000000');
+  });
+  it('الحقل مش متخزّن ← فاضي (ده المعنى الوحيد للخلية الفاضية)', () => {
+    expect(feedbackFromDoc('f1', { type: 'idea', text: 'x' })).toMatchObject({ createdAt: '', fullVersion: '', osVersion: '' });
+  });
+  it('رأي من غير تاريخ في آخر الورقة، والتعادل بالمعرّف', () => {
+    const base = { type: 'idea', text: 't', appVersion: '', buildNumber: '', fullVersion: '', platform: '', deviceModel: '', osVersion: '' };
+    const rows = buildFullExportSheets({ ...input, feedback: [
+      { ...base, id: 'z', createdAt: '' }, { ...base, id: 'b', createdAt: '2026-11-02T00:00:00.000Z' }, { ...base, id: 'a', createdAt: '2026-11-02T00:00:00.000Z' },
+    ] }).find(x => x.name === 'Feedback')!.rows;
+    expect(rows.map(r => r.Id)).toEqual(['a', 'b', 'z']);
   });
 });

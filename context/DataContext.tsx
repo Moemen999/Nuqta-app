@@ -3,6 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
+import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
   cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
@@ -2725,10 +2726,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!(await waitForOurWritesToLand())) return { outcome: serverReachableRef.current ? 'failed' : 'no-connection' };
     const col = (name: string) => getDocsFromServer(collection(db, 'users', uid, name));
     try {
-      const [w, c, t, b, si, sp, d, s, g, i] = await withTimeout(Promise.all([
+      const [w, c, t, b, si, sp, d, s, g, i, fb] = await withTimeout(Promise.all([
         col('wallets'), col('categories'), col('transactions'), col('budgets'), col('shakhbata_income'),
         getDocFromServer(doc(db, 'users', uid, 'shakhbata_settings', 'percents')),
         col('debts'), col('subscriptions'), col('gamiyas'), col('incomes'),
+        // الرأي برّه `users/{uid}` — الاستعلام لازم `where uid` (القاعدة بترفض غيره). محتاج قاعدة الرأي الجديدة منشورة،
+        // ومن غيرها التصدير كله بيرجع `failed` برسالة صريحة (مش ملف ناقص ساكت) — نفس ترتيب النشر بتاع مسح الحساب
+        getDocsFromServer(query(collection(db, 'feedback'), where('uid', '==', uid))),
       ]), EXPORT_READ_TIMEOUT_MS);
       const budgetsMap: Budgets = {};
       // مستند من غير رقم بيتخطّى (كان هيطلع خلية فاضية في الإكسيل من غير ما حد يعرف) — NIT جولة 2
@@ -2749,6 +2753,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           budgets: budgetsMap, shakhbataIncome: incomeMap,
           // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
           shakhbataPercents: p ? { needs: p.needs ?? DEFAULT_PERCENTS.needs, wants: p.wants ?? DEFAULT_PERCENTS.wants, future: p.future ?? DEFAULT_PERCENTS.future } : null,
+          feedback: fb.docs.map(x => feedbackFromDoc(x.id, x.data() as Record<string, unknown>)),
         },
       };
     } catch (e) {
