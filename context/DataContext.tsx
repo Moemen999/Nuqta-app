@@ -608,7 +608,8 @@ type DataContextType = {
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
   deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
   addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
-  deleteDebtIncrease: (debtId: string, entryId: string) => Promise<PayOutcome>;
+  /** `out.dueRestored`: المعاد اللي رجع فعلاً من الذرة (بند 12) — الشاشة بتقارنه باللي التأكيد وعد بيه */
+  deleteDebtIncrease: (debtId: string, entryId: string, out?: { dueRestored?: string | null }) => Promise<PayOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
@@ -2083,7 +2084,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * حذف الزيادة — ذري زي حذف الدفعة بالظبط، وبيتنادى من نفس المكان وبنفس
    * منع المحفظة المؤرشفة (شوف الملحوظة اللي فوق `deleteDebtPayment`)
    */
-  async function deleteDebtIncrease(debtId: string, entryId: string): Promise<PayOutcome> {
+  async function deleteDebtIncrease(debtId: string, entryId: string, out?: { dueRestored?: string | null }): Promise<PayOutcome> {
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
@@ -2112,6 +2113,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // الزيادة دي هي اللي فتحت الدين وقدّمت المعاد ← بيرجع القديم (بند 12)، من الدين اللي اتقرا جوه الذرة
         const restore = dueDateAfterIncreaseRemoval(debt, [entry], increases);
         if (restore) patch.dueDate = restore;
+        // الذرة ممكن تتعاد: آخر لفة هي اللي بتتكتب. التأكيد اتحسب من حالة الرياكت، فالشاشة بتقارن (silent-failure-hunter + money-reviewer)
+        if (out) out.dueRestored = restore;
         if (entry.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', entry.transactionId));
         t.update(debtRef, patch);
       }));

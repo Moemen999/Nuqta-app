@@ -92,7 +92,10 @@ it('بند 12: الزيادة بترجّع "المعاد الجاي بقى …" 
   const inc = debt().increases[0];
   expect([inc.reopenedFrom, inc.reopenedTo]).toEqual(['2026-03-15', moved]);
 
-  expect(await harness.api().deleteDebtIncrease(id, inc.id)).toBe('done');
+  const out: { dueRestored?: string | null } = {};
+  expect(await harness.api().deleteDebtIncrease(id, inc.id, out)).toBe('done');
+  // الشاشة بتقارن ده باللي التأكيد وعد بيه
+  expect(out.dueRestored).toBe('2026-03-15');
   await harness.waitForData(api => (api.debts[0].increases || []).length === 0);
   expect(debt().dueDate).toBe('2026-03-15');
 });

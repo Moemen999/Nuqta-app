@@ -17,13 +17,20 @@ export function dueDateLabel(iso: string): string {
 
 export const DUE_MOVED_TITLE = 'معاد القسط الجاي اتغيّر';
 
+/** التأكيد قال المعاد هيرجع والذرة (من السيرفر) ما رجّعتوش — الدين اتغيّر من جهاز تاني */
+export const DUE_NOT_RESTORED = {
+  title: 'المعاد ما رجعش',
+  body: 'الزيادة اتمسحت، بس معاد القسط الجاي فضل زي ما هو لأن الدين اتغيّر من جهاز تاني. راجع المعاد من تعديل الدين.',
+};
+
 export function reopenedDueMessage(due: string): string {
   return `الزيادة فتحت الدين تاني، فالمعاد الجاي بقى ${dueDateLabel(due)}.`;
 }
 
 /** سطر تأكيد المسح لما المعاد هيرجع */
 export function dueRestoreLine(due: string): string {
-  return `ومعاد القسط الجاي هيرجع ${dueDateLabel(due)}.`;
+  // من غير "و": سطر المحفظة اللي بعده بيبدأ بـ"والـ" (arabic-copy-reviewer)
+  return `معاد القسط الجاي هيرجع ${dueDateLabel(due)}.`;
 }
 
 /**
