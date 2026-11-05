@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import HomeTab from '@/app/(tabs)/index';
 import ReportsTab from '@/app/(tabs)/reports';
 import ArchiveScreen from '@/app/archive';
@@ -178,5 +178,19 @@ describe('تصليحات جولة 1', () => {
     await act(async () => { jest.advanceTimersByTime(3000); });
     jest.useRealTimers();
     expect(screen.getByTestId('home_budget_transfers_failed').props.children).toBe(TRANSFERS_FAILED_NOTE);
+  });
+
+  it('الرئيسية: البانرات اتقفلت بـ✕ ← السطر بيمشي معاها (جولة 2)', async () => {
+    setData('failed');
+    jest.useFakeTimers();
+    await render(wrap(<HomeTab />));
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    // المؤقتات وهمية لحد الآخر: ✕ بيجدول رجوع البانر بعد المدة، ومؤقت حقيقي كان بيسيب jest مفتوح
+    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_total')); });
+    expect(screen.getByTestId('home_budget_transfers_failed')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_c1')); });
+    expect(screen.queryByTestId('home_budget_transfers_failed')).toBeNull();
+    jest.clearAllTimers();
+    jest.useRealTimers();
   });
 });

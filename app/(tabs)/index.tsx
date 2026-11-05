@@ -323,7 +323,9 @@ function HomeScreen() {
           </View>
         ))}
         {/* الديون/الجمعية فشلوا: البانرات بتظهر (قرار مؤمن: الرقم بيظهر بتحذير) وتحتها إن الرقم ممكن يكون زيادة (money-reviewer + silent-failure-hunter) */}
-        {transfersStatus === 'failed' && (totalBudgetAlert || budgetAlerts.length > 0) && (
+        {/* بعد ✕: السطر بيمشي مع البانرات الظاهرة بس، مش يفضل لوحده (silent-failure-hunter جولة 2) */}
+        {transfersStatus === 'failed' && ((totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`))
+          || budgetAlerts.some(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`))) && (
           <TransfersFailedNote testID="home_budget_transfers_failed" style={{ marginTop: 6 }} />
         )}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
