@@ -779,6 +779,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // "مفيش ديون" و"الديون لسه ما وصلتش" شكلهم واحد (بند 14: عملية دين اتعدّلت
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
   const [delivered, setDelivered] = useState<Set<ListenerName>>(() => new Set());
+  const deliveredUid = useRef<string | null | undefined>(undefined);
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
@@ -1019,6 +1020,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // يعيد التحقق من التجهيز (شوف setupStatus)
   useEffect(() => {
     if (!uid) { setLoadErrors([]); return; }
+    // حساب اتبدّل بحساب من غير ما يعدّي على null: `delivered` بتاع الأول كان هيخلّي التاني `ready` قبل ما ديونه توصل
+    // (silent-failure-hunter جولة 1، بند 11). على "جرّب تاني" لأ — اللي وصل لسه وصل
+    if (deliveredUid.current !== uid) { deliveredUid.current = uid; setDelivered(new Set()); }
 
     /**
      * فايربيز بتقفل الـlistener نهائي لما يترفض — من غير الـcallback ده كان

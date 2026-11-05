@@ -51,7 +51,11 @@ export function transfersStatusFrom(delivered: ReadonlySet<string>, loadErrors: 
 }
 
 export const TRANSFERS_LOADING = 'بنحمّل…';
-export const TRANSFERS_FAILED_NOTE = 'مقدرناش نجيب الديون والجمعية، فالرقم ده ممكن يكون فيه سلف أو أقساط جمعية.';
+/** بعد `TRANSFERS_SLOW_MS` وهو لسه بيحمّل (غالبًا مفيش نت) — من غيره "بنحمّل…" كانت هتفضل للأبد ساكتة */
+export const TRANSFERS_SLOW = 'لسه بنحمّل — اتأكد إن النت شغال';
+export const TRANSFERS_SLOW_MS = 10_000;
+// "زيادة": لما الديون مش موجودة السلفة وقسط الجمعية بيتعدّوا مصروف، والسداد والاستلام دخل — الغلط دايمًا لفوق (arabic-copy-reviewer)
+export const TRANSFERS_FAILED_NOTE = 'مقدرناش نجيب الديون والجمعية، فالأرقام دي ممكن تكون زيادة: فيها سلف أو أقساط جمعية اتحسبت مصروف أو دخل.';
 
 type Tx = { id: string; type: string; amount: number; date: string };
 

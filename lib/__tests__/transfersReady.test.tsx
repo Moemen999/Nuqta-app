@@ -8,7 +8,7 @@ import ShakhbataView from '@/components/ShakhbataView';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { currentMonth, todayStr } from '@/lib/finance';
-import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, transfersStatusFrom } from '@/lib/spending';
+import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, TRANSFERS_SLOW, transfersStatusFrom } from '@/lib/spending';
 
 /**
  * بند 11 (قرار مؤمن 2026-11-05): العمليات ممكن توصل قبل الديون والجمعية، وفي الثواني دي السلفة وقسط الجمعية
@@ -157,5 +157,26 @@ describe('الرئيسية', () => {
     await mount();
     expect(screen.getByTestId('home_banner_budget_total')).toBeTruthy();
     expect(screen.getByTestId('home_banner_budget_c1')).toBeTruthy();
+  });
+});
+
+describe('تصليحات جولة 1', () => {
+  it('لسه بيحمّل بعد 10 ثواني ← "لسه بنحمّل — اتأكد إن النت شغال" (مش "بنحمّل…" للأبد)', async () => {
+    setData('loading');
+    jest.useFakeTimers();
+    await render(wrap(<ReportsTab />));
+    expect(screen.getByTestId('reports_period_loading').props.children).toBe(TRANSFERS_LOADING);
+    await act(async () => { jest.advanceTimersByTime(10_000); });
+    expect(screen.getByTestId('reports_period_loading').props.children).toBe(TRANSFERS_SLOW);
+    jest.useRealTimers();
+  });
+
+  it('الرئيسية: فشل وفيه بانر ميزانية ← السطر تحتها', async () => {
+    setData('failed');
+    jest.useFakeTimers();
+    await render(wrap(<HomeTab />));
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    jest.useRealTimers();
+    expect(screen.getByTestId('home_budget_transfers_failed').props.children).toBe(TRANSFERS_FAILED_NOTE);
   });
 });

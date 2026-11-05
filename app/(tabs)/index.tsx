@@ -11,6 +11,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
+import { TransfersFailedNote } from '@/components/SpendStatus';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useDailyReminderHour } from '@/context/NotificationsContext';
 import DismissButton from '@/components/DismissButton';
@@ -321,6 +322,10 @@ function HomeScreen() {
             <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
+        {/* الديون/الجمعية فشلوا: البانرات بتظهر (قرار مؤمن: الرقم بيظهر بتحذير) وتحتها إن الرقم ممكن يكون زيادة (money-reviewer + silent-failure-hunter) */}
+        {transfersStatus === 'failed' && (totalBudgetAlert || budgetAlerts.length > 0) && (
+          <TransfersFailedNote testID="home_budget_transfers_failed" style={{ marginTop: 6 }} />
+        )}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
         {dueSubscriptions.filter(s => !hidden('subscriptionDue', `${s.id}@${s.nextDueDate}`)).map(s => {
           const d = daysUntil(s.nextDueDate);

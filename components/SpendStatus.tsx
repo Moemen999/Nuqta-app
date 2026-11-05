@@ -1,6 +1,7 @@
 import { Text } from '@/components/AppText';
 import { useTheme } from '@/context/ThemeContext';
-import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING } from '@/lib/spending';
+import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, TRANSFERS_SLOW, TRANSFERS_SLOW_MS } from '@/lib/spending';
+import { useEffect, useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
 
 /**
@@ -9,9 +10,15 @@ import type { StyleProp, TextStyle } from 'react-native';
  */
 export function SpendLoading({ testID, style }: { testID?: string; style?: StyleProp<TextStyle> }) {
   const { colors } = useTheme();
+  // لو الديون مبتوصلش (أوفلاين من أول فتحة) — الرسالة بتتغيّر بدل ما "بنحمّل…" تفضل للأبد (silent-failure-hunter جولة 1)
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), TRANSFERS_SLOW_MS);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <Text testID={testID} style={[{ color: colors.textSecondary, fontSize: 13, textAlign: 'right' }, style]}>
-      {TRANSFERS_LOADING}
+      {slow ? TRANSFERS_SLOW : TRANSFERS_LOADING}
     </Text>
   );
 }
