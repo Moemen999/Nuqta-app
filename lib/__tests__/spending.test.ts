@@ -1,6 +1,6 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
 import { monthSpend } from '@/lib/finance';
-import { cashTotals, monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { cashTotals, isCreditPurchase, monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 
 /**
  * السلفة والجمعية مش مصروف ولا دخل (خطوة 8). بتتعرف من المعرّفات المتخزّنة
@@ -85,5 +85,22 @@ describe('المراجعة: سلفة اتدّت فئة بالتعديل مبتت
 
   it('من غير transfers (زي قبل) بتتحسب — الفرق هو التصليح', () => {
     expect(monthSpend(txs as never, 'food', '2026-09')).toBe(2150);
+  });
+});
+
+describe('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك له" من غير محفظة سداده مصروف', () => {
+  const credit = {
+    direction: 'i_owe', // مفيش initialTransactionId: حاجة اتاخدت ومادخلش فلوس
+    increases: [], payments: [{ id: 'pc', date: '', amount: 400, walletId: 'w', transactionId: 't_credit_pay', categoryId: 'food' }],
+  } as unknown as Debt;
+  const txs = [tx('t_credit_pay', 'expense', 400), tx('t_repay', 'expense', 200), tx('t_borrow', 'income', 1000)];
+
+  it('السداد مش تحويل — بيتعدّ مصروف؛ والاستلاف من محفظة وسداده لسه تحويل', () => {
+    const transfers = transferTransactionIds([credit, borrow], []);
+    expect(transfers.has('t_credit_pay')).toBe(false);
+    expect(spendingExpenses(txs, transfers).map(t => t.id)).toEqual(['t_credit_pay']);
+    expect(isCreditPurchase(credit)).toBe(true);
+    expect(isCreditPurchase(borrow)).toBe(false);
+    expect(isCreditPurchase({ direction: 'owed_to_me' } as Debt)).toBe(false);
   });
 });

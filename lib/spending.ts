@@ -19,8 +19,12 @@ import type { Debt, Gamiya } from '@/context/DataContext';
  *
  * **و"عليك له" (`i_owe`) كمان** (قرار مؤمن 2026-11-05): الاستلاف (اتسجل دخل) وزيادته
  * وسداده (اتسجل مصروف، وساعات بفئة) برّه الدخل والمصروف — فلوس مش بتاعتك داخلة
- * وراجعة لصاحبها. نفس القاعدة: العملية زي ما هي والرصيد زي ما هو، وفئة السداد القديمة
- * بتفضل متخزّنة بس مبتتعدّش في الفئة ولا الميزانية.
+ * وراجعة لصاحبها. نفس القاعدة: العملية زي ما هي والرصيد زي ما هو.
+ *
+ * **الاستثناء — شرا بالأجل** (قرار مؤمن 2026-11-05، بعد money-reviewer): دين "عليك له" **من غير محفظة**
+ * (`initialTransactionId` مش موجود) معناه حاجة اتاخدت ومادخلش فلوس — الشرا نفسه عمره ما اتسجل، فالسداد هو
+ * أثره الوحيد. سداده **بيفضل مصروف** (بفئته). الحكم على الدين كله حسب أصله؛ زيادة من محفظة على دين أصله أجل
+ * (أو العكس) بتمشي مع الأصل — حد مقبول ومكتوب.
  */
 export function transferTransactionIds(
   debts: Pick<Debt, 'direction' | 'initialTransactionId' | 'payments' | 'increases'>[] | undefined,
@@ -33,6 +37,7 @@ export function transferTransactionIds(
   for (const d of debts ?? []) {
     add(d.initialTransactionId);
     (d.increases || []).forEach(e => add(e.transactionId));
+    if (isCreditPurchase(d)) continue; // سداد الشرا بالأجل مصروف
     (d.payments || []).forEach(p => add(p.transactionId));
   }
   for (const g of gamiyas ?? []) (g.months || []).forEach(m => add(m.transactionId));
@@ -57,6 +62,11 @@ export const TRANSFERS_SLOW = 'لسه بنحمّل — اتأكد إن النت 
 export const TRANSFERS_SLOW_MS = 10_000;
 // "زيادة": لما الديون مش موجودة السلفة وقسط الجمعية بيتعدّوا مصروف، والسداد والاستلام دخل — الغلط دايمًا لفوق (arabic-copy-reviewer)
 export const TRANSFERS_FAILED_NOTE = 'مقدرناش نجيب الديون والجمعية، فالأرقام دي ممكن تكون زيادة: فيها سلف أو أقساط جمعية اتحسبت مصروف أو دخل.';
+
+/** دين "عليك له" من غير محفظة (شرا بالأجل): سداده مصروف بفئة، مش تحويل */
+export function isCreditPurchase(d: Pick<Debt, 'direction' | 'initialTransactionId'>): boolean {
+  return d.direction === 'i_owe' && !d.initialTransactionId;
+}
 
 type Tx = { id: string; type: string; amount: number; date: string };
 
@@ -89,4 +99,4 @@ export function cashTotals(tx: Tx[], transfers: Set<string>): { income: number; 
 }
 
 /** سطر تحت إجماليات الأرشيف لما فيه سلفة أو جمعية في الفترة — عشان الإجمالي ميبانش غلط قدام القايمة */
-export const TRANSFERS_NOTE = 'الديون (سلفة أو استلاف) والجمعية مش محسوبين في الإجماليات دي — دي فلوس بتتنقل، مش مصروف ولا دخل.';
+export const TRANSFERS_NOTE = 'الديون (ليا وعليا) والجمعية مش محسوبين في الإجماليات دي — دي فلوس بتتنقل، مش مصروف ولا دخل.';

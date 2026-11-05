@@ -12,8 +12,9 @@ import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } fr
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
+import { isCreditPurchase } from '@/lib/spending';
 import {
-  debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
+  categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
   overpayCheck, projectBalances, todayStr, type DebtPrefill,
   increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
@@ -52,7 +53,7 @@ export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — ر
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, transactions, addDebtPayment } = useData();
+  const { wallets, categories, transactions, addDebtPayment } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
   const { busy, run: runBusy } = useBusy();
@@ -72,6 +73,9 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
   const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
   const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
+  // الفئة لسداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05)؛ باقي الديون تحويل والفئة مكانتش هتتعدّ
+  const creditPurchase = isCreditPurchase(debt);
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
@@ -112,8 +116,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     await runBusy(async () => {
       let result: Awaited<ReturnType<typeof addDebtPayment>>;
       try {
-        // من غير فئة: سداد "عليك له" مبقاش مصروف (قرار مؤمن 2026-11-05) — الفئة مكانتش هتتعدّ في أي حتة
-        result = await addDebtPayment(debt.id, amt, walletId, date);
+        result = await addDebtPayment(debt.id, amt, walletId, date, creditPurchase ? categoryId : undefined);
       } catch {
         // الدفعة بقت عملية ذرية بترجّع نتيجة بدل ما ترمي، فالرمي هنا مابقاش
         // متوقع خالص — فاضل للأخطاء المتزامنة (تجهيز البيانات، التنقل)
@@ -166,6 +169,20 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
               </TouchableOpacity>
             ))}
           </View>
+
+          {creditPurchase && (
+            <>
+              <Text style={styles.label}>الفئة (اختياري)</Text>
+              <View style={styles.chipRow}>
+                {selectableOptions(categories).map(c => (
+                  <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+                    style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
+                    <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
 
           <Text style={styles.label}>التاريخ</Text>
           <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>

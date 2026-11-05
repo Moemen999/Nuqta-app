@@ -100,3 +100,20 @@ it('"عليك له" (قرار مؤمن 2026-11-05): الاستلاف وزياد�
   expect(spendingExpenses(api().transactions, transfers)).toEqual([]);
   expect(cashTotals(api().transactions, transfers)).toEqual({ income: 0, expense: 0, transfers: 3 });
 });
+
+it('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك له" من غير محفظة ← سداده مصروف بفئته، مش تحويل', async () => {
+  const api = () => harness.api();
+  const w = api().wallets[0];
+  const cat = api().categories[0];
+  await api().addDebt({ direction: 'i_owe', personName: 'المحل', totalAmount: 600, isInstallment: false, date: '2026-09-01' });
+  await harness.waitForData(a => a.debts.length === 1);
+  expect(api().debts[0].initialTransactionId).toBeUndefined();
+  const debtId = api().debts[0].id;
+  expect((await api().addDebtPayment(debtId, 250, w.id, '2026-09-05', cat.id)).outcome).toBe('done');
+  await harness.waitForData(a => a.transactions.length === 1 && (a.debts[0].payments || []).length === 1);
+
+  const transfers = transferTransactionIds(api().debts, api().gamiyas);
+  expect(transfers.size).toBe(0);
+  const spent = spendingExpenses(api().transactions, transfers);
+  expect(spent.map(t => [t.amount, t.categoryId])).toEqual([[250, cat.id]]);
+});

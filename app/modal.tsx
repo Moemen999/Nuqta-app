@@ -12,6 +12,7 @@ import {
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions, type TxChange } from '@/lib/archiving';
+import { transferTransactionIds } from '@/lib/spending';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
@@ -49,6 +50,8 @@ export default function AddTransactionModal() {
   const linkKind = frozenLink === undefined ? liveLinkKind : frozenLink;
   const linkChanged = frozenLink !== undefined && liveLinkKind !== frozenLink;
   const typeLocked = !!linkKind || !!existing?.isSettlement;
+  // عملية تحويل (سلفة، استلاف، جمعية) مبتتعدّش في أي فئة — شريحة الفئة كانت هتتحفظ ومتتعدّش (money-reviewer 2026-11-05)
+  const isTransfer = useMemo(() => !!existing && transferTransactionIds(debts, gamiyas).has(existing.id), [existing, debts, gamiyas]);
   // ضد الدوسة المزدوجة قبل ما `syncing` يترسم: كل لفة ذرية بتعمل تسوية بمعرّف جديد
   const inFlight = useRef(false);
   const opened = useRef<Pick<Transaction, 'amount' | 'walletId' | 'type'> | null>(null);
@@ -405,7 +408,7 @@ export default function AddTransactionModal() {
         </>
       )}
 
-      {type === 'expense' && (
+      {type === 'expense' && !isTransfer && (
         <>
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>

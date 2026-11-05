@@ -1,4 +1,5 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
+import { isCreditPurchase } from '@/lib/spending';
 import {
   debtExcess, debtRemaining, foldInstallmentResidue, installmentCountFor, installmentResidueKnown, pinInstallmentAmount,
   reopenedDueDate, roundMoney, storableCount, todayStr,
@@ -115,8 +116,8 @@ export function debtLinkedEditPlan(d: Debt, txId: string, next: LinkedEditNext, 
     patch.payments = (d.payments || []).map(p => {
       if (p.transactionId !== txId) return p;
       const { categoryId: _old, ...rest } = p;
-      // الفئة على دفعة "عليك له" بس — هي مصروف. "له عندك" دخل مالوش فئة
-      const categoryId = d.direction === 'i_owe' ? next.categoryId : undefined;
+      // الفئة على سداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05). باقي الديون تحويل
+      const categoryId = isCreditPurchase(d) ? next.categoryId : undefined;
       return { ...rest, amount, walletId: next.walletId, date: next.date, ...(categoryId ? { categoryId } : {}) };
     });
   } else {

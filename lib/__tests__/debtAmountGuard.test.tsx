@@ -76,12 +76,12 @@ describe('دفعة الدين', () => {
 
   it('أصغر مبلغ (0.01) ← بيتسجل', async () => {
     await pay('0.01');
-    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 0.01, 'w1', expect.any(String));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 0.01, 'w1', expect.any(String), undefined);
   });
 
   it('مبلغ عادي ← بيتسجل والمودال بيتقفل', async () => {
     const onClose = await pay('100');
-    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 100, 'w1', expect.any(String));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 100, 'w1', expect.any(String), undefined);
     expect(onClose).toHaveBeenCalled();
   });
 });
