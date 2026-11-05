@@ -5,6 +5,7 @@ import { overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 
 type Mode = 'enable' | 'change' | 'disable';
 
@@ -29,9 +30,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
     if (mode === 'disable') {
       if (!oldCode) { setError('دخّل الباسورد/الرقم الحالي'); return; }
       setBusy(true);
-      const ok = await disableLock(oldCode);
+      const res = await disableLock(oldCode);
       setBusy(false);
-      if (!ok) { setError('غلط، جرب تاني'); return; }
+      // "error" = التخزين نفسه فشل، مش الكود اللي غلط (بند A)
+      if (res !== 'ok') { setError(res === 'error' ? LOCK_STORAGE_ERROR : 'غلط، جرب تاني'); return; }
       reset(); onClose();
       return;
     }
@@ -41,14 +43,21 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
     if (type === 'password' && code1.length < 4) { setError('الباسورد لازم 4 حروف على الأقل'); return; }
 
     setBusy(true);
-    let ok = true;
-    if (mode === 'enable') {
-      await setupLock(type, code1);
-    } else {
-      ok = await changeCode(oldCode, code1, type);
+    let res: 'ok' | 'wrong' | 'error' = 'ok';
+    try {
+      if (mode === 'enable') {
+        // بيرمي لو الحفظ فشل — والقفل القديم (أو مفيش قفل) زي ما هو، مش نص-نص (بند A)
+        await setupLock(type, code1);
+      } else {
+        res = await changeCode(oldCode, code1, type);
+      }
+    } catch {
+      res = 'error';
+    } finally {
+      // كان على المسار السعيد بس: رمية كانت بتسيب الزرار "..." للأبد
+      setBusy(false);
     }
-    setBusy(false);
-    if (!ok) { setError('الكود القديم غلط'); return; }
+    if (res !== 'ok') { setError(res === 'error' ? LOCK_STORAGE_ERROR : 'الكود القديم غلط'); return; }
     reset();
     onClose();
   }

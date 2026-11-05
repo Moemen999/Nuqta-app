@@ -1,0 +1,119 @@
+import React from 'react';
+import { act, render, waitFor } from '@testing-library/react-native';
+import * as SecureStore from 'expo-secure-store';
+import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
+
+/**
+ * بند A (مراجعة المشروع 2026-11-05، OWASP: الفشل = رفض):
+ * - قراية الإعدادات وقت الفتح فشلت (بعد محاولات) ← **مقفول** و`readFailed`، مش مفتوح ساكت؛ و"جرّب تاني" بيقرا تاني.
+ * - التفعيل: علم "مفعّل" **آخر** حاجة — وقوع في النص مبيسيبش قفل مفعّل من غير هاش.
+ * - التحقق: فشل التخزين = `error` مش `wrong`.
+ * - تغيير الكود: لو النوع وقع بعد الهاش، الهاش القديم بيرجع.
+ * - المهلة وامتى يقفل: الفشل بيرجّع false مش رمية ساكتة.
+ */
+
+const mockStore: Record<string, string> = {};
+let mockFailGet = 0; // عدد مرات قراية K_ENABLED اللي هترمي
+let mockFailSet: string | null = null;
+jest.mock('expo-secure-store', () => ({
+  getItemAsync: jest.fn(async (k: string) => {
+    if (k === 'nuqta_lock_enabled' && mockFailGet > 0) { mockFailGet--; throw new Error('keystore'); }
+    return mockStore[k] ?? null;
+  }),
+  setItemAsync: jest.fn(async (k: string, v: string) => {
+    if (k === mockFailSet) throw new Error('keystore');
+    mockStore[k] = v;
+  }),
+  deleteItemAsync: jest.fn(async (k: string) => { delete mockStore[k]; }),
+}));
+jest.mock('@sentry/react-native', () => ({ captureMessage: jest.fn() }));
+// الهاش الحقيقي native — هنا ثابت وبيفرّق بين الأكواد
+jest.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  digestStringAsync: jest.fn(async (_a: string, s: string) => `h:${s}`),
+}));
+
+const holder: { current: ReturnType<typeof useAppLock> | null } = { current: null };
+function Probe() { holder.current = useAppLock(); return null; }
+const lock = () => holder.current!;
+
+beforeEach(() => {
+  for (const k of Object.keys(mockStore)) delete mockStore[k];
+  mockFailGet = 0; mockFailSet = null;
+});
+
+async function mount() {
+  await render(<AppLockProvider><Probe /></AppLockProvider>);
+  await waitFor(() => expect(lock().loading).toBe(false), { timeout: 3000 });
+}
+
+it('القراية فشلت كل المحاولات ← مقفول وreadFailed (مش مفتوح)، و"جرّب تاني" بيفتح لما التخزين يرجع', async () => {
+  mockFailGet = 99;
+  await mount();
+  expect(lock().readFailed).toBe(true);
+  expect(lock().isLocked).toBe(true);
+  // التخزين رجع، ومفيش قفل متخزّن أصلاً ← مفتوح
+  mockFailGet = 0;
+  await act(async () => { await lock().retryRead(); });
+  expect(lock().readFailed).toBe(false);
+  expect(lock().isLocked).toBe(false);
+});
+
+it('القراية وقعت مرة ورجعت ← المحاولة التانية بتنجح (مش readFailed)', async () => {
+  mockFailGet = 1;
+  mockStore.nuqta_lock_enabled = '1'; mockStore.nuqta_lock_hash = 'x';
+  await mount();
+  expect(lock().readFailed).toBe(false);
+  expect(lock().isLocked).toBe(true);
+});
+
+it('التفعيل وقع في النص (النوع) ← العلم ما اتكتبش، فمفيش قفل نص-نص؛ والدالة بترمي', async () => {
+  await mount();
+  mockFailSet = 'nuqta_lock_type';
+  await expect(lock().setupLock('pin', '1234')).rejects.toThrow();
+  expect(mockStore.nuqta_lock_enabled).toBeUndefined();
+  expect(lock().enabled).toBe(false);
+});
+
+it('التفعيل الكامل ← العلم آخر حاجة اتكتبت', async () => {
+  await mount();
+  await act(async () => { await lock().setupLock('pin', '1234'); });
+  const keys = (SecureStore.setItemAsync as jest.Mock).mock.calls.map(c => c[0]);
+  expect(keys[keys.length - 1]).toBe('nuqta_lock_enabled');
+  expect(keys.indexOf('nuqta_lock_hash')).toBeLessThan(keys.indexOf('nuqta_lock_enabled'));
+});
+
+it('التحقق: صح ← ok، غلط ← wrong، التخزين فشل ← error', async () => {
+  await mount();
+  await act(async () => { await lock().setupLock('pin', '1234'); });
+  expect(await lock().verify('1234')).toBe('ok');
+  expect(await lock().verify('9999')).toBe('wrong');
+  (SecureStore.getItemAsync as jest.Mock).mockImplementationOnce(async () => { throw new Error('keystore'); });
+  expect(await lock().verify('1234')).toBe('error');
+});
+
+it('تغيير الكود: النوع وقع بعد الهاش ← الهاش القديم رجع والنتيجة error (الكود القديم لسه شغال)', async () => {
+  await mount();
+  await act(async () => { await lock().setupLock('pin', '1234'); });
+  const oldHash = mockStore.nuqta_lock_hash;
+  mockFailSet = 'nuqta_lock_type';
+  let res: string | undefined;
+  await act(async () => { res = await lock().changeCode('1234', 'abcd', 'password'); });
+  expect(res).toBe('error');
+  expect(mockStore.nuqta_lock_hash).toBe(oldHash);
+  mockFailSet = null;
+  expect(await lock().verify('1234')).toBe('ok');
+});
+
+it('المهلة وامتى يقفل: الحفظ فشل ← false والقيمة القديمة بتفضل', async () => {
+  await mount();
+  mockFailSet = 'nuqta_lock_grace';
+  let ok: boolean | undefined;
+  await act(async () => { ok = await lock().setGraceMinutes(5); });
+  expect(ok).toBe(false);
+  expect(lock().graceMinutes).toBe(0);
+  mockFailSet = 'nuqta_lock_freq';
+  await act(async () => { ok = await lock().setFrequency('everyResume'); });
+  expect(ok).toBe(false);
+  expect(lock().frequency).toBe('onOpen');
+});

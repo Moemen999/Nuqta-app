@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { stickyFooterStyle } from '@/lib/tokens';
+import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -51,7 +52,7 @@ const KEY_ROWS = [
 
 export default function LockScreen() {
   const { colors } = useTheme();
-  const { lockType, verify, unlock, clearLock } = useAppLock();
+  const { lockType, verify, unlock, clearLock, readFailed, retryRead } = useAppLock();
   const { logOut } = useAuth();
   const { serverReachable } = useData();
   const [code, setCode] = useState('');
@@ -104,13 +105,14 @@ export default function LockScreen() {
   async function handleSubmit(value?: string) {
     const toCheck = value ?? code;
     if (!toCheck) return;
-    const ok = await verify(toCheck);
-    if (ok) {
+    const res = await verify(toCheck);
+    if (res === 'ok') {
       unlock();
       setCode('');
       setError('');
     } else {
-      setError('غلط، جرب تاني');
+      // "error" = التخزين فشل، الكود ممكن يكون صح (بند A)
+      setError(res === 'error' ? LOCK_STORAGE_ERROR : 'غلط، جرب تاني');
       setCode('');
     }
   }
@@ -140,7 +142,15 @@ export default function LockScreen() {
       <Text style={styles.lockEmoji}>🔒</Text>
       <Text style={styles.title}>نقطة مقفولة</Text>
 
-      {lockType === 'pin' ? (
+      {readFailed ? (
+        // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
+        <View style={styles.passwordArea}>
+          <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
+          <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" style={styles.submitBtn} onPress={() => { retryRead(); }}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{LOCK_RETRY}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : lockType === 'pin' ? (
         <>
           <View style={styles.dotsRow}>
             {[0, 1, 2, 3].map(i => (
@@ -222,6 +232,7 @@ function makeStyles(c: ThemeColors) {
     passwordArea: { width: '100%', maxWidth: 320 },
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
     submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
+    readFailed: { color: c.text, fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
     forgotBtn: { padding: 8 },
     forgotText: { color: c.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   });

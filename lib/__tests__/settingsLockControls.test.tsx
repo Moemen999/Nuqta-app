@@ -27,8 +27,8 @@ const mockLock = {
   disableLock: jest.fn(),
   clearLock: jest.fn(),
   changeCode: jest.fn(),
-  setFrequency: jest.fn(),
-  setGraceMinutes: jest.fn(),
+  setFrequency: jest.fn(async () => true),
+  setGraceMinutes: jest.fn(async () => true),
   verify: jest.fn(),
   unlock: jest.fn(),
 };

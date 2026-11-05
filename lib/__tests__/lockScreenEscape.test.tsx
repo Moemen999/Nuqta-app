@@ -19,7 +19,7 @@ import { Alert } from 'react-native';
 
 const mockLock = {
   lockType: 'pin' as 'pin' | 'password',
-  verify: jest.fn(async () => false),
+  verify: jest.fn(async () => 'wrong'),
   unlock: jest.fn(),
   clearLock: jest.fn(async () => {}),
 };
