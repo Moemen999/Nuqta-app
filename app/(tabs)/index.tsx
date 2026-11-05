@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
 import { speakable } from '@/lib/money';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
@@ -141,12 +142,12 @@ function HomeScreen() {
   const budgetAlerts = activeCategories
     .filter(c => budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
-    .filter(b => b.spend / b.limit >= 0.8);
+    .filter(b => b.spend / b.limit >= BUDGET_NEAR_RATIO);
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
   // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
   const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
-  const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= 0.8;
+  const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
   const dueSubscriptions = subscriptions.filter(s => s.active !== false
