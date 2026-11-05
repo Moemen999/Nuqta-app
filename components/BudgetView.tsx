@@ -5,6 +5,7 @@ import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
 import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
+import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -15,7 +16,9 @@ const TOTAL_KEY = 'total_budget';
 export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas } = useData();
+  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();
+  // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا
+  const spendLoading = transfersStatus === 'loading';
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
@@ -66,6 +69,7 @@ export default function BudgetView() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>الميزانية الشهرية</Text>
+        {transfersStatus === 'failed' && <TransfersFailedNote testID="budget_transfers_failed" style={{ marginTop: -8, marginBottom: 12 }} />}
 
         <View style={styles.totalCard}>
           <View style={styles.head}>
@@ -89,8 +93,12 @@ export default function BudgetView() {
                   {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
                 </Text>
               </View>
-              <Text style={styles.totalSub}>مصروف الشهر الفعلي: <Money value={totalMonthSpend} currency={false} /> / <Money value={totalBudget} currency={false} /></Text>
-              {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
+              {spendLoading ? <SpendLoading testID="budget_total_loading" style={styles.totalSub} /> : (
+                <>
+                  <Text style={styles.totalSub}>مصروف الشهر الفعلي: <Money value={totalMonthSpend} currency={false} /> / <Money value={totalBudget} currency={false} /></Text>
+                  {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
+                </>
+              )}
             </>
           )}
         </View>
@@ -118,7 +126,8 @@ export default function BudgetView() {
                   textAlign="right"
                 />
               </View>
-              {limit > 0 && (
+              {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} style={styles.sub} />}
+              {limit > 0 && !spendLoading && (
                 <>
                   <View style={styles.track}>
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />

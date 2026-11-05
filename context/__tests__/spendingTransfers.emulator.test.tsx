@@ -63,3 +63,9 @@ it('السلفة (أصل، زيادة، سداد) وقسط الجمعية كله
   const totals = cashTotals(api().transactions, transfers);
   expect(totals).toEqual({ income: 0, expense: 150, transfers: 4 });
 });
+
+it('بند 11: الديون والجمعية وصلوا (حتى فاضيين) ← transfersStatus = ready', async () => {
+  // مستخدم مالوش ولا دين ولا جمعية: الـlistener على مجموعة فاضية لازم يقول "وصلت" — غير كده الأرقام هتفضل "بنحمّل…" للأبد
+  await harness.waitForData(a => a.transfersStatus === 'ready');
+  expect(harness.api().transfersStatus).toBe('ready');
+});

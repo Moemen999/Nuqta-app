@@ -50,7 +50,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -139,15 +139,17 @@ function HomeScreen() {
   const lowWallets = activeWallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
   // السلفة والجمعية مش مصروف (خطوة 8) — لا في الفئة ولا في الإجمالي
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
+  // بند 11: وهي بتحمّل السلفة بتتعدّ مصروف — بانر "قربت تخلص" مبيولّعش عليها. لو الديون فشلت، بانر "مقدرناش نجيب بياناتك" ظاهر
+  const spendKnown = transfersStatus !== 'loading';
   const budgetAlerts = activeCategories
-    .filter(c => budgets[c.id] > 0)
+    .filter(c => spendKnown && budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
     .filter(b => b.spend / b.limit >= BUDGET_NEAR_RATIO);
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
   // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
   const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
-  const totalBudgetAlert = totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
+  const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
   const dueSubscriptions = subscriptions.filter(s => s.active !== false

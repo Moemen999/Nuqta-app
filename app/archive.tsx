@@ -11,6 +11,7 @@ import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
+import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
@@ -37,7 +38,9 @@ export default function ArchiveScreen() {
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer } = useData();
+  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer, transfersStatus } = useData();
+  // بند 11: الإجماليات مبتظهرش لحد ما الديون والجمعية يوصلوا (السلفة كانت هتتعدّ مصروف والسداد دخل)
+  const totalsLoading = transfersStatus === 'loading';
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
@@ -188,14 +191,15 @@ export default function ArchiveScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />
+          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricValue} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
-          <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />
+          {totalsLoading ? <SpendLoading style={styles.metricValue} /> : <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />}
         </View>
       </View>
-      {transfersInPeriod > 0 && (
+      {transfersStatus === 'failed' && <TransfersFailedNote testID="archive_transfers_failed" />}
+      {!totalsLoading && transfersInPeriod > 0 && (
         <Text testID="archive_transfers_note" style={styles.transfersNote}>{TRANSFERS_NOTE}</Text>
       )}
 

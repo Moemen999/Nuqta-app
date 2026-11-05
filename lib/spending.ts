@@ -38,6 +38,21 @@ export function transferTransactionIds(
   return ids;
 }
 
+/** حالة مصادر التحويلات (الديون والجمعية) — بند 11 */
+export type TransfersStatus = 'loading' | 'ready' | 'failed';
+
+/**
+ * `failed` لو أي واحد منهم اترفض (حتى لو وصل قبل كده — البيانات القديمة ممكن تكون ناقصة)، `ready` لو الاتنين وصلوا،
+ * غير كده `loading`. **الرقم الغلط عمره ما يظهر:** وهو بيحمّل الشاشة مبتعرضش المصروف، ولما يفشل بتعرضه وبتقول.
+ */
+export function transfersStatusFrom(delivered: ReadonlySet<string>, loadErrors: readonly string[]): TransfersStatus {
+  if (loadErrors.includes('debts') || loadErrors.includes('gamiyas')) return 'failed';
+  return delivered.has('debts') && delivered.has('gamiyas') ? 'ready' : 'loading';
+}
+
+export const TRANSFERS_LOADING = 'بنحمّل…';
+export const TRANSFERS_FAILED_NOTE = 'مقدرناش نجيب الديون والجمعية، فالرقم ده ممكن يكون فيه سلف أو أقساط جمعية.';
+
 type Tx = { id: string; type: string; amount: number; date: string };
 
 /** المصروف الحقيقي: `expense` ومش سلفة ولا قسط جمعية */
