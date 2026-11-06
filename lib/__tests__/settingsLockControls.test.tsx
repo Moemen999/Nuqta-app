@@ -145,3 +145,24 @@ describe('القفل مقفول', () => {
     expect(screen.queryByTestId('lock_change_button')).toBeNull();
   });
 });
+
+describe('بند A: الحفظ فشل ← رسالة، مش رمية ساكتة', () => {
+  it('وقت الطلب ما اتحفظش ← "ما اتحفظش"', async () => {
+    const { Alert } = require('react-native');
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockLock.setFrequency.mockResolvedValueOnce(false);
+    await renderScreen();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_every_resume')); });
+    expect(spy).toHaveBeenCalledWith('ما اتحفظش', expect.stringContaining('القديم لسه شغال'));
+    spy.mockRestore();
+  });
+
+  it('اتحفظ ← مفيش رسالة', async () => {
+    const { Alert } = require('react-native');
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderScreen();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_every_resume')); });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
