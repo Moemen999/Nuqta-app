@@ -1,5 +1,6 @@
 import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
-import { planWalletAmountCommit, planWalletAmountRewrite } from '@/lib/finance';
+import { planWalletOpeningCommit } from '@/lib/finance';
+import { openingConfirmCopy } from '@/lib/walletCopy';
 import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
@@ -56,7 +57,11 @@ export default function WalletsScreen() {
     // `openingInvalid` ← NaN: الخطة بتكتب أي رقم صالح (حتى 0 اللي معروض) عشان العلامة تتشال (بند B)
     id => { const w = wallets.find(x => x.id === id); return w?.openingInvalid ? NaN : (w?.openingBalance ?? 0); },
     (id, value) => updateWallet(id, { openingBalance: value }),
-    { plan: (draft, stored) => (Number.isNaN(stored) ? planWalletAmountRewrite(draft) : planWalletAmountCommit(draft, stored)) },
+    {
+      // أي تغيير في الرصيد الابتدائي بيسأل (الرصيد كله بيتحرك بالفرق) — الاختبار العنيف 2026-11-07، قرار مؤمن
+      plan: planWalletOpeningCommit,
+      confirmCopy: (id, value, stored) => openingConfirmCopy(wallets.find(x => x.id === id)?.name ?? '', stored, value),
+    },
   );
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,

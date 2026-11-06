@@ -25,6 +25,11 @@ export type AmountDraftOptions = {
    * شهر بصفر معناهم "لسه ماتحددش" — و"0" هناك بيبان كأن المستخدم اختاره.
    */
   blankWhenZero?: boolean;
+  /**
+   * نص التأكيد لما الخطة ترجّع `confirm` — الافتراضي سؤال "رصيد بالسالب؟". الرصيد الابتدائي بيبعت نصه هو (أي تغيير
+   * بيسأل، الاختبار العنيف 2026-11-07: دوسة غلط كانت بتغيّر الرصيد كله ساكت)
+   */
+  confirmCopy?: (id: string, value: number, stored: number) => { title: string; body: string; yes: string; no: string };
 };
 
 /**
@@ -168,10 +173,12 @@ export function useAmountDrafts(
     const confirmed = p.value;
     // حد معروف (silent-failure-hunter): التطبيق اتقفل والتأكيد مفتوح، أو الـblur جه من القفل نفسه ←
     // التأكيد بيتلغي فـ"لأ" بتمسح المسوّدة السالبة. مفيش كتابة، والخانة بترجع للرقم المتخزّن
-    confirm(NEGATIVE_CONFIRM_TITLE, NEGATIVE_CONFIRM_BODY, [
-      { text: NEGATIVE_CONFIRM_NO, style: 'cancel', onPress: () => clearDraft(id) },
-      { text: NEGATIVE_CONFIRM_YES, onPress: () => commitWrite(id, confirmed) },
-    ], { key: `negative_${id}` });
+    const copy = opts.confirmCopy?.(id, confirmed, latest.current.storedFor(id))
+      ?? { title: NEGATIVE_CONFIRM_TITLE, body: NEGATIVE_CONFIRM_BODY, yes: NEGATIVE_CONFIRM_YES, no: NEGATIVE_CONFIRM_NO };
+    confirm(copy.title, copy.body, [
+      { text: copy.no, style: 'cancel', onPress: () => clearDraft(id) },
+      { text: copy.yes, onPress: () => commitWrite(id, confirmed) },
+    ], { key: `confirm_${id}` });
   }
 
   return { valueFor, numberFor, onChange, onBlur };

@@ -579,6 +579,16 @@ export function planWalletAmountRewrite(draft: string | undefined): WalletAmount
   return value < 0 ? { action: 'confirm', value } : { action: 'write', value };
 }
 
+/**
+ * الرصيد الابتدائي (الاختبار العنيف 2026-11-07، قرار مؤمن): **أي تغيير بيسأل** — مبيتحفظش لوحده بعد ثانية. الحفظ
+ * التلقائي بيكتب `write` بس، فالتأكيد بيطلع لما تسيب الخانة؛ والخروج من الشاشة من غير تأكيد = مفيش تغيير.
+ * `stored` NaN (رصيد متخزّن مش مقروء — بند B) ← أي رقم صالح يتسأل عليه برضه.
+ */
+export function planWalletOpeningCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  const base = Number.isNaN(stored) ? planWalletAmountRewrite(draft) : planWalletAmountCommit(draft, stored);
+  return base.action === 'write' ? { action: 'confirm', value: base.value } : base;
+}
+
 export function planBudgetCommit(draft: string | undefined, stored: number): WalletAmountPlan {
   return planWith(draft, stored, parseBudgetInput);
 }

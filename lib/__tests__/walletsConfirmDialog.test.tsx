@@ -97,3 +97,36 @@ it('بند B: محفظة عليها عملية بايظة ← ليها تاري�
   expect(screen.getByTestId('notice_title').props.children).toBe('ما اتأرشفتش');
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
 });
+
+describe('الرصيد الابتدائي بيسأل قبل ما يتغيّر (الاختبار العنيف 2026-11-07، قرار مؤمن)', () => {
+  const type = async (v: string) => {
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_opening_input_w1'), v); });
+  };
+  it('مبيتحفظش لوحده بعد ثانية، والتأكيد بالرقمين، و«أيوه» بتكتب', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    await type('15000');
+    await act(async () => { await new Promise(r => setTimeout(r, 1300)); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('تغيّر الرصيد الابتدائي؟');
+    expect(screen.getByTestId('confirm_body').props.children).toContain('من 5,000 لـ15,000');
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.updateWallet).toHaveBeenCalledWith('w1', { openingBalance: 15000 });
+  });
+  it('«سيبه زي ما هو» ← مفيش كتابة', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    await type('15000');
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+  });
+  it('حد التنبيه لسه بيتحفظ لوحده (مبيغيّرش رصيد)', async () => {
+    seed([cash, bank]);
+    await render(ui());
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_alert_input_w1'), '300'); });
+    await act(async () => { await new Promise(r => setTimeout(r, 1300)); });
+    expect(mockData.updateWallet).toHaveBeenCalledWith('w1', { lowAlert: 300 });
+  });
+});
