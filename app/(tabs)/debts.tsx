@@ -29,7 +29,7 @@ import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -223,6 +223,9 @@ function DebtsContent() {
     notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
   }
 
+  // مرة واحدة للشاشة (react-reviewer): كل الكروت بنفس "النهارده"
+  const today = todayStr();
+
   function renderDebt(d: Debt) {
     const grandTotal = debtGrandTotal(d);
     const paid = debtPaid(d);
@@ -231,8 +234,9 @@ function DebtsContent() {
     const settled = isDebtSettled(d);
     // دراسة الشكل خطوة 3 (ب): **الأحمر = متأخر بس، والأخضر = اتسدد بس** — قبل كده الأحمر كان على "عليا" حتى لو مش متأخر.
     // الاتجاه بيقوله القسم اللي الكارت فيه. الشريط عنصر (3:1)، والنص بتوكنز النص (4.5)
-    const overdue = !settled && !!d.dueDate && d.dueDate < todayStr();
-    const color = settled ? colors.success : overdue ? colors.danger : colors.accent;
+    const overdue = !settled && !!d.dueDate && d.dueDate < today;
+    // الشريط بتوكنز النص (≥ 4.5 على المسار في الثيمين) — `accent`/`success` كانوا 1.8 و2.65 على المسار في الفاتح
+    const color = settled ? colors.incomeText : overdue ? colors.dangerText : colors.accentText;
     const textColor = settled ? colors.incomeText : overdue ? colors.dangerText : colors.text;
     const expanded = expandedDebt === d.id;
 
@@ -269,8 +273,9 @@ function DebtsContent() {
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
           <Text style={[styles.progressText, overdue && { color: colors.dangerText }]} numberOfLines={2}>
-            {debtPaidLabel(d, money)}
-            {!!d.dueDate && !settled ? ` · ${overdue ? 'متأخر — ' : ''}معاده ${dueDateLabel(d.dueDate)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
+            {/* «متأخر» أول السطر: هو الإشارة الوحيدة غير اللون، ومينفعش يتقص في الآخر (visual-identity-reviewer) */}
+            {overdue ? 'متأخر — ' : ''}{debtPaidLabel(d, money)}
+            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
           </Text>
         </TouchableOpacity>
 
@@ -568,9 +573,10 @@ function DebtMenu({ debt, busy, ledgerKey, returnFocusTo, onClose, onIncrease, o
   debt: Debt | null; busy: boolean; ledgerKey?: string; returnFocusTo: RefObject<View | null>; onClose: () => void;
   onIncrease: (d: Debt) => void; onEdit: (d: Debt) => void; onReverse: (d: Debt) => void; onDelete: (d: Debt) => void;
 }) {
-  const last = useRef<Debt | null>(null);
-  if (debt) last.current = debt;
-  const d = debt ?? last.current;
+  // آخر دين اتفتح عليه — عشان العنوان والأفعال ميفضوش وهي بتنزل. في state مش ref (مفيش كتابة وقت الرسم)
+  const [last, setLast] = useState<Debt | null>(debt);
+  useEffect(() => { if (debt) setLast(debt); }, [debt]);
+  const d = debt ?? last;
   const actions: SheetAction[] = d ? [
     { key: 'increase', label: 'زيادة على الدين', testID: 'debt_menu_increase', disabled: busy, onPress: () => onIncrease(d) },
     { key: 'edit', label: 'تعديل البيانات', testID: 'debt_menu_edit', disabled: busy, onPress: () => onEdit(d) },

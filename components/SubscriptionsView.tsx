@@ -15,7 +15,7 @@ import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/en
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -58,7 +58,8 @@ export default function SubscriptionsView() {
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
   // قايمة "⋯": المعرّف بس — الاشتراك بيتقري حي (نفس كارت الدين)
   const [menuSubId, setMenuSubId] = useState<string | null>(null);
-  const menuLast = useRef<Subscription | null>(null);
+  // آخر اشتراك اتفتح عليه (للعنوان وهي بتنزل) — بيتحط وقت الدوسة، مش وقت الرسم
+  const [menuSnapshot, setMenuSnapshot] = useState<Subscription | null>(null);
 
   const sorted = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
   // "اشتراكات واقفة" مطوي تحت (قرار مؤمن 2026-11-02) — نفس غلاف "ديون اتسددت"
@@ -192,7 +193,7 @@ export default function SubscriptionsView() {
           {/* دراسة الشكل خطوة 3: زرار أساسي واحد (اتخصم/رجّعه) والباقي في "⋯" — نفس كارت الدين */}
           <TouchableOpacity testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
             accessibilityHint="بيفتح قايمة" disabled={busyKey === `del_${s.id}`} accessibilityState={{ disabled: busyKey === `del_${s.id}`, busy: busyKey === `del_${s.id}` }}
-            style={[styles.moreBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => setMenuSubId(s.id)}>
+            style={[styles.moreBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => { setMenuSnapshot(s); setMenuSubId(s.id); }}>
             <Text style={styles.moreBtnText}>{busyKey === `del_${s.id}` ? '...' : '⋯'}</Text>
           </TouchableOpacity>
         </View>
@@ -223,9 +224,9 @@ export default function SubscriptionsView() {
       <AddSubscriptionModal visible={showAdd} onClose={() => setShowAdd(false)} />
       {editingSub && <EditSubscriptionModal sub={editingSub} onClose={() => setEditingSub(null)} />}
       {(() => {
+        // حي بالمعرّف؛ اتمسح من جهاز تاني والقايمة مفتوحة ← بتتقفل لوحدها
         const live = subscriptions.find(x => x.id === menuSubId) ?? null;
-        if (live) menuLast.current = live;
-        const m = live ?? menuLast.current;
+        const m = live ?? menuSnapshot;
         const busy = busyKey !== null || resumeBusyKey !== null;
         return (
           <ActionSheet visible={!!live} testID="subscription_menu" title={m?.name ?? ''} onClose={() => setMenuSubId(null)} actions={m ? [
@@ -395,7 +396,7 @@ function makeStyles(c: ThemeColors) {
     actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
     payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
-    moreBtn: { minWidth: MIN_TOUCH + 12, minHeight: MIN_TOUCH, borderRadius: 8, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.sm, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     moreBtnText: { color: c.text, fontSize: 17, fontWeight: '700' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },

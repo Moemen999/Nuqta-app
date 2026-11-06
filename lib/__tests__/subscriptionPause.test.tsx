@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -75,7 +76,7 @@ async function pressAlertButton(text: string) {
 async function pressStop(id: string) {
   await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${id}`)); });
   await act(async () => { fireEvent.press(screen.getByTestId(`subscription_stop_${id}`)); });
-  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+  await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
 }
 
 describe('شاشة الاشتراكات', () => {

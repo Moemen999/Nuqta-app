@@ -95,12 +95,13 @@ export default function GamiyaView() {
             <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
           </Text>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
+            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accentText }]} />
           </View>
           <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
           {nextPending && (
-            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
-              {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
+              {/* القرب بالكلمة كمان، مش باللون بس (visual-identity-reviewer) */}
+              {daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? 'قرّب — ' : ''}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>

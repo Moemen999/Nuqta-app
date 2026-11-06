@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react-native';
 import DebtsTabScreen from '@/app/(tabs)/debts';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
-import { ThemeProvider } from '@/context/ThemeContext';
+import { DARK, LIGHT, ThemeProvider } from '@/context/ThemeContext';
 
 /** دراسة الشكل خطوة 3 (ب): الأحمر = متأخر بس — "عليا" مش متأخر مش أحمر، والمتأخر بيتقال بالكلام كمان */
 
@@ -22,8 +22,9 @@ it('عليا مش متأخر ← مش أحمر؛ عليا متأخر ← "متأ
     wallets: [], categories: [], transactions: [], loadErrors: [], subscriptions: [], gamiyas: [],
   });
   await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></NoticeProvider></ThemeProvider>);
-  const late = screen.getByText(/متأخر — معاده/);
-  expect(StyleSheet.flatten(late.props.style).color).toBeDefined();
+  // «متأخر» أول السطر (مينفعش يتقص)، وبلون نص الخطر
+  const late = screen.getByText(/^متأخر — /);
+  expect([DARK.dangerText, LIGHT.dangerText]).toContain(StyleSheet.flatten(late.props.style).color);
   const lines = screen.getAllByText(/معاده/);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const colorOf = (n: any) => StyleSheet.flatten(n.props.style)?.color;

@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -78,7 +79,7 @@ async function pressDelete(Screen: React.ComponentType, button: string) {
     await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${sid}`)); });
     await act(async () => { fireEvent.press(screen.getByTestId(`subscription_delete_${sid}`)); });
     // iOS (افتراضي jest-expo): الفعل بيستنى الورقة تختفي
-    await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+    await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
     return;
   }
   await act(async () => { fireEvent.press(screen.getByText(button)); });
@@ -154,7 +155,7 @@ async function tapDelete(button: string) {
     const sid = button.slice(5);
     await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${sid}`)); });
     await act(async () => { fireEvent.press(screen.getByTestId(`subscription_delete_${sid}`)); });
-    await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+    await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
     return;
   }
   await act(async () => { fireEvent.press(screen.getByText(button)); });

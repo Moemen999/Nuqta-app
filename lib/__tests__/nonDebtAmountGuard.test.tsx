@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -60,7 +61,7 @@ async function pressEdit() {
   if (more.length === 0) { await act(async () => { fireEvent.press(screen.getByText('تعديل')); }); return; }
   await act(async () => { fireEvent.press(more[0]); });
   await act(async () => { fireEvent.press(screen.getAllByTestId(/^subscription_edit_/)[0]); });
-  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+  await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
 }
 
 describe('اشتراك جديد', () => {

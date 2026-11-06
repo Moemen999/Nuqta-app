@@ -1,14 +1,18 @@
 import { Text } from '@/components/AppText';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, typeScale } from '@/lib/tokens';
-import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, type Context, type RefObject } from 'react';
 import { AccessibilityInfo, findNodeHandle, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SafeArea from 'react-native-safe-area-context';
 
 export type SheetAction = { key: string; label: string; onPress: () => void; danger?: boolean; testID?: string; disabled?: boolean };
 
-/** مهلة احتياطية لو `onDismiss` (iOS بس) ما وصلش */
-const IOS_DISMISS_FALLBACK_MS = 600;
+/** مهلة احتياطية لو `onDismiss` (iOS بس) ما وصلش — الاختبارات بتستنى القيمة دي (+50) */
+export const IOS_DISMISS_FALLBACK_MS = 600;
+
+/** من غير Provider (أو mock للموديول من غيره) — `useContext` بيتنادى دايمًا على context، فالـhooks بنفس الترتيب */
+const NO_INSETS = createContext<{ bottom: number } | null>(null);
+const InsetsContext = (SafeArea.SafeAreaInsetsContext ?? NO_INSETS) as Context<{ bottom: number } | null>;
 
 /**
  * قايمة "⋯" (دراسة الشكل خطوة 3، قرار مؤمن 2026-11-06): الكارت فيه زرار أساسي واحد، والباقي هنا — كانوا 6 أزرار بنفس
@@ -24,9 +28,7 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
 }) {
   const { colors } = useTheme();
   // متركّبة دايمًا جوه كروت كتير — من غير Provider (اختبارات، شاشات قديمة) الحافة صفر بدل ما ترمي
-  // (الهوك بيتنادى دايمًا بنفس الترتيب — الـtry بس بيمسك غياب الـProvider)
-  let bottomInset = 0;
-  try { bottomInset = useSafeAreaInsets().bottom; } catch { /* من غير Provider: صفر */ }
+  const bottomInset = useContext(InsetsContext)?.bottom ?? 0;
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pending = useRef<(() => void) | null>(null);
   const fallback = useRef<ReturnType<typeof setTimeout> | null>(null);
