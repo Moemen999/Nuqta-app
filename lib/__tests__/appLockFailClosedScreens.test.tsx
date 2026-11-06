@@ -16,7 +16,7 @@ const mockLock = {
   unlock: jest.fn(),
   clearLock: jest.fn(async () => {}),
   readFailed: false,
-  retryRead: jest.fn(async () => {}),
+  retryRead: jest.fn(async () => false as boolean | null),
 };
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => mockLock }));
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ logOut: jest.fn(async () => {}) }) }));
@@ -80,4 +80,12 @@ it('"نسيت الكود؟" ومسح القفل رمى بعد الخروج ← �
   await act(async () => {});
   expect(spy).toHaveBeenCalledWith(LOCK_STORAGE_ERROR);
   spy.mockRestore();
+});
+
+it('"جرب تاني" وقراية تانية كانت شغالة (null) ← مفيش سطر فشل كدب', async () => {
+  mockLock.readFailed = true;
+  mockLock.retryRead.mockResolvedValueOnce(null);
+  await renderLock();
+  await act(async () => { fireEvent.press(screen.getByTestId('lock_read_retry')); });
+  expect(screen.queryByTestId('lock_read_retry_failed')).toBeNull();
 });

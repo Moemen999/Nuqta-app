@@ -23,7 +23,8 @@ type AppLockContextType = {
    * بتقول كده وفيها "جرّب تاني" و"نسيت الكود؟". قبل كده كان بيتفتح من غير قفل ساكت (بند A)
    */
   readFailed: boolean;
-  retryRead: () => Promise<void>;
+  /** `true` = اتقرت، `false` = فشلت تاني، `null` = قراية تانية كانت شغالة (مفيش نتيجة جديدة) */
+  retryRead: () => Promise<boolean | null>;
   /** بيرمي لو الحفظ فشل — والشاشة بتقول. مفيش حالة نص-نص: علم "مفعّل" آخر حاجة بتتكتب */
   setupLock: (type: LockType, code: string) => Promise<void>;
   disableLock: (code: string) => Promise<VerifyResult>;
@@ -98,8 +99,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * "مفتوح" معناه التطبيق كله من غير كود. المخرج موجود: "جرّب تاني"، و"نسيت الكود؟" (خروج من الحساب).
    * `allowBackup: false` (app.config.js) فمفيش مفاتيح بتبوظ بعد استرجاع باك أب — `null` هنا = "مفيش قفل" فعلاً.
    */
-  async function readSettings() {
-    if (reading.current) return; // دوستين على "جرب تاني" مبيعملوش قرايتين مع بعض
+  async function readSettings(): Promise<boolean | null> {
+    if (reading.current) return null; // دوستين على "جرب تاني" مبيعملوش قرايتين مع بعض
     reading.current = true;
     const seq = ++readSeq.current;
     try {
@@ -112,23 +113,29 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         try { en = await SecureStore.getItemAsync(K_ENABLED); ok = true; }
         catch (e) { lastError = e; if (attempt < READ_ATTEMPTS - 1) await new Promise(r => setTimeout(r, READ_RETRY_MS)); }
       }
-      if (seq !== readSeq.current) return;
-      if (!ok) {
-        reportAtomicFailure('قراية القفل', lastError);
+      if (seq !== readSeq.current) return null;
+      const fail = (e: unknown) => {
+        reportAtomicFailure('قراية القفل', e);
         setReadFailed(true);
         setIsLocked(true);
-        return;
-      }
-      const optional = async (k: string) => { try { return await SecureStore.getItemAsync(k); } catch { return null; } };
-      const [t, f, g] = [await optional(K_TYPE), await optional(K_FREQ), await optional(K_GRACE)];
-      if (seq !== readSeq.current) return;
+        return false;
+      };
+      if (!ok) return fail(lastError);
       const isEnabled = en === '1';
+      // القفل مفعّل ← النوع وامتى يقفل **حرجين** كمان: نوع غلط = لوحة أرقام لصاحب باسورد (مقفول برّه)، وامتى غلط = قفل أضعف
+      // من غير ما حد يعرف (security-reviewer + silent-failure-hunter جولة 2). المهلة بس بترجع للافتراضي — وبتتبلّغ
+      let t: string | null = null; let f: string | null = null; let g: string | null = null;
+      try { t = await SecureStore.getItemAsync(K_TYPE); f = await SecureStore.getItemAsync(K_FREQ); }
+      catch (e) { if (isEnabled) { if (seq === readSeq.current) return fail(e); return null; } reportAtomicFailure('قراية القفل', e); }
+      try { g = await SecureStore.getItemAsync(K_GRACE); } catch (e) { reportAtomicFailure('قراية القفل', e); }
+      if (seq !== readSeq.current) return null;
       setEnabled(isEnabled);
       if (t === 'pin' || t === 'password') setLockType(t);
       if (f === 'onOpen' || f === 'everyResume') setFrequencyState(f);
       if (g !== null) setGraceMinutesState(Number(g) || 0);
       setIsLocked(isEnabled);
       setReadFailed(false);
+      return true;
     } finally {
       reading.current = false;
     }
@@ -140,7 +147,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function retryRead() {
-    await readSettings();
+    return readSettings();
   }
 
   useEffect(() => {
@@ -179,6 +186,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     }
     readSeq.current++;
     setEnabled(true);
+    setReadFailed(false);
     setLockType(type);
   }
 
@@ -195,7 +203,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setIsLocked(false);
     setReadFailed(false);
     for (const k of [K_TYPE, K_HASH, K_FREQ]) {
-      try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('حفظ القفل', e); }
+      try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
   }
 
@@ -276,6 +284,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   function unlock() {
     readSeq.current++; // قراية لسه شغالة مترجعش تقفل بعد ما فتح
     setIsLocked(false);
+    setReadFailed(false);
   }
 
   return (

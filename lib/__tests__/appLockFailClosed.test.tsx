@@ -40,6 +40,11 @@ const lock = () => holder.current!;
 beforeEach(() => {
   for (const k of Object.keys(mockStore)) delete mockStore[k];
   mockFailGet = 0; mockFailSet = null;
+  // اختبارات بتغيّر القراية — نرجّعها للأصل
+  (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+    if (k === 'nuqta_lock_enabled' && mockFailGet > 0) { mockFailGet--; throw new Error('keystore'); }
+    return mockStore[k] ?? null;
+  });
 });
 
 async function mount() {
@@ -172,10 +177,51 @@ describe('جولة 1 (security-reviewer + silent-failure-hunter)', () => {
     expect(lock().isLocked).toBe(true);
     let release!: () => void;
     (SecureStore.getItemAsync as jest.Mock).mockImplementationOnce(() => new Promise(r => { release = () => r('1'); }));
-    let p!: Promise<void>;
+    let p!: Promise<unknown>;
     await act(async () => { p = lock().retryRead(); });
     await act(async () => { lock().unlock(); });
     await act(async () => { release(); await p; });
     expect(lock().isLocked).toBe(false);
+  });
+});
+
+describe('جولة 2', () => {
+  it('القفل مفعّل ونوعه ما اتقراش ← "مقدرناش نقرا" (مش لوحة أرقام لصاحب باسورد)', async () => {
+    mockStore.nuqta_lock_enabled = '1'; mockStore.nuqta_lock_type = 'password'; mockStore.nuqta_lock_hash = 'h:abcd';
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === 'nuqta_lock_type') throw new Error('keystore');
+      return mockStore[k] ?? null;
+    });
+    await mount();
+    expect(lock().readFailed).toBe(true);
+    expect(lock().isLocked).toBe(true);
+  });
+
+  it('مفيش قفل ونوعه ما اتقراش ← عادي (الافتراضي)، مش مقفول برّه', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === 'nuqta_lock_type') throw new Error('keystore');
+      return mockStore[k] ?? null;
+    });
+    await mount();
+    expect(lock().readFailed).toBe(false);
+    expect(lock().isLocked).toBe(false);
+  });
+
+  it('القراية فشلت وبعدين اتفتح بالكود ← readFailed بيتشال (الشاشة الجاية لوحة أرقام مش "مقدرناش")', async () => {
+    mockFailGet = 99;
+    await mount();
+    await act(async () => { lock().unlock(); });
+    expect(lock().readFailed).toBe(false);
+  });
+
+  it('retryRead بيرجّع true لما ينجح وfalse لما يفشل', async () => {
+    mockFailGet = 99;
+    await mount();
+    let r: boolean | null = null;
+    await act(async () => { r = await lock().retryRead(); });
+    expect(r).toBe(false);
+    mockFailGet = 0;
+    await act(async () => { r = await lock().retryRead(); });
+    expect(r).toBe(true);
   });
 });

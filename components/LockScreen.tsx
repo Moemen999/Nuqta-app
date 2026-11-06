@@ -58,9 +58,10 @@ export default function LockScreen() {
   async function retry() {
     if (retrying) return;
     setRetrying(true);
-    await retryRead();
+    const res = await retryRead();
     setRetrying(false);
-    setRetryFailed(true); // لو لسه فاشلة الشاشة دي بتفضل وبتقول إن المحاولة ما نفعتش؛ لو نجحت الشاشة بتتشال
+    // بس لو فشلت فعلاً — `null` (قراية تانية كانت شغالة) مش فشل (silent-failure-hunter جولة 2)
+    if (res === false) setRetryFailed(true);
   }
   const { logOut } = useAuth();
   const { serverReachable } = useData();
