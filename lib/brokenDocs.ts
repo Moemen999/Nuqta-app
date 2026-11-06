@@ -26,6 +26,10 @@ export function brokenWalletBannerText(name: string): string {
   return `رصيد البداية بتاع محفظة "${name}" مش مقروء، فاتحسب بصفر. اكتبه تاني من المحافظ.`;
 }
 export const BROKEN_WALLET_ACTION = 'افتح المحافظ';
+/** المؤرشفة مالهاش خانة رصيد بداية — لازم ترجع الأول (silent-failure-hunter جولة 2) */
+export function brokenArchivedWalletBannerText(name: string): string {
+  return `رصيد البداية بتاع محفظة "${name}" المؤرشفة مش مقروء، فاتحسب بصفر. رجّعها من المحافظ واكتبه تاني.`;
+}
 /** أرشفة محفظة عليها بيانات ناقصة — ممنوعة: بعد الأرشفة البانر بيختفي والتصليح بيتقفل (money-reviewer + silent-failure-hunter) */
 export const BROKEN_WALLET_ARCHIVE_BLOCK: [string, string] = [
   'ما اتأرشفتش',
@@ -39,6 +43,8 @@ export const FIX_DELETE_PLAIN_BODY = 'العملية دي مش محسوبة في
 export const FIX_INVALID_AMOUNT = 'اكتب مبلغ أكبر من صفر.';
 export const FIX_PICK_DATE = 'اختار تاريخ العملية.';
 export const FIX_DATE_MISSING = 'التاريخ كان ناقص — اختاره';
+export const FIX_LOAD_FAILED = 'مقدرناش نجيب الديون أو الاشتراكات أو الجمعيات، فمش عارفين العملية دي مربوطة بحاجة ولا لأ. جرّب تاني.';
+export const FIX_RETRY = 'جرّب تاني';
 export const FIX_WAITING = 'لسه بنجيب الديون والاشتراكات والجمعيات — استنى لحظة عشان نعرف العملية دي مربوطة بحاجة ولا لأ.';
 export const FIX_SAVED = 'اتحفظت';
 export const FIX_DELETED = 'اتمسحت';

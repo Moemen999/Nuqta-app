@@ -15,13 +15,14 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), ca
 
 const updateTransaction = jest.fn();
 const deleteTransaction = jest.fn();
+const retryLoad = jest.fn();
 function seed(broken: object[], extra: Record<string, unknown> = {}) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   updateTransaction.mockReset(); deleteTransaction.mockReset();
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }, { id: 'old', name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true }],
     categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
-    brokenTransactions: broken, updateTransaction, deleteTransaction, transactionLinkWarning: () => null, linkSourcesReady: true,
+    brokenTransactions: broken, updateTransaction, deleteTransaction, transactionLinkWarning: () => null, linkSourcesReady: true, loadErrors: [], retryLoad,
     ...extra,
   });
 }
@@ -99,4 +100,13 @@ it('اسم الصف لقارئ الشاشة فيه المبلغ والتاريخ
   const label = screen.getByTestId('archive_broken_b6').props.accessibilityLabel as string;
   expect(label).toContain('2026-09-01');
   expect(label).toContain('40');
+});
+
+it('الديون ما وصلتش لأن الـlistener وقع ← رسالة + "جرّب تاني" (مش "استنى" للأبد)', async () => {
+  seed([{ id: 'b7', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }], { linkSourcesReady: false, loadErrors: ['debts'] });
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b7')); });
+  expect(screen.getByTestId('broken_fix_load_failed')).toBeTruthy();
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_retry')); });
+  expect(retryLoad).toHaveBeenCalled();
 });

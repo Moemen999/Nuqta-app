@@ -195,6 +195,11 @@ export default function WalletsScreen() {
     });
   }
 
+  /** بيانات ناقصة على المحفظة ← مفيش أرشفة (money-reviewer + silent-failure-hunter): بعدها التصليح بيتقفل. وقت الفتح **ووقت التأكيد** */
+  function brokenDataOn(id: string) {
+    return !!wallets.find(x => x.id === id)?.openingInvalid || brokenTransactions.some(t => t.walletId === id || t.toWalletId === id);
+  }
+
   function startArchive(id: string, name: string) {
     if (blockedByMissingData()) return;
     if (!wallets.some(x => x.id === id)) return;
@@ -202,10 +207,7 @@ export default function WalletsScreen() {
     const others = activeWallets.filter(x => x.id !== id);
     const block = archiveBlockFor(id);
     if (block) { showBlock(block, name, 'archive'); return; }
-    // بيانات ناقصة على المحفظة ← مفيش أرشفة (money-reviewer + silent-failure-hunter): بعدها البانر بيختفي والتصليح بيتقفل
-    if (wallets.find(x => x.id === id)?.openingInvalid || brokenTransactions.some(t => t.walletId === id || t.toWalletId === id)) {
-      notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return;
-    }
+    if (brokenDataOn(id)) { notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return; }
 
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
@@ -257,6 +259,8 @@ export default function WalletsScreen() {
     }
     const block = archiveBlockFor(sheet.id);
     if (block) { setSheet(null); showBlock(block, sheet.name, 'archive'); return; }
+    // عملية بايظة أو علامة وصلت والشيت مفتوح (silent-failure-hunter جولة 2)
+    if (brokenDataOn(sheet.id)) { setSheet(null); notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return; }
     // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
     // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
     // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني

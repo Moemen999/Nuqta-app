@@ -13,7 +13,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import {
   BROKEN_MARK, BROKEN_REASON_LABEL, BROKEN_SECTION_TITLE, FIX_BLOCK_TEXT, FIX_DATE_MISSING, FIX_DELETE, FIX_DELETE_CONFIRM_TITLE,
-  FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
+  FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
 } from '@/lib/brokenDocs';
 import { TYPE_LABELS, categoryLabelById } from '@/lib/finance';
 import type { BrokenTransaction } from '@/lib/fromDoc';
@@ -65,7 +65,7 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const confirm = useConfirm();
   const {
-    wallets, debts, subscriptions, gamiyas, incomes, linkSourcesReady, updateTransaction, deleteTransaction, transactionLinkWarning,
+    wallets, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad, updateTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
   const linkKind = transactionLinkKind(t.id, { debts, subscriptions, gamiyas, incomes });
   const block = brokenFixBlock(t, linkKind, wallets);
@@ -111,6 +111,8 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
   }
 
   const waiting = !linkSourcesReady;
+  // "استنى" بس لو لسه بيحمّل — لو الـlistener وقع مفيش حاجة هتيجي لوحدها (silent-failure-hunter جولة 2)
+  const loadFailed = waiting && loadErrors.some(n => ['transactions', 'debts', 'subscriptions', 'gamiyas', 'incomes'].includes(n));
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -120,7 +122,14 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
               <Text style={styles.sheetTitle} accessibilityRole="header">{FIX_TITLE}</Text>
               <Text style={styles.reasons}>{t.reasons.map(r => BROKEN_REASON_LABEL[r]).join('، ')}</Text>
-              {waiting ? (
+              {loadFailed ? (
+                <>
+                  <Text testID="broken_fix_load_failed" style={styles.blocked}>{FIX_LOAD_FAILED}</Text>
+                  <TouchableOpacity testID="broken_fix_retry" accessibilityRole="button" style={styles.retryBtn} onPress={retryLoad}>
+                    <Text style={styles.retryText}>{FIX_RETRY}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : waiting ? (
                 <Text testID="broken_fix_waiting" style={styles.blocked}>{FIX_WAITING}</Text>
               ) : block ? (
                 <Text testID="broken_fix_blocked" style={styles.blocked}>{FIX_BLOCK_TEXT[block]}</Text>
@@ -194,5 +203,7 @@ function makeStyles(c: ThemeColors) {
     saveBtn: { flex: 2, minHeight: MIN_TOUCH, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
     saveText: { color: c.onAccent, fontWeight: '700' },
     btnBusy: { opacity: 0.6 },
+    retryBtn: { alignSelf: 'flex-end', minHeight: MIN_TOUCH, justifyContent: 'center', marginTop: space.sm },
+    retryText: { color: c.accentText, fontWeight: '700', textDecorationLine: 'underline' },
   });
 }
