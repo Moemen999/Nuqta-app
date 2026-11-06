@@ -23,8 +23,7 @@ import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
-  reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
-} from '@/lib/finance';
+  reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
@@ -230,10 +229,11 @@ function DebtsContent() {
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
     const settled = isDebtSettled(d);
-    // الشريط بـsuccess/danger (عنصر مش نص، 3:1 كفاية)، والنص بتوكنز النص (4.5)
-    const green = settled || d.direction === 'owed_to_me';
-    const color = green ? colors.success : colors.danger;
-    const textColor = green ? colors.incomeText : colors.dangerText;
+    // دراسة الشكل خطوة 3 (ب): **الأحمر = متأخر بس، والأخضر = اتسدد بس** — قبل كده الأحمر كان على "عليا" حتى لو مش متأخر.
+    // الاتجاه بيقوله القسم اللي الكارت فيه. الشريط عنصر (3:1)، والنص بتوكنز النص (4.5)
+    const overdue = !settled && !!d.dueDate && d.dueDate < todayStr();
+    const color = settled ? colors.success : overdue ? colors.danger : colors.accent;
+    const textColor = settled ? colors.incomeText : overdue ? colors.dangerText : colors.text;
     const expanded = expandedDebt === d.id;
 
     const timeline = [
@@ -259,32 +259,27 @@ function DebtsContent() {
               ) : (
                 <Text style={styles.personName}>{d.personName}</Text>
               )}
-              {/* الرقم كان بيبان في شاشة الاختيار وبس، وبعد الحفظ بيختفي.
-                  بقى سطر صغير تحت الاسم — موجود لما يكون محتاج ومش واخد مساحة */}
-              {!!d.personPhone && (
-                <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>
-              )}
             </View>
             <Text style={[styles.remainingText, { color: textColor }]}>
               {settled ? 'اتسدد بالكامل' : <Money value={remaining} />}
             </Text>
           </View>
-          {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
-          {!!d.dueDate && !settled && (
-            <Text style={styles.dueText}>
-              معاده {dueDateLabel(d.dueDate)}{d.reminderDaysBefore !== undefined ? ' · فيه تذكير 🔔' : ''}
-            </Text>
-          )}
+          {/* الكارت المقفول: الاسم والمبلغ وشريط رفيع وسطر واحد (دراسة الشكل). الرقم والملاحظة جوّه المفتوح */}
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
-          <Text style={styles.progressText}>
-            {debtPaidLabel(d, money)} · {d.isInstallment ? installmentSummary(d, money) : 'مبلغ واحد'}
+          <Text style={[styles.progressText, overdue && { color: colors.dangerText }]} numberOfLines={2}>
+            {debtPaidLabel(d, money)}
+            {!!d.dueDate && !settled ? ` · ${overdue ? 'متأخر — ' : ''}معاده ${dueDateLabel(d.dueDate)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
           </Text>
         </TouchableOpacity>
 
         {expanded && (
           <View style={styles.expandedArea}>
+            {/* الرقم كان بيبان في شاشة الاختيار وبس — هنا في المفتوح */}
+            {!!d.personPhone && <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>}
+            {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
+            <Text style={styles.dueText}>{d.isInstallment ? installmentSummary(d, money) : 'مبلغ واحد'}</Text>
             <View style={styles.paymentsList}>
               {timeline.map(t => {
                 // المحفظة/الفئة الممسوحة بتطلع باسم صريح بدل ما الشريحة تختفي
@@ -601,18 +596,18 @@ function makeStyles(c: ThemeColors) {
     summaryValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 8 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 14 },
-    debtCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
-    personName: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    personPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3 },
+    personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    personPhone: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
     personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
-    remainingText: { fontSize: 14, fontWeight: '700' },
-    noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    dueText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
-    progressText: { color: c.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 6 },
+    remainingText: { fontSize: typeScale.title, fontWeight: '700' },
+    noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
+    dueText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
+    track: { height: 4, backgroundColor: c.surface2, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 2 },
+    progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
     expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
     paymentsList: { marginBottom: 10 },
     paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2, gap: 8 },
