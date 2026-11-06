@@ -301,7 +301,7 @@ export default function WalletsScreen() {
                 onBlur={() => saveName(w.id, w.name)}
                 textAlign="right"
               />
-              <TouchableOpacity testID={`wallet_delete_${w.id}`} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
+              <TouchableOpacity accessibilityRole="button" testID={`wallet_delete_${w.id}`} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
                   {deletingKey === w.id ? '...' : 'حذف'}
                 </Text>
@@ -339,7 +339,7 @@ export default function WalletsScreen() {
         <View style={styles.addRow}>
           <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
             value={newWallet} onChangeText={setNewWallet} textAlign="right" />
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             testID="wallet_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}

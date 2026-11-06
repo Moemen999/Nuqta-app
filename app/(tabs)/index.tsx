@@ -397,7 +397,7 @@ function HomeScreen() {
           const catLabel = categoryLabelById(categories, t.categoryId);
           const walletLabel = transactionWalletLabel(t, wallets);
           return (
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               key={t.id}
               testID={`home_tx_${t.id}`}
               style={styles.txRow}
@@ -494,7 +494,7 @@ function EmailVerificationBanner() {
       {sent && !error ? (
         <Text style={styles.bannerText}>بعتنالك رسالة تأكيد جديدة، شوف إيميلك</Text>
       ) : (
-        <TouchableOpacity onPress={handleResend} disabled={busy} style={styles.bannerAction}>
+        <TouchableOpacity accessibilityRole="button" onPress={handleResend} disabled={busy} style={styles.bannerAction}>
           <Text style={[styles.bannerActionText, busy && { opacity: 0.6 }]}>
             {busy ? '...' : 'أعد إرسال رسالة التأكيد'}
           </Text>

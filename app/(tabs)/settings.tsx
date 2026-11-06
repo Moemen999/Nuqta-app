@@ -189,7 +189,7 @@ export default function SettingsScreen() {
           {!!section.subtitle && <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>}
           <View style={styles.card}>
             {section.rows.map((row, i) => (
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 key={row.key}
                 testID={`settings_row_${row.key}`}
                 style={[styles.row, i > 0 && styles.rowDivider]}

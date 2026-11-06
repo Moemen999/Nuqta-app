@@ -185,10 +185,10 @@ function DevSeed() {
             )}
           </View>
 
-          <TouchableOpacity testID="dev_seed_start" style={[styles.btn, busy && styles.btnBusy]} onPress={startSeed} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="dev_seed_start" style={[styles.btn, busy && styles.btnBusy]} onPress={startSeed} disabled={busy}>
             {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.btnText}>عبّي بيانات التجربة</Text>}
           </TouchableOpacity>
-          <TouchableOpacity testID="dev_seed_wipe" style={[styles.btnDanger, busy && styles.btnBusy]} onPress={wipe} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="dev_seed_wipe" style={[styles.btnDanger, busy && styles.btnBusy]} onPress={wipe} disabled={busy}>
             <Text style={styles.btnDangerText}>امسح بيانات التجربة</Text>
           </TouchableOpacity>
 

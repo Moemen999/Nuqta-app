@@ -179,10 +179,10 @@ export default function ArchiveScreen() {
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
-          <TouchableOpacity testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
+          <TouchableOpacity accessibilityRole="button" testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
+          <TouchableOpacity accessibilityRole="button" testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
             <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
           </TouchableOpacity>
         </View>
@@ -203,7 +203,7 @@ export default function ArchiveScreen() {
         <Text testID="archive_transfers_note" style={styles.transfersNote}>{TRANSFERS_NOTE}</Text>
       )}
 
-      <TouchableOpacity
+      <TouchableOpacity accessibilityRole="button"
         testID="archive_export_button"
         style={[styles.exportBtn, { opacity: filtered.length === 0 || exporting ? 0.5 : 1 }]}
         onPress={handleExport}

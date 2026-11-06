@@ -56,7 +56,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-      <TouchableOpacity testID="onboarding_skip_button" style={styles.skipBtn} onPress={finish}>
+      <TouchableOpacity accessibilityRole="button" testID="onboarding_skip_button" style={styles.skipBtn} onPress={finish}>
         <Text style={styles.skipText}>تخطي</Text>
       </TouchableOpacity>
 
@@ -77,11 +77,11 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
       <View style={styles.actions}>
         {index > 0 && (
-          <TouchableOpacity style={styles.backBtn} onPress={() => setIndex(i => i - 1)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={() => setIndex(i => i - 1)}>
             <Text style={{ color: colors.textSecondary, fontSize: 14 }}>السابق</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           style={styles.nextBtn}
           onPress={() => (isLast ? finish() : setIndex(i => i + 1))}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 15 }}>

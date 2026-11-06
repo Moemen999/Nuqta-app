@@ -248,11 +248,11 @@ function DebtsContent() {
 
     return (
       <View key={d.id} style={styles.debtCard}>
-        <TouchableOpacity onPress={() => setExpandedDebt(expanded ? null : d.id)}>
+        <TouchableOpacity accessibilityRole="button" onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
-                <TouchableOpacity onPress={() => openContactCard(d)}>
+                <TouchableOpacity accessibilityRole="button" onPress={() => openContactCard(d)}>
                   <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
                 </TouchableOpacity>
               ) : (
@@ -323,15 +323,15 @@ function DebtsContent() {
               })}
             </View>
             <View style={styles.actionsRow}>
-              <TouchableOpacity style={styles.increaseBtn} onPress={() => setIncreaseForDebt(d)}>
+              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setIncreaseForDebt(d)}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة على الدين</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.increaseBtn} onPress={() => setEditDebt(d)}>
+              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setEditDebt(d)}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>تعديل البيانات</Text>
               </TouchableOpacity>
               {/* كشف الحساب كان مدفون في التقارير بس — وهو المكان اللي بتشوف فيه
                   كل حسابك مع الشخص ده مجمّع، فمكانه الطبيعي هنا كمان */}
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button"
                 style={styles.increaseBtn}
                 onPress={() => {
                   const key = personKeyByDebt.get(d.id);
@@ -342,17 +342,17 @@ function DebtsContent() {
               {/* لو هو مديون ليا، ده بيسجل إني مديون ليه — والعكس. نفس الشخص، مودال
                   الدين الجديد بس متعبّي مقدّمًا باسمه وجهة اتصاله عشان الدين الجديد
                   يقع في نفس مجموعته في كشف الحساب (شوف reverseDebtPrefill) */}
-              <TouchableOpacity style={styles.increaseBtn} onPress={() => setReverseForDebt(d)}>
+              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setReverseForDebt(d)}>
                 <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>
                   {d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده'}
                 </Text>
               </TouchableOpacity>
               {!settled && (
-                <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                   <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
+              <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
                 <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
               </TouchableOpacity>
             </View>
@@ -369,7 +369,7 @@ function DebtsContent() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity testID="debt_add_button" style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
+        <TouchableOpacity accessibilityRole="button" testID="debt_add_button" style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دين جديد</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الديون والأقساط</Text>
@@ -509,7 +509,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
 
           {!!personContactId && (
             <View style={styles.linkedRow}>
-              <TouchableOpacity onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
+              <TouchableOpacity accessibilityRole="button" onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
                 <Text style={styles.unlinkText}>إلغاء الربط</Text>
               </TouchableOpacity>
               <Text style={styles.linkedText}>مربوط بجهة اتصال على الموبايل</Text>
@@ -551,10 +551,10 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="debt_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>

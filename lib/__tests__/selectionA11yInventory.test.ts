@@ -56,3 +56,30 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
   expect(checked).toBeGreaterThan(40);
   expect(offenders).toEqual([]);
 });
+
+it('بند E جولة 2: كل TouchableOpacity ليه دور لقارئ الشاشة (أو accessible={false} بقصد)', () => {
+  const offenders: string[] = [];
+  let checked = 0;
+  for (const f of [...files('app'), ...files('components')]) {
+    if (PENDING_ON_OTHER_BRANCH.has(f) || f === 'components/LockScreen.tsx') continue;
+    const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    let idx = 0;
+    while ((idx = s.indexOf('<TouchableOpacity', idx)) !== -1) {
+      const next = s[idx + '<TouchableOpacity'.length];
+      if (next !== ' ' && next !== '\n' && next !== '>') { idx++; continue; }
+      let end = idx, depth = 0;
+      for (; end < s.length; end++) {
+        const ch = s[end];
+        if (ch === '{' || ch === '(') depth++;
+        else if (ch === '}' || ch === ')') depth--;
+        else if (ch === '>' && depth === 0) break;
+      }
+      const tag = s.slice(idx, end + 1);
+      checked++;
+      if (!/accessibilityRole|selectionA11y\(|accessible=\{false\}/.test(tag)) offenders.push(`${f}:${s.slice(0, idx).split('\n').length}`);
+      idx = end;
+    }
+  }
+  expect(checked).toBeGreaterThan(150);
+  expect(offenders).toEqual([]);
+});

@@ -75,8 +75,9 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={close}>
-        <TouchableOpacity activeOpacity={1} style={styles.card} onPress={() => {}}>
+      {/* الخلفية والكارت مش أزرار لقارئ الشاشة (accessible=false): الخلفية كانت "زرار" من غير اسم، والكارت ماسك الدوس بس */}
+      <TouchableOpacity accessible={false} style={styles.overlay} activeOpacity={1} onPress={close}>
+        <TouchableOpacity accessible={false} activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
             <TouchableOpacity onPress={goPrev} style={styles.navBtn} accessibilityRole="button" accessibilityLabel={prevLabel}>
               <Text style={styles.navText}>›</Text>
@@ -85,16 +86,16 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
             <View style={styles.labelRow}>
               {level === 'days' && (
                 <>
-                  <TouchableOpacity onPress={() => setLevel('years')}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('years')}>
                     <Text style={styles.label}>{viewYear}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setLevel('months')}>
+                  <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('months')}>
                     <Text style={styles.label}>{MONTH_NAMES[viewMonth]}</Text>
                   </TouchableOpacity>
                 </>
               )}
               {level === 'months' && (
-                <TouchableOpacity onPress={() => setLevel('years')}>
+                <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('years')}>
                   <Text style={styles.label}>{viewYear}</Text>
                 </TouchableOpacity>
               )}
@@ -118,7 +119,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
                   const dateStr = day ? `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}` : null;
                   const isSelected = dateStr === value;
                   return (
-                    <TouchableOpacity key={i} disabled={!day} onPress={() => day && selectDay(day)}
+                    <TouchableOpacity accessibilityRole="button" key={i} disabled={!day} onPress={() => day && selectDay(day)}
                       style={[styles.dayCell, isSelected && styles.cellSelected]}>
                       {day ? <Text style={[styles.cellText, isSelected && styles.cellTextSelected]}>{day}</Text> : null}
                     </TouchableOpacity>
@@ -131,7 +132,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
           {level === 'months' && (
             <View style={styles.grid}>
               {['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'].map((m, i) => (
-                <TouchableOpacity key={m} onPress={() => selectMonth(i)}
+                <TouchableOpacity accessibilityRole="button" key={m} onPress={() => selectMonth(i)}
                   style={[styles.monthCell, i === viewMonth && styles.cellSelected]}>
                   <Text style={[styles.cellText, i === viewMonth && styles.cellTextSelected]}>{m}</Text>
                 </TouchableOpacity>
@@ -142,7 +143,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
           {level === 'years' && (
             <View style={styles.grid}>
               {Array.from({ length: 12 }, (_, i) => yearsPageStart + i).map(y => (
-                <TouchableOpacity key={y} onPress={() => selectYear(y)}
+                <TouchableOpacity accessibilityRole="button" key={y} onPress={() => selectYear(y)}
                   style={[styles.monthCell, y === viewYear && styles.cellSelected]}>
                   <Text style={[styles.cellText, y === viewYear && styles.cellTextSelected]}>{y}</Text>
                 </TouchableOpacity>

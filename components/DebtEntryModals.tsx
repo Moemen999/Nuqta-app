@@ -186,7 +186,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{date}</Text>
           </TouchableOpacity>
 
@@ -196,10 +196,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="debt_payment_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_payment_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -368,7 +368,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{date}</Text>
           </TouchableOpacity>
 
@@ -380,10 +380,10 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         {!!error && <Text testID="debt_increase_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="debt_increase_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_increase_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -536,7 +536,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{date}</Text>
           </TouchableOpacity>
 
@@ -576,10 +576,10 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="debt_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="debt_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>

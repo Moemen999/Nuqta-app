@@ -168,7 +168,7 @@ export default function CategoriesScreen() {
           <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
               style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
@@ -182,7 +182,7 @@ export default function CategoriesScreen() {
               onBlur={() => saveName(c.id, c.name)}
               textAlign="right"
             />
-            <TouchableOpacity testID={`category_delete_${c.id}`} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
+            <TouchableOpacity accessibilityRole="button" testID={`category_delete_${c.id}`} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
               <Text style={[styles.deleteText, deletingKey === c.id && styles.btnBusy]}>
                 {deletingKey === c.id ? '...' : 'حذف'}
               </Text>
@@ -193,7 +193,7 @@ export default function CategoriesScreen() {
         <View style={styles.addRow}>
           <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
             value={newCategory} onChangeText={setNewCategory} textAlign="right" />
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             testID="category_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}
