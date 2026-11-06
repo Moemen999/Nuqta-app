@@ -40,7 +40,8 @@ jest.mock('@/components/DataLoadErrorBanner', () => () => null);
 jest.mock('@/components/FirstRunSetup', () => () => null);
 const pass = ({ children }: { children: unknown }) => children;
 jest.mock('@/context/AppLockContext', () => ({
-  AppLockProvider: pass, useAppLock: () => ({ enabled: false, isLocked: false, loading: false }),
+  AppLockProvider: pass, useAppLock: () => ({ enabled: false, isLocked: false, readFailed: false, loading: false }),
+  shouldShowLock: () => false,
 }));
 jest.mock('@/context/AuthContext', () => ({
   AuthProvider: pass, useAuth: () => ({ user: null, loading: !mockReady.auth }),

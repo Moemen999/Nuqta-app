@@ -27,8 +27,8 @@ const mockLock = {
   disableLock: jest.fn(),
   clearLock: jest.fn(),
   changeCode: jest.fn(),
-  setFrequency: jest.fn(),
-  setGraceMinutes: jest.fn(),
+  setFrequency: jest.fn(async () => true),
+  setGraceMinutes: jest.fn(async () => true),
   verify: jest.fn(),
   unlock: jest.fn(),
 };
@@ -143,5 +143,26 @@ describe('القفل مقفول', () => {
     await renderScreen();
     expect(screen.queryByTestId('lock_disable_button')).toBeNull();
     expect(screen.queryByTestId('lock_change_button')).toBeNull();
+  });
+});
+
+describe('بند A: الحفظ فشل ← رسالة، مش رمية ساكتة', () => {
+  it('وقت الطلب ما اتحفظش ← "ما اتحفظش"', async () => {
+    const { Alert } = require('react-native');
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockLock.setFrequency.mockResolvedValueOnce(false);
+    await renderScreen();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_every_resume')); });
+    expect(spy).toHaveBeenCalledWith('ما اتحفظش', expect.stringContaining('القديم لسه شغال'));
+    spy.mockRestore();
+  });
+
+  it('اتحفظ ← مفيش رسالة', async () => {
+    const { Alert } = require('react-native');
+    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    await renderScreen();
+    await act(async () => { fireEvent.press(screen.getByTestId('lock_freq_every_resume')); });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

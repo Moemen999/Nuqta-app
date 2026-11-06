@@ -6,6 +6,8 @@ import { selectionStyle } from '@/lib/selection';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { useNotice } from '@/components/NoticeProvider';
+import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /** خيارات مهلة السماح — نفس اللي كانت في شاشة الإعدادات القديمة بالظبط */
@@ -40,6 +42,9 @@ export default function LockScreen_Settings() {
   const {
     enabled, lockType, frequency, setFrequency, graceMinutes, setGraceMinutes,
   } = useAppLock();
+  const notice = useNotice();
+  // الحفظ في التخزين الآمن ممكن يفشل — الاختيار القديم بيفضل ظاهر، والرسالة بتقول (بند A؛ كان unhandled rejection ساكت)
+  const saveSetting = (p: Promise<boolean>) => { p.then(ok => { if (!ok) notice(LOCK_SETTING_NOT_SAVED.title, LOCK_SETTING_NOT_SAVED.body); }); };
   const [modalMode, setModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
 
   return (
@@ -75,13 +80,13 @@ export default function LockScreen_Settings() {
           <View style={styles.row}>
             <TouchableOpacity
               testID="lock_freq_on_open"
-              onPress={() => setFrequency('onOpen')}
+              onPress={() => saveSetting(setFrequency('onOpen'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_freq_every_resume"
-              onPress={() => setFrequency('everyResume')}
+              onPress={() => saveSetting(setFrequency('everyResume'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
             </TouchableOpacity>
@@ -95,7 +100,7 @@ export default function LockScreen_Settings() {
                   <TouchableOpacity
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
-                    onPress={() => setGraceMinutes(opt.m)}
+                    onPress={() => saveSetting(setGraceMinutes(opt.m))}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>
                   </TouchableOpacity>
