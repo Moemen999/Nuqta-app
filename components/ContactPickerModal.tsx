@@ -19,7 +19,7 @@ const ContactRow = memo(function ContactRow({
   onPick: (c: ContactEntry) => void;
 }) {
   return (
-    <TouchableOpacity style={styles.contactRow} onPress={() => onPick(contact)}>
+    <TouchableOpacity accessibilityRole="button" style={styles.contactRow} onPress={() => onPick(contact)}>
       <Text style={styles.contactName} numberOfLines={1}>{contact.name}</Text>
       <Text style={styles.contactPhone} numberOfLines={1}>{contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}</Text>
     </TouchableOpacity>
@@ -117,7 +117,7 @@ export default function ContactPickerModal({
                 <Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>
                 {/* الإضافة بتتعرض هنا بس — عند اللحظة اللي المستخدم دوّر فيها وملقاش */}
                 {!!onCreateContact && !!query && (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     style={styles.createBtn}
                     onPress={() => onCreateContact(
                       queryIsPhone ? { name: '', phone: query } : { name: query, phone: '' }

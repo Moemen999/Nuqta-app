@@ -134,7 +134,7 @@ export default function AuthScreen() {
       <Text style={styles.tagline}>نقطة على السطر</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
 
-      <TouchableOpacity style={styles.googleBtn} onPress={() => promptAsync()} disabled={googleBusy}>
+      <TouchableOpacity accessibilityRole="button" style={styles.googleBtn} onPress={() => promptAsync()} disabled={googleBusy}>
         {googleBusy ? <ActivityIndicator color={colors.text} /> : (
           <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>تسجيل الدخول بحساب جوجل</Text>
         )}
@@ -157,21 +157,21 @@ export default function AuthScreen() {
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <TouchableOpacity testID="auth_submit_button" style={styles.button} onPress={handleSubmit} disabled={busy}>
+      <TouchableOpacity accessibilityRole="button" testID="auth_submit_button" style={styles.button} onPress={handleSubmit} disabled={busy}>
         {busy ? <ActivityIndicator color={colors.onAccent} /> : (
           <Text style={styles.buttonText}>{mode === 'login' ? 'دخول' : 'إنشاء حساب'}</Text>
         )}
       </TouchableOpacity>
 
       {mode === 'login' && (
-        <TouchableOpacity testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
+        <TouchableOpacity accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
           <Text style={[styles.resetText, resetBusy && { opacity: 0.6 }]}>
             {resetBusy ? '...' : RESET_LABEL}
           </Text>
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
+      <TouchableOpacity accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
         <Text style={styles.switchText}>
           {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب بالفعل؟ سجّل دخول'}
         </Text>

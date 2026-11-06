@@ -18,6 +18,7 @@ import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
+import { MIN_TOUCH } from '@/lib/tokens';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -301,7 +302,8 @@ export default function WalletsScreen() {
                 onBlur={() => saveName(w.id, w.name)}
                 textAlign="right"
               />
-              <TouchableOpacity testID={`wallet_delete_${w.id}`} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
+                testID={`wallet_delete_${w.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
                   {deletingKey === w.id ? '...' : 'حذف'}
                 </Text>
@@ -339,7 +341,7 @@ export default function WalletsScreen() {
         <View style={styles.addRow}>
           <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
             value={newWallet} onChangeText={setNewWallet} textAlign="right" />
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             testID="wallet_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}
@@ -385,6 +387,8 @@ function makeStyles(c: ThemeColors) {
     walletRow: { flexDirection: 'row-reverse', gap: 10 },
     microLabel: { color: c.textMuted, fontSize: 10.5, textAlign: 'right', marginBottom: 3 },
     smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
+    // "حذف" كان نص لوحده ~16 بكسل جنب خانة نص — بقى 44 (MIN_TOUCH، a11y-architect)
+    deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     deleteText: { color: c.dangerText, fontSize: 12.5 },
     addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
     addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13 },

@@ -148,7 +148,7 @@ export default function PersonLedgerScreen() {
       <View style={styles.sectionTitleRow}>
         {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
             الشخص، فمفيش اتجاه "عكسي" واحد نحدده تلقائي زي كارت الدين */}
-        <TouchableOpacity style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
+        <TouchableOpacity accessibilityRole="button" style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>+ دين جديد</Text>
         </TouchableOpacity>
         <Text style={[styles.sectionTitle, { marginTop: 0 }]}>سجّل حركة</Text>
@@ -157,12 +157,12 @@ export default function PersonLedgerScreen() {
         <>
           <Text style={styles.hintText}>دين واحد مفتوح بس، فالحركة هتتسجل عليه</Text>
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(soleOpenDebt)}>
+            <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(soleOpenDebt)}>
               <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>
                 تسجيل دفعة على: {debtLabelOf(soleOpenDebt)}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
+            <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة</Text>
             </TouchableOpacity>
           </View>
@@ -185,10 +185,10 @@ export default function PersonLedgerScreen() {
                   </Text>
                 </View>
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                     <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
+                  <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
                     <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة</Text>
                   </TouchableOpacity>
                 </View>

@@ -82,10 +82,10 @@ export default function ArchiveSheet({
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={busy}>
+            <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={onClose} disabled={busy}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button"
               testID="archive_sheet_confirm"
               style={[styles.saveBtn, (!allAssigned || busy) && styles.btnBusy]}
               disabled={!allAssigned || busy}

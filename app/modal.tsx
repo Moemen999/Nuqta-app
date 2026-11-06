@@ -359,7 +359,7 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
+          <TouchableOpacity accessibilityRole="button" key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ selected: type === t.key, disabled: typeLocked && type !== t.key }}
             style={[styles.typeBtn, selectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
@@ -423,7 +423,7 @@ export default function AddTransactionModal() {
       )}
 
       <Text style={styles.label}>التاريخ</Text>
-      <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
+      <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
         <Text style={styles.dateBtnText}>{date}</Text>
       </TouchableOpacity>
 
@@ -445,14 +445,14 @@ export default function AddTransactionModal() {
 
     <View style={styles.footer}>
       {isEdit && (
-        <TouchableOpacity style={[styles.deleteBtn, (busy || syncing) && styles.btnBusy]} onPress={handleDelete} disabled={busy || syncing}>
+        <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtn, (busy || syncing) && styles.btnBusy]} onPress={handleDelete} disabled={busy || syncing}>
           <Text style={{ color: colors.dangerText }}>{busy ? '...' : 'حذف'}</Text>
         </TouchableOpacity>
       )}
-      <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing}>
+      <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing}>
         <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
       </TouchableOpacity>
-      <TouchableOpacity testID="tx_save_button" style={[styles.saveBtn, (busy || syncing) && styles.btnBusy]} onPress={handleSave} disabled={busy || syncing}>
+      <TouchableOpacity accessibilityRole="button" testID="tx_save_button" style={[styles.saveBtn, (busy || syncing) && styles.btnBusy]} onPress={handleSave} disabled={busy || syncing}>
         {syncing ? <ActivityIndicator color={colors.onAccent} /> : (
           <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
         )}

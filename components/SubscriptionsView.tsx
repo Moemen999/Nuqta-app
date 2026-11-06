@@ -210,7 +210,7 @@ export default function SubscriptionsView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity testID="subscription_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity accessibilityRole="button" testID="subscription_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ اشتراك جديد</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الاشتراكات</Text>
@@ -338,7 +338,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           )}
 
           <Text style={styles.label}>أول موعد استحقاق</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{nextDueDate}</Text>
           </TouchableOpacity>
 
@@ -354,10 +354,10 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="subscription_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+          <TouchableOpacity accessibilityRole="button" testID="subscription_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="subscription_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="subscription_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -521,7 +521,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           )}
 
           <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{nextDueDate}</Text>
           </TouchableOpacity>
 
@@ -537,10 +537,10 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="subscription_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="subscription_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
           </TouchableOpacity>
         </View>

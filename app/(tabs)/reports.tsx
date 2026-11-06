@@ -180,10 +180,10 @@ export default function ReportsScreen() {
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('from')}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {customFrom}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setPickerFor('to')}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
             <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
           </TouchableOpacity>
         </View>
@@ -217,7 +217,7 @@ export default function ReportsScreen() {
           );
         })}
         {catFilter.length > 0 && (
-          <TouchableOpacity onPress={() => setCatFilter([])} style={[styles.chip, { borderColor: colors.borderStrong }]}>
+          <TouchableOpacity accessibilityRole="button" onPress={() => setCatFilter([])} style={[styles.chip, { borderColor: colors.borderStrong }]}>
             <Text style={{ color: colors.textSecondary, fontSize: 12.5 }}>مسح الفلتر</Text>
           </TouchableOpacity>
         )}
@@ -288,7 +288,7 @@ export default function ReportsScreen() {
         <Text style={styles.emptyState}>مفيش حركة ديون في الفترة دي</Text>
       ) : (
         personSummaries.map(s => (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             key={s.key}
             style={styles.personCard}
             onPress={() => router.push({ pathname: '/person-ledger', params: { personKey: s.key } })}>

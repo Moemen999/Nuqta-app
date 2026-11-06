@@ -36,11 +36,11 @@ export default function DebtReminderFields({
     <>
       <Text style={styles.label}>معاد الدين (اختياري)</Text>
       <View style={styles.row}>
-        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+        <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
           <Text style={styles.dateBtnText}>{dueDate || 'من غير معاد'}</Text>
         </TouchableOpacity>
         {!!dueDate && (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             style={styles.clearBtn}
             onPress={() => { onChangeDueDate(''); onChangeReminder(null); }}
             hitSlop={8}>

@@ -17,6 +17,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
+import { MIN_TOUCH } from '@/lib/tokens';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -168,7 +169,8 @@ export default function CategoriesScreen() {
           <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
-            <TouchableOpacity
+            {/* الإيموجي لوحده كان بيتقري اسمه ("إيدين مضمومين") — دلوقتي بيقول بيعمل إيه (a11y-architect) */}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`} hitSlop={5}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
               style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
@@ -182,7 +184,9 @@ export default function CategoriesScreen() {
               onBlur={() => saveName(c.id, c.name)}
               textAlign="right"
             />
-            <TouchableOpacity testID={`category_delete_${c.id}`} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
+            {/* نفس "حذف" المحفظة: اسم بيقول أنهي فئة، وحالة الانشغال، وطول 44 (a11y-architect جولة 2) */}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح فئة ${c.name}`} accessibilityState={{ busy: deletingKey === c.id, disabled: deletingKey === c.id }}
+              testID={`category_delete_${c.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
               <Text style={[styles.deleteText, deletingKey === c.id && styles.btnBusy]}>
                 {deletingKey === c.id ? '...' : 'حذف'}
               </Text>
@@ -193,7 +197,7 @@ export default function CategoriesScreen() {
         <View style={styles.addRow}>
           <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
             value={newCategory} onChangeText={setNewCategory} textAlign="right" />
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button"
             testID="category_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
             disabled={adding}
@@ -248,6 +252,7 @@ function makeStyles(c: ThemeColors) {
     iconText: { fontSize: 17 },
     catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },
     nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     deleteText: { color: c.dangerText, fontSize: 12.5 },
     addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
     addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13 },

@@ -102,10 +102,10 @@ export default function FeedbackScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
+        <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
           <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity accessibilityRole="button"
           testID="feedback_send_button"
           style={[styles.sendBtn, !canSend && styles.btnBusy]}
           disabled={!canSend}

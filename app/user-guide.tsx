@@ -167,7 +167,7 @@ export default function UserGuideScreen() {
         const isOpen = openId === s.id;
         return (
           <View key={s.id} style={styles.card}>
-            <TouchableOpacity style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
+            <TouchableOpacity accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
               <Text style={styles.cardTitle}>{s.icon}  {s.title}</Text>
               <Text style={styles.chevron}>{isOpen ? '−' : '+'}</Text>
             </TouchableOpacity>

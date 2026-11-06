@@ -138,13 +138,13 @@ export default function ShakhbataView() {
 
       <View style={styles.percentHead}>
         {percentDrafts ? (
-          <TouchableOpacity onPress={savePercents} disabled={savingPercents}>
+          <TouchableOpacity accessibilityRole="button" onPress={savePercents} disabled={savingPercents}>
             <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
               {savingPercents ? '...' : 'حفظ النسب'}
             </Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity onPress={startEditingPercents}>
+          <TouchableOpacity accessibilityRole="button" onPress={startEditingPercents}>
             <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700' }}>عدّل النسب</Text>
           </TouchableOpacity>
         )}

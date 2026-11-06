@@ -86,7 +86,7 @@ export default function GamiyaView() {
 
     return (
       <View key={g.id} style={styles.card}>
-        <TouchableOpacity onPress={() => setExpanded(isExpanded ? null : g.id)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
           <View style={styles.cardHead}>
             <Text style={styles.name}>{g.name}</Text>
             <Text style={styles.sub2}>{walletLabel}</Text>
@@ -113,7 +113,7 @@ export default function GamiyaView() {
                   شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button"
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
                     style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                     disabled={busyKey === `month_${m.id}`}>
@@ -132,10 +132,10 @@ export default function GamiyaView() {
               </View>
             ))}
             <View style={styles.gamiyaActions}>
-              <TouchableOpacity style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+              <TouchableOpacity accessibilityRole="button" style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
                 <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+              <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
                 <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
               </TouchableOpacity>
             </View>
@@ -152,7 +152,7 @@ export default function GamiyaView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity testID="gamiya_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
+        <TouchableOpacity accessibilityRole="button" testID="gamiya_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ جمعية جديدة</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الجمعية</Text>
@@ -262,7 +262,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           </View>
 
           <Text style={styles.label}>تاريخ أول قسط</Text>
-          <TouchableOpacity style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{startDate}</Text>
           </TouchableOpacity>
 
@@ -278,10 +278,10 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+          <TouchableOpacity accessibilityRole="button" testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
           </TouchableOpacity>
         </View>
@@ -410,10 +410,10 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
+          <TouchableOpacity accessibilityRole="button" testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
+          <TouchableOpacity accessibilityRole="button" testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
           </TouchableOpacity>
         </View>
