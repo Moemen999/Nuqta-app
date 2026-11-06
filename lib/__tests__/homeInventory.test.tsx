@@ -70,7 +70,7 @@ const wallet = { id: 'w1', name: 'كاش', openingBalance: 1000, lowAlert: 0 };
 function setData(over: Record<string, unknown> = {}) {
   Object.assign(mockData, {
     wallets: [wallet], categories: [], transactions: [], budgets: {}, subscriptions: [], gamiyas: [], incomes: [],
-    debts: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
+    debts: [], brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
     addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(),
     transactionLinkWarning: () => null,
     ...over,

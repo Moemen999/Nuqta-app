@@ -19,7 +19,7 @@ function seed(n: number) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     wallets: [{ id: 'w', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [],
-    pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [], transfersStatus: 'ready',
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [], transfersStatus: 'ready',
     transactions: Array.from({ length: n }, (_, i) => ({ id: `t${i}`, type: 'expense', amount: i + 1, date: today, walletId: 'w', createdAt: `${today}T${String(i % 24).padStart(2, '0')}:00:00Z` })),
   });
 }

@@ -30,6 +30,7 @@ import { AccessibilityInfo, AppState, ScrollView, StyleSheet, TouchableOpacity, 
 import { Text } from '@/components/AppText';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
+import { BROKEN_WALLET_ACTION, brokenTransactionsBannerAction, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -51,7 +52,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -265,6 +266,27 @@ function HomeScreen() {
             <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
+        {/* بند B (قرار مؤمن 2026-11-06): عملية مستندها بايظ برّه كل حسبة ← الرصيد اللي فوق ناقصها، فلازم يبان. من غير ✕ */}
+        {brokenTransactions.length > 0 && (
+          <View testID="home_banner_broken_tx" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenTransactionsBannerText(brokenTransactions.length)}</Text>
+            <TouchableOpacity testID="home_broken_tx_go" onPress={() => router.push('/archive')}
+              accessibilityRole="button" style={styles.bannerAction}>
+              <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{brokenTransactionsBannerAction(brokenTransactions.length)}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {wallets.filter(w => w.openingInvalid && !w.archived).map(w => (
+          <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}
+            accessibilityRole="alert">
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenWalletBannerText(w.name)}</Text>
+            <TouchableOpacity testID={`home_broken_wallet_go_${w.id}`} onPress={() => router.push('/settings-screens/wallets')}
+              accessibilityRole="button" style={styles.bannerAction}>
+              <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{BROKEN_WALLET_ACTION}</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
         {noWallets && !cold && (
           <View testID="home_no_wallets" style={styles.noWallets}>
             <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>

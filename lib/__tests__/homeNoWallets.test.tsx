@@ -26,7 +26,7 @@ jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
 function setData(over: Record<string, unknown>) {
   Object.assign(mockData, {
     wallets: [], categories: [], transactions: [], budgets: {}, subscriptions: [], gamiyas: [], incomes: [],
-    debts: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
+    debts: [], brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
     ...over,
   });
 }

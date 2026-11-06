@@ -35,7 +35,7 @@ function setData(over: Record<string, unknown> = {}) {
       { id: 'w2', name: 'البنك', openingBalance: 100, lowAlert: 500 },
     ],
     categories: [], transactions: [], budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [],
-    pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [], retryLoad: jest.fn(),
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [], retryLoad: jest.fn(),
     ...over,
   });
 }

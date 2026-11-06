@@ -30,7 +30,7 @@ beforeEach(async () => {
   Object.assign(mockData, {
     // رصيد كاش = 9000 − 4321 = 4679، وتحت حد التنبيه (5000) ← بانر "قرب يخلص"
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 5000 }], categories: [], transactions: [tx],
-    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], pendingTxIds: new Set(),
+    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], brokenTransactions: [], pendingTxIds: new Set(),
     serverReachable: true, setupStatus: 'done', loadErrors: [],
   });
 });

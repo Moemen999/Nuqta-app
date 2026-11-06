@@ -28,7 +28,7 @@ function setData(over: Record<string, unknown>) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     transactions: serverData.transactions, wallets: serverData.wallets, categories: [], debts: [], gamiyas: [],
-    pendingTxIds: new Set(), serverReachable: true,
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true,
     readAllFromServer: jest.fn(async () => ({ outcome: 'done', data: serverData })),
     ...over,
   });

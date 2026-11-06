@@ -39,7 +39,7 @@ export default function WalletsScreen() {
   const notice = useNotice();
   const confirm = useConfirm();
   const {
-    wallets, transactions, debts, subscriptions, gamiyas, incomes, loadErrors,
+    wallets, transactions, brokenTransactions, debts, subscriptions, gamiyas, incomes, loadErrors,
     addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
   } = useData();
   const { walletColors } = useChartColors();
@@ -77,7 +77,8 @@ export default function WalletsScreen() {
   }
 
   function refsFor(id: string) {
-    return walletReferences(id, { transactions, debts, subscriptions, gamiyas, incomes });
+    // البايظة كمان (بند B): عملية مش محسوبة لسه تاريخ على المحفظة — من غيرها المحفظة كانت هتتمسح نهائي وتتيّمها
+    return walletReferences(id, { transactions: [...transactions, ...brokenTransactions], debts, subscriptions, gamiyas, incomes });
   }
 
   function clearNameDraft(id: string) {

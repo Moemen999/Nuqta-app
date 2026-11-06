@@ -55,7 +55,7 @@ const tx = { id: 't1', type: 'expense', amount: 50, walletId: 'w1', date: '2026-
 function setData(over: Record<string, unknown>) {
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 1000, lowAlert: 0 }], categories: [], transactions: [tx],
-    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], pendingTxIds: new Set(),
+    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], brokenTransactions: [], pendingTxIds: new Set(),
     serverReachable: true, setupStatus: 'done', loadErrors: [],
     ...over,
   });
@@ -134,6 +134,20 @@ describe('الباقي كمان فوق آخر العمليات (رجوع عن 20
     }
   });
 
+  it('بند B: عملية بايظة ومحفظة رصيد بدايتها مش مقروء ← بانرين قبل "آخر العمليات"، بالعدد', async () => {
+    setData({
+      wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0, openingInvalid: true }],
+      brokenTransactions: [{ id: 'b1', reasons: ['amount'] }, { id: 'b2', reasons: ['date'] }],
+    });
+    await mount();
+    const title = pos('home_recent_title');
+    for (const id of ['home_banner_broken_tx', 'home_banner_broken_wallet_w1']) {
+      expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
+    }
+    expect(screen.getByText('فيه عمليتين بياناتهم ناقصة ومش محسوبين في أي رقم.')).toBeTruthy();
+    expect(screen.getByText('رصيد البداية بتاع محفظة "كاش" مش مقروء، فاتحسب صفر. اكتبه تاني من المحافظ.')).toBeTruthy();
+  });
+
   it('رصيد قرب يخلص + ميزانية + اشتراك جاي ← كلهم قبل "آخر العمليات"', async () => {
     const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
     setData({
@@ -163,7 +177,7 @@ describe('جرد بانرات الرئيسية في الكود', () => {
 
   it('فيه بانرات أصلاً (الجرد مش فاضي)', () => {
     expect(banners.map(b => b.id).sort()).toEqual(
-      ['budget', 'budget_total', 'cold', 'delete_pending', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+      ['broken_tx', 'broken_wallet', 'budget', 'budget_total', 'cold', 'delete_pending', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
   });
   it('كلهم مكتوبين قبل "آخر العمليات"', () => {
     // بانر الإيميل كومبوننت لوحده تحت في الملف — المهم مكان استخدامه في الشاشة
@@ -173,6 +187,8 @@ describe('جرد بانرات الرئيسية في الكود', () => {
   // **استثناء واحد: `cold`** (كاش أول فتحة): أرقام قديمة على الشاشة، و✕ كان هيسيبها من غير علامة "قديم" (قرار مؤمن
   // على الكاش). **قرار مؤمن 2026-11-03: من غير ✕** — استثناء مقصود من "كل بانر ليه ✕" (2026-10-28)
   // و`delete_pending` (مسح الحساب ما خلصش) كمان من غير ✕ — قرار مؤمن على ترشيح البحث 2026-11-03: حساب نص-ممسوح مش تنبيه عادي
+  // و`broken_tx`/`broken_wallet` (بند B، قرار مؤمن 2026-11-06): عملية مش محسوبة أو رصيد بداية اتحسب صفر ← الرصيد اللي فوق
+  // ناقص، فمن غير ✕ زي `cold`
   it('كل بانر ليه ✕', () => {
     const dismissIds = new Set([...src.matchAll(/home_banner_dismiss_([a-z_]+)/g)].map(m => m[1].replace(/_$/, '')));
     expect([...dismissIds].sort()).toEqual(

@@ -56,11 +56,13 @@ export type CategoryRefs = {
 export function walletReferences(
   walletId: string,
   data: {
-    transactions: Transaction[]; debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[];
+    /** العمليات البايظة كمان (بند B) — المحفظة اللي عليها عملية بايظة ليها تاريخ، فمتتمسحش نهائي */
+    transactions: Pick<Transaction, 'walletId' | 'toWalletId'>[] | { walletId?: string; toWalletId?: string }[];
+    debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[];
     incomes?: RecurringIncome[];
   },
 ): WalletRefs {
-  const transactions = data.transactions.filter(
+  const transactions = (data.transactions as { walletId?: string; toWalletId?: string }[]).filter(
     t => t.walletId === walletId || t.toWalletId === walletId
   ).length;
 
@@ -94,7 +96,8 @@ export function walletReferences(
 export function categoryReferences(
   categoryId: string,
   data: {
-    transactions: Transaction[];
+    /** العمليات البايظة كمان (بند B) */
+    transactions: { categoryId?: string }[];
     subscriptions: Subscription[];
     debts: Debt[];
     budgets: Record<string, number>;

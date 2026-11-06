@@ -26,7 +26,7 @@ beforeEach(() => {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     wallets: [{ id: 'w', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [],
-    pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [],
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [],
   });
 });
 

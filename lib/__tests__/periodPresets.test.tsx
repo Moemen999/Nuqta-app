@@ -28,7 +28,7 @@ const FUSHA = /هذا|الماضي|مخصص|كل الوقت|السابقة|إل�
 
 beforeEach(() => {
   Object.assign(mockData, {
-    transactions: [], wallets: [], categories: [], debts: [], pendingTxIds: new Set(), serverReachable: true,
+    transactions: [], wallets: [], categories: [], debts: [], brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true,
   });
 });
 

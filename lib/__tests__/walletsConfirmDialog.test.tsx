@@ -21,7 +21,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 
 function seed(wallets: object[]) {
   Object.assign(mockData, {
-    wallets, categories: [], transactions: [], budgets: {}, debts: [],
+    wallets, categories: [], transactions: [], brokenTransactions: [], budgets: {}, debts: [],
     subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
     archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),

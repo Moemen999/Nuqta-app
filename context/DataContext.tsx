@@ -2,7 +2,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
-import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, subscriptionFromDoc, withId } from '@/lib/fromDoc';
+import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, splitTransactions, subscriptionFromDoc, walletFromDoc, withId, type BrokenTransaction } from '@/lib/fromDoc';
 import { dueDateAfterIncreaseRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
@@ -55,6 +55,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export type Wallet = {
   id: string; name: string; openingBalance: number; lowAlert: number;
   archived?: boolean; archivedAt?: string;
+  /** رصيد البداية المتخزّن مش رقم محدود — اتحسب صفر وبانر الرئيسية بيقول (`walletFromDoc`، بند B). مش بيتكتب */
+  openingInvalid?: boolean;
 };
 export type Category = {
   id: string; name: string; bucket?: 'needs' | 'wants' | 'future' | ''; icon?: string;
@@ -515,6 +517,8 @@ type DataContextType = {
   wallets: Wallet[];
   categories: Category[];
   transactions: Transaction[];
+  /** عمليات مستندها بايظ (مبلغ/تاريخ/نوع) — **برّه `transactions` وبرّه كل حسبة**، بتتعرض في الأرشيف (بند B) */
+  brokenTransactions: BrokenTransaction[];
   budgets: Budgets;
   shakhbataIncome: ShakhbataIncome;
   shakhbataPercents: ShakhbataPercents;
@@ -743,6 +747,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   latestWallets.current = wallets;
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [brokenTransactions, setBrokenTransactions] = useState<BrokenTransaction[]>([]);
   const [budgets, setBudgets] = useState<Budgets>({});
   const [shakhbataIncome, setShakhbataIncome] = useState<ShakhbataIncome>({});
   const [shakhbataPercents, setShakhbataPercentsState] = useState<ShakhbataPercents>(DEFAULT_PERCENTS);
@@ -912,7 +917,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!uid) {
-      setWallets([]); setCategories([]); setTransactions([]); setBudgets({}); setShakhbataIncome({});
+      setWallets([]); setCategories([]); setTransactions([]); setBrokenTransactions([]); setBudgets({}); setShakhbataIncome({});
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]); setIncomes([]);
       setDelivered(new Set());
@@ -1060,7 +1065,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
       // المعرّف من المسار آخر حاجة — حقل `id` جوه المستند ميغطيهوش (بند B)
-      setWallets(snap.docs.map(d => withId<Wallet>(d.id, d.data())));
+      setWallets(snap.docs.map(d => walletFromDoc<Wallet>(d.id, d.data())));
       noteConnection(snap.metadata.fromCache);
       noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
@@ -1073,7 +1078,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
       loaded('transactions');
-      setTransactions(snap.docs.map(d => withId<Transaction>(d.id, d.data())));
+      // المستند البايظ (مبلغ/تاريخ/نوع) برّه الحسابات ومتعلّم — مش صفر ومش متشال ساكت (قرار مؤمن، بند B)
+      const split = splitTransactions<Transaction>(snap.docs);
+      setTransactions(split.transactions);
+      setBrokenTransactions(prev => (prev.length === 0 && split.broken.length === 0 ? prev : split.broken));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
 
@@ -2915,7 +2923,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   return (
     <DataContext.Provider
       value={{
-        wallets, categories, transactions, budgets, shakhbataIncome, shakhbataPercents,
+        wallets, categories, transactions, brokenTransactions, budgets, shakhbataIncome, shakhbataPercents,
         debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),

@@ -34,7 +34,7 @@ const tx = { id: 't1', type: 'expense', amount: 50, walletId: 'w1', date: '2026-
 function setData(over: Record<string, unknown>) {
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 1000, lowAlert: 0 }], categories: [], transactions: [tx],
-    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], pendingTxIds: new Set(),
+    budgets: {}, subscriptions: [], gamiyas: [], incomes: [], debts: [], brokenTransactions: [], pendingTxIds: new Set(),
     serverReachable: true, figuresFromServer: true, setupStatus: 'done', loadErrors: [],
     ...over,
   });

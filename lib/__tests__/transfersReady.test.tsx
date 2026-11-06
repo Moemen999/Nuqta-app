@@ -47,7 +47,7 @@ function setData(transfersStatus: 'loading' | 'ready' | 'failed') {
     budgets: { c1: 1000, total_budget: 2000 },
     // الدين "لسه ما وصلش" ← قايمة فاضية (زي الحقيقة وهو بيحمّل)
     debts: [], gamiyas: [], subscriptions: [], incomes: [],
-    pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, setupStatus: 'done', loadErrors: [],
     shakhbataIncome: { [currentMonth()]: 10000 }, shakhbataPercents: { needs: 50, wants: 30, future: 20 },
     setBudget: jest.fn(), updateCategory: jest.fn(), setMonthlyIncome: jest.fn(), setShakhbataPercents: jest.fn(),
     transfersStatus,

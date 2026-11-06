@@ -28,7 +28,7 @@ import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 function seed(wallets: object[], transactions: object[] = []) {
   Object.assign(mockData, {
-    wallets, categories: [], transactions, budgets: {}, debts: [],
+    wallets, categories: [], transactions, brokenTransactions: [], budgets: {}, debts: [],
     subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
     archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),

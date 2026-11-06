@@ -16,7 +16,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 const food = { id: 'c1', name: 'أكل' };
 function seed(transactions: object[] = []) {
   Object.assign(mockData, {
-    wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [food], transactions,
+    wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [food], transactions, brokenTransactions: [],
     budgets: {}, debts: [], subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
     updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(async () => ({ outcome: 'done' })),
     archiveCategory: jest.fn(async () => ({ outcome: 'done' })), restoreCategory: jest.fn(),
