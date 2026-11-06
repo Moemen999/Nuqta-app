@@ -72,3 +72,14 @@ it('السلفة مبتتعدّش في المعدل (نفس monthSpend بالت�
   await render(ui());
   expect(screen.queryAllByTestId(/^budget_forecast_/)).toHaveLength(0);
 });
+
+it('دراسة الشكل خطوة 4: رقم بطل (اتصرف من الإجمالي)، والفئة من غير سقف مطوية', async () => {
+  freeze('2026-11-10');
+  setup('2026-11-03');
+  mockData.categories = [{ id: 'c1', name: 'خروجات' }, { id: 'c2', name: 'هدايا' }];
+  await render(ui());
+  expect(screen.getByTestId('budget_hero')).toBeTruthy();
+  // "هدايا" مالهاش سقف ← جوه القسم المطوي، مش ظاهرة لحد ما يتفتح
+  expect(screen.queryByText(/هدايا/)).toBeNull();
+  expect(screen.getByTestId('budget_no_limit_toggle')).toBeTruthy();
+});
