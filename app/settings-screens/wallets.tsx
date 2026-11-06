@@ -1,5 +1,6 @@
 import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
-import { planWalletAmountCommit, planWalletAmountRewrite } from '@/lib/finance';
+import { planWalletOpeningCommit } from '@/lib/finance';
+import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice, openingStaleNotice } from '@/lib/walletCopy';
 import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
@@ -56,7 +57,14 @@ export default function WalletsScreen() {
     // `openingInvalid` ← NaN: الخطة بتكتب أي رقم صالح (حتى 0 اللي معروض) عشان العلامة تتشال (بند B)
     id => { const w = wallets.find(x => x.id === id); return w?.openingInvalid ? NaN : (w?.openingBalance ?? 0); },
     (id, value) => updateWallet(id, { openingBalance: value }),
-    { plan: (draft, stored) => (Number.isNaN(stored) ? planWalletAmountRewrite(draft) : planWalletAmountCommit(draft, stored)) },
+    {
+      // أي تغيير في الرصيد الابتدائي بيسأل (الرصيد كله بيتحرك بالفرق) — الاختبار العنيف 2026-11-07، قرار مؤمن
+      plan: planWalletOpeningCommit,
+      confirmCopy: (id, value, stored) => openingConfirmCopy(wallets.find(x => x.id === id)?.name ?? '', stored, value),
+      // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
+      onDroppedConfirm: id => notice(...openingDroppedNotice(wallets.find(x => x.id === id)?.name ?? '')),
+      onStaleConfirm: id => notice(...openingStaleNotice(wallets.find(x => x.id === id)?.name ?? '')),
+    },
   );
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
@@ -334,6 +342,9 @@ export default function WalletsScreen() {
                   onBlur={() => opening.onBlur(w.id)}
                   textAlign="right"
                 />
+                {opening.pendingConfirm(w.id) && (
+                  <Text testID={`wallet_opening_pending_${w.id}`} style={styles.pendingHint} accessibilityLiveRegion="polite">{OPENING_PENDING_HINT}</Text>
+                )}
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.microLabel}>حد التنبيه</Text>
@@ -399,6 +410,7 @@ function makeStyles(c: ThemeColors) {
     nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     walletRow: { flexDirection: 'row-reverse', gap: 10 },
     microLabel: { color: c.textMuted, fontSize: 10.5, textAlign: 'right', marginBottom: 3 },
+    pendingHint: { color: c.accentText, fontSize: 12, textAlign: 'right', marginTop: 4 },
     smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
     // "حذف" كان نص لوحده ~16 بكسل جنب خانة نص — بقى 44 (MIN_TOUCH، a11y-architect)
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },

@@ -65,7 +65,9 @@ function safely(fn?: () => unknown) {
 /** الإلغاء من غير ما المستخدم يختار (رجوع، قفل) — زرار الإلغاء، ولو مفيش `onDismiss`. **`cancelable` مبيتقراش:**
  * "رجوع" بيلغي دايمًا (Alert على أندرويد افتراضيه بيتجاهله، وده كان بيسيب المستخدم محبوس) */
 function dismissAction(p: Pending) {
-  return p.buttons.find(b => b.style === 'cancel')?.onPress ?? p.options?.onDismiss;
+  // `onDismiss` الأول لو موجود: "المستخدم قال لأ" غير "اتقفل لوحده" — تأكيد الرصيد الابتدائي بيحتفظ بالمسوّدة في
+  // التانية (silent-failure-hunter 2026-11-07). اللي بيبعتوا الاتنين لنفس النتيجة (modal، الديون) مبيتأثروش
+  return p.options?.onDismiss ?? p.buttons.find(b => b.style === 'cancel')?.onPress;
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {

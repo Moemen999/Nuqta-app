@@ -97,3 +97,76 @@ it('بند B: محفظة عليها عملية بايظة ← ليها تاري�
   expect(screen.getByTestId('notice_title').props.children).toBe('ما اتأرشفتش');
   expect(mockData.archiveWallet).not.toHaveBeenCalled();
 });
+
+describe('الرصيد الابتدائي بيسأل قبل ما يتغيّر (الاختبار العنيف 2026-11-07، قرار مؤمن)', () => {
+  const type = async (v: string) => {
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_opening_input_w1'), v); });
+  };
+  it('مبيتحفظش لوحده بعد ثانية، والتأكيد بالرقمين، و«أيوه» بتكتب', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    await type('15000');
+    await act(async () => { await new Promise(r => setTimeout(r, 1300)); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('تغيّر الرصيد الابتدائي؟');
+    expect(screen.getByTestId('confirm_body').props.children).toContain('من 5,000 لـ15,000');
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.updateWallet).toHaveBeenCalledWith('w1', { openingBalance: 15000 });
+  });
+  it('«سيبه زي ما هو» ← مفيش كتابة', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    await type('15000');
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+  });
+  it('حد التنبيه لسه بيتحفظ لوحده (مبيغيّرش رصيد)', async () => {
+    seed([cash, bank]);
+    await render(ui());
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_alert_input_w1'), '300'); });
+    await act(async () => { await new Promise(r => setTimeout(r, 1300)); });
+    expect(mockData.updateWallet).toHaveBeenCalledWith('w1', { lowAlert: 300 });
+  });
+});
+
+describe('الرصيد الابتدائي — تصليحات المراجعين (2026-11-07)', () => {
+  const type = async (v: string) => {
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_opening_input_w1'), v); });
+  };
+  it('سطر «لسه ما اتحفظش» طول ما الرقم مستني تأكيد', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    expect(screen.queryByTestId('wallet_opening_pending_w1')).toBeNull();
+    await type('6000');
+    expect(screen.getByTestId('wallet_opening_pending_w1')).toBeTruthy();
+  });
+  it('خرجت من الشاشة والرقم مستني ← رسالة «ما اتغيّرش» ومفيش كتابة', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    const r = await render(ui());
+    await type('6000');
+    await act(async () => { r.unmount(); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+  });
+  it('الرقم اتغيّر من جهاز تاني والتأكيد مفتوح ← «أيوه» مبتكتبش', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    const r = await render(ui());
+    await type('6000');
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    mockData.wallets = [{ ...cash, openingBalance: 7000 }, bank];
+    await r.rerender(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+    // ومش ساكت: رسالة
+    expect(screen.getByTestId('notice_title').props.children).toBe('ما اتحفظش');
+    expect(screen.getByTestId('wallet_opening_pending_w1')).toBeTruthy();
+  });
+});
+
+it('planWalletOpeningCommit: متقرّب لقرشين، ونفس الرقم بعد التقريب مبيسألش', () => {
+  const { planWalletOpeningCommit } = require('@/lib/finance');
+  expect(planWalletOpeningCommit('15000.456', 5000)).toEqual({ action: 'confirm', value: 15000.46 });
+  expect(planWalletOpeningCommit('5000.001', 5000)).toEqual({ action: 'none' });
+  expect(planWalletOpeningCommit('100', NaN)).toEqual({ action: 'confirm', value: 100 });
+});
