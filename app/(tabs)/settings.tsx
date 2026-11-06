@@ -10,7 +10,9 @@ import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ActionSheet } from '@/components/ActionSheet';
+import type { ThemePreference } from '@/context/ThemeContext';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
@@ -33,6 +35,9 @@ type SettingsRow = {
 };
 
 /** أيقونة صغيرة لكل صف (دراسة الشكل خطوة 6) — زينة بس، مخفية عن قارئ الشاشة. بالمفتاح عشان المصفوفة متتلخبطش */
+/** «زي الموبايل» بيمشي مع إعداد الموبايل (فاتح بالنهار وغامق بالليل لو مظبوط كده) */
+const THEME_LABEL: Record<ThemePreference, string> = { system: 'زي الموبايل', light: 'فاتح', dark: 'داكن' };
+
 const ROW_ICON: Record<string, string> = {
   wallets: '👛', categories: '🏷️', archive: '🗂️', notifications: '🔔', lock: '🔒', theme: '🌓',
   guide: '📖', onboarding: '👋', feedback: '💬', about: 'ℹ️', logout: '🚪', deleteAccount: '🗑️',
@@ -52,7 +57,8 @@ type SettingsSection = { key: string; title: string; subtitle?: string; rows: Se
  */
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, theme, setTheme } = useTheme();
+  const { colors, preference, setTheme } = useTheme();
+  const [themeMenu, setThemeMenu] = useState(false);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
@@ -148,8 +154,9 @@ export default function SettingsScreen() {
         {
           key: 'theme',
           title: 'الشكل',
-          status: theme === 'dark' ? 'داكن' : 'فاتح',
-          onPress: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+          // اختيار من تلاتة في قايمة (مش قلب بدوسة — شكله صف تنقّل وكان بيقلب الثيم من غير ما تسأل)
+          status: THEME_LABEL[preference],
+          onPress: () => setThemeMenu(true),
         },
       ],
     },
@@ -181,7 +188,7 @@ export default function SettingsScreen() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour,
-      lockEnabled, theme, user?.email, pendingWrites, deletionPending]);
+      lockEnabled, preference, user?.email, pendingWrites, deletionPending]);
 
   return (
     <ScrollView
@@ -217,6 +224,12 @@ export default function SettingsScreen() {
           </View>
         </View>
       ))}
+      <ActionSheet visible={themeMenu} testID="theme_menu" title="الشكل" onClose={() => setThemeMenu(false)}
+        actions={(['system', 'light', 'dark'] as ThemePreference[]).map(k => ({
+          key: k, testID: `theme_option_${k}`,
+          label: k === preference ? `${THEME_LABEL[k]} ✓` : THEME_LABEL[k],
+          onPress: () => setTheme(k),
+        }))} />
     </ScrollView>
   );
 }
