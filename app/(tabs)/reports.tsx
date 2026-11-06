@@ -186,7 +186,7 @@ export default function ReportsScreen() {
       {/* دراسة الشكل خطوة 5: رقم بطل واحد (مصروف الفترة) والمقارنة سطر صغير تحته — كانوا كارتين بنفس الوزن */}
       <View testID="reports_hero" style={styles.heroCard}>
         <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroValue} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
+        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
           {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
@@ -205,13 +205,13 @@ export default function ReportsScreen() {
           return (
             <TouchableOpacity {...selectionA11y(active)} key={c.id} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
+              <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
         })}
         {catFilter.length > 0 && (
           <TouchableOpacity accessibilityRole="button" onPress={() => setCatFilter([])} style={[styles.chip, { borderColor: colors.borderStrong }]}>
-            <Text style={{ color: colors.textSecondary, fontSize: 12.5 }}>مسح الفلتر</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>مسح الفلتر</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -315,9 +315,12 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
-    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
+    // نفس زرار التاريخ في الأرشيف (visual-identity-reviewer: كان نفس الزرار بشكلين)
+    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
+    // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
+    heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
     changeValue: { fontSize: typeScale.body, fontWeight: '700' },

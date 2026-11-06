@@ -188,7 +188,7 @@ export default function ArchiveScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricValue} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
+          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricLoading} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
@@ -317,7 +317,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
@@ -328,15 +328,17 @@ function makeStyles(c: ThemeColors) {
     // دراسة الشكل خطوة 5: من غير إطارات، المقاسات من `typeScale`
     metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
+    metricLoading: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     metricValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     exportBtn: { backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + space.xxs, marginTop: space.xxl },
     // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
-    fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 10 },
+    fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.md },
     fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },
-    txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
+    // من غير خطوط بين الصفوف زي الرئيسية (المسافة بتفصل) — كارت واحد مش مناسب لـFlatList متقطّعة
+    txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.md, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
     txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
     txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
