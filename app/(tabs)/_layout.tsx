@@ -39,11 +39,14 @@ export default function TabLayout() {
   const showFab = FAB_TAB_PATHS.includes(pathname);
   const insets = useSafeAreaInsets();
   // التاب المختار: خلفية دهبي غامق ورا الأيقونة (دراسة الشكل خطوة 6) — كان باللون بس، فمن غير لون مكانش باين أنهي المختار
-  const icon = (name: ComponentProps<typeof IconSymbol>['name']) => ({ color, focused }: { color: string; focused: boolean }) => (
-    <View style={[styles.iconPill, focused && { backgroundColor: colors.selectedBg }]}>
-      <IconSymbol size={22} name={name} color={color} />
-    </View>
-  );
+  const icon = (name: ComponentProps<typeof IconSymbol>['name']) =>
+    function TabBarIcon({ color, focused }: { color: string; focused: boolean }) {
+      return (
+        <View style={[styles.iconPill, focused && { backgroundColor: colors.selectedBg }]}>
+          <IconSymbol size={22} name={name} color={color} />
+        </View>
+      );
+    };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
