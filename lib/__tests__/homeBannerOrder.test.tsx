@@ -110,7 +110,7 @@ describe('بانرات "الرقم ممكن يكون غلط" فوق آخر ال�
   it('listener اترفض ← البانر في الـlayout الجذري قبل الـStack (فوق الرصيد في كل تاب)', () => {
     const layout = fs.readFileSync(path.join(__dirname, '..', '..', 'app', '_layout.tsx'), 'utf8');
     const banner = layout.indexOf('<DataLoadErrorBanner />');
-    const stack = layout.indexOf('<Stack>');
+    const stack = layout.indexOf('<Stack ');
     expect(banner).toBeGreaterThan(-1);
     expect(banner).toBeLessThan(stack);
   });

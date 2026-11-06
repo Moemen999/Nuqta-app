@@ -103,7 +103,9 @@ function RootNavigator() {
     <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
       <DataLoadErrorBanner />
-      <Stack>
+      {/* مفيش هيدر النظام لأي شاشة (كل شاشة ليها عنوانها وزرار رجوع بالعربي). شاشة "مسح الحساب" كانت ناسية
+          سطرها تحت فطلع فوقها اسم المسار بالإنجليزي وسهم إنجليزي (اتلقى على الجهاز 2026-11-06) */}
+      <Stack screenOptions={{ headerShown: false }}>
         <Stack.Protected guard={!!user}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
@@ -125,6 +127,7 @@ function RootNavigator() {
           <Stack.Screen name="settings-screens/lock" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/about" options={{ headerShown: false }} />
           <Stack.Screen name="settings-screens/feedback" options={{ headerShown: false }} />
+          <Stack.Screen name="settings-screens/delete-account" options={{ headerShown: false }} />
         </Stack.Protected>
         <Stack.Protected guard={!user}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />

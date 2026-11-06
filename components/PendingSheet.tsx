@@ -102,8 +102,9 @@ function makeStyles(c: ThemeColors) {
     // نفس شكل كروت "نزل؟" (خط دهبي على الجنب) — ده مكانهم دلوقتي
     line: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-      backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border,
-      borderRightWidth: 4, borderRightColor: c.accent,
+      // دراسة الشكل: من غير إطار حواليه — الشريط الدهبي على البداية بس (زي البانرات)
+      backgroundColor: c.surface, borderRadius: 12,
+      borderRightWidth: 4, borderRightColor: c.accentText,
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8,
     },
     // الـ✕ جنب السطر مش جوّاه: زرار جوه زرار قارئ الشاشة بيدمجهم في عنصر واحد

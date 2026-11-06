@@ -1650,7 +1650,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function setShakhbataPercents(p: ShakhbataPercents) {
     if (!uid) return;
-    track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب شخبطة');
+    track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب توزيع الدخل');
   }
 
   /**

@@ -5,7 +5,7 @@ import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/
 import { useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -112,38 +112,42 @@ export default function PersonLedgerScreen() {
       ) : (
       <>
       <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>الرصيد الحالي</Text>
-        <Text style={[styles.summaryValue, { color: finalBalance > 0 ? colors.incomeText : finalBalance < 0 ? colors.dangerText : colors.textSecondary }]}>
-          {finalBalance > 0 ? `ليك عنده ${money(finalBalance)} ج.م` : finalBalance < 0 ? `عليك له ${money(Math.abs(finalBalance))} ج.م` : 'متسدد بالكامل'}
-        </Text>
+        {/* دراسة الشكل خطوة 5: الرصيد الحالي هو البطل — الاتجاه بالكلمة فوقه، والرقم 34 */}
+        <Text style={styles.summaryLabel}>{finalBalance > 0 ? 'ليك عنده' : finalBalance < 0 ? 'عليك له' : 'الرصيد الحالي'}</Text>
+        {finalBalance === 0
+          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>متسدد بالكامل</Text>
+          : <Money value={Math.abs(finalBalance)} fit style={[styles.summaryHero, { color: finalBalance > 0 ? colors.incomeText : colors.dangerText }]} />}
       </View>
 
-      <View style={styles.tableHead}>
-        <Text style={[styles.th, { flex: 1.4 }]}>البيان</Text>
-        <Text style={[styles.th, { flex: 0.9 }]}>الحركة</Text>
-        <Text style={[styles.th, { flex: 0.9 }]}>الرصيد</Text>
-        <Text style={[styles.th, { flex: 0.9 }]}>التاريخ</Text>
-      </View>
-
+      {/* قايمة مش جدول (دراسة الشكل): 4 عواميد بخط 10–12 على عرض موبايل ← البيان والتاريخ يمين، الحركة والرصيد شمال */}
+      <Text style={[styles.sectionTitle, { marginTop: 0 }]}>الحركات</Text>
+      {/* تفسير العلامات قبل القايمة مش بعدها (القايمة ممكن تطول) — ومبيظهرش من غير حركات */}
+      {rowsWithBalance.length > 0 && <Text style={styles.hintText}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>}
       {rowsWithBalance.length === 0 && <Text style={styles.emptyState}>مفيش حركات لسه</Text>}
-
-      {rowsWithBalance.map((r, i) => (
-        <View key={i} style={styles.tableRow}>
-          <View style={{ flex: 1.4 }}>
-            <Text style={styles.td}>{r.label}</Text>
-            <Text style={styles.rowDebtLabel} numberOfLines={1}>{r.debtLabel}</Text>
-          </View>
-          <Text style={[styles.td, { flex: 0.9, color: r.delta >= 0 ? colors.incomeText : colors.dangerText, fontWeight: '700' }]}>
-            <Money value={r.delta} sign={r.delta >= 0 ? '+' : ''} currency={false} />
-          </Text>
-          <Text style={[styles.td, { flex: 0.9, color: r.balance > 0 ? colors.incomeText : r.balance < 0 ? colors.dangerText : colors.textSecondary }]}>
-            <Money value={r.balance} currency={false} />
-          </Text>
-          <Text style={[styles.td, { flex: 0.9, color: colors.textMuted, fontSize: 10.5 }]}>{r.date}</Text>
+      {rowsWithBalance.length > 0 && (
+        <View style={styles.listCard}>
+          {rowsWithBalance.map((r, i) => (
+            <View key={i} testID={`ledger_row_${i}`} style={[styles.listRow, i > 0 && styles.listDivider]}>
+              <View style={styles.listMain}>
+                <Text style={styles.listLabel}>{r.label}</Text>
+                {/* التاريخ لوحده: الملاحظة الطويلة كانت بتقصّه من آخر السطر */}
+                <Text style={styles.listSub} numberOfLines={1}>{r.debtLabel}</Text>
+                <Text style={styles.listSub}>{r.date}</Text>
+              </View>
+              <View style={styles.listSide}>
+                {/* العلامة صريحة للاتنين ("−" مش من fmt): مع قناع الخصوصية السالب كان بيبان "••••" من غير علامة */}
+                <Money value={Math.abs(r.delta)} sign={r.delta >= 0 ? '+' : '−'} currency={false}
+                  style={[styles.listDelta, { color: r.delta >= 0 ? colors.incomeText : colors.dangerText }]} />
+                <View style={styles.balanceRow}>
+                  <Text style={styles.listSub}>الرصيد</Text>
+                  <Money value={Math.abs(r.balance)} sign={r.balance < 0 ? '−' : ''} currency={false} style={styles.listSub} />
+                </View>
+              </View>
+            </View>
+          ))}
         </View>
-      ))}
+      )}
 
-      <Text style={styles.footNote}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>
 
       <View style={styles.sectionTitleRow}>
         {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
@@ -171,7 +175,7 @@ export default function PersonLedgerScreen() {
         <>
           <Text style={styles.hintText}>
             {openDebts.length === 0
-              ? 'مفيش دين مفتوح دلوقتي — كل حاجة متسددة. الزيادة بتتسجل من شاشة الديون.'
+              ? 'مفيش دين مفتوح دلوقتي — كل حاجة متسددة. الزيادة بتتسجل من الالتزامات ← الديون.'
               : 'اختار الدين اللي الحركة عليه — الصفحة دي فيها أكتر من دين لنفس الشخص.'}
           </Text>
           {openDebts.map(d => {
@@ -215,20 +219,24 @@ export default function PersonLedgerScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    summaryCard: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, alignItems: 'center', marginBottom: 20 },
-    summaryLabel: { color: c.textSecondary, fontSize: 12 },
-    summaryValue: { fontSize: 18, fontWeight: '700', marginTop: 6 },
-    tableHead: { flexDirection: 'row-reverse', borderBottomWidth: 1.5, borderBottomColor: c.borderStrong, paddingBottom: 8, marginBottom: 4 },
-    th: { color: c.textSecondary, fontSize: 11, fontWeight: '700', textAlign: 'center' },
-    tableRow: { flexDirection: 'row-reverse', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 8, alignItems: 'center' },
-    td: { fontSize: 12, textAlign: 'center', color: c.text },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    footNote: { color: c.textMuted, fontSize: 10.5, textAlign: 'center', marginTop: 14 },
-    rowDebtLabel: { color: c.textMuted, fontSize: 10, textAlign: 'center', marginTop: 2 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    summaryCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, alignItems: 'center', marginBottom: space.xxl },
+    summaryLabel: { color: c.textSecondary, fontSize: typeScale.body },
+    summaryValue: { fontSize: typeScale.title, fontWeight: '700', marginTop: space.xs },
+    summaryHero: { fontSize: typeScale.hero, fontWeight: '700', marginTop: space.xxs },
+    listCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    listRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, paddingVertical: space.md, minHeight: MIN_TOUCH },
+    listDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    listMain: { flex: 1 },
+    listLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    listSide: { alignItems: 'flex-end' },
+    balanceRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.xxs },
+    listDelta: { fontSize: typeScale.body, fontWeight: '700' },
+    listSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
     sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 6 },
     addDebtBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },

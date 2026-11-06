@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { debtsPhrase } from '@/lib/archiving';
 import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
@@ -22,14 +23,13 @@ import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
-  reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
-} from '@/lib/finance';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+  reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,21 +72,12 @@ export default function DebtsTabScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      {/* tablist: قارئ الشاشة بيقول مكان التاب (1 من 3) مش "تاب" بس (a11y-architect) */}
-      <View style={styles.switcherRow} accessibilityRole="tablist">
-        <TouchableOpacity {...selectionA11y(tab === 'debts', 'tab')} testID="debts_tab_debts" onPress={() => setTab('debts')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
-          <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
-        </TouchableOpacity>
-        <TouchableOpacity {...selectionA11y(tab === 'subscriptions', 'tab')} testID="debts_tab_subscriptions" onPress={() => setTab('subscriptions')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'subscriptions')]}>
-          <Text style={{ color: tab === 'subscriptions' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الاشتراكات</Text>
-        </TouchableOpacity>
-        <TouchableOpacity {...selectionA11y(tab === 'gamiya', 'tab')} testID="debts_tab_gamiya" onPress={() => setTab('gamiya')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'gamiya')]}>
-          <Text style={{ color: tab === 'gamiya' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الجمعية</Text>
-        </TouchableOpacity>
-      </View>
+      {/* tablist + tab بحالة (بند E) جوّه المكوّن المشترك — نفس التخطيط (دراسة الشكل) */}
+      <SegmentedControl style={styles.switcher} value={tab} onChange={setTab} segments={[
+        { key: 'debts', label: 'الديون', testID: 'debts_tab_debts' },
+        { key: 'subscriptions', label: 'الاشتراكات', testID: 'debts_tab_subscriptions' },
+        { key: 'gamiya', label: 'الجمعية', testID: 'debts_tab_gamiya' },
+      ]} />
 
       {tab === 'debts' && <DebtsContent />}
       {tab === 'subscriptions' && <SubscriptionsView />}
@@ -117,6 +108,10 @@ function DebtsContent() {
   const [increaseForDebt, setIncreaseForDebt] = useState<Debt | null>(null);
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [reverseForDebt, setReverseForDebt] = useState<Debt | null>(null);
+  // المعرّف بس — الدين نفسه بيتقري حي من `debts` (react-reviewer: نسخة متخزّنة كانت بتبقى قديمة لو اتعدّل/اتمسح والقايمة مفتوحة)
+  const [menuDebtId, setMenuDebtId] = useState<string | null>(null);
+  const moreRefs = useRef(new Map<string, View | null>());
+  const menuReturnFocus = useRef<View | null>(null);
   const [expandedDebt, setExpandedDebt] = useState<string | null>(null);
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
@@ -228,16 +223,21 @@ function DebtsContent() {
     notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.');
   }
 
+  // مرة واحدة للشاشة (react-reviewer): كل الكروت بنفس "النهارده"
+  const today = todayStr();
+
   function renderDebt(d: Debt) {
     const grandTotal = debtGrandTotal(d);
     const paid = debtPaid(d);
     const remaining = grandTotal - paid;
     const pct = grandTotal > 0 ? Math.min(100, (paid / grandTotal) * 100) : 0;
     const settled = isDebtSettled(d);
-    // الشريط بـsuccess/danger (عنصر مش نص، 3:1 كفاية)، والنص بتوكنز النص (4.5)
-    const green = settled || d.direction === 'owed_to_me';
-    const color = green ? colors.success : colors.danger;
-    const textColor = green ? colors.incomeText : colors.dangerText;
+    // دراسة الشكل خطوة 3 (ب): **الأحمر = متأخر بس، والأخضر = اتسدد بس** — قبل كده الأحمر كان على "عليا" حتى لو مش متأخر.
+    // الاتجاه بيقوله القسم اللي الكارت فيه. الشريط عنصر (3:1)، والنص بتوكنز النص (4.5)
+    const overdue = !settled && !!d.dueDate && d.dueDate < today;
+    // الشريط بتوكنز النص (≥ 4.5 على المسار في الثيمين) — `accent`/`success` كانوا 1.8 و2.65 على المسار في الفاتح
+    const color = settled ? colors.incomeText : overdue ? colors.dangerText : colors.accentText;
+    const textColor = settled ? colors.incomeText : overdue ? colors.dangerText : colors.text;
     const expanded = expandedDebt === d.id;
 
     const timeline = [
@@ -263,32 +263,28 @@ function DebtsContent() {
               ) : (
                 <Text style={styles.personName}>{d.personName}</Text>
               )}
-              {/* الرقم كان بيبان في شاشة الاختيار وبس، وبعد الحفظ بيختفي.
-                  بقى سطر صغير تحت الاسم — موجود لما يكون محتاج ومش واخد مساحة */}
-              {!!d.personPhone && (
-                <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>
-              )}
             </View>
             <Text style={[styles.remainingText, { color: textColor }]}>
               {settled ? 'اتسدد بالكامل' : <Money value={remaining} />}
             </Text>
           </View>
-          {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
-          {!!d.dueDate && !settled && (
-            <Text style={styles.dueText}>
-              معاده {dueDateLabel(d.dueDate)}{d.reminderDaysBefore !== undefined ? ' · فيه تذكير 🔔' : ''}
-            </Text>
-          )}
+          {/* الكارت المقفول: الاسم والمبلغ وشريط رفيع وسطر واحد (دراسة الشكل). الرقم والملاحظة جوّه المفتوح */}
           <View style={styles.track}>
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
-          <Text style={styles.progressText}>
-            {debtPaidLabel(d, money)} · {d.isInstallment ? installmentSummary(d, money) : 'مبلغ واحد'}
+          <Text style={[styles.progressText, overdue && { color: colors.dangerText }]} numberOfLines={2}>
+            {/* «متأخر» أول السطر: هو الإشارة الوحيدة غير اللون، ومينفعش يتقص في الآخر (visual-identity-reviewer) */}
+            {overdue ? 'متأخر — ' : ''}{debtPaidLabel(d, money)}
+            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
           </Text>
         </TouchableOpacity>
 
         {expanded && (
           <View style={styles.expandedArea}>
+            {/* الرقم كان بيبان في شاشة الاختيار وبس — هنا في المفتوح */}
+            {!!d.personPhone && <Text style={styles.personPhone} numberOfLines={1}>{phoneForDisplay(d.personPhone)}</Text>}
+            {d.note ? <Text style={styles.noteText}>{d.note}</Text> : null}
+            <Text style={styles.dueText}>{d.isInstallment ? installmentSummary(d, money) : 'مبلغ واحد'}</Text>
             <View style={styles.paymentsList}>
               {timeline.map(t => {
                 // المحفظة/الفئة الممسوحة بتطلع باسم صريح بدل ما الشريحة تختفي
@@ -327,38 +323,20 @@ function DebtsContent() {
                 );
               })}
             </View>
+            {/* دراسة الشكل خطوة 3 (قرار مؤمن 2026-11-06): زرار أساسي واحد، والباقي في "⋯" — كانوا 6 بنفس الشكل و"حذف" جنبهم.
+                كشف الحساب كان مدفون في التقارير — مكانه هنا (جوه "⋯")؛ "سجّل فلوس ليه/ليا" بيعبّي مودال الدين الجديد باسمه
+                (reverseDebtPrefill) عشان يقع في نفس مجموعته في كشف الحساب */}
             <View style={styles.actionsRow}>
-              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setIncreaseForDebt(d)}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة على الدين</Text>
-              </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setEditDebt(d)}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>تعديل البيانات</Text>
-              </TouchableOpacity>
-              {/* كشف الحساب كان مدفون في التقارير بس — وهو المكان اللي بتشوف فيه
-                  كل حسابك مع الشخص ده مجمّع، فمكانه الطبيعي هنا كمان */}
-              <TouchableOpacity accessibilityRole="button"
-                style={styles.increaseBtn}
-                onPress={() => {
-                  const key = personKeyByDebt.get(d.id);
-                  if (key) router.push({ pathname: '/person-ledger', params: { personKey: key } });
-                }}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>كشف الحساب</Text>
-              </TouchableOpacity>
-              {/* لو هو مديون ليا، ده بيسجل إني مديون ليه — والعكس. نفس الشخص، مودال
-                  الدين الجديد بس متعبّي مقدّمًا باسمه وجهة اتصاله عشان الدين الجديد
-                  يقع في نفس مجموعته في كشف الحساب (شوف reverseDebtPrefill) */}
-              <TouchableOpacity accessibilityRole="button" style={styles.increaseBtn} onPress={() => setReverseForDebt(d)}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>
-                  {d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده'}
-                </Text>
-              </TouchableOpacity>
               {!settled && (
-                <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
+                <TouchableOpacity accessibilityRole="button" testID={`debt_pay_${d.id}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                  <Text style={styles.payBtnText}>تسجيل دفعة</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtn, busyKey === d.id && styles.btnBusy]} onPress={() => confirmDeleteDebt(d)} disabled={busyKey === d.id}>
-                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === d.id ? '...' : 'حذف'}</Text>
+              <TouchableOpacity accessibilityRole="button" testID={`debt_more_${d.id}`} accessibilityLabel={`باقي الاختيارات لدين ${d.personName}`}
+                disabled={busyKey === d.id} accessibilityState={{ disabled: busyKey === d.id, busy: busyKey === d.id }}
+                accessibilityHint="بيفتح قايمة" ref={el => { moreRefs.current.set(d.id, el); }}
+                style={[styles.moreBtn, busyKey === d.id && styles.btnBusy]} onPress={() => { menuReturnFocus.current = moreRefs.current.get(d.id) ?? null; setMenuDebtId(d.id); }}>
+                <Text style={styles.moreBtnText}>{busyKey === d.id ? '...' : '⋯'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -412,6 +390,10 @@ function DebtsContent() {
       {reverseForDebt && (
         <AddDebtModal onClose={() => setReverseForDebt(null)} prefill={reverseDebtPrefill(reverseForDebt)} />
       )}
+      <DebtMenu debt={debts.find(x => x.id === menuDebtId) ?? null} busy={busyKey !== null} returnFocusTo={menuReturnFocus}
+        ledgerKey={menuDebtId ? personKeyByDebt.get(menuDebtId) : undefined}
+        onClose={() => setMenuDebtId(null)} onIncrease={setIncreaseForDebt} onEdit={setEditDebt} onReverse={setReverseForDebt}
+        onDelete={confirmDeleteDebt} />
     </ScrollView>
   );
 }
@@ -583,35 +565,55 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   );
 }
 
+/**
+ * قايمة "⋯" لكارت الدين (دراسة الشكل خطوة 3). متركّبة دايمًا عشان أنيميشن الخروج؛ الدين اتمسح والقايمة مفتوحة ← بتتقفل.
+ * أي كتابة شغالة (`busy`) ← كل الأفعال مقفولة (react-reviewer). "كشف الحساب" مبيظهرش من غير مفتاح الشخص (كان بيبلع الدوسة).
+ */
+function DebtMenu({ debt, busy, ledgerKey, returnFocusTo, onClose, onIncrease, onEdit, onReverse, onDelete }: {
+  debt: Debt | null; busy: boolean; ledgerKey?: string; returnFocusTo: RefObject<View | null>; onClose: () => void;
+  onIncrease: (d: Debt) => void; onEdit: (d: Debt) => void; onReverse: (d: Debt) => void; onDelete: (d: Debt) => void;
+}) {
+  // آخر دين اتفتح عليه — عشان العنوان والأفعال ميفضوش وهي بتنزل. في state مش ref (مفيش كتابة وقت الرسم)
+  const [last, setLast] = useState<Debt | null>(debt);
+  useEffect(() => { if (debt) setLast(debt); }, [debt]);
+  const d = debt ?? last;
+  const actions: SheetAction[] = d ? [
+    { key: 'increase', label: 'زيادة على الدين', testID: 'debt_menu_increase', disabled: busy, onPress: () => onIncrease(d) },
+    { key: 'edit', label: 'تعديل البيانات', testID: 'debt_menu_edit', disabled: busy, onPress: () => onEdit(d) },
+    ...(ledgerKey ? [{ key: 'ledger', label: 'كشف الحساب', testID: 'debt_menu_ledger', onPress: () => router.push({ pathname: '/person-ledger', params: { personKey: ledgerKey } }) }] : []),
+    { key: 'reverse', label: d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده', testID: 'debt_menu_reverse', disabled: busy, onPress: () => onReverse(d) },
+    { key: 'delete', label: 'حذف', danger: true, testID: 'debt_menu_delete', disabled: busy, onPress: () => onDelete(d) },
+  ] : [];
+  return <ActionSheet visible={!!debt} testID="debt_menu" title={d?.personName ?? ''} actions={actions} onClose={onClose} returnFocusTo={returnFocusTo} />;
+}
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    switcherRow: { flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
-    // بطول اللمس (44) زي تابات التخطيط — كانت ~37 (a11y-architect)
-    switchBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: MIN_TOUCH },
+    switcher: { marginHorizontal: 16, marginBottom: 8 },
     scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     title: { color: c.text, fontSize: 18, fontWeight: '700' },
     addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
-    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border },
+    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
     summaryValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 8 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 14 },
-    debtCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
-    personName: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    personPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3 },
+    personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    personPhone: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
     personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
-    remainingText: { fontSize: 14, fontWeight: '700' },
-    noteText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    dueText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
-    progressText: { color: c.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 6 },
+    remainingText: { fontSize: typeScale.title, fontWeight: '700' },
+    noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
+    dueText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
+    track: { height: 4, backgroundColor: c.surface2, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 2 },
+    progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
     expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
     paymentsList: { marginBottom: 10 },
     paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2, gap: 8 },
@@ -621,9 +623,10 @@ function makeStyles(c: ThemeColors) {
     entryDeleteBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
     paymentDate: { color: c.textMuted, fontSize: 11 },
     actionsRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    increaseBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
-    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8 },
+    payBtn: { flex: 1, backgroundColor: c.accent, borderRadius: radius.md, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
+    payBtnText: { color: c.onAccent, fontWeight: '700', fontSize: typeScale.body },
+    moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    moreBtnText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },

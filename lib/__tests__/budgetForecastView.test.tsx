@@ -72,3 +72,29 @@ it('السلفة مبتتعدّش في المعدل (نفس monthSpend بالت�
   await render(ui());
   expect(screen.queryAllByTestId(/^budget_forecast_/)).toHaveLength(0);
 });
+
+it('دراسة الشكل خطوة 4: رقم بطل (اتصرف من الإجمالي)، والفئة من غير سقف مطوية', async () => {
+  freeze('2026-11-10');
+  setup('2026-11-03');
+  mockData.categories = [{ id: 'c1', name: 'خروجات' }, { id: 'c2', name: 'هدايا' }];
+  await render(ui());
+  expect(screen.getByTestId('budget_hero')).toBeTruthy();
+  // "هدايا" مالهاش سقف ← جوه القسم المطوي، مش ظاهرة لحد ما يتفتح
+  expect(screen.queryByText(/هدايا/)).toBeNull();
+  expect(screen.getByTestId('budget_no_limit_toggle')).toBeTruthy();
+});
+
+it('الكارت اللي اتكتب فيه في المطوي بيفضل فيه بعد الحفظ (كان بيتنقل والكيبورد بيقع)', async () => {
+  const { act, fireEvent } = require('@testing-library/react-native');
+  freeze('2026-11-10');
+  setup('2026-11-03');
+  mockData.categories = [{ id: 'c1', name: 'خروجات' }, { id: 'c2', name: 'هدايا' }];
+  const r = await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('budget_no_limit_toggle')); });
+  await act(async () => { fireEvent(screen.getByLabelText('سقف 🏷️ هدايا'), 'focus'); });
+  // الحفظ التلقائي وصل: السقف بقى متخزّن
+  mockData.budgets = { c1: 1000, c2: 300, total_budget: 5000 };
+  await r.rerender(ui());
+  expect(screen.getByTestId('budget_no_limit_toggle').props.accessibilityLabel).toBe('فئات من غير سقف، فئة واحدة');
+  expect(screen.getByLabelText('سقف 🏷️ هدايا')).toBeTruthy();
+});

@@ -1,7 +1,7 @@
 import { Money } from '@/components/Money';
 import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
 import { speakable } from '@/lib/money';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -195,7 +195,7 @@ function HomeScreen() {
           {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
               وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
           <View style={styles.balanceValueRow}>
-            <Money value={shownTotal} currency={false} style={styles.balanceValue} />
+            <Money value={shownTotal} currency={false} fit style={styles.balanceValue} />
             <Text style={styles.currency}>ج.م</Text>
           </View>
           <View style={styles.walletsRow}>
@@ -234,7 +234,7 @@ function HomeScreen() {
         {/* مسح الحساب بدأ ومخلصش ← بانر خطر **من غير ✕** (بحث rnd-researcher + قرار مؤمن 2026-11-03): حساب نص-ممسوح والتسجيل
             التلقائي واقف — لو اتقفل بـ✕ المستخدم كان هيعيش ببيانات ناقصة من غير ما يعرف. المخرج الوحيد: يكمّل المسح (أو يخرج) */}
         {deletionPending && (
-          <View testID="home_banner_delete_pending" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+          <View testID="home_banner_delete_pending" style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>
               مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف. كمّل المسح، أو اخرج من الحساب.
@@ -247,13 +247,13 @@ function HomeScreen() {
         )}
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
         {cold && (
-          <View testID="home_banner_cold" style={[styles.banner, { borderColor: colors.dangerBorder, minHeight: MIN_TOUCH }]}
+          <View testID="home_banner_cold" style={[styles.banner, styles.bannerDanger, { minHeight: MIN_TOUCH }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
           </View>
         )}
         {offlineEmpty && !cold && !hidden('offline') && (
-          <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+          <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
               مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
             </Text>
@@ -261,7 +261,7 @@ function HomeScreen() {
           </View>
         )}
         {staleFigures && !hidden('stale') && (
-          <View testID="home_banner_stale" style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}
+          <View testID="home_banner_stale" style={[styles.banner, styles.bannerRow, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.dangerText }]}>{STALE_FIGURES_TEXT}</Text>
             <DismissButton testID="home_banner_dismiss_stale" onPress={() => dismiss('stale')} hint={DISMISS_HINT} label={dismissLabel('stale')} announce={DISMISSED_ANNOUNCEMENT} />
@@ -269,7 +269,7 @@ function HomeScreen() {
         )}
         {/* بند B (قرار مؤمن 2026-11-06): عملية مستندها بايظ برّه كل حسبة ← الرصيد اللي فوق ناقصها، فلازم يبان. من غير ✕ */}
         {brokenTransactions.length > 0 && (
-          <View testID="home_banner_broken_tx" style={[styles.banner, { borderColor: colors.dangerBorder }]}
+          <View testID="home_banner_broken_tx" style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenTransactionsBannerText(brokenTransactions.length)}</Text>
             <TouchableOpacity testID="home_broken_tx_go" onPress={() => router.push('/archive')}
@@ -280,7 +280,7 @@ function HomeScreen() {
         )}
         {/* المؤرشفة كمان (silent-failure-hunter): الرقم الغلط مبيبطلش يبقى غلط لما المحفظة تتأرشف */}
         {wallets.filter(w => w.openingInvalid).map(w => (
-          <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}
+          <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{w.archived ? brokenArchivedWalletBannerText(w.name) : brokenWalletBannerText(w.name)}</Text>
             <TouchableOpacity testID={`home_broken_wallet_go_${w.id}`} onPress={() => router.push('/settings-screens/wallets')}
@@ -319,7 +319,7 @@ function HomeScreen() {
           </View>
         )}
         {lowWallets.filter(w => !hidden('lowBalance', w.id)).map(w => (
-          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.dangerBorder }]}>
+          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, styles.bannerRow, styles.bannerDanger]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.dangerText }]}
               accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
               رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
@@ -329,7 +329,7 @@ function HomeScreen() {
         ))}
         {/* المفتاح بالدرجة (silent-failure-hunter): ✕ على "قربت تخلص" ميخبّيش "خلصت" */}
         {totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`) && (
-          <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+          <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
               accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
               الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
@@ -338,7 +338,7 @@ function HomeScreen() {
           </View>
         )}
         {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)).map(b => (
-          <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+          <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
               accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
               ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
@@ -357,7 +357,7 @@ function HomeScreen() {
           const d = daysUntil(s.nextDueDate);
           return (
             // الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش (a11y-architect)
-            <View key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+            <View key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
               <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
               <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
@@ -371,7 +371,7 @@ function HomeScreen() {
         {dueGamiyaMonths.filter(({ month }) => !hidden('gamiyaDue', month.id)).map(({ gamiya, month }) => {
           const d = daysUntil(month.dueDate);
           return (
-            <View key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, { borderColor: colors.warnBorder }]}>
+            <View key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
               <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
               <Text style={[styles.bannerText, { color: colors.accentText }]}
                 accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
@@ -388,6 +388,8 @@ function HomeScreen() {
             {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
           </Text>
         )}
+        {/* دراسة الشكل خطوة 2: القايمة كارت واحد من غير خطوط بين الصفوف — المسافة هي اللي بتفصل */}
+        <View testID="home_recent_card" style={styles.txCard}>
         {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
         {cold && recent.length === 0 && cold.recent.map(t => {
           const T = TYPE_LABELS[t.type];
@@ -443,6 +445,7 @@ function HomeScreen() {
             </TouchableOpacity>
           );
         })}
+        </View>
       </ScrollView>
     </View>
   );
@@ -509,7 +512,7 @@ function EmailVerificationBanner() {
   }
 
   return (
-    <View testID="home_banner_verify_email" style={[styles.banner, { borderColor: colors.warnBorder }]}>
+    <View testID="home_banner_verify_email" style={[styles.banner, styles.bannerWarn]}>
       <View style={styles.bannerRow}>
         <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
           إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
@@ -542,32 +545,39 @@ function makeStyles(c: ThemeColors) {
     // (2026-09-29)، فالمسافة دي هي اللي بتضمن إن أي حاجة تحته تتسكرول من تحته:
     // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
-    balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },
+    // دراسة الشكل خطوة 2 (قرار مؤمن 2026-11-06): الرصيد رقم بطل واحد، حدود أقل، والمقاسات من `typeScale` بس
+    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
-    balanceLabel: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
     balanceValueRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 8, marginTop: 4 },
-    balanceValue: { color: c.text, fontSize: 30, fontWeight: '700', textAlign: 'right' },
-    currency: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
-    walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-    walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, backgroundColor: c.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-    walletChipName: { color: c.text, fontSize: 12, fontWeight: '500' },
-    walletChipVal: { color: c.textSecondary, fontSize: 12 },
+    balanceValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    currency: { fontSize: typeScale.body, color: c.textSecondary, fontWeight: '400' },
+    // المحافظ من غير خلفية لكل واحدة — النقطة الملوّنة والمسافة بيفصلوا
+    walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.xxl, rowGap: space.sm, marginTop: space.xxl },
+    walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
+    walletChipName: { color: c.text, fontSize: typeScale.caption, fontWeight: '500' },
+    walletChipVal: { color: c.textSecondary, fontSize: typeScale.caption },
     dot: { width: 8, height: 8, borderRadius: 4 },
-    banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
+    // البانر من غير إطار حواليه (دراسة الشكل): شريط على البداية بس بلون نوعه — البانرات اللي بتحط `borderColor` (خطر/تحذير)
+    // بيبان عليها الشريط، والعادي من غير. قرار مؤمن 2026-10-28 (كل البانرات ظاهرة فوق، كل واحد بـ✕) زي ما هو
+    banner: { backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: 'transparent', borderRadius: radius.lg, padding: space.lg, marginTop: space.md },
+    // شريط البداية بلون واضح ≥ 3:1 (visual-identity-reviewer: `dangerBorder`/`warnBorder` كانوا 1.4–1.6 فالشريط مكانش باين)
+    bannerDanger: { borderColor: c.danger },
+    bannerWarn: { borderColor: c.accentText },
     // بانر فيه ✕: النص يمين والـ✕ شمال (RTL)
     bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     bannerFlex: { flex: 1 },
-    bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    bannerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
     // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"أعد إرسال التأكيد" بيستفيد كمان
     bannerAction: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)
+    bannerActionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxl, marginBottom: space.sm },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
+    // نفس شكل البانرات الجديدة (دراسة الشكل): من غير إطار، شريط بداية دهبي (دعوة تصرف)
     noWallets: {
-      backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12,
+      backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: c.accentText, borderRadius: radius.lg,
       padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
     },
     noWalletsEmoji: { fontSize: 40 },
@@ -578,12 +588,13 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
     },
     noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
+    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
-    txTitle: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right' },
-    txSub: { color: c.textSecondary, fontSize: 11.5, marginTop: 2, textAlign: 'right' },
+    txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
+    txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },
-    txAmount: { fontSize: 14, fontWeight: '700' },
-    txDate: { color: c.textMuted, fontSize: 10.5, marginTop: 2 },
+    txAmount: { fontSize: typeScale.body, fontWeight: '700' },
+    txDate: { color: c.textMuted, fontSize: typeScale.caption, marginTop: 2 },
   });
 }

@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -63,7 +64,8 @@ beforeEach(() => {
 afterEach(() => alertSpy.mockRestore());
 
 const SCREENS = [
-  { kind: 'الاشتراك', Screen: SubscriptionsView, expand: null, button: 'حذف', del: 'deleteSubscription', id: 's1', name: 'نتفليكس' },
+  // "حذف" الاشتراك جوه قايمة "⋯" (دراسة الشكل خطوة 3) — `button` هنا testID
+  { kind: 'الاشتراك', Screen: SubscriptionsView, expand: null, button: 'menu:s1', del: 'deleteSubscription', id: 's1', name: 'نتفليكس' },
   // زرار حذف الجمعية جوه الكارت المفتوح — بندوس على الاسم الأول
   { kind: 'الجمعية', Screen: GamiyaView, expand: 'جمعية الشغل', button: 'حذف الجمعية', del: 'deleteGamiya', id: 'g1', name: 'جمعية الشغل' },
 ] as const;
@@ -72,6 +74,14 @@ let current: (typeof SCREENS)[number];
 async function pressDelete(Screen: React.ComponentType, button: string) {
   await render(<ThemeProvider><NoticeProvider><PrivacyProvider><Screen /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   if (current.expand) await act(async () => { fireEvent.press(screen.getByText(current.expand!)); });
+  if (button.startsWith('menu:')) {
+    const sid = button.slice(5);
+    await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${sid}`)); });
+    await act(async () => { fireEvent.press(screen.getByTestId(`subscription_delete_${sid}`)); });
+    // iOS (افتراضي jest-expo): الفعل بيستنى الورقة تختفي
+    await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
+    return;
+  }
   await act(async () => { fireEvent.press(screen.getByText(button)); });
 }
 
@@ -139,18 +149,30 @@ describe.each(SCREENS)('$kind — زرار الحذف', (cfg) => {
 });
 
 /** نقل التأكيدات (الشاشات المالية): نفس التدفق بمكوّن التأكيد نفسه، مش Alert الاحتياطي */
+/** دوسة الحذف: للاشتراك من قايمة "⋯" (بتستنى الورقة تختفي على iOS)، للجمعية زرار في الكارت */
+async function tapDelete(button: string) {
+  if (button.startsWith('menu:')) {
+    const sid = button.slice(5);
+    await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${sid}`)); });
+    await act(async () => { fireEvent.press(screen.getByTestId(`subscription_delete_${sid}`)); });
+    await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
+    return;
+  }
+  await act(async () => { fireEvent.press(screen.getByText(button)); });
+}
+
 describe.each(SCREENS)('$kind — بمكوّن التأكيد', (cfg) => {
   it('التأكيد قبل أي مسح، والإلغاء مبيمسحش، و"حذف" بيمسح', async () => {
     mockData.transactions = txOn(ACTIVE.id);
     await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><cfg.Screen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
     if (cfg.expand) await act(async () => { fireEvent.press(screen.getByText(cfg.expand!)); });
-    await act(async () => { fireEvent.press(screen.getByText(cfg.button)); });
+    await tapDelete(cfg.button);
     expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
     expect(mockData[cfg.del]).not.toHaveBeenCalled();
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
     expect(mockData[cfg.del]).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.press(screen.getByText(cfg.button)); });
+    await tapDelete(cfg.button);
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(mockData[cfg.del]).toHaveBeenCalledWith(cfg.id);
   });

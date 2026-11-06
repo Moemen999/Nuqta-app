@@ -1,3 +1,4 @@
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
 import { useNotifications } from '@/context/NotificationsContext';
@@ -9,7 +10,9 @@ import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ActionSheet } from '@/components/ActionSheet';
+import type { ThemePreference } from '@/context/ThemeContext';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
@@ -30,6 +33,15 @@ type SettingsRow = {
   onPress: () => void;
   tone?: 'default' | 'danger';
 };
+
+/** «زي الموبايل» بيمشي مع إعداد الموبايل (فاتح بالنهار وغامق بالليل لو مظبوط كده) */
+const THEME_LABEL: Record<ThemePreference, string> = { system: 'زي الموبايل', light: 'فاتح', dark: 'داكن' };
+
+/** أيقونة صغيرة لكل صف (دراسة الشكل خطوة 6) — زينة بس، مخفية عن قارئ الشاشة. بالمفتاح عشان المصفوفة متتلخبطش */
+const ROW_ICON: Record<string, string> = {
+  wallets: '👛', categories: '🏷️', archive: '🗂️', notifications: '🔔', lock: '🔒', theme: '🌓',
+  guide: '📖', onboarding: '👋', feedback: '💬', about: 'ℹ️', logout: '🚪', deleteAccount: '🗑️',
+};
 type SettingsSection = { key: string; title: string; subtitle?: string; rows: SettingsRow[] };
 
 /**
@@ -45,7 +57,8 @@ type SettingsSection = { key: string; title: string; subtitle?: string; rows: Se
  */
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, theme, setTheme } = useTheme();
+  const { colors, preference, setTheme } = useTheme();
+  const [themeMenu, setThemeMenu] = useState(false);
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
@@ -141,8 +154,9 @@ export default function SettingsScreen() {
         {
           key: 'theme',
           title: 'الشكل',
-          status: theme === 'dark' ? 'داكن' : 'فاتح',
-          onPress: () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+          // اختيار من تلاتة في قايمة (مش قلب بدوسة — شكله صف تنقّل وكان بيقلب الثيم من غير ما تسأل)
+          status: THEME_LABEL[preference],
+          onPress: () => setThemeMenu(true),
         },
       ],
     },
@@ -174,7 +188,7 @@ export default function SettingsScreen() {
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour,
-      lockEnabled, theme, user?.email, pendingWrites, deletionPending]);
+      lockEnabled, preference, user?.email, pendingWrites, deletionPending]);
 
   return (
     <ScrollView
@@ -194,18 +208,28 @@ export default function SettingsScreen() {
                 testID={`settings_row_${row.key}`}
                 style={[styles.row, i > 0 && styles.rowDivider]}
                 onPress={row.onPress}>
-                <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.dangerText }]}>
-                  {row.title}
-                </Text>
+                <View style={styles.rowLead}>
+                  {!!ROW_ICON[row.key] && <Text style={styles.rowIcon} accessible={false} importantForAccessibility="no">{ROW_ICON[row.key]}</Text>}
+                  <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.dangerText }]}>
+                    {row.title}
+                  </Text>
+                </View>
                 <View style={styles.rowRight}>
                   {!!row.status && <Text style={styles.rowStatus}>{row.status}</Text>}
-                  {row.tone !== 'danger' && <Text style={styles.chevron}>›</Text>}
+                  {/* RTL: "جوّه" ناحية الشمال — "›" كان بيشاور للاتجاه الغلط */}
+                  {row.tone !== 'danger' && <Text style={styles.chevron} accessible={false} importantForAccessibility="no">‹</Text>}
                 </View>
               </TouchableOpacity>
             ))}
           </View>
         </View>
       ))}
+      <ActionSheet visible={themeMenu} testID="theme_menu" title="الشكل" onClose={() => setThemeMenu(false)}
+        actions={(['system', 'light', 'dark'] as ThemePreference[]).map(k => ({
+          key: k, testID: `theme_option_${k}`,
+          label: k === preference ? `${THEME_LABEL[k]} ✓` : THEME_LABEL[k], selected: k === preference,
+          onPress: () => setTheme(k),
+        }))} />
     </ScrollView>
   );
 }
@@ -213,17 +237,20 @@ export default function SettingsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 6 },
-    section: { marginTop: 18 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginBottom: 4 },
-    sectionSubtitle: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginBottom: 8 },
-    card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
-    row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 14 },
-    rowDivider: { borderTopWidth: 1, borderTopColor: c.border },
-    rowTitle: { color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', flexShrink: 1 },
-    rowRight: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
-    rowStatus: { color: c.textSecondary, fontSize: 12.5 },
-    chevron: { color: c.textMuted, fontSize: 16 },
+    content: { padding: space.xxl, paddingBottom: space.huge * 2 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
+    section: { marginTop: space.huge },
+    // عناوين الأقسام أصغر وأهدى (دراسة الشكل) — الصفوف هي المهمة
+    sectionTitle: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
+    sectionSubtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, overflow: 'hidden' },
+    row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxl, minHeight: MIN_TOUCH + space.md },
+    rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    rowLead: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, flexShrink: 1 },
+    rowIcon: { fontSize: typeScale.body },
+    rowTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', flexShrink: 1 },
+    rowRight: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
+    rowStatus: { color: c.textSecondary, fontSize: typeScale.caption },
+    chevron: { color: c.textSecondary, fontSize: typeScale.title },
   });
 }

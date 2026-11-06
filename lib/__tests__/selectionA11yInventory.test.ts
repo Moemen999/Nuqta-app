@@ -30,8 +30,12 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
   let checked = 0;
   for (const f of [...files('app'), ...files('components')]) {
     const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
-    let idx = 0;
-    while ((idx = s.indexOf('selectionStyle(colors', idx)) !== -1) {
+    let idx: number;
+    // `quietSelectionStyle(colors` كمان (دراسة الشكل) — `indexOf` بالـcase، فالـS الكبيرة كانت هتفلت منه
+    const re = /[sS]electionStyle\(colors/g;
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(s)) !== null) {
+      idx = mm.index;
       const tagStart = s.lastIndexOf('<TouchableOpacity', idx);
       // آخر الـtag = أول '>' برّه الأقواس ({ } و( )) — '=>' جوه onPress مش نهايته
       let tagClose = tagStart, depth = 0;
@@ -49,7 +53,6 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
           if (!tag.includes('selectionA11y(') && !tag.includes('accessibilityState')) offenders.push(`${f}:${s.slice(0, idx).split('\n').length}`);
         }
       }
-      idx += 10;
     }
   }
   expect(checked).toBeGreaterThan(40);

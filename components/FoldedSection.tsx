@@ -14,7 +14,7 @@ import { Text } from '@/components/AppText';
  * بيعمل إطار جوه إطار وبيقص الزوايا). `a11yLabel` للي قارئ الشاشة بيقوله: العدد
  * بالمعدود، والاتجاه لما قسمين بنفس الاسم في شاشة واحدة ("ديون اتسددت" تحت ليا وتحت عليا)
  */
-export default function FoldedSection({ title, count, children, testID, framed = false, a11yLabel }: {
+export default function FoldedSection({ title, count, children, testID, framed = false, a11yLabel, defaultOpen = false, showCount = true }: {
   title: string;
   count: number;
   children: ReactNode;
@@ -22,12 +22,16 @@ export default function FoldedSection({ title, count, children, testID, framed =
   framed?: boolean;
   /** اللي قارئ الشاشة بيقوله — العدد بالمعدود ("دينين" مش "(2)") وأي سياق زيادة */
   a11yLabel?: string;
+  /** مفتوح من الأول — لما اللي جوّاه محتاج تصرّف (دراسة الشكل خطوة 4، a11y-architect). بيتقري مرة واحدة: مبيقفلش وانت شغال */
+  defaultOpen?: boolean;
+  /** «(العدد)» بعد العنوان — يتقفل لما العنوان نفسه فيه عدد بمعنى تاني («صنّف فئاتك — 3 لسه») */
+  showCount?: boolean;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   if (count === 0) return null;
-  const label = `${title} (${count})`;
+  const label = showCount ? `${title} (${count})` : title;
 
   return (
     <View style={framed ? styles.framed : styles.plain} testID={testID}>

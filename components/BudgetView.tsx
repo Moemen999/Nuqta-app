@@ -1,4 +1,7 @@
 import { Money } from '@/components/Money';
+import FoldedSection from '@/components/FoldedSection';
+import { categoriesPhrase } from '@/lib/archiving';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -7,7 +10,7 @@ import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/fin
 import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
@@ -62,6 +65,13 @@ export default function BudgetView() {
     return map;
   }, [categories, transactions, nowMonth, transfers]);
 
+  // الكارت اللي اتكتب فيه وهو في المطوي **بيفضل فيه** لحد ما تسيب الشاشة (a11y-architect BLOCKER): الحفظ التلقائي بعد
+  // ثانية كان بينقله للقايمة اللي فوق، فالخانة بتتشال والكيبورد بيقع في نص الرقم ("5000" تتحفظ "5")
+  const [stickyFold, setStickyFold] = useState<Set<string>>(() => new Set());
+  const keepInFold = (id: string) => setStickyFold(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
+  const withLimit = categories.filter(c => (budgets[c.id] || 0) > 0 && !stickyFold.has(c.id));
+  const withoutLimit = categories.filter(c => !((budgets[c.id] || 0) > 0) || stickyFold.has(c.id));
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
@@ -76,6 +86,7 @@ export default function BudgetView() {
             <Text style={styles.totalLabel}>الميزانية الإجمالية الشهرية</Text>
             <TextInput
               style={styles.input}
+              accessibilityLabel="الميزانية الإجمالية الشهرية"
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={colors.textSecondary}
@@ -95,7 +106,11 @@ export default function BudgetView() {
               </View>
               {spendLoading ? <SpendLoading testID="budget_total_loading" style={styles.totalSub} /> : (
                 <>
-                  <Text style={styles.totalSub}>مصروف الشهر الفعلي: <Money value={totalMonthSpend} currency={false} /> / <Money value={totalBudget} currency={false} /></Text>
+                  {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
+                  <View testID="budget_hero" style={styles.heroRow}>
+                    <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalMonthSpend > totalBudget && { color: colors.dangerText }]} />
+                    <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
+                  </View>
                   {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
                 </>
               )}
@@ -104,12 +119,15 @@ export default function BudgetView() {
         </View>
 
         <Text style={styles.sectionTitle}>توزيع الميزانية على الفئات</Text>
-        {categories.map(c => {
+        {/* الفئات من غير سقف مطوية في سطر (دراسة الشكل) — التقسيم على المتخزّن مش المسوّدة، عشان الكارت ميتنقلش وانت بتكتب */}
+        {[withLimit, withoutLimit].map((group, gi) => {
+          const cards = group.map(c => {
           const limit = numberFor(c.id, budgets[c.id] || 0);
           const spend = spendByCategory.get(c.id) || 0;
           const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
-          const color = pct >= 100 ? colors.danger : pct >= 80 ? colors.accent : colors.success;
-          const textColor = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.incomeText;
+          // لون بس من 80% (دراسة الشكل: الأخضر على كل حاجة سليمة كان دوشة) — الشريط بتوكنز النص (≥ 4.5 على المسار)
+          const color = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
+          const textColor = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
 
           return (
             <View key={c.id} style={styles.card}>
@@ -119,7 +137,9 @@ export default function BudgetView() {
                   style={styles.input}
                   keyboardType="numeric"
                   placeholder="السقف"
-                  placeholderTextColor={colors.textSecondary}
+                  placeholderTextColor={colors.textMuted}
+                  accessibilityLabel={`سقف ${categoryLabel(c)}`}
+                  onFocus={gi === 1 ? () => keepInFold(c.id) : undefined}
                   value={valueFor(c.id, budgets[c.id] || 0)}
                   onChangeText={v => onChange(c.id, v)}
                   onBlur={() => onBlur(c.id)}
@@ -132,11 +152,20 @@ export default function BudgetView() {
                   <View style={styles.track}>
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
-                  <Text style={[styles.sub, { color: textColor }]}><Money value={spend} currency={false} /> / <Money value={limit} /></Text>
+                  {/* 80% و100% بالكلمة كمان — الفرق بين اللونين 1.07–1.34:1 بس (a11y-architect) */}
+                  <Text style={[styles.sub, { color: textColor }]}>{pct >= 100 ? 'خلصت — ' : pct >= 80 ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                   {forecast(c.id, monthRowsToDate.filter(t => t.categoryId === c.id), budgets[c.id] || 0, spend)}
                 </>
               )}
             </View>
+          );
+          });
+          return gi === 0 ? cards : (
+            // مفتوح من الأول لو مفيش ولا فئة ليها سقف (مستخدم جديد) — غير كده الشاشة كلها سطر مقفول
+            <FoldedSection key="nolimit" testID="budget_no_limit" title="فئات من غير سقف" count={group.length} defaultOpen={withLimit.length === 0}
+              a11yLabel={`فئات من غير سقف، ${categoriesPhrase(group.length)}`}>
+              {cards}
+            </FoldedSection>
           );
         })}
       </ScrollView>
@@ -148,19 +177,23 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 16 },
-    totalCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1.5, borderColor: c.accent, marginBottom: 20 },
-    totalLabel: { color: c.text, fontSize: 14, fontWeight: '700' },
-    totalRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 10 },
-    totalSub: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xxl },
+    totalCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.xxxl },
+    totalLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    totalRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: space.md },
+    totalSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    heroRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.lg },
+    hero: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    heroOf: { color: c.textSecondary, fontSize: typeScale.body },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-    name: { color: c.text, fontSize: 14, fontWeight: '500', flexShrink: 1 },
-    input: { width: 110, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingHorizontal: 10, paddingVertical: 7, fontSize: 13 },
-    track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 12, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
-    sub: { fontSize: 11.5, marginTop: 6, textAlign: 'right' },
-    forecast: { color: c.textSecondary, fontSize: 12, marginTop: 6, textAlign: 'right' },
+    name: { color: c.text, fontSize: typeScale.body, fontWeight: '500', flexShrink: 1 },
+    input: { width: 110, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },
+    // المسار نفسه باين (surface2 على الكارت كان 1.1:1 — الشريط كان بيبان شرطة سايبة)
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.lg, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 2 },
+    sub: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
+    forecast: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
   });
 }

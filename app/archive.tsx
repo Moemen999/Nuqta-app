@@ -6,16 +6,15 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
 import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
+import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
-import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -26,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
+const ARCHIVE_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'all', 'custom'];
 
 /** سطر "ليه الزرار مقفول" تحت زرار التصدير الكامل — وهو نفسه الـhint بتاعه لقارئ الشاشة */
 export const FULL_EXPORT_WAIT = 'الزرار هيشتغل أول ما النت يرجع — الملف بيتعمل من السيرفر عشان ميطلعش ناقص.';
@@ -172,14 +172,7 @@ export default function ArchiveScreen() {
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
 
-      <View style={styles.presetRow}>
-        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
-          <TouchableOpacity {...selectionA11y(preset === p.key)} key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
-            style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -195,7 +188,7 @@ export default function ArchiveScreen() {
       <View style={styles.metricRow}>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricValue} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
+          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricLoading} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
@@ -213,7 +206,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
 
@@ -324,32 +317,33 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    transfersNote: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: -6, marginBottom: 10 },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
-    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-    dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
+    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     metricRow: { flexDirection: 'row-reverse', gap: 10, marginTop: 14 },
-    metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border },
-    metricLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
-    metricValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    exportBtn: { backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 13, marginTop: 16 },
+    // دراسة الشكل خطوة 5: من غير إطارات، المقاسات من `typeScale`
+    metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
+    metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
+    metricLoading: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    metricValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 4 },
+    exportBtn: { backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + space.xxs, marginTop: space.xxl },
     // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
-    fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 10 },
-    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
-    fullExportWait: { color: c.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'right', marginTop: 6 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 22, marginBottom: 6 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
+    fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.md },
+    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
+    fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },
+    // من غير خطوط بين الصفوف زي الرئيسية (المسافة بتفصل) — كارت واحد مش مناسب لـFlatList متقطّعة
+    txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.md, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
-    txTitle: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right' },
-    txSub: { color: c.textSecondary, fontSize: 11.5, marginTop: 2, textAlign: 'right' },
+    txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
+    txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },
-    txAmount: { fontSize: 14, fontWeight: '700' },
-    txDate: { color: c.textMuted, fontSize: 10.5, marginTop: 2 },
+    txAmount: { fontSize: typeScale.body, fontWeight: '700' },
+    txDate: { color: c.textMuted, fontSize: typeScale.caption, marginTop: 2 },
   });
 }

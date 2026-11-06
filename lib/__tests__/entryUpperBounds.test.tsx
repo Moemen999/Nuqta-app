@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -39,6 +40,15 @@ const wrap = (ui: React.ReactElement) => <ThemeProvider><NoticeProvider><Privacy
 const type = async (el: unknown, v: string) => { await act(async () => { fireEvent.changeText(el as never, v); }); };
 const press = async (el: unknown) => { await act(async () => { fireEvent.press(el as never); }); };
 
+/** "تعديل" الاشتراك جوه قايمة "⋯" (دراسة الشكل خطوة 3)؛ الجمعية لسه على الكارت */
+async function pressEdit() {
+  const more = screen.queryAllByTestId(/^subscription_more_/);
+  if (more.length === 0) { await act(async () => { fireEvent.press(screen.getByText('تعديل')); }); return; }
+  await act(async () => { fireEvent.press(more[0]); });
+  await act(async () => { fireEvent.press(screen.getAllByTestId(/^subscription_edit_/)[0]); });
+  await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
+}
+
 it('الحدود نفسها', () => {
   expect(CUSTOM_DAYS_MAX).toBe(1096);
   expect(REMINDER_DAYS_MAX).toBe(365);
@@ -76,7 +86,7 @@ describe('اشتراك جديد', () => {
 describe('تعديل اشتراك', () => {
   it('"كل كام يوم" 1097 ← مرفوض؛ 1096 ← بيتحفظ', async () => {
     await render(wrap(<SubscriptionsView />));
-    await press(screen.getByText('تعديل'));
+    await pressEdit();
     await type(screen.getByDisplayValue('30'), '1097');
     await press(screen.getByTestId('subscription_edit_save'));
     expect(mockData.updateSubscription).not.toHaveBeenCalled();

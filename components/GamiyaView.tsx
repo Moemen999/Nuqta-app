@@ -11,13 +11,18 @@ import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import type { ChargeMode } from '@/lib/autoCharge';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
+
+/** «متأخر —» لو المعاد فات، «قرّب —» لو جوّه مهلة التذكير، وإلا ولا حاجة */
+export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
+  return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
+}
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -95,12 +100,13 @@ export default function GamiyaView() {
             <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
           </Text>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accent }]} />
+            <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accentText }]} />
           </View>
           <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
           {nextPending && (
-            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accent : colors.textSecondary }]}>
-              {nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
+              {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
+              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>
@@ -114,6 +120,8 @@ export default function GamiyaView() {
                 </Text>
                 {m.status === 'pending' ? (
                   <TouchableOpacity accessibilityRole="button"
+                    // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
+                    accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
                     style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                     disabled={busyKey === `month_${m.id}`}>
@@ -121,22 +129,22 @@ export default function GamiyaView() {
                       // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
                       <ActivityIndicator size="small" color={colors.onAccent} />
                     ) : (
-                      <Text style={{ color: colors.onAccent, fontSize: 11, fontWeight: '700' }}>
+                      <Text style={{ color: colors.onAccent, fontSize: typeScale.caption, fontWeight: '700' }}>
                         {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
                       </Text>
                     )}
                   </TouchableOpacity>
                 ) : (
-                  <Text style={{ color: colors.incomeText, fontSize: 11 }}>✓ خلص</Text>
+                  <Text style={{ color: colors.incomeText, fontSize: typeScale.caption }}>✓ خلص</Text>
                 )}
               </View>
             ))}
             <View style={styles.gamiyaActions}>
               <TouchableOpacity accessibilityRole="button" style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
-                <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>تعديل</Text>
               </TouchableOpacity>
               <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
-                <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
+                <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -300,23 +308,25 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
     addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    // دراسة الشكل خطوة 3: نفس كارت الدين — من غير إطار، المقاسات من `typeScale`
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
-    name: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    sub2: { color: c.textSecondary, fontSize: 12 },
-    sub: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
+    name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    sub2: { color: c.textSecondary, fontSize: typeScale.caption },
+    sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 3 },
-    progressText: { color: c.textSecondary, fontSize: 11, textAlign: 'right', marginTop: 6 },
-    due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
+    progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
+    due: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
     expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
     monthRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
-    monthText: { fontSize: 12, flex: 1, textAlign: 'right' },
-    markBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+    monthText: { fontSize: typeScale.caption, flex: 1, textAlign: 'right' },
+    // كان ~28 طول — 44 للمس (دراسة الشكل)
+    markBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + space.lg, alignItems: 'center', justifyContent: 'center' },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9, marginTop: 10 },
     gamiyaActions: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
-    editBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
-    deleteBtnFlex: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9 },
+    editBtn: { flex: 1, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    deleteBtnFlex: { flex: 1, borderWidth: 1.5, borderColor: c.danger, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },

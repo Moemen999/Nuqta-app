@@ -1,3 +1,4 @@
+import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
@@ -37,6 +38,11 @@ export type ThemeColors = {
   dangerText: string;
   incomeText: string;
   warnBorder: string;
+  /**
+   * حافة عنصر بيتداس ومش مختار (شريحة، خانة إدخال) — ≥ 3:1 على الخلفيات (WCAG 1.4.11). دراسة الشكل خطوة 2:
+   * الشريحة من غير إطار كانت 1.06:1 في الفاتح، يعني مش باينة إنها زرار (a11y-architect)
+   */
+  controlEdge: string;
   /**
    * ألوان العنصر المختار في أي مجموعة اختيار (محفظة، فئة، نوع، تاب...).
    *
@@ -79,6 +85,7 @@ export const DARK: ThemeColors = {
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#C9A961',
   expenseText: '#D97878', incomeText: '#7FA98F', dangerText: '#D97878',
   warnBorder: '#5A4A20',
+  controlEdge: '#6B7A8C',
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
   selectedDangerBg: '#3A1E1A', selectedDangerBorder: '#CC6055',
@@ -95,44 +102,53 @@ export const LIGHT: ThemeColors = {
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
   expenseText: '#A8453B', incomeText: '#2F654B', dangerText: '#A8453B',
   warnBorder: '#E3D2A0',
+  controlEdge: '#8F7C52',
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',
   selectedDangerBg: '#F2C9C3', selectedDangerBorder: '#A8453B',
   chartPalette: ['#2A78D6', '#C4501F', '#0F8F62', '#A87200', '#CC5A83', '#008300', '#4A3AA7', '#C2332F'],
 };
 
+/** اختيار المستخدم: ثيم ثابت، أو "زي الموبايل" (دراسة الشكل خطوة 6، قرار مؤمن 2026-11-06) */
+export type ThemePreference = ThemeName | 'system';
+
 type ThemeContextType = {
+  /** الثيم اللي بيترسم فعلاً */
   theme: ThemeName;
+  preference: ThemePreference;
   colors: ThemeColors;
-  setTheme: (t: ThemeName) => void;
+  setTheme: (t: ThemePreference) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = 'nuqta-theme';
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>('dark');
+  const [preference, setPreference] = useState<ThemePreference>('dark');
+  const systemScheme = useColorScheme();
+  // "زي الموبايل" والموبايل مقالش (null) ← الغامق، الافتراضي القديم
+  const theme: ThemeName = preference === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : preference;
 
   useEffect(() => {
     (async () => {
       try {
         const v = await AsyncStorage.getItem(STORAGE_KEY);
-        if (v === 'light' || v === 'dark') setThemeState(v);
+        if (v === 'light' || v === 'dark' || v === 'system') setPreference(v);
       } catch {
         // لو التخزين المحلي مش متاح لأي سبب، التطبيق يكمل بالوضع الافتراضي
       }
     })();
   }, []);
 
-  function setTheme(t: ThemeName) {
-    setThemeState(t);
+  function setTheme(t: ThemePreference) {
+    setPreference(t);
     AsyncStorage.setItem(STORAGE_KEY, t).catch(() => {});
   }
 
   const colors = theme === 'dark' ? DARK : LIGHT;
 
   return (
-    <ThemeContext.Provider value={{ theme, colors, setTheme }}>
+    <ThemeContext.Provider value={{ theme, preference, colors, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

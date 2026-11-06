@@ -20,6 +20,8 @@ const MAPPING = {
   'person.2.fill': 'people-alt',
   'person.crop.circle': 'contacts',
   'trash': 'delete-outline',
+  // تاب التخطيط (دراسة الشكل خطوة 6): هدف مش "فلوس" — المحفظة كانت بتتلخبط مع المحافظ
+  'target': 'track-changes',
 } as IconMapping;
 
 export function IconSymbol({

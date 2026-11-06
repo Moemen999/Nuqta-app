@@ -1,3 +1,4 @@
+import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -54,6 +55,15 @@ const BAD_AMOUNTS = ['1e999', '1e307', '-5', '0.004', ''];
 // أرقام صحيحة: الكسر كمان مرفوض
 const BAD_DAYS = ['1e999', '1e307', '-5', '0.5', ''];
 
+/** "تعديل" الاشتراك جوه قايمة "⋯" (دراسة الشكل خطوة 3)؛ الجمعية لسه على الكارت */
+async function pressEdit() {
+  const more = screen.queryAllByTestId(/^subscription_more_/);
+  if (more.length === 0) { await act(async () => { fireEvent.press(screen.getByText('تعديل')); }); return; }
+  await act(async () => { fireEvent.press(more[0]); });
+  await act(async () => { fireEvent.press(screen.getAllByTestId(/^subscription_edit_/)[0]); });
+  await act(async () => { await new Promise(r => setTimeout(r, IOS_DISMISS_FALLBACK_MS + 50)); });
+}
+
 describe('اشتراك جديد', () => {
   async function add(o: { amount?: string; custom?: string; reminder?: string }) {
     await render(wrap(<SubscriptionsView />));
@@ -91,7 +101,7 @@ describe('اشتراك جديد', () => {
 describe('تعديل اشتراك', () => {
   async function edit(o: { amount?: string; custom?: string; reminder?: string }) {
     await render(wrap(<SubscriptionsView />));
-    await press(screen.getByText('تعديل'));
+    await pressEdit();
     if (o.amount !== undefined) await type(screen.getByDisplayValue('200'), o.amount);
     if (o.custom !== undefined) await type(screen.getByDisplayValue('30'), o.custom);
     if (o.reminder !== undefined) await type(screen.getByDisplayValue('3'), o.reminder);
@@ -150,7 +160,7 @@ describe('تعديل جمعية — التذكير بس', () => {
   async function edit(reminder: string) {
     await render(wrap(<GamiyaView />));
     await press(screen.getByText('جمعية الشغل'));
-    await press(screen.getByText('تعديل'));
+    await pressEdit();
     await type(screen.getByDisplayValue('3'), reminder);
     await press(screen.getByTestId('gamiya_edit_save'));
   }
@@ -199,7 +209,7 @@ describe('تعديل قديم: التذكير مش متخزّن', () => {
   it('الخانة بتبدأ 0 مش "undefined" ← الحفظ بيمشي', async () => {
     mockData.subscriptions = [{ ...sub, reminderDaysBefore: undefined }];
     await render(wrap(<SubscriptionsView />));
-    await press(screen.getByText('تعديل'));
+    await pressEdit();
     await press(screen.getByTestId('subscription_edit_save'));
     expect(mockData.updateSubscription).toHaveBeenCalledWith('s1', expect.objectContaining({ reminderDaysBefore: 0 }));
   });

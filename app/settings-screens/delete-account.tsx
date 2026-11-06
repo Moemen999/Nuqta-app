@@ -158,7 +158,7 @@ export default function DeleteAccountScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle} accessibilityRole="header">اللي هيتمسح</Text>
           <Text style={styles.body}>
-            كل محافظك وعملياتك وديونك واشتراكاتك وجمعياتك ودخلك الثابت وميزانيتك وشخبطة، والرأي اللي بعتّه لنا. ومعاهم حساب الدخول نفسه.{' '}
+            كل محافظك وعملياتك وديونك واشتراكاتك وجمعياتك ودخلك الثابت وميزانيتك وتوزيع دخلك، والرأي اللي بعتّه لنا. ومعاهم حساب الدخول نفسه.{' '}
             <Text style={styles.danger}>ده مبيترجعش.</Text>
           </Text>
         </View>
