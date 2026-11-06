@@ -117,3 +117,65 @@ it('المهلة وامتى يقفل: الحفظ فشل ← false والقيمة
   expect(ok).toBe(false);
   expect(lock().frequency).toBe('onOpen');
 });
+
+describe('جولة 1 (security-reviewer + silent-failure-hunter)', () => {
+  it('البوابة: القراية فشلت ← شاشة القفل حتى لو enabled=false (كانت بتتفتح)', () => {
+    const { shouldShowLock } = require('@/context/AppLockContext');
+    expect(shouldShowLock({ enabled: false, isLocked: true, readFailed: true })).toBe(true);
+    expect(shouldShowLock({ enabled: true, isLocked: true, readFailed: false })).toBe(true);
+    expect(shouldShowLock({ enabled: false, isLocked: false, readFailed: false })).toBe(false);
+    expect(shouldShowLock({ enabled: true, isLocked: false, readFailed: false })).toBe(false);
+  });
+
+  it('app/_layout.tsx بيستخدم shouldShowLock (مش enabled && isLocked)', () => {
+    const src = require('fs').readFileSync('app/_layout.tsx', 'utf8');
+    expect(src).toContain('shouldShowLock({ enabled, isLocked, readFailed })');
+    expect(src).not.toMatch(/if \(enabled && isLocked\)/);
+  });
+
+  it('مفتاح ثانوي (المهلة) فشل ← الافتراضي، مش مقفول برّه لمستخدم مالوش قفل', async () => {
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === 'nuqta_lock_grace') throw new Error('keystore');
+      return mockStore[k] ?? null;
+    });
+    await mount();
+    expect(lock().readFailed).toBe(false);
+    expect(lock().isLocked).toBe(false);
+    (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+      if (k === 'nuqta_lock_enabled' && mockFailGet > 0) { mockFailGet--; throw new Error('keystore'); }
+      return mockStore[k] ?? null;
+    });
+  });
+
+  it('القراية فشلت وبعدين "نسيت الكود؟" (clearLock) ← readFailed بيتشال', async () => {
+    mockFailGet = 99;
+    await mount();
+    expect(lock().readFailed).toBe(true);
+    await act(async () => { await lock().clearLock(); });
+    expect(lock().readFailed).toBe(false);
+    expect(lock().isLocked).toBe(false);
+  });
+
+  it('المسح: العلم اتمسح وبعده مفتاح وقع ← القفل اتشال (الحالة والتخزين متفقين)، مش رمية', async () => {
+    await mount();
+    await act(async () => { await lock().setupLock('pin', '1234'); });
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementationOnce(async (k: string) => { delete mockStore[k]; })
+      .mockImplementationOnce(async () => { throw new Error('keystore'); });
+    await act(async () => { await lock().clearLock(); });
+    expect(mockStore.nuqta_lock_enabled).toBeUndefined();
+    expect(lock().enabled).toBe(false);
+  });
+
+  it('قراية لسه شغالة والمستخدم فتح ← القراية القديمة مبترجعش تقفل', async () => {
+    mockStore.nuqta_lock_enabled = '1'; mockStore.nuqta_lock_hash = 'h:1234';
+    await mount();
+    expect(lock().isLocked).toBe(true);
+    let release!: () => void;
+    (SecureStore.getItemAsync as jest.Mock).mockImplementationOnce(() => new Promise(r => { release = () => r('1'); }));
+    let p!: Promise<void>;
+    await act(async () => { p = lock().retryRead(); });
+    await act(async () => { lock().unlock(); });
+    await act(async () => { release(); await p; });
+    expect(lock().isLocked).toBe(false);
+  });
+});

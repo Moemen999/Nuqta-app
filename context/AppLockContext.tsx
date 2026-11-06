@@ -57,6 +57,14 @@ type AppLockContextType = {
 
 const AppLockContext = createContext<AppLockContextType | undefined>(undefined);
 
+/**
+ * البوابة في `app/_layout.tsx` (بند A — security-reviewer BLOCKER): كانت `enabled && isLocked`، وفشل القراية بيسيب
+ * `enabled` بـ false — فالتطبيق كان بيتفتح برضه. فشل القراية لوحده كفاية عشان يقفل
+ */
+export function shouldShowLock(s: { enabled: boolean; isLocked: boolean; readFailed: boolean }): boolean {
+  return s.isLocked && (s.enabled || s.readFailed);
+}
+
 const K_ENABLED = 'nuqta_lock_enabled';
 const K_TYPE = 'nuqta_lock_type';
 const K_FREQ = 'nuqta_lock_freq';
@@ -81,6 +89,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [graceMinutes, setGraceMinutesState] = useState(0);
   const appState = useRef(AppState.currentState);
   const backgroundedAt = useRef<number | null>(null);
+  // كل قراية ليها رقم؛ القراية الأقدم أو اللي جت بعد فتح/تفعيل/مسح مبتكتبش فوق الحالة الأحدث (security-reviewer)
+  const readSeq = useRef(0);
+  const reading = useRef(false);
 
   /**
    * قراية الإعدادات. **فشلها = مقفول** (بند A — كانت "يكمل من غير قفل"): مش عارفين القفل مفعّل ولا لأ، والغلط في اتجاه
@@ -88,29 +99,39 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * `allowBackup: false` (app.config.js) فمفيش مفاتيح بتبوظ بعد استرجاع باك أب — `null` هنا = "مفيش قفل" فعلاً.
    */
   async function readSettings() {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < READ_ATTEMPTS; attempt++) {
-      try {
-        const en = await SecureStore.getItemAsync(K_ENABLED);
-        const t = await SecureStore.getItemAsync(K_TYPE);
-        const f = await SecureStore.getItemAsync(K_FREQ);
-        const g = await SecureStore.getItemAsync(K_GRACE);
-        const isEnabled = en === '1';
-        setEnabled(isEnabled);
-        if (t === 'pin' || t === 'password') setLockType(t);
-        if (f === 'onOpen' || f === 'everyResume') setFrequencyState(f);
-        if (g !== null) setGraceMinutesState(Number(g) || 0);
-        setIsLocked(isEnabled);
-        setReadFailed(false);
-        return;
-      } catch (e) {
-        lastError = e;
-        if (attempt < READ_ATTEMPTS - 1) await new Promise(r => setTimeout(r, READ_RETRY_MS));
+    if (reading.current) return; // دوستين على "جرب تاني" مبيعملوش قرايتين مع بعض
+    reading.current = true;
+    const seq = ++readSeq.current;
+    try {
+      // **علم "مفعّل" بس هو الحرج**: الباقي (النوع، امتى، المهلة) فشله بيرجع للافتراضي — مستخدم مالوش قفل
+      // ميتقفلش برّه عشان مفتاح ثانوي (security-reviewer)
+      let en: string | null = null;
+      let lastError: unknown;
+      let ok = false;
+      for (let attempt = 0; attempt < READ_ATTEMPTS && !ok; attempt++) {
+        try { en = await SecureStore.getItemAsync(K_ENABLED); ok = true; }
+        catch (e) { lastError = e; if (attempt < READ_ATTEMPTS - 1) await new Promise(r => setTimeout(r, READ_RETRY_MS)); }
       }
+      if (seq !== readSeq.current) return;
+      if (!ok) {
+        reportAtomicFailure('قراية القفل', lastError);
+        setReadFailed(true);
+        setIsLocked(true);
+        return;
+      }
+      const optional = async (k: string) => { try { return await SecureStore.getItemAsync(k); } catch { return null; } };
+      const [t, f, g] = [await optional(K_TYPE), await optional(K_FREQ), await optional(K_GRACE)];
+      if (seq !== readSeq.current) return;
+      const isEnabled = en === '1';
+      setEnabled(isEnabled);
+      if (t === 'pin' || t === 'password') setLockType(t);
+      if (f === 'onOpen' || f === 'everyResume') setFrequencyState(f);
+      if (g !== null) setGraceMinutesState(Number(g) || 0);
+      setIsLocked(isEnabled);
+      setReadFailed(false);
+    } finally {
+      reading.current = false;
     }
-    reportAtomicFailure('قراية القفل', lastError);
-    setReadFailed(true);
-    setIsLocked(true);
   }
 
   useEffect(() => {
@@ -156,6 +177,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       reportAtomicFailure('حفظ القفل', e);
       throw e;
     }
+    readSeq.current++;
     setEnabled(true);
     setLockType(type);
   }
@@ -165,12 +187,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * "مفيش قفل" مش "مفعّل من غير هاش". لو رمى بيرمي — الشاشة بتقول
    */
   async function wipeLock() {
+    // العلم بس هو اللي فشله بيرمي (القفل لسه شغال). بعده القفل اتشال فعلاً، فالباقي محاولة لوحده ومبيرميش —
+    // وإلا التخزين يقول "مفيش قفل" والحالة تقول "مقفول" (silent-failure-hunter)
     await SecureStore.deleteItemAsync(K_ENABLED);
-    await SecureStore.deleteItemAsync(K_TYPE);
-    await SecureStore.deleteItemAsync(K_HASH);
-    await SecureStore.deleteItemAsync(K_FREQ);
+    readSeq.current++;
     setEnabled(false);
     setIsLocked(false);
+    setReadFailed(false);
+    for (const k of [K_TYPE, K_HASH, K_FREQ]) {
+      try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('حفظ القفل', e); }
+    }
   }
 
   async function disableLock(code: string): Promise<VerifyResult> {
@@ -187,8 +213,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   async function wipeLockForDeletedAccount() {
     // الحالة الأول (silent-failure-hunter): لو التخزين رمى في النص، الحالة القديمة (enabled=true) كانت هتطلّع شاشة القفل
     // على شاشة الدخول لحساب اتمسح. وكل مفتاح في محاولة لوحده — رمية واحدة متوقّفش مسح الباقي
+    readSeq.current++;
     setEnabled(false);
     setIsLocked(false);
+    setReadFailed(false);
     setGraceMinutesState(0);
     for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE]) {
       try { await SecureStore.deleteItemAsync(key); }
@@ -210,7 +238,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync(K_TYPE, newType);
     } catch (e) {
       reportAtomicFailure('حفظ القفل', e);
-      if (oldHash) { try { await SecureStore.setItemAsync(K_HASH, oldHash); } catch { /* الأسوأ: "نسيت الكود؟" لسه موجود */ } }
+      // الرجوع نفسه فشل ← الهاش الجديد بالنوع القديم؛ بيتبلّغ، والمخرج "نسيت الكود؟" لسه موجود
+      if (oldHash) { try { await SecureStore.setItemAsync(K_HASH, oldHash); } catch (e2) { reportAtomicFailure('حفظ القفل', e2); } }
       return 'error';
     }
     setLockType(newType);
@@ -245,6 +274,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   function unlock() {
+    readSeq.current++; // قراية لسه شغالة مترجعش تقفل بعد ما فتح
     setIsLocked(false);
   }
 

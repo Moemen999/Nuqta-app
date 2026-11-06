@@ -58,3 +58,26 @@ it('التحقق رجّع wrong ← "غلط، جرب تاني" زي الأول',
   await act(async () => { fireEvent.press(screen.getByTestId('lock_submit_button')); });
   expect(screen.getByText('غلط، جرب تاني')).toBeTruthy();
 });
+
+it('"جرب تاني" ومحاولة فشلت تاني ← سطر إنها ما نفعتش (مش ساكت)', async () => {
+  mockLock.readFailed = true;
+  await renderLock();
+  expect(screen.queryByTestId('lock_read_retry_failed')).toBeNull();
+  await act(async () => { fireEvent.press(screen.getByTestId('lock_read_retry')); });
+  expect(screen.getByTestId('lock_read_retry_failed').props.children).toBe(LOCK_STORAGE_ERROR);
+});
+
+it('"نسيت الكود؟" ومسح القفل رمى بعد الخروج ← رسالة، مش رمية ساكتة', async () => {
+  const { Alert } = require('react-native');
+  const spy = jest.spyOn(Alert, 'alert').mockImplementation((...args: unknown[]) => {
+    // تأكيد "نسيت الكود؟" ← اضغط الزرار التاني (المدمّر)
+    const buttons = args[2] as { onPress?: () => void }[] | undefined;
+    buttons?.[1]?.onPress?.();
+  });
+  mockLock.clearLock.mockRejectedValueOnce(new Error('keystore'));
+  await renderLock();
+  await act(async () => { fireEvent.press(screen.getByTestId('lock_forgot_button')); });
+  await act(async () => {});
+  expect(spy).toHaveBeenCalledWith(LOCK_STORAGE_ERROR);
+  spy.mockRestore();
+});

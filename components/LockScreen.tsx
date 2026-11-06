@@ -53,6 +53,15 @@ const KEY_ROWS = [
 export default function LockScreen() {
   const { colors } = useTheme();
   const { lockType, verify, unlock, clearLock, readFailed, retryRead } = useAppLock();
+  const [retrying, setRetrying] = useState(false);
+  const [retryFailed, setRetryFailed] = useState(false);
+  async function retry() {
+    if (retrying) return;
+    setRetrying(true);
+    await retryRead();
+    setRetrying(false);
+    setRetryFailed(true); // لو لسه فاشلة الشاشة دي بتفضل وبتقول إن المحاولة ما نفعتش؛ لو نجحت الشاشة بتتشال
+  }
   const { logOut } = useAuth();
   const { serverReachable } = useData();
   const [code, setCode] = useState('');
@@ -81,7 +90,9 @@ export default function LockScreen() {
    */
   async function runForgot() {
     await logOut();
-    await clearLock();
+    // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter)
+    try { await clearLock(); }
+    catch { Alert.alert(LOCK_STORAGE_ERROR); }
   }
 
   function confirmForgot() {
@@ -146,8 +157,10 @@ export default function LockScreen() {
         // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
         <View style={styles.passwordArea}>
           <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
-          <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" style={styles.submitBtn} onPress={() => { retryRead(); }}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{LOCK_RETRY}</Text>
+          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error}>{LOCK_STORAGE_ERROR}</Text>}
+          <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
+            disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{retrying ? '...' : LOCK_RETRY}</Text>
           </TouchableOpacity>
         </View>
       ) : lockType === 'pin' ? (

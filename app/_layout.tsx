@@ -17,7 +17,7 @@ import { APP_FONT_SOURCES } from '@/lib/appFontSources';
 import { holdSplash, releaseSplash } from '@/lib/splash';
 
 import LockScreen from '@/components/LockScreen';
-import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
+import { AppLockProvider, shouldShowLock, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import FirstRunSetup from '@/components/FirstRunSetup';
@@ -51,7 +51,7 @@ function SetupChecking() {
 function RootNavigator() {
   const { user, loading } = useAuth();
   const { theme } = useTheme();
-  const { enabled, isLocked, loading: lockLoading } = useAppLock();
+  const { enabled, isLocked, readFailed, loading: lockLoading } = useAppLock();
   const { setupStatus } = useData();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
 
@@ -78,7 +78,7 @@ function RootNavigator() {
     );
   }
 
-  if (enabled && isLocked) {
+  if (shouldShowLock({ enabled, isLocked, readFailed })) {
     return (
       <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
         <LockScreen />
