@@ -24,7 +24,7 @@ import {
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -73,15 +73,15 @@ export default function DebtsTabScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <View style={styles.switcherRow}>
-        <TouchableOpacity onPress={() => setTab('debts')}
+        <TouchableOpacity {...selectionA11y(tab === 'debts', 'tab')} testID="debts_tab_debts" onPress={() => setTab('debts')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
           <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
         </TouchableOpacity>
-        <TouchableOpacity testID="debts_tab_subscriptions" onPress={() => setTab('subscriptions')}
+        <TouchableOpacity {...selectionA11y(tab === 'subscriptions', 'tab')} testID="debts_tab_subscriptions" onPress={() => setTab('subscriptions')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'subscriptions')]}>
           <Text style={{ color: tab === 'subscriptions' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الاشتراكات</Text>
         </TouchableOpacity>
-        <TouchableOpacity testID="debts_tab_gamiya" onPress={() => setTab('gamiya')}
+        <TouchableOpacity {...selectionA11y(tab === 'gamiya', 'tab')} testID="debts_tab_gamiya" onPress={() => setTab('gamiya')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'gamiya')]}>
           <Text style={{ color: tab === 'gamiya' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الجمعية</Text>
         </TouchableOpacity>
@@ -581,7 +581,8 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     switcherRow: { flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
-    switchBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 9 },
+    // بطول اللمس (44) زي تابات التخطيط — كانت ~37 (a11y-architect)
+    switchBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: MIN_TOUCH },
     scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

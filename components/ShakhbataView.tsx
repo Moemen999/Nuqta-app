@@ -5,7 +5,7 @@ import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import {
   categoryLabel, currentMonth, parsePercentInput, percentInvalidBody, percentInvalidTitle,
   planIncomeCommit,
@@ -212,7 +212,7 @@ export default function ShakhbataView() {
             {BUCKET_META.map(b => {
               const active = c.bucket === b.key;
               return (
-                <TouchableOpacity
+                <TouchableOpacity {...selectionA11y(active)}
                   key={b.key}
                   onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
                   style={[styles.catBtn, selectionStyle(colors, active)]}>

@@ -7,7 +7,7 @@ import {
   normalizeAmountInput,
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
-import { selectionStyle, selectionTextColor } from '@/lib/selection';
+import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -250,7 +250,7 @@ export default function FirstRunSetup() {
               {[...CATEGORY_OPTIONS, ...customCats].map((c, i) => {
                 const on = pickedCats.has(c);
                 return (
-                  <TouchableOpacity key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
+                  <TouchableOpacity {...selectionA11y(on)} key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>

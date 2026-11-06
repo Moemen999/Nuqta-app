@@ -193,3 +193,15 @@ it('مفيش color: danger/success كنص في app/ وcomponents/ (شريط وsp
       .map(({ i, f: file }: { i: number; f: string }) => `${path.relative(root, file)}:${i + 1}`));
   expect(offenders).toEqual([]);
 });
+
+/** بند E (مراجعة المشروع 2026-11-05): النص الثانوي والباهت نص — 4.5:1 على كل خلفية، "ثانوي" مش استثناء (WCAG 1.4.3) */
+describe.each([
+  ['الفاتح', LIGHT],
+  ['الغامق', DARK],
+])('تباين النص الثانوي والباهت — الوضع %s', (_label, colors) => {
+  it.each(['textSecondary', 'textMuted'] as const)('%s ≥ 4.5 على كل الخلفيات', key => {
+    for (const surface of Object.values(surfacesOf(colors))) {
+      expect(contrast(colors[key], surface)).toBeGreaterThanOrEqual(TEXT_MIN);
+    }
+  });
+});

@@ -73,7 +73,8 @@ export type ThemeColors = {
 export const DARK: ThemeColors = {
   bg: '#0A0E14', surface: '#151B24', surface2: '#1C2530', nav: '#0E131A',
   border: '#1C2530', borderStrong: '#28323F',
-  text: '#F0E6D2', textSecondary: '#9CA8B8', textMuted: '#5C6A7A',
+  // textMuted كان 2.8–3.5:1 — تحت 4.5 (WCAG 1.4.3)؛ بقى ≥4.5 على كل الخلفيات (بند E، theme.contrast.test)
+  text: '#F0E6D2', textSecondary: '#9CA8B8', textMuted: '#808D9D',
   danger: '#C1554A', dangerBorder: '#5A2E28',
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#C9A961',
   expenseText: '#D97878', incomeText: '#7FA98F', dangerText: '#D97878',
@@ -87,7 +88,8 @@ export const DARK: ThemeColors = {
 export const LIGHT: ThemeColors = {
   bg: '#F5EFE0', surface: '#FFFDF7', surface2: '#F0E8D4', nav: '#FFFDF7',
   border: '#E3D7BA', borderStrong: '#CDBB94',
-  text: '#2B2416', textSecondary: '#7A6B4E', textMuted: '#A6997A',
+  // textMuted كان 2.3–2.8:1 وtextSecondary 4.26 على surface2 — الاتنين بقوا ≥4.5 (بند E). الباهت لسه أفتح من الثانوي
+  text: '#2B2416', textSecondary: '#6F6246', textMuted: '#736648',
   danger: '#C1554A', dangerBorder: '#E8C4BE',
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
   expenseText: '#A8453B', incomeText: '#2F654B', dangerText: '#A8453B',

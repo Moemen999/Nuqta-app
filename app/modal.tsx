@@ -14,7 +14,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions, type TxChange } from '@/lib/archiving';
 import { transferTransactionIds } from '@/lib/spending';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
-import { selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
+import { selectionA11y, selectionStyle, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -387,7 +387,7 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+          <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
             style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
@@ -399,7 +399,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity key={w.id} onPress={() => setToWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(toWalletId === w.id)} key={w.id} onPress={() => setToWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -413,7 +413,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity key={c.id} onPress={() => setCategoryId(c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>

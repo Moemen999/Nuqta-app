@@ -6,7 +6,7 @@ import {
   FEEDBACK_TYPES, FEEDBACK_TYPE_LABEL, feedbackRemaining, feedbackRemainingLabel,
   feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
@@ -69,7 +69,7 @@ export default function FeedbackScreen() {
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
         <View style={styles.chipRow}>
           {FEEDBACK_TYPES.map(t => (
-            <TouchableOpacity
+            <TouchableOpacity {...selectionA11y(type === t)}
               key={t}
               testID={`feedback_type_${t}`}
               onPress={() => setType(t)}

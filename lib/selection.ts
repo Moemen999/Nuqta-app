@@ -30,3 +30,11 @@ export function selectionStyle(c: ThemeColors, selected: boolean, tone: Selectio
 export function selectionTextColor(c: ThemeColors, selected: boolean): string {
   return selected ? c.text : c.textSecondary;
 }
+
+/**
+ * بند E (مراجعة المشروع 2026-11-05): الاختيار كان باللون والإطار بس — قارئ الشاشة مكانش بيقول "مختار" ولا حتى "زرار"
+ * (WCAG 1.4.1 و4.1.2). أي عنصر بياخد `selectionStyle` بياخد ده معاه. `tab` للتابات الفرعية، `button` للباقي
+ */
+export function selectionA11y(selected: boolean, role: 'button' | 'tab' = 'button') {
+  return { accessibilityRole: role, accessibilityState: { selected } } as const;
+}

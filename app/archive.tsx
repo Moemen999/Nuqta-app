@@ -12,7 +12,7 @@ import { transactionsPhrase } from '@/lib/archiving';
 import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -170,7 +170,7 @@ export default function ArchiveScreen() {
 
       <View style={styles.presetRow}>
         {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
-          <TouchableOpacity key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
+          <TouchableOpacity {...selectionA11y(preset === p.key)} key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
             <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
           </TouchableOpacity>

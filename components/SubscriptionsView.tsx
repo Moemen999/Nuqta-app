@@ -11,7 +11,7 @@ import FoldedSection from '@/components/FoldedSection';
 import { splitDone } from '@/lib/doneSections';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
@@ -299,7 +299,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -309,7 +309,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
@@ -318,13 +318,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
-            <TouchableOpacity onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'monthly')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'yearly')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'custom')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
@@ -482,7 +482,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -492,7 +492,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
@@ -501,13 +501,13 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
 
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
-            <TouchableOpacity onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'monthly')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'yearly')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'custom')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
