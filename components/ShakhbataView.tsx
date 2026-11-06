@@ -1,3 +1,7 @@
+import FoldedSection from '@/components/FoldedSection';
+import { categoriesPhrase } from '@/lib/archiving';
+import { MONTH_NAMES } from '@/lib/recurringIncome';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -5,7 +9,7 @@ import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
+import { selectionA11y, quietSelectionStyle } from '@/lib/selection';
 import {
   categoryLabel, currentMonth, parsePercentInput, percentInvalidBody, percentInvalidTitle,
   planIncomeCommit,
@@ -125,7 +129,8 @@ export default function ShakhbataView() {
       <Text style={styles.title}>توزيع الدخل</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها (الشاشة دي كان اسمها شخبطة)</Text>
 
-      <Text style={styles.label}>دخل شهر {nowMonth}</Text>
+      {/* الشهر باسمه مش "2026-11" (دراسة الشكل) */}
+      <Text style={styles.label}>دخل شهر {MONTH_NAMES[Number(nowMonth.slice(5, 7)) - 1]} {nowMonth.slice(0, 4)}</Text>
       <TextInput
         style={styles.incomeInput}
         keyboardType="numeric"
@@ -179,8 +184,9 @@ export default function ShakhbataView() {
             const target = income * pct;
             const spend = spendByBucket.get(b.key) || 0;
             const usagePct = target > 0 ? Math.min(100, (spend / target) * 100) : 0;
-            const color = usagePct >= 100 ? colors.danger : usagePct >= 80 ? colors.accent : colors.success;
-            const textColor = usagePct >= 100 ? colors.dangerText : usagePct >= 80 ? colors.accentText : colors.incomeText;
+            // نفس قاعدة الميزانية: لون من 80% بس، والشريط بتوكنز النص (≥ 4.5 على المسار)
+            const color = usagePct >= 100 ? colors.dangerText : usagePct >= 80 ? colors.accentText : colors.textSecondary;
+            const textColor = color;
             return (
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
@@ -204,26 +210,30 @@ export default function ShakhbataView() {
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>صنّف فئاتك</Text>
-      <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
-      {categories.map(c => (
-        <View key={c.id} style={styles.catRow}>
-          <Text numberOfLines={1} ellipsizeMode="middle" style={styles.catName}>{categoryLabel(c)}</Text>
-          <View style={styles.catBtns}>
-            {BUCKET_META.map(b => {
-              const active = c.bucket === b.key;
-              return (
-                <TouchableOpacity {...selectionA11y(active)}
-                  key={b.key}
-                  onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
-                  style={[styles.catBtn, selectionStyle(colors, active)]}>
-                  <Text style={{ color: active ? colors.text : colors.textSecondary, fontSize: 11 }}>{b.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
+      {/* التصنيف كان 30 زرار صغير لـ10 فئات على الشاشة كلها (دراسة الشكل) ← مطوي، والعنوان بيقول فاضل كام */}
+      <FoldedSection testID="shakhbata_classify" count={categories.length}
+        title={unassigned.length > 0 ? `صنّف فئاتك — ${unassigned.length} لسه` : 'صنّف فئاتك'}
+        a11yLabel={unassigned.length > 0 ? `صنّف فئاتك، ${categoriesPhrase(unassigned.length)} لسه من غير تصنيف` : 'صنّف فئاتك، كلها متصنّفة'}>
+        <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
+        {categories.map(c => (
+          <View key={c.id} style={styles.catRow}>
+            <Text numberOfLines={1} ellipsizeMode="middle" style={styles.catName}>{categoryLabel(c)}</Text>
+            <View style={styles.catBtns}>
+              {BUCKET_META.map(b => {
+                const active = c.bucket === b.key;
+                return (
+                  <TouchableOpacity {...selectionA11y(active)}
+                    key={b.key}
+                    onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
+                    style={[styles.catBtn, quietSelectionStyle(colors, active)]}>
+                    <Text style={{ color: active ? colors.text : colors.textSecondary, fontSize: typeScale.caption }}>{b.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </View>
-        </View>
-      ))}
+        ))}
+      </FoldedSection>
 
       {unassigned.length > 0 && income > 0 && (
         <Text style={styles.warnText}>
@@ -239,31 +249,31 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    subtitle: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: 18 },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginBottom: 6 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    subtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: 18 },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs },
     incomeInput: {
-      backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.accent, borderRadius: 10,
-      color: c.text, fontSize: 20, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
+      backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.lg,
+      color: c.text, fontSize: typeScale.hero, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16,
     },
     percentHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
     percentEditRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
-    microLabel: { color: c.textMuted, fontSize: 10.5, textAlign: 'center', marginBottom: 4 },
-    percentInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingVertical: 8, fontSize: 14, fontWeight: '700' },
-    warnText: { color: c.accentText, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
+    microLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', marginBottom: 4 },
+    percentInput: { backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, minHeight: MIN_TOUCH, fontSize: typeScale.body, fontWeight: '700' },
+    warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: 17 },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
-    bucketCard: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
+    bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
-    bucketLabel: { color: c.text, fontSize: 14, fontWeight: '700' },
-    bucketTarget: { color: c.textSecondary, fontSize: 13 },
-    track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
-    bucketSpend: { fontSize: 12, marginTop: 6, textAlign: 'right' },
+    bucketLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    bucketTarget: { color: c.textSecondary, fontSize: typeScale.body },
+    track: { height: 4, backgroundColor: c.surface2, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 2 },
+    bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
-    hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
-    catRow: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: c.border },
-    catName: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right', marginBottom: 8 },
+    hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
+    catRow: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.sm },
+    catName: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', marginBottom: 8 },
     catBtns: { flexDirection: 'row-reverse', gap: 6 },
-    catBtn: { flex: 1, borderWidth: 1.5, borderRadius: 8, alignItems: 'center', paddingVertical: 7 },
+    catBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
   });
 }
