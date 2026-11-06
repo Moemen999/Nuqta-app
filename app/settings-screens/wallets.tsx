@@ -1,3 +1,5 @@
+import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
+import { planWalletAmountCommit, planWalletAmountRewrite } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
@@ -51,8 +53,10 @@ export default function WalletsScreen() {
   } | null>(null);
 
   const opening = useAmountDrafts(
-    id => wallets.find(w => w.id === id)?.openingBalance ?? 0,
+    // `openingInvalid` ← NaN: الخطة بتكتب أي رقم صالح (حتى 0 اللي معروض) عشان العلامة تتشال (بند B)
+    id => { const w = wallets.find(x => x.id === id); return w?.openingInvalid ? NaN : (w?.openingBalance ?? 0); },
     (id, value) => updateWallet(id, { openingBalance: value }),
+    { plan: (draft, stored) => (Number.isNaN(stored) ? planWalletAmountRewrite(draft) : planWalletAmountCommit(draft, stored)) },
   );
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
@@ -198,6 +202,10 @@ export default function WalletsScreen() {
     const others = activeWallets.filter(x => x.id !== id);
     const block = archiveBlockFor(id);
     if (block) { showBlock(block, name, 'archive'); return; }
+    // بيانات ناقصة على المحفظة ← مفيش أرشفة (money-reviewer + silent-failure-hunter): بعدها البانر بيختفي والتصليح بيتقفل
+    if (wallets.find(x => x.id === id)?.openingInvalid || brokenTransactions.some(t => t.walletId === id || t.toWalletId === id)) {
+      notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return;
+    }
 
     const items: ReassignItem[] = [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),

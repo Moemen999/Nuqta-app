@@ -1,3 +1,5 @@
+import { brokenReasonsOf } from '@/lib/fromDoc';
+import { BROKEN_REASON_LABEL } from '@/lib/brokenDocs';
 import type { Budgets, Category, Debt, Gamiya, ShakhbataIncome, ShakhbataPercents, Subscription, Transaction, Wallet } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
@@ -57,19 +59,21 @@ const DEFAULT_PERCENTS = { needs: 50, wants: 30, future: 20 };
 export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
   const walletName = (id?: string) => d.wallets.find(w => w.id === id)?.name ?? '';
   const categoryName = (id?: string) => d.categories.find(c => c.id === id)?.name ?? '';
-  const byDate = <T extends { date: string }>(xs: T[]) => [...xs].sort((a, b) => a.date.localeCompare(b.date));
+  // التاريخ ممكن ميبقاش نص في عملية بايظة (بند B — silent-failure-hunter: كان TypeError بيوقّع التصدير كله)
+  const byDate = <T extends { date: string }>(xs: T[]) => [...xs].sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
   const byKey = <V>(rec: Record<string, V> | undefined) => Object.entries(rec || {}).sort(([a], [b]) => a.localeCompare(b));
 
   return [
     { name: 'Wallets', rows: d.wallets.map(w => ({
-      Id: w.id, Name: w.name, OpeningBalance: w.openingBalance, LowAlert: w.lowAlert,
+      Id: w.id, Name: w.name, OpeningBalance: w.openingBalance, OpeningInvalid: !!w.openingInvalid, LowAlert: w.lowAlert,
       Archived: !!w.archived, ArchivedAt: s(w.archivedAt),
     })) },
     { name: 'Categories', rows: d.categories.map(c => ({
       Id: c.id, Name: c.name, Icon: s(c.icon), Bucket: s(c.bucket), Archived: !!c.archived, ArchivedAt: s(c.archivedAt),
     })) },
     { name: 'Transactions', rows: byDate(d.transactions).map(t => ({
-      Id: t.id, Date: t.date, CreatedAt: s(t.createdAt), Type: t.type, Amount: t.amount,
+      Id: t.id, Date: typeof t.date === 'string' ? t.date : '', CreatedAt: s(t.createdAt), Type: t.type, Amount: n(t.amount),
+      Problem: brokenReasonsOf(t as unknown as Record<string, unknown>).map(r => BROKEN_REASON_LABEL[r]).join('، '),
       WalletId: t.walletId, Wallet: walletName(t.walletId), ToWalletId: s(t.toWalletId), ToWallet: walletName(t.toWalletId),
       CategoryId: s(t.categoryId), Category: categoryName(t.categoryId), Note: s(t.note),
       SubscriptionId: s(t.subscriptionId), GamiyaId: s(t.gamiyaId), IncomeId: s(t.incomeId), PeriodKey: s(t.periodKey),
@@ -163,7 +167,7 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   Id: 'المعرّف', Name: 'الاسم', Amount: 'المبلغ', Date: 'التاريخ', CreatedAt: 'اتعمل في', Type: 'النوع', Note: 'ملاحظة',
   Wallet: 'المحفظة', WalletId: 'معرّف المحفظة', ToWallet: 'إلى محفظة', ToWalletId: 'معرّف المحفظة المستلمة',
   Category: 'الفئة', CategoryId: 'معرّف الفئة', Icon: 'الأيقونة', Bucket: 'خانة شخبطة',
-  OpeningBalance: 'الرصيد الافتتاحي', LowAlert: 'حد التنبيه', Archived: 'مؤرشفة', ArchivedAt: 'اتأرشفت في',
+  OpeningBalance: 'الرصيد الافتتاحي', OpeningInvalid: 'الرصيد الافتتاحي مش مقروء', Problem: 'مشكلة في البيانات', LowAlert: 'حد التنبيه', Archived: 'مؤرشفة', ArchivedAt: 'اتأرشفت في',
   SubscriptionId: 'معرّف الاشتراك', Subscription: 'الاشتراك', GamiyaId: 'معرّف الجمعية', Gamiya: 'الجمعية',
   IncomeId: 'معرّف الدخل الثابت', Income: 'الدخل الثابت', MonthlyIncome: 'الدخل الشهري', PeriodKey: 'الفترة', Settlement: 'عملية تسوية', ArchivedWalletId: 'معرّف المحفظة المؤرشفة',
   AutoRecorded: 'اتسجلت لوحدها', Direction: 'اتجاه الدين', Person: 'الشخص', Phone: 'رقم التليفون', ContactId: 'معرّف جهة الاتصال',

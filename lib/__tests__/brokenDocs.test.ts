@@ -50,7 +50,8 @@ it('splitTransactions بيقسم من غير ما يضيّع ولا واحدة',
 
 it('isValidDateStr', () => {
   expect(isValidDateStr('2026-11-06')).toBe(true);
-  for (const v of ['2026-11-6', '2026-00-01', '2026-01-32', 20261106, '', null]) expect(isValidDateStr(v)).toBe(false);
+  for (const v of ['2026-11-6', '2026-00-01', '2026-01-32', '2026-02-31', '2026-02-29', 20261106, '', null]) expect(isValidDateStr(v)).toBe(false);
+  expect(isValidDateStr('2028-02-29')).toBe(true);
 });
 
 it('المحفظة: رصيد بداية مش رقم ← صفر + openingInvalid؛ سليم ← من غير علامة', () => {
@@ -81,6 +82,14 @@ describe('brokenFixBlock — التصليح من هنا ولا المسح بس',
 
 it('نص البانر: العدد بالكلام والجمع بيتفق', () => {
   expect(brokenTransactionsBannerText(1)).toBe('فيه عملية واحدة بياناتها ناقصة ومش محسوبة في أي رقم.');
-  expect(brokenTransactionsBannerText(2)).toBe('فيه عمليتين بياناتهم ناقصة ومش محسوبين في أي رقم.');
-  expect(brokenTransactionsBannerText(5)).toBe('فيه 5 عمليات بياناتهم ناقصة ومش محسوبين في أي رقم.');
+  expect(brokenTransactionsBannerText(2)).toBe('فيه عمليتين بياناتها ناقصة ومش محسوبة في أي رقم.');
+  expect(brokenTransactionsBannerText(5)).toBe('فيه 5 عمليات بياناتها ناقصة ومش محسوبة في أي رقم.');
+});
+
+it('رصيد بداية مش مقروء: "0" بيتكتب (كان "مفيش تغيير" والبانر يفضل للأبد)، والسالب بيتسأل', () => {
+  const { planWalletAmountRewrite, planWalletAmountCommit } = require('@/lib/finance');
+  expect(planWalletAmountCommit('0', 0)).toEqual({ action: 'none' });
+  expect(planWalletAmountRewrite('0')).toEqual({ action: 'write', value: 0 });
+  expect(planWalletAmountRewrite('-50').action).toBe('confirm');
+  expect(planWalletAmountRewrite('abc')).toEqual({ action: 'reject' });
 });

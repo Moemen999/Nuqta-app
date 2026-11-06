@@ -30,7 +30,7 @@ import { AccessibilityInfo, AppState, ScrollView, StyleSheet, TouchableOpacity, 
 import { Text } from '@/components/AppText';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
-import { BROKEN_WALLET_ACTION, brokenTransactionsBannerAction, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
+import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
@@ -272,17 +272,18 @@ function HomeScreen() {
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenTransactionsBannerText(brokenTransactions.length)}</Text>
             <TouchableOpacity testID="home_broken_tx_go" onPress={() => router.push('/archive')}
-              accessibilityRole="button" style={styles.bannerAction}>
-              <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{brokenTransactionsBannerAction(brokenTransactions.length)}</Text>
+              accessibilityRole="button" accessibilityHint="بيفتح الأرشيف" style={styles.bannerAction}>
+              <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{BROKEN_TX_ACTION}</Text>
             </TouchableOpacity>
           </View>
         )}
-        {wallets.filter(w => w.openingInvalid && !w.archived).map(w => (
+        {/* المؤرشفة كمان (silent-failure-hunter): الرقم الغلط مبيبطلش يبقى غلط لما المحفظة تتأرشف */}
+        {wallets.filter(w => w.openingInvalid).map(w => (
           <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, { borderColor: colors.dangerBorder }]}
-            accessibilityRole="alert">
+            accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenWalletBannerText(w.name)}</Text>
             <TouchableOpacity testID={`home_broken_wallet_go_${w.id}`} onPress={() => router.push('/settings-screens/wallets')}
-              accessibilityRole="button" style={styles.bannerAction}>
+              accessibilityRole="button" accessibilityLabel={`${BROKEN_WALLET_ACTION} — ${w.name}`} style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{BROKEN_WALLET_ACTION}</Text>
             </TouchableOpacity>
           </View>

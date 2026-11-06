@@ -118,20 +118,28 @@ export function isValidDateStr(v: unknown): v is string {
   if (typeof v !== 'string') return false;
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
   if (!m) return false;
-  const month = Number(m[2]), day = Number(m[3]);
-  return month >= 1 && month <= 12 && day >= 1 && day <= 31;
+  // يوم موجود فعلاً في الشهر ده (2026-02-31 لأ) — من غير `Date` بالتوقيت المحلي
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
 
+/** أسباب البوظان من غير تبليغ — التصدير بيستخدمها عشان يعلّم الصف (نفس القاعدة بالظبط) */
+export function brokenReasonsOf(data: Data): BrokenReason[] {
+  const reasons: BrokenReason[] = [];
+  if (!(typeof data.amount === 'number' && Number.isFinite(data.amount))) reasons.push('amount');
+  if (!isValidDateStr(data.date)) reasons.push('date');
+  if (!(TX_TYPES as readonly unknown[]).includes(data.type)) reasons.push('type');
+  return reasons;
+}
+
 export function transactionFromDoc<T>(id: string, data: Data):
   { ok: true; tx: T } | { ok: false; broken: BrokenTransaction } {
-  const reasons: BrokenReason[] = [];
-  const amountOk = typeof data.amount === 'number' && Number.isFinite(data.amount);
-  const dateOk = isValidDateStr(data.date);
-  const typeOk = (TX_TYPES as readonly unknown[]).includes(data.type);
-  if (!amountOk) reasons.push('amount');
-  if (!dateOk) reasons.push('date');
-  if (!typeOk) reasons.push('type');
+  const reasons = brokenReasonsOf(data);
+  const amountOk = !reasons.includes('amount');
+  const dateOk = !reasons.includes('date');
+  const typeOk = !reasons.includes('type');
   if (reasons.length === 0) return { ok: true, tx: withId<T>(id, data) };
   for (const r of reasons) reportBadShape('transactions', r);
   return {

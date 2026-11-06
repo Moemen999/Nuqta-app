@@ -18,21 +18,30 @@ export const BROKEN_REASON_LABEL: Record<BrokenReason, string> = {
 export function brokenTransactionsBannerText(n: number): string {
   return n === 1
     ? 'فيه عملية واحدة بياناتها ناقصة ومش محسوبة في أي رقم.'
-    : `فيه ${transactionsPhrase(n)} بياناتهم ناقصة ومش محسوبين في أي رقم.`;
+    // الجمع غير العاقل بالمفرد المؤنث (arabic-copy-reviewer): «عمليتين بياناتها ناقصة ومش محسوبة»
+    : `فيه ${transactionsPhrase(n)} بياناتها ناقصة ومش محسوبة في أي رقم.`;
 }
-export function brokenTransactionsBannerAction(n: number): string {
-  return n === 1 ? 'صلّحها من الأرشيف' : 'صلّحهم من الأرشيف';
-}
+export const BROKEN_TX_ACTION = 'صلّحها من الأرشيف';
 export function brokenWalletBannerText(name: string): string {
-  return `رصيد البداية بتاع محفظة "${name}" مش مقروء، فاتحسب صفر. اكتبه تاني من المحافظ.`;
+  return `رصيد البداية بتاع محفظة "${name}" مش مقروء، فاتحسب بصفر. اكتبه تاني من المحافظ.`;
 }
 export const BROKEN_WALLET_ACTION = 'افتح المحافظ';
+/** أرشفة محفظة عليها بيانات ناقصة — ممنوعة: بعد الأرشفة البانر بيختفي والتصليح بيتقفل (money-reviewer + silent-failure-hunter) */
+export const BROKEN_WALLET_ARCHIVE_BLOCK: [string, string] = [
+  'ما اتأرشفتش',
+  'المحفظة دي عليها بيانات ناقصة. صلّحها الأول: رصيد البداية من هنا، والعمليات من الأرشيف.',
+];
 
 export const FIX_TITLE = 'صلّح العملية';
 export const FIX_DELETE = 'امسحها';
 export const FIX_DELETE_CONFIRM_TITLE = 'تمسح العملية؟';
 export const FIX_DELETE_PLAIN_BODY = 'العملية دي مش محسوبة في أي رقم، فمسحها مش هيغيّر أي رصيد.';
 export const FIX_INVALID_AMOUNT = 'اكتب مبلغ أكبر من صفر.';
+export const FIX_PICK_DATE = 'اختار تاريخ العملية.';
+export const FIX_DATE_MISSING = 'التاريخ كان ناقص — اختاره';
+export const FIX_WAITING = 'لسه بنجيب الديون والاشتراكات والجمعيات — استنى لحظة عشان نعرف العملية دي مربوطة بحاجة ولا لأ.';
+export const FIX_SAVED = 'اتحفظت';
+export const FIX_DELETED = 'اتمسحت';
 
 export type FixBlock = 'type' | 'linked' | 'wallet';
 export const FIX_BLOCK_TEXT: Record<FixBlock, string> = {

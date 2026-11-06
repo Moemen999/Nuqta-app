@@ -1081,7 +1081,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // المستند البايظ (مبلغ/تاريخ/نوع) برّه الحسابات ومتعلّم — مش صفر ومش متشال ساكت (قرار مؤمن، بند B)
       const split = splitTransactions<Transaction>(snap.docs);
       setTransactions(split.transactions);
-      setBrokenTransactions(prev => (prev.length === 0 && split.broken.length === 0 ? prev : split.broken));
+      // نفس المصفوفة لو مفيش تغيير — الـlistener ده بيرد مع كل تغيير metadata (silent-failure-hunter + money-reviewer NIT)
+      setBrokenTransactions(prev => (JSON.stringify(prev) === JSON.stringify(split.broken) ? prev : split.broken));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
 
@@ -2793,8 +2794,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return {
         outcome: 'done',
         data: {
-          // نفس تطبيع الـlisteners (بند B — money-reviewer): الملف والشاشة يقولوا نفس الحاجة
-          wallets: w.docs.map(x => withId<Wallet>(x.id, x.data())),
+          // نفس تطبيع الـlisteners (بند B — money-reviewer): الملف والشاشة يقولوا نفس الحاجة. **ماعدا العمليات البايظة:**
+          // الملف = كل اللي متخزّن، فبتطلع زي ما هي وعليها عمود "مشكلة" (`buildFullExportSheets`) — مش متشالة
+          wallets: w.docs.map(x => walletFromDoc<Wallet>(x.id, x.data())),
           categories: c.docs.map(x => withId<Category>(x.id, x.data())),
           transactions: t.docs.map(x => withId<Transaction>(x.id, x.data())),
           debts: d.docs.map(x => debtFromDoc<Debt>(x.id, x.data())),

@@ -86,3 +86,14 @@ describe('سلاسل التأكيد بالمكوّن نفسه (silent-failure-hu
     expect(mockData.archiveWallet).toHaveBeenCalledWith('w1', expect.anything());
   });
 });
+
+it('بند B: محفظة عليها عملية بايظة ← ليها تاريخ (مش حذف عادي)، والأرشفة ممنوعة برسالة', async () => {
+  seed([cash, bank]);
+  mockData.brokenTransactions = [{ id: 'b1', reasons: ['amount'], type: 'expense', walletId: 'w1' }];
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
+  expect(screen.getByTestId('confirm_title').props.children).toBe('المحفظة دي ليها تاريخ');
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  expect(screen.getByTestId('notice_title').props.children).toBe('ما اتأرشفتش');
+  expect(mockData.archiveWallet).not.toHaveBeenCalled();
+});

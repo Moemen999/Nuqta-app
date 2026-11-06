@@ -21,7 +21,7 @@ function seed(broken: object[], extra: Record<string, unknown> = {}) {
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }, { id: 'old', name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true }],
     categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
-    brokenTransactions: broken, updateTransaction, deleteTransaction, transactionLinkWarning: () => null,
+    brokenTransactions: broken, updateTransaction, deleteTransaction, transactionLinkWarning: () => null, linkSourcesReady: true,
     ...extra,
   });
 }
@@ -71,4 +71,32 @@ it('مربوطة بدين ← مفيش تصليح، وتأكيد المسح بي
   expect(screen.queryByTestId('broken_fix_save')).toBeNull();
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
   expect(screen.getByTestId('confirm_body').props.children).toBe('تحذير الدين');
+});
+
+it('التاريخ ناقص ← الخانة فاضية والحفظ بيطلب تاريخ (مش النهارده ساكت)', async () => {
+  seed([{ id: 'b4', reasons: ['date'], type: 'expense', amount: 40, walletId: 'w1' }]);
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b4')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+  expect(screen.getByTestId('broken_fix_error').props.children).toBe('اختار تاريخ العملية.');
+  expect(updateTransaction).not.toHaveBeenCalled();
+});
+
+it('الديون لسه ما وصلتش ← لا حفظ ولا مسح (دفعة دين كانت هتبان مش مربوطة)', async () => {
+  seed([{ id: 'b5', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }], { linkSourcesReady: false });
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b5')); });
+  expect(screen.getByTestId('broken_fix_waiting')).toBeTruthy();
+  expect(screen.queryByTestId('broken_fix_save')).toBeNull();
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
+  expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+  expect(deleteTransaction).not.toHaveBeenCalled();
+});
+
+it('اسم الصف لقارئ الشاشة فيه المبلغ والتاريخ', async () => {
+  seed([{ id: 'b6', reasons: ['type'], amount: 40, walletId: 'w1', date: '2026-09-01' }]);
+  await render(ui());
+  const label = screen.getByTestId('archive_broken_b6').props.accessibilityLabel as string;
+  expect(label).toContain('2026-09-01');
+  expect(label).toContain('40');
 });

@@ -59,7 +59,7 @@ it('عملية مبلغها Infinity وعملية تاريخها مش YYYY-MM-DD
   const { walletBalance } = require('@/lib/finance');
   await harness.waitForData(a => a.wallets.length > 0);
   const w = harness.api().wallets[0];
-  const before = walletBalance(w, harness.api().transactions);
+  const before = walletBalance(harness.api().transactions, w.id, w.openingBalance);
   const uid = getMockUid();
   await setDoc(doc(db, 'users', uid, 'transactions', 'inf'), { type: 'expense', amount: Infinity, walletId: w.id, date: '2026-09-01' });
   await setDoc(doc(db, 'users', uid, 'transactions', 'baddate'), { type: 'expense', amount: 50, walletId: w.id, date: '1/9/2026' });
@@ -69,7 +69,15 @@ it('عملية مبلغها Infinity وعملية تاريخها مش YYYY-MM-DD
   expect(api.transactions.map(t => t.id)).not.toEqual(expect.arrayContaining(['inf']));
   expect(api.transactions.some(t => t.id === 'baddate')).toBe(false);
   expect(api.brokenTransactions.map(b => [b.id, b.reasons]).sort()).toEqual([['baddate', ['date']], ['inf', ['amount']]]);
-  expect(walletBalance(api.wallets.find(x => x.id === w.id), api.transactions)).toBe(before - 30);
+  expect(walletBalance(api.transactions, w.id, w.openingBalance)).toBe(before - 30);
+  // التصدير الكامل بيطلع كل المتخزّن ومبيقعش (كان TypeError على التاريخ) — والبايظة عليها عمود "مشكلة"
+  const { buildFullExportSheets } = require('@/lib/fullExport');
+  const all = await api.readAllFromServer();
+  expect(all.outcome).toBe('done');
+  if (all.outcome !== 'done') throw new Error('export');
+  const txSheet = buildFullExportSheets(all.data).find((s: { name: string }) => s.name === 'Transactions');
+  const problem = Object.fromEntries(txSheet.rows.map((r: { Id: string; Problem: string }) => [r.Id, r.Problem]));
+  expect([problem.inf, problem.baddate, problem.ok]).toEqual(['المبلغ مش مقروء', 'التاريخ مش مقروء', '']);
 });
 
 it('محفظة رصيد بدايتها Infinity ← صفر + openingInvalid', async () => {

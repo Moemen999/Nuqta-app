@@ -144,8 +144,8 @@ describe('الباقي كمان فوق آخر العمليات (رجوع عن 20
     for (const id of ['home_banner_broken_tx', 'home_banner_broken_wallet_w1']) {
       expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
     }
-    expect(screen.getByText('فيه عمليتين بياناتهم ناقصة ومش محسوبين في أي رقم.')).toBeTruthy();
-    expect(screen.getByText('رصيد البداية بتاع محفظة "كاش" مش مقروء، فاتحسب صفر. اكتبه تاني من المحافظ.')).toBeTruthy();
+    expect(screen.getByText('فيه عمليتين بياناتها ناقصة ومش محسوبة في أي رقم.')).toBeTruthy();
+    expect(screen.getByText('رصيد البداية بتاع محفظة "كاش" مش مقروء، فاتحسب بصفر. اكتبه تاني من المحافظ.')).toBeTruthy();
   });
 
   it('رصيد قرب يخلص + ميزانية + اشتراك جاي ← كلهم قبل "آخر العمليات"', async () => {
