@@ -93,3 +93,10 @@ it('رصيد بداية مش مقروء: "0" بيتكتب (كان "مفيش تغ
   expect(planWalletAmountRewrite('-50').action).toBe('confirm');
   expect(planWalletAmountRewrite('abc')).toEqual({ action: 'reject' });
 });
+
+it('الجمعية: المتأخر «متأخر» مش «قرّب» (اتلقى على الجهاز 2026-11-06)', () => {
+  const { gamiyaDueCue } = require('@/components/GamiyaView');
+  expect(gamiyaDueCue(-66, 3)).toBe('متأخر — ');
+  expect(gamiyaDueCue(2, 3)).toBe('قرّب — ');
+  expect(gamiyaDueCue(10, 3)).toBe('');
+});

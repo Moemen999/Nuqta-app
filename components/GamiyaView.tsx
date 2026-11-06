@@ -19,6 +19,11 @@ import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
 
+/** «متأخر —» لو المعاد فات، «قرّب —» لو جوّه مهلة التذكير، وإلا ولا حاجة */
+export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
+  return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
+}
+
 export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -99,9 +104,9 @@ export default function GamiyaView() {
           </View>
           <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
           {nextPending && (
-            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
-              {/* القرب بالكلمة كمان، مش باللون بس (visual-identity-reviewer) */}
-              {daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? 'قرّب — ' : ''}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+            <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
+              {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
+              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>
@@ -115,6 +120,8 @@ export default function GamiyaView() {
                 </Text>
                 {m.status === 'pending' ? (
                   <TouchableOpacity accessibilityRole="button"
+                    // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
+                    accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
                     style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                     disabled={busyKey === `month_${m.id}`}>

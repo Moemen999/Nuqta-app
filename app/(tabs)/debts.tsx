@@ -597,7 +597,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: 18, fontWeight: '700' },
     addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
     summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
-    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border },
+    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
     summaryValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 8 },
