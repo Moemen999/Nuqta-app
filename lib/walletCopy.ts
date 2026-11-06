@@ -17,6 +17,11 @@ export function openingConfirmCopy(name: string, from: number, to: number) {
   };
 }
 
+/** «أيوه» اتداست بس الرقم اتغيّر من جهاز تاني والتأكيد مفتوح */
+export function openingStaleNotice(name: string): [string, string] {
+  return ['ما اتحفظش', `رصيد محفظة "${name}" الابتدائي اتغيّر من جهاز تاني وانت بتأكّد، فما غيّرناهوش. راجع الرقم وأكّد تاني.`];
+}
+
 /** سطر تحت خانة الرصيد الابتدائي طول ما فيه رقم مستني تأكيد */
 export const OPENING_PENDING_HINT = 'لسه ما اتحفظش — سيب الخانة وأكّد';
 /** الشاشة اتقفلت والرقم لسه مستني تأكيد */

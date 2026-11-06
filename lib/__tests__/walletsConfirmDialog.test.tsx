@@ -158,6 +158,9 @@ describe('الرصيد الابتدائي — تصليحات المراجعين 
     await r.rerender(ui());
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(mockData.updateWallet).not.toHaveBeenCalled();
+    // ومش ساكت: رسالة
+    expect(screen.getByTestId('notice_title').props.children).toBe('ما اتحفظش');
+    expect(screen.getByTestId('wallet_opening_pending_w1')).toBeTruthy();
   });
 });
 

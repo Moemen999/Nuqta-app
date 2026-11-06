@@ -35,6 +35,8 @@ export type AmountDraftOptions = {
    * تضيع ساكت (silent-failure-hunter + money-reviewer 2026-11-07)
    */
   onDroppedConfirm?: (id: string, value: number) => void;
+  /** "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول */
+  onStaleConfirm?: (id: string) => void;
 };
 
 /**
@@ -88,8 +90,8 @@ export function useAmountDrafts(
   // `plan` داخل الـref كمان: الاستدعاءات الحالية كلها بتبعت دوال ثابتة من
   // `lib/finance.ts`، بس لو حد بعدين بعت دالة متعرّفة جوه الكومبوننت،
   // المؤقّت وflush الخروج كانوا هيمسكوا نسخة قديمة منها من غير ما حد ياخد باله.
-  const latest = useRef({ storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm });
-  useEffect(() => { latest.current = { storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm }; });
+  const latest = useRef({ storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm });
+  useEffect(() => { latest.current = { storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm }; });
 
   function clearDraft(id: string) {
     setDrafts(d => {
@@ -189,12 +191,18 @@ export function useAmountDrafts(
         onPress: () => {
           // الرقم اتغيّر من جهاز تاني والتأكيد مفتوح ← منكتبش على كلام المستخدم اللي اتبنى على رقم قديم (money-reviewer)
           const now = latest.current.storedFor(id);
-          if (!(Object.is(now, shownStored) || now === shownStored)) return;
+          if (!(Object.is(now, shownStored) || now === shownStored)) {
+            // مفيش كتابة — بس منسكتش (silent-failure-hunter جولة 2): المسوّدة بترجع "مستنية" والشاشة بتقول
+            pending.current[id] = raw;
+            latest.current.onStaleConfirm?.(id);
+            return;
+          }
           commitWrite(id, confirmed);
         },
       },
       // اتقفل لوحده (قفل التطبيق، رجوع) ← المسوّدة **بتفضل** في الخانة ومعاها سطر "لسه ما اتحفظش"
-    ], { key: `confirm_${id}`, onDismiss: () => {} });
+      // وبترجع "مستنية" عشان لو خرجت من الشاشة بعدها رسالة "ما اتغيّرش" تطلع (silent-failure-hunter جولة 2)
+    ], { key: `confirm_${id}`, onDismiss: () => { pending.current[id] = raw; } });
   }
 
   /** فيه رقم مكتوب مستني تأكيد (عشان الشاشة تكتب "لسه ما اتحفظش") */

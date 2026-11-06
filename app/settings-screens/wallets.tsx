@@ -1,6 +1,6 @@
 import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
 import { planWalletOpeningCommit } from '@/lib/finance';
-import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice } from '@/lib/walletCopy';
+import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice, openingStaleNotice } from '@/lib/walletCopy';
 import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
@@ -63,6 +63,7 @@ export default function WalletsScreen() {
       confirmCopy: (id, value, stored) => openingConfirmCopy(wallets.find(x => x.id === id)?.name ?? '', stored, value),
       // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
       onDroppedConfirm: id => notice(...openingDroppedNotice(wallets.find(x => x.id === id)?.name ?? '')),
+      onStaleConfirm: id => notice(...openingStaleNotice(wallets.find(x => x.id === id)?.name ?? '')),
     },
   );
   const lowAlert = useAmountDrafts(
