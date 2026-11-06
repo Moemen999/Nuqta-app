@@ -4,6 +4,7 @@ import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
+import TransferMark from '@/components/TransferMark';
 import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -248,10 +249,13 @@ export default function ArchiveScreen() {
       catLabel={categoryLabelById(categories, t.categoryId)}
       walletLabel={transactionWalletLabel(t, wallets)}
       pending={pendingTxIds.has(t.id)}
+      transfer={transfers.has(t.id)}
       styles={styles}
       colors={colors}
     />
-  ), [categories, wallets, pendingTxIds, styles, colors]);
+  ), [categories, wallets, pendingTxIds, transfers, styles, colors]);
+  // الصفوف memo: أي تغيير في "بترفع" أو التحويلات (الديون وصلت) لازم يوصلها
+  const rowsExtra = useMemo(() => ({ pendingTxIds, transfers }), [pendingTxIds, transfers]);
 
   return (
     <View style={styles.container}>
@@ -260,7 +264,7 @@ export default function ArchiveScreen() {
         data={filtered}
         keyExtractor={t => t.id}
         renderItem={renderTx}
-        extraData={pendingTxIds}
+        extraData={rowsExtra}
         ListHeaderComponent={header}
         ListEmptyComponent={
           <Text style={styles.emptyState}>
@@ -289,8 +293,8 @@ type Styles = ReturnType<typeof makeStyles>;
 type Tx = ReturnType<typeof useData>['transactions'][number];
 
 /** صف عملية في الأرشيف — نفس الشكل والمودال اللي قبل `FlatList` بالظبط */
-const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, styles, colors }: {
-  t: Tx; catLabel: string; walletLabel: string; pending: boolean; styles: Styles; colors: ThemeColors;
+const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer, styles, colors }: {
+  t: Tx; catLabel: string; walletLabel: string; pending: boolean; transfer: boolean; styles: Styles; colors: ThemeColors;
 }) {
   const T = TYPE_LABELS[t.type];
   return (
@@ -311,6 +315,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, styles, c
         <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
+        {transfer && <TransferMark />}
       </View>
     </TouchableOpacity>
   );
