@@ -363,7 +363,7 @@ export default function AddTransactionModal() {
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ selected: type === t.key, disabled: typeLocked && type !== t.key }}
             style={[styles.typeBtn, quietSelectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
-            <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: 13 }}>{t.label}</Text>
+            <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: typeScale.body }}>{t.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -389,7 +389,7 @@ export default function AddTransactionModal() {
         {selectableOptions(wallets, walletId).map(w => (
           <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
-            <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+            <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -401,7 +401,7 @@ export default function AddTransactionModal() {
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
               <TouchableOpacity {...selectionA11y(toWalletId === w.id)} key={w.id} onPress={() => setToWalletId(w.id)}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -415,7 +415,7 @@ export default function AddTransactionModal() {
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(c.id)}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -468,12 +468,13 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 20, paddingBottom: 24 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 16 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: 16 },
     row: { flexDirection: 'row-reverse', gap: 8, marginBottom: 8 },
     // دراسة الشكل خطوة 2: الشرايح من غير إطار لحد ما تتختار (`quietSelectionStyle`)، 44 للمس، والمبلغ هو البطل
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, minHeight: MIN_TOUCH, justifyContent: 'center', alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, marginBottom: space.xs },
-    bigInput: { backgroundColor: c.surface2, borderRadius: radius.lg, color: c.text, fontSize: typeScale.hero, fontWeight: '700', paddingHorizontal: space.xxl, paddingVertical: space.md },
+    // حافة ≥ 3:1 (a11y-architect: من غيرها الخانة الفاضية 1.06:1 في الفاتح ومالهاش حدود)
+    bigInput: { backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.lg, color: c.text, fontSize: typeScale.hero, fontWeight: '700', paddingHorizontal: space.xxl, paddingVertical: space.md },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },

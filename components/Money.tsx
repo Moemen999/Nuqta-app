@@ -11,6 +11,8 @@ export const REVEAL_MS = 3000;
 type Props = {
   value: number;
   style?: StyleProp<TextStyle>;
+  /** الرقم البطل: يصغر عشان يفضل سطر واحد بدل ما يلف أو يتقص (المبلغ يبقى مقروء، مش سقف) */
+  fit?: boolean;
   /** «ج.م» بعد الرقم — افتراضيًا موجودة */
   currency?: boolean;
   /** «+» أو «-» قبل الرقم (العمليات). بتفضل ظاهرة مع القناع: اللون بيقولها أصلاً */
@@ -25,7 +27,7 @@ type Props = {
  * الأرقام بعرض ثابت (`tabular-nums`) عشان الرقم ميتهزّش والخانات تحت بعض.
  * لو المبالغ مخفية، الدوسة بتكشف الرقم ده لوحده ٣ ثواني.
  */
-export function Money({ value, style, currency = true, sign = '' }: Props) {
+export function Money({ value, style, currency = true, sign = '', fit = false }: Props) {
   const { amountsHidden } = usePrivacy();
   const [revealed, setRevealed] = useState(false);
 
@@ -53,6 +55,7 @@ export function Money({ value, style, currency = true, sign = '' }: Props) {
   return (
     <Text
       style={[{ fontVariant: ['tabular-nums'] }, style]}
+      {...(fit ? { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } : {})}
       onPress={masked ? reveal : undefined}
       suppressHighlighting
       accessibilityRole={masked ? 'button' : 'text'}

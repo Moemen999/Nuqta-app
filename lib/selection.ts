@@ -28,7 +28,8 @@ export function selectionStyle(c: ThemeColors, selected: boolean, tone: Selectio
  * المؤشر ≥ 3:1). الشاشات بتتنقل له واحدة واحدة على `design/premium`؛ القديم (`selectionStyle`) فاضل للي لسه ما اتنقلش.
  */
 export function quietSelectionStyle(c: ThemeColors, selected: boolean, tone: SelectionTone = 'accent'): ViewStyle {
-  return selected ? selectionStyle(c, true, tone) : { borderColor: 'transparent', backgroundColor: c.surface2 };
+  // مش مختارة: إطار رفيع بـ`controlEdge` (≥ 3:1) — من غيره كانت 1.06:1 في الفاتح ومش باينة إنها زرار (a11y-architect)
+  return selected ? selectionStyle(c, true, tone) : { borderColor: c.controlEdge, backgroundColor: c.surface2 };
 }
 
 /**

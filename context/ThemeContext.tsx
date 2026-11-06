@@ -38,6 +38,11 @@ export type ThemeColors = {
   incomeText: string;
   warnBorder: string;
   /**
+   * حافة عنصر بيتداس ومش مختار (شريحة، خانة إدخال) — ≥ 3:1 على الخلفيات (WCAG 1.4.11). دراسة الشكل خطوة 2:
+   * الشريحة من غير إطار كانت 1.06:1 في الفاتح، يعني مش باينة إنها زرار (a11y-architect)
+   */
+  controlEdge: string;
+  /**
    * ألوان العنصر المختار في أي مجموعة اختيار (محفظة، فئة، نوع، تاب...).
    *
    * قبل كده الاختيار كان إطار دهبي رقيق بس (`accent`). في الوضع الفاتح ده
@@ -79,6 +84,7 @@ export const DARK: ThemeColors = {
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#C9A961',
   expenseText: '#D97878', incomeText: '#7FA98F', dangerText: '#D97878',
   warnBorder: '#5A4A20',
+  controlEdge: '#6B7A8C',
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
   selectedDangerBg: '#3A1E1A', selectedDangerBorder: '#CC6055',
@@ -95,6 +101,7 @@ export const LIGHT: ThemeColors = {
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
   expenseText: '#A8453B', incomeText: '#2F654B', dangerText: '#A8453B',
   warnBorder: '#E3D2A0',
+  controlEdge: '#8F7C52',
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',
   selectedDangerBg: '#F2C9C3', selectedDangerBorder: '#A8453B',

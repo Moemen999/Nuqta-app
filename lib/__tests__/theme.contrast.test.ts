@@ -224,3 +224,9 @@ it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: إطار المختا�
   expect(contrast(c.text, c.selectedBg)).toBeGreaterThanOrEqual(4.5);
   expect(contrast(c.textSecondary, c.surface2)).toBeGreaterThanOrEqual(4.5);
 });
+
+/** دراسة الشكل خطوة 2: حافة العنصر اللي بيتداس، وشريط البانر (خطر/تحذير) — مؤشرات غير نصية ≥ 3:1 */
+it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: controlEdge وشريط البانر ≥ 3:1', (_n, c) => {
+  for (const bgc of [c.bg, c.surface, c.surface2, c.nav]) expect(contrast(c.controlEdge, bgc)).toBeGreaterThanOrEqual(3);
+  for (const bar of [c.danger, c.accentText]) expect(contrast(bar, c.surface)).toBeGreaterThanOrEqual(3);
+});
