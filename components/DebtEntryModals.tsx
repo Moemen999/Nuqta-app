@@ -321,7 +321,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل)</Text>
             </TouchableOpacity>
           </View>
-          {!linkedToWallet && debt.direction === 'i_owe' && <Text testID="debt_increase_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
+          {/* الأصل شرا بالأجل بس (react-reviewer): زيادة "بالأجل" على استلاف نقدي تحويل مش شرا */}
+          {!linkedToWallet && isCreditPurchase(debt) && <Text testID="debt_increase_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
           <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={changeAmount}

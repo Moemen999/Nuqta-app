@@ -35,14 +35,14 @@ it('دين جديد: السطر بيظهر بس مع "عليا" ومن غير م
   expect(screen.getByTestId('debt_credit_hint').props.children).toBe(CREDIT_PURCHASE_HINT);
 });
 
-it('زيادة دين "عليا" بالأجل ← السطر؛ "ليا" ← مفيش', async () => {
-  const debt = (direction: string) => ({ id: 'd1', direction, personName: 'س', totalAmount: 100, date: '2026-01-01', payments: [], increases: [] }) as unknown as Debt;
-  const r = await render(wrap(<DebtIncreaseModal debt={debt('i_owe')} onClose={() => {}} />));
+const incDebt = (direction: string, initialTransactionId?: string) =>
+  ({ id: 'd1', direction, initialTransactionId, personName: 'س', totalAmount: 100, date: '2026-01-01', payments: [], increases: [] }) as unknown as Debt;
+async function increaseHintShown(d: Debt) {
+  await render(wrap(<DebtIncreaseModal debt={d} onClose={() => {}} />));
   await act(async () => { fireEvent.press(screen.getByText('لأ (بالأجل)')); });
-  expect(screen.getByTestId('debt_increase_credit_hint')).toBeTruthy();
-  r.unmount();
-  await render(wrap(<DebtIncreaseModal debt={debt('owed_to_me')} onClose={() => {}} />));
-  await act(async () => { fireEvent.press(screen.getByText('لأ (بالأجل)')); });
-  expect(screen.queryByTestId('debt_increase_credit_hint')).toBeNull();
-});
+  return !!screen.queryByTestId('debt_increase_credit_hint');
+}
+it('زيادة على شرا بالأجل ← السطر', async () => { expect(await increaseHintShown(incDebt('i_owe'))).toBe(true); });
+it('زيادة على "ليا" ← مفيش', async () => { expect(await increaseHintShown(incDebt('owed_to_me'))).toBe(false); });
+it('زيادة "بالأجل" على استلاف نقدي ← مفيش (تحويل مش شرا)', async () => { expect(await increaseHintShown(incDebt('i_owe', 'cash_tx'))).toBe(false); });
 

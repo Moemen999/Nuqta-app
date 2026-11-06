@@ -242,7 +242,7 @@ export default function ArchiveScreen() {
     </>
   );
   // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،
-  // زرار التصدير) كان بيعيد رسم كل الصفوف المتركّبة. `extraData` عشان علامة "بترفع" تتحدّث
+  // زرار التصدير) كان بيعيد رسم كل الصفوف المتركّبة. `extraData` عشان علامة "بترفع" والتحويلات يتحدّثوا
   const renderTx = useCallback(({ item: t }: { item: (typeof filtered)[number] }) => (
     <TxRow
       t={t}

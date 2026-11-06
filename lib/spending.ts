@@ -26,12 +26,6 @@ import type { Debt, Gamiya } from '@/context/DataContext';
  * أثره الوحيد. سداده **بيفضل مصروف** (بفئته). الحكم على الدين كله حسب أصله؛ زيادة من محفظة على دين أصله أجل
  * (أو العكس) بتمشي مع الأصل — حد مقبول ومكتوب.
  */
-/**
- * سطر تحذير في فورم الدين/الزيادة "عليك له" من غير محفظة (شرا بالأجل) — قرار مؤمن 2026-11-06 على ترشيح المقارنة بالنت:
- * من غيره المستخدم ممكن يسجّل الشرا مصروف عادي **و**يسجّل السداد ← نفس الفلوس مرتين في المصروف
- */
-export const CREDIT_PURCHASE_HINT = 'متسجلش الشرا نفسه مصروف — السداد هو اللي بيتحسب.';
-
 export function transferTransactionIds(
   debts: Pick<Debt, 'direction' | 'initialTransactionId' | 'payments' | 'increases'>[] | undefined,
   gamiyas: Pick<Gamiya, 'months'>[] | undefined,
@@ -73,6 +67,12 @@ export const TRANSFERS_FAILED_NOTE = 'مقدرناش نجيب الديون وا�
 export function isCreditPurchase(d: Pick<Debt, 'direction' | 'initialTransactionId'>): boolean {
   return d.direction === 'i_owe' && !d.initialTransactionId;
 }
+
+/**
+ * سطر تحذير في فورم الدين/الزيادة "عليك له" من غير محفظة (شرا بالأجل) — قرار مؤمن 2026-11-06 على ترشيح المقارنة بالنت:
+ * من غيره المستخدم ممكن يسجّل الشرا مصروف عادي **و**يسجّل السداد ← نفس الفلوس مرتين في المصروف
+ */
+export const CREDIT_PURCHASE_HINT = 'متسجلش الشرا نفسه مصروف — السداد هو اللي بيتحسب';
 
 type Tx = { id: string; type: string; amount: number; date: string };
 
