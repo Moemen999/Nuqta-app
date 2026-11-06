@@ -83,3 +83,11 @@ it('بند E جولة 2: كل TouchableOpacity ليه دور لقارئ الشا
   expect(checked).toBeGreaterThan(150);
   expect(offenders).toEqual([]);
 });
+
+it('بند E جولة 2: زرار أيقونة الفئة و"حذف" المحفظة ليهم اسم بيقول بيعملوا إيه، و"حذف" بطول اللمس', () => {
+  const cat = fs.readFileSync(path.join(ROOT, 'app/settings-screens/categories.tsx'), 'utf8');
+  const wal = fs.readFileSync(path.join(ROOT, 'app/settings-screens/wallets.tsx'), 'utf8');
+  expect(cat).toContain('accessibilityLabel={`غيّر أيقونة ${c.name}`}');
+  expect(wal).toContain('accessibilityLabel={`امسح محفظة ${w.name}`}');
+  expect(wal).toMatch(/deleteBtn: \{ minHeight: MIN_TOUCH, minWidth: MIN_TOUCH/);
+});

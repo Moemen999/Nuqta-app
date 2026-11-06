@@ -168,7 +168,8 @@ export default function CategoriesScreen() {
           <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
-            <TouchableOpacity accessibilityRole="button"
+            {/* الإيموجي لوحده كان بيتقري اسمه ("إيدين مضمومين") — دلوقتي بيقول بيعمل إيه (a11y-architect) */}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`} hitSlop={5}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
               style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
