@@ -140,7 +140,7 @@ describe('localizeSheets — الأسامي بالعربي والقيم زي م�
     for (const sh of ar) for (const r of sh.rows) for (const k of Object.keys(r)) expect({ sheet: sh.name, key: k }).toMatchObject({ key: expect.stringMatching(/[؀-ۿ]/) });
   });
   it('عمود واحد = معنى واحد: "الدخل الثابت" اسم و"الدخل الشهري" مبلغ (كانوا الاتنين "الدخل")', () => {
-    expect(Object.keys(ar.find((s: { name: string }) => s.name === 'شخبطة').rows[0])).toEqual(['الشهر', 'الدخل الشهري']);
+    expect(Object.keys(ar.find((s: { name: string }) => s.name === 'توزيع الدخل').rows[0])).toEqual(['الشهر', 'الدخل الشهري']);
     expect(Object.keys(ar.find((s: { name: string }) => s.name === 'فترات الدخل الثابت').rows[0])).toContain('الدخل الثابت');
   });
   it('أسامي الأوراق تنفع في Excel: ≤ 31 حرف، من غير / \ ? * : [ ]، ومفيش تكرار', () => {

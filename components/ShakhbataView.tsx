@@ -121,8 +121,9 @@ export default function ShakhbataView() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      <Text style={styles.title}>شخبطة</Text>
-      <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها</Text>
+      {/* «توزيع الدخل» (دراسة الشكل، قرار مؤمن 2026-11-06): الاسم بيقول هي إيه؛ «شخبطة» فاضلة في السطر عشان اللي متعوّد عليها */}
+      <Text style={styles.title}>توزيع الدخل</Text>
+      <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها (اللي كان اسمها شخبطة)</Text>
 
       <Text style={styles.label}>دخل شهر {nowMonth}</Text>
       <TextInput

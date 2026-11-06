@@ -159,14 +159,14 @@ export const SHEET_NAMES_AR: Record<string, string> = {
   Wallets: 'المحافظ', Categories: 'الفئات', Transactions: 'العمليات', Debts: 'الديون', DebtPayments: 'دفعات الديون',
   DebtIncreases: 'زيادات الديون', Subscriptions: 'الاشتراكات', SubscriptionPayments: 'دفعات الاشتراكات',
   SubscriptionPeriods: 'فترات الاشتراكات', Gamiyas: 'الجمعيات', GamiyaMonths: 'شهور الجمعيات', FixedIncomes: 'الدخل الثابت',
-  IncomePeriods: 'فترات الدخل الثابت', Budgets: 'الميزانية', Shakhbata: 'شخبطة', ShakhbataPercents: 'نسب شخبطة',
+  IncomePeriods: 'فترات الدخل الثابت', Budgets: 'الميزانية', Shakhbata: 'توزيع الدخل', ShakhbataPercents: 'نسب توزيع الدخل',
   Feedback: 'رأيك اللي بعتّه',
 };
 
 export const COLUMN_NAMES_AR: Record<string, string> = {
   Id: 'المعرّف', Name: 'الاسم', Amount: 'المبلغ', Date: 'التاريخ', CreatedAt: 'اتعمل في', Type: 'النوع', Note: 'ملاحظة',
   Wallet: 'المحفظة', WalletId: 'معرّف المحفظة', ToWallet: 'إلى محفظة', ToWalletId: 'معرّف المحفظة المستلمة',
-  Category: 'الفئة', CategoryId: 'معرّف الفئة', Icon: 'الأيقونة', Bucket: 'خانة شخبطة',
+  Category: 'الفئة', CategoryId: 'معرّف الفئة', Icon: 'الأيقونة', Bucket: 'خانة توزيع الدخل',
   OpeningBalance: 'الرصيد الافتتاحي', OpeningInvalid: 'الرصيد الافتتاحي مش مقروء', Problem: 'مشكلة في البيانات', LowAlert: 'حد التنبيه', Archived: 'مؤرشفة', ArchivedAt: 'اتأرشفت في',
   SubscriptionId: 'معرّف الاشتراك', Subscription: 'الاشتراك', GamiyaId: 'معرّف الجمعية', Gamiya: 'الجمعية',
   IncomeId: 'معرّف الدخل الثابت', Income: 'الدخل الثابت', MonthlyIncome: 'الدخل الشهري', PeriodKey: 'الفترة', Settlement: 'عملية تسوية', ArchivedWalletId: 'معرّف المحفظة المؤرشفة',

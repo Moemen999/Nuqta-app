@@ -98,7 +98,7 @@ describe('التلقائي', () => {
     await render(<Probe />);
     await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
     expect(screen.getByTestId('notice_error').props.children).toContain('مفيش أي خصم اتسجل');
-    expect(screen.getByTestId('notice_error').props.children).toContain('الديون ← الاشتراكات');
+    expect(screen.getByTestId('notice_error').props.children).toContain('الالتزامات ← الاشتراكات');
     expect(mockNotify).toHaveBeenCalledTimes(1);
     expect((mockNotify.mock.calls[0] as unknown as string[])[0]).toBe('ما سجلناش اشتراك "نتفليكس"');
   });

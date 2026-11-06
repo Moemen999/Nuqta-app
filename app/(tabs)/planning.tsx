@@ -19,7 +19,7 @@ export default function PlanningScreen() {
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
       <SegmentedControl style={styles.switcher} value={section} onChange={setSection} segments={[
         { key: 'budget', label: 'الميزانية', testID: 'planning_tab_budget' },
-        { key: 'shakhbata', label: 'شخبطة', testID: 'planning_tab_shakhbata' },
+        { key: 'shakhbata', label: 'توزيع الدخل', testID: 'planning_tab_shakhbata' },
         { key: 'incomes', label: 'دخل ثابت', testID: 'planning_tab_incomes' },
       ]} />
 
