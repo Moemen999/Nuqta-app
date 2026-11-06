@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -66,7 +66,7 @@ export default function ArchiveSheet({
                 <Text style={styles.label}>{targetLabel}</Text>
                 <View style={styles.chipRow}>
                   {targets.map(t => (
-                    <TouchableOpacity
+                    <TouchableOpacity {...selectionA11y(assignments[item.id] === t.id)}
                       key={t.id}
                       onPress={() => setAssignments(a => ({ ...a, [item.id]: t.id }))}
                       style={[styles.chip, selectionStyle(colors, assignments[item.id] === t.id)]}>

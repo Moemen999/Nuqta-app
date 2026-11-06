@@ -10,7 +10,7 @@ import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
 import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -170,7 +170,7 @@ export default function ReportsScreen() {
 
       <View style={styles.presetRow}>
         {periodPresets(['thisMonth', 'last7', 'lastMonth', 'custom']).map(p => (
-          <TouchableOpacity key={p.key} onPress={() => setPreset(p.key as Preset)}
+          <TouchableOpacity {...selectionA11y(preset === p.key)} key={p.key} onPress={() => setPreset(p.key as Preset)}
             testID={`reports_preset_${p.key}`}
             style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
             <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
@@ -210,7 +210,7 @@ export default function ReportsScreen() {
         {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
           return (
-            <TouchableOpacity key={c.id} onPress={() => toggleCat(c.id)}
+            <TouchableOpacity {...selectionA11y(active)} key={c.id} onPress={() => toggleCat(c.id)}
               style={[styles.chip, selectionStyle(colors, active)]}>
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>

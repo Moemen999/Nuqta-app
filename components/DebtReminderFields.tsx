@@ -1,6 +1,6 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionStyle, selectionTextColor } from '@/lib/selection';
+import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -53,13 +53,13 @@ export default function DebtReminderFields({
         <>
           <Text style={styles.label}>فكّرني قبله</Text>
           <View style={styles.chipRow}>
-            <TouchableOpacity
+            <TouchableOpacity {...selectionA11y(reminderDaysBefore === null)}
               onPress={() => onChangeReminder(null)}
               style={[styles.chip, selectionStyle(colors, reminderDaysBefore === null)]}>
               <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === null), fontSize: 13 }}>من غير تذكير</Text>
             </TouchableOpacity>
             {DAYS_OPTIONS.map(opt => (
-              <TouchableOpacity
+              <TouchableOpacity {...selectionA11y(reminderDaysBefore === opt.days)}
                 key={opt.days}
                 onPress={() => onChangeReminder(opt.days)}
                 style={[styles.chip, selectionStyle(colors, reminderDaysBefore === opt.days)]}>
