@@ -14,7 +14,7 @@ import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -206,7 +206,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13.5 }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
         )}
       </TouchableOpacity>
 
@@ -319,28 +319,29 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    transfersNote: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: -6, marginBottom: 10 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
-    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-    dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
+    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     metricRow: { flexDirection: 'row-reverse', gap: 10, marginTop: 14 },
-    metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border },
-    metricLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
-    metricValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    exportBtn: { backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 13, marginTop: 16 },
+    // دراسة الشكل خطوة 5: من غير إطارات، المقاسات من `typeScale`
+    metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
+    metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
+    metricValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 4 },
+    exportBtn: { backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + space.xxs, marginTop: space.xxl },
     // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
     fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 10 },
-    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
-    fullExportWait: { color: c.textSecondary, fontSize: 12, lineHeight: 18, textAlign: 'right', marginTop: 6 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 22, marginBottom: 6 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+    fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
+    fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
     txMid: { flex: 1 },
-    txTitle: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right' },
-    txSub: { color: c.textSecondary, fontSize: 11.5, marginTop: 2, textAlign: 'right' },
+    txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
+    txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },
-    txAmount: { fontSize: 14, fontWeight: '700' },
-    txDate: { color: c.textMuted, fontSize: 10.5, marginTop: 2 },
+    txAmount: { fontSize: typeScale.body, fontWeight: '700' },
+    txDate: { color: c.textMuted, fontSize: typeScale.caption, marginTop: 2 },
   });
 }
