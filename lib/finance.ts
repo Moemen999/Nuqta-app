@@ -568,6 +568,17 @@ export function planWalletAmountCommit(draft: string | undefined, stored: number
  * مرفوض من الأساس (`parseBudgetInput`)، مش بيتسأل عنه. ميزانية بالسالب
  * مالهاش معنى، على عكس رصيد محفظة كارت ائتمان.
  */
+/**
+ * رصيد بداية متخزّن مش رقم (`openingInvalid`، بند B): الشاشة بتعرضه 0، فـ"0" كان بيبقى "مفيش تغيير" والبانر يفضل للأبد
+ * (silent-failure-hunter). هنا أي رقم صالح بيتكتب — حتى لو هو هو المعروض. السالب بيتسأل زي العادي
+ */
+export function planWalletAmountRewrite(draft: string | undefined): WalletAmountPlan {
+  if (draft === undefined) return { action: 'none' };
+  const value = parseWalletAmountInput(draft);
+  if (value === null) return { action: 'reject' };
+  return value < 0 ? { action: 'confirm', value } : { action: 'write', value };
+}
+
 export function planBudgetCommit(draft: string | undefined, stored: number): WalletAmountPlan {
   return planWith(draft, stored, parseBudgetInput);
 }

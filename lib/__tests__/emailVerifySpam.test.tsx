@@ -22,7 +22,7 @@ jest.mock('@/context/AuthContext', () => ({
 jest.mock('@/context/DataContext', () => ({
   useData: () => ({
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [], transactions: [], budgets: {},
-    subscriptions: [], gamiyas: [], incomes: [], debts: [], pendingTxIds: new Set(), serverReachable: true,
+    subscriptions: [], gamiyas: [], incomes: [], debts: [], brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true,
     setupStatus: 'done', loadErrors: [],
   }),
 }));

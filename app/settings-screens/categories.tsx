@@ -29,7 +29,7 @@ export default function CategoriesScreen() {
   const notice = useNotice();
   const confirm = useConfirm();
   const {
-    categories, transactions, debts, subscriptions, budgets, loadErrors,
+    categories, transactions, brokenTransactions, debts, subscriptions, budgets, loadErrors,
     addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
   } = useData();
   const { categoryColors } = useChartColors();
@@ -48,7 +48,7 @@ export default function CategoriesScreen() {
   const archivedCategories = useMemo(() => categories.filter(c => c.archived), [categories]);
 
   function refsFor(id: string) {
-    return categoryReferences(id, { transactions, subscriptions, debts, budgets });
+    return categoryReferences(id, { transactions: [...transactions, ...brokenTransactions], subscriptions, debts, budgets });
   }
 
   function clearNameDraft(id: string) {

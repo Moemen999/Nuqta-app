@@ -32,7 +32,7 @@ beforeEach(() => {
   Object.assign(mockData, {
     transactions: txs,
     wallets: [{ id: 'w', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [],
-    pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [],
+    brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, debts: [], gamiyas: [],
   });
 });
 

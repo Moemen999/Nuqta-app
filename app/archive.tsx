@@ -4,6 +4,7 @@ import BackButton from '@/components/BackButton';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
+import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
@@ -167,6 +168,8 @@ export default function ArchiveScreen() {
         <BackButton />
         <Text style={styles.title}>أرشيف العمليات</Text>
       </View>
+      {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
+      <BrokenTransactionsSection />
 
       <View style={styles.presetRow}>
         {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
