@@ -41,3 +41,15 @@ it('مفيش عمليات ← الحالة الفاضية', async () => {
   await render(ui());
   expect(screen.getByText('مفيش عمليات في الفترة دي')).toBeTruthy();
 });
+
+it('الصف memo: علامة "لسه بترفع" بتظهر وتختفي مع pendingTxIds (مش بتفضل قديمة)', async () => {
+  seed(3);
+  const view = await render(ui());
+  expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
+  mockData.pendingTxIds = new Set(['t1']);
+  await view.rerender(ui());
+  expect(screen.getAllByText('⏳ لسه بترفع')).toHaveLength(1);
+  mockData.pendingTxIds = new Set();
+  await view.rerender(ui());
+  expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
+});
