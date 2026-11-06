@@ -52,7 +52,9 @@ async function pressDelete() {
   await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   // زرار الحذف جوه الكارت المفتوح — بندوس على الاسم الأول
   await act(async () => { fireEvent.press(screen.getByText('أحمد')); });
-  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
 }
 
 it('عمليات الدين على محفظة مؤرشفة ← رسالة المنع، ومفيش تأكيد ولا مسح', async () => {
@@ -91,12 +93,30 @@ it('بمكوّن التأكيد: التأكيد قبل المسح، الإلغا
   mockData.transactions = txOn(ACTIVE.id);
   await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
   await act(async () => { fireEvent.press(screen.getByText('أحمد')); });
-  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('مسح الدين');
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.deleteDebt).not.toHaveBeenCalled();
-  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(mockData.deleteDebt).toHaveBeenCalledWith('d1');
+});
+
+it('دراسة الشكل خطوة 3: الكارت المفتوح فيه زرار أساسي واحد + "⋯"، والقايمة فيها الباقي والحذف آخر حاجة', async () => {
+  mockData.transactions = txOn(ACTIVE.id);
+  await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
+  await act(async () => { fireEvent.press(screen.getByText('أحمد')); });
+  expect(screen.getByTestId('debt_pay_d1')).toBeTruthy();
+  for (const t of ['زيادة على الدين', 'تعديل البيانات', 'كشف الحساب']) expect(screen.queryByText(t)).toBeNull();
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
+  const ids = screen.getAllByTestId(/^debt_menu_(increase|edit|ledger|reverse|delete)$/).map(n => n.props.testID);
+  expect(ids).toEqual(['debt_menu_increase', 'debt_menu_edit', 'debt_menu_ledger', 'debt_menu_reverse', 'debt_menu_delete']);
+  // "إلغاء" بيقفل القايمة (الأفعال كمان بتقفلها قبل ما تشتغل — اختبار الحذف فوق بيعدّي على كده)
+  await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_cancel')); });
+  expect(screen.queryByTestId('debt_menu_delete')).toBeNull();
 });
