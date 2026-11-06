@@ -1,6 +1,6 @@
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -89,10 +89,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             <>
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
-                <TouchableOpacity testID="setlock_type_pin" onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
+                <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity testID="setlock_type_password" onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
+                <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>
@@ -111,14 +111,14 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             </>
           )}
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
+          {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="setlock_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
+          <TouchableOpacity testID="setlock_cancel" accessibilityRole="button" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="setlock_submit" style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
+          <TouchableOpacity testID="setlock_submit" accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
           </TouchableOpacity>
         </View>

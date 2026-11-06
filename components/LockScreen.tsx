@@ -166,12 +166,13 @@ export default function LockScreen() {
         </View>
       ) : lockType === 'pin' ? (
         <>
-          <View style={styles.dotsRow}>
+          {/* النقط لقارئ الشاشة جملة واحدة بتتحدّث مع كل رقم (a11y-architect، بند E) */}
+          <View style={styles.dotsRow} accessible accessibilityLabel={`اتكتب ${code.length} من 4 أرقام`} accessibilityLiveRegion="polite">
             {[0, 1, 2, 3].map(i => (
               <View key={i} style={[styles.dot, { backgroundColor: i < code.length ? colors.accent : colors.surface2, borderColor: colors.borderStrong }]} />
             ))}
           </View>
-          <Text style={styles.error}>{error || ' '}</Text>
+          <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>
 
           <View style={styles.keypad}>
             {KEY_ROWS.map((row, ri) => (
@@ -179,6 +180,11 @@ export default function LockScreen() {
                 {row.map((k, ki) => (
                   <TouchableOpacity
                     key={ki}
+                    testID={k === '⌫' ? 'lock_key_backspace' : k === '' ? 'lock_key_empty' : `lock_key_${k}`}
+                    // الخانة الفاضية مش زرار (كانت بتتقري "زرار" من غير اسم)، والمسح ليه اسم بدل "⌫"
+                    {...(k === ''
+                      ? { accessible: false, importantForAccessibility: 'no-hide-descendants' as const }
+                      : { accessibilityRole: 'button' as const, accessibilityLabel: k === '⌫' ? 'امسح آخر رقم' : k })}
                     style={[styles.key, k === '' && styles.keyHidden, { backgroundColor: colors.surface }]}
                     disabled={k === ''}
                     activeOpacity={0.6}
@@ -204,7 +210,7 @@ export default function LockScreen() {
             autoFocus
           />
           <Text style={styles.error}>{error || ' '}</Text>
-          <TouchableOpacity testID="lock_submit_button" style={styles.submitBtn} onPress={() => handleSubmit()}>
+          <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" style={styles.submitBtn} onPress={() => handleSubmit()}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
           </TouchableOpacity>
         </View>
@@ -220,7 +226,7 @@ export default function LockScreen() {
         يعني المخرج الوحيد من الحبسة كان هو نفسه محبوس.
       */}
       <View testID="lock_footer" style={styles.footer}>
-        <TouchableOpacity testID="lock_forgot_button" style={styles.forgotBtn} onPress={handleForgot}>
+        <TouchableOpacity testID="lock_forgot_button" accessibilityRole="button" style={styles.forgotBtn} onPress={handleForgot}>
           <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
         </TouchableOpacity>
       </View>

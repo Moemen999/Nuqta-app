@@ -9,7 +9,7 @@ import { selectionA11y } from '@/lib/selection';
  *
  * **مستثنى مؤقتًا:** `lock.tsx` و`SetLockModal.tsx` — بيتعدّلوا على فرع بند A (مش مدموج)؛ يتشالوا من هنا بعد دمجه.
  */
-const PENDING_ON_OTHER_BRANCH = new Set(['app/settings-screens/lock.tsx', 'components/SetLockModal.tsx']);
+// شاشات القفل كانت مستثناة لحد دمج بند A (اتدمج 1a19f46) — الاستثناء اتشال
 
 const ROOT = path.join(__dirname, '..', '..');
 function files(dir: string): string[] {
@@ -29,7 +29,6 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
   const offenders: string[] = [];
   let checked = 0;
   for (const f of [...files('app'), ...files('components')]) {
-    if (PENDING_ON_OTHER_BRANCH.has(f)) continue;
     const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
     let idx = 0;
     while ((idx = s.indexOf('selectionStyle(colors', idx)) !== -1) {
@@ -61,7 +60,6 @@ it('بند E جولة 2: كل TouchableOpacity ليه دور لقارئ الشا
   const offenders: string[] = [];
   let checked = 0;
   for (const f of [...files('app'), ...files('components')]) {
-    if (PENDING_ON_OTHER_BRANCH.has(f) || f === 'components/LockScreen.tsx') continue;
     const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
     let idx = 0;
     while ((idx = s.indexOf('<TouchableOpacity', idx)) !== -1) {
