@@ -1,3 +1,4 @@
+import { PeriodChips } from '@/components/PeriodChips';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
@@ -7,11 +8,10 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
 import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
-import { PREVIOUS_PERIOD_LABEL, periodPresets } from '@/lib/periodPresets';
+import { PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -168,15 +168,7 @@ export default function ReportsScreen() {
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
 
-      <View style={styles.presetRow}>
-        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'custom']).map(p => (
-          <TouchableOpacity {...selectionA11y(preset === p.key)} key={p.key} onPress={() => setPreset(p.key as Preset)}
-            testID={`reports_preset_${p.key}`}
-            style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'custom'] as Preset[]} value={preset} onChange={setPreset} testIDPrefix="reports_preset" />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -321,8 +313,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 14 },
-    presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },

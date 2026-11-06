@@ -6,15 +6,14 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
 import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
+import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
-import { periodPresets } from '@/lib/periodPresets';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -172,14 +171,7 @@ export default function ArchiveScreen() {
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
 
-      <View style={styles.presetRow}>
-        {periodPresets(['thisMonth', 'last7', 'lastMonth', 'all', 'custom']).map(p => (
-          <TouchableOpacity {...selectionA11y(preset === p.key)} key={p.key} testID={`archive_preset_${p.key}`} onPress={() => setPreset(p.key as Preset)}
-            style={[styles.presetBtn, selectionStyle(colors, preset === p.key)]}>
-            <Text numberOfLines={1} style={{ color: colors.text, fontSize: 12.5 }}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'all', 'custom'] as Preset[]} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -327,9 +319,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    presetRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
     transfersNote: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: -6, marginBottom: 10 },
-    presetBtn: { backgroundColor: c.surface2, borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
     dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },

@@ -37,13 +37,21 @@ function walk(dirs: string[], ext?: RegExp): string[] {
 const SOURCES = () => walk(['app', 'components']).map(p => readFileSync(p, 'utf-8'));
 
 function allTestIds(): string[] {
-  return SOURCES().flatMap(src => [...src.matchAll(/testID="([^"]*)"/g)].map(m => m[1].trim())).filter(Boolean);
+  // وكمان `testID: '...'` جوه مصفوفة بتتبعت لمكوّن مشترك (`SegmentedControl` — دراسة الشكل 2026-11-06)
+  return SOURCES().flatMap(src => [
+    ...[...src.matchAll(/testID="([^"]*)"/g)].map(m => m[1]),
+    ...[...src.matchAll(/testID: '([^']*)'/g)].map(m => m[1]),
+  ].map(x => x.trim())).filter(Boolean);
 }
 
 /** الـIDs المبنية بقالب — بنستخرج الجزء الثابت قبل `${` */
 function templateTestIdPrefixes(): string[] {
   return SOURCES()
-    .flatMap(src => [...src.matchAll(/testID={`([^`]*)`}/g)].map(m => m[1]))
+    .flatMap(src => [
+      ...[...src.matchAll(/testID={`([^`]*)`}/g)].map(m => m[1]),
+      // `PeriodChips` بيبني `{prefix}_{key}` من `testIDPrefix`
+      ...[...src.matchAll(/testIDPrefix="([^"]*)"/g)].map(m => m[1] + '_'),
+    ])
     .map(s => s.split('${')[0])
     .map(s => s.trim())
     .filter(Boolean);

@@ -1,3 +1,4 @@
+import { SegmentedControl } from '@/components/SegmentedControl';
 import { debtsPhrase } from '@/lib/archiving';
 import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
@@ -24,7 +25,6 @@ import {
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -72,21 +72,12 @@ export default function DebtsTabScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      {/* tablist: قارئ الشاشة بيقول مكان التاب (1 من 3) مش "تاب" بس (a11y-architect) */}
-      <View style={styles.switcherRow} accessibilityRole="tablist">
-        <TouchableOpacity {...selectionA11y(tab === 'debts', 'tab')} testID="debts_tab_debts" onPress={() => setTab('debts')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
-          <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
-        </TouchableOpacity>
-        <TouchableOpacity {...selectionA11y(tab === 'subscriptions', 'tab')} testID="debts_tab_subscriptions" onPress={() => setTab('subscriptions')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'subscriptions')]}>
-          <Text style={{ color: tab === 'subscriptions' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الاشتراكات</Text>
-        </TouchableOpacity>
-        <TouchableOpacity {...selectionA11y(tab === 'gamiya', 'tab')} testID="debts_tab_gamiya" onPress={() => setTab('gamiya')}
-          style={[styles.switchBtn, selectionStyle(colors, tab === 'gamiya')]}>
-          <Text style={{ color: tab === 'gamiya' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الجمعية</Text>
-        </TouchableOpacity>
-      </View>
+      {/* tablist + tab بحالة (بند E) جوّه المكوّن المشترك — نفس التخطيط (دراسة الشكل) */}
+      <SegmentedControl style={styles.switcher} value={tab} onChange={setTab} segments={[
+        { key: 'debts', label: 'الديون', testID: 'debts_tab_debts' },
+        { key: 'subscriptions', label: 'الاشتراكات', testID: 'debts_tab_subscriptions' },
+        { key: 'gamiya', label: 'الجمعية', testID: 'debts_tab_gamiya' },
+      ]} />
 
       {tab === 'debts' && <DebtsContent />}
       {tab === 'subscriptions' && <SubscriptionsView />}
@@ -586,9 +577,8 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    switcherRow: { flexDirection: 'row-reverse', gap: 8, paddingHorizontal: 16, marginBottom: 8 },
+    switcher: { marginHorizontal: 16, marginBottom: 8 },
     // بطول اللمس (44) زي تابات التخطيط — كانت ~37 (a11y-architect)
-    switchBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: MIN_TOUCH },
     scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
