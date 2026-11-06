@@ -578,7 +578,6 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     switcher: { marginHorizontal: 16, marginBottom: 8 },
-    // بطول اللمس (44) زي تابات التخطيط — كانت ~37 (a11y-architect)
     scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

@@ -170,7 +170,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         return;
       }
       if (r.recorded.length === 0) {
-        notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من شاشة الديون)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
+        notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من الالتزامات)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
       }
       AccessibilityInfo.announceForAccessibility(`اتسجل "${p.name}"`);

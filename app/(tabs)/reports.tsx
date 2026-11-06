@@ -19,6 +19,7 @@ import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'custom';
+const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'custom'];
 
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
@@ -168,7 +169,7 @@ export default function ReportsScreen() {
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
 
-      <PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'custom'] as Preset[]} value={preset} onChange={setPreset} testIDPrefix="reports_preset" />
+      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>

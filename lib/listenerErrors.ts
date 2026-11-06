@@ -14,7 +14,7 @@ export const LISTENER_LABELS = {
   categories: 'الفئات',
   transactions: 'العمليات',
   budgets: 'الميزانية',
-  shakhbata_income: 'دخل توزيع الدخل',
+  shakhbata_income: 'دخل الشهر في توزيع الدخل',
   shakhbata_settings: 'نسب توزيع الدخل',
   debts: 'الديون',
   subscriptions: 'الاشتراكات',

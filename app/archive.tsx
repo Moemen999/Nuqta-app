@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
+const ARCHIVE_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'all', 'custom'];
 
 /** سطر "ليه الزرار مقفول" تحت زرار التصدير الكامل — وهو نفسه الـhint بتاعه لقارئ الشاشة */
 export const FULL_EXPORT_WAIT = 'الزرار هيشتغل أول ما النت يرجع — الملف بيتعمل من السيرفر عشان ميطلعش ناقص.';
@@ -171,7 +172,7 @@ export default function ArchiveScreen() {
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
 
-      <PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'all', 'custom'] as Preset[]} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
+      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>

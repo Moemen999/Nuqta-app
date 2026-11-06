@@ -214,3 +214,13 @@ describe.each([
     expect(contrast(colors.textSecondary, colors.textMuted)).toBeGreaterThanOrEqual(1.25);
   });
 });
+
+/**
+ * دراسة الشكل خطوة 1: المختار في `SegmentedControl`/`PeriodChips` = `selectedBg` + إطار `selectedBorder`. المؤشر غير
+ * النصي لازم 3:1 (WCAG 1.4.11) — الخلفية لوحدها 1.2:1، فالإطار هو اللي بيشيل الشرط (a11y-architect)
+ */
+it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: إطار المختار ≥ 3:1 على المسار والصفحة، والنص عليه ≥ 4.5', (_n, c) => {
+  for (const bgc of [c.surface2, c.bg]) expect(contrast(c.selectedBorder, bgc)).toBeGreaterThanOrEqual(3);
+  expect(contrast(c.text, c.selectedBg)).toBeGreaterThanOrEqual(4.5);
+  expect(contrast(c.textSecondary, c.surface2)).toBeGreaterThanOrEqual(4.5);
+});

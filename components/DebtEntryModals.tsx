@@ -48,7 +48,7 @@ const NEAR_DOUBLE = 1.5;
 export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
 // جملة عامة صح في الشاشتين (الديون وكشف الشخص) — مش "نزل تحت" (arabic-copy-reviewer +
 // silent-failure-hunter، جولة 2)
-export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" في تاب الالتزامات، ودوس عليه عشان تفتحه.';
+export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" تحت قايمة الديون، ودوس عليه عشان تفتحه.';
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {

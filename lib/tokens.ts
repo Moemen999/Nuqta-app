@@ -20,7 +20,7 @@ import type { DimensionValue, TextStyle, ViewStyle } from 'react-native';
  * ووزنين (عادي وعريض)، ومفيش حاجة تحت 12. الشاشات بتتنقل عليه واحدة واحدة (فرع `design/premium`) — `font` اللي تحت
  * فاضل للي لسه ما اتنقلش. أي شاشة اتنقلت **مبتستخدمش** `font` تاني.
  */
-export const type = {
+export const typeScale = {
   /** تعليق: التاريخ، العلامات، السطر التوضيحي */
   caption: 12,
   /** النص العادي والأزرار */

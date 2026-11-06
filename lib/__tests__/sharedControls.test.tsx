@@ -16,6 +16,9 @@ it('SegmentedControl: tablist، كل واحد tab بحالة selected، وطول
   const a = screen.getByTestId('seg_a'), b = screen.getByTestId('seg_b');
   expect([a.props.accessibilityRole, a.props.accessibilityState.selected, b.props.accessibilityState.selected]).toEqual(['tab', true, false]);
   expect(StyleSheet.flatten(a.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
+  // المؤشر مش بالخلفية بس: إطار دهبي على المختار بس (contrast test بيثبّت إنه ≥ 3:1)
+  expect(StyleSheet.flatten(a.props.style).borderColor).not.toBe('transparent');
+  expect(StyleSheet.flatten(b.props.style).borderColor).toBe('transparent');
   await act(async () => { fireEvent.press(b); });
   expect(onChange).toHaveBeenCalledWith('b');
 });
@@ -27,6 +30,7 @@ it('PeriodChips: testID `{prefix}_{key}` زي القديم، وحالة الاخ
   expect(c.props.accessibilityState.selected).toBe(true);
   expect(screen.getByTestId('x_preset_thisMonth').props.accessibilityState.selected).toBe(false);
   expect(StyleSheet.flatten(c.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
+  expect(StyleSheet.flatten(c.props.style).borderColor).not.toBe('transparent');
   await act(async () => { fireEvent.press(screen.getByTestId('x_preset_thisMonth')); });
   expect(onChange).toHaveBeenCalledWith('thisMonth');
 });
