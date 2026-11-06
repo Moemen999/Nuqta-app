@@ -18,7 +18,7 @@ import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
@@ -159,10 +159,10 @@ export default function ArchiveScreen() {
     }
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag">
+  // بند C (مراجعة المشروع 2026-11-05): `FlatList` بدل `ScrollView` + `map` — "الكل" على 5000 عملية كان بيركّب كل
+  // الصفوف مرة واحدة. الهيدر (الفترة والإجماليات والتصدير) هو `ListHeaderComponent`، والصف نفسه زي ما هو
+  const header = (
+    <>
       <View style={styles.headerRow}>
         <BackButton />
         <Text style={styles.title}>أرشيف العمليات</Text>
@@ -235,14 +235,9 @@ export default function ArchiveScreen() {
       )}
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
-      {filtered.length === 0 && (
-        <Text style={styles.emptyState}>
-          {!serverReachable && transactions.length === 0
-            ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
-            : 'مفيش عمليات في الفترة دي'}
-        </Text>
-      )}
-      {filtered.map(t => {
+    </>
+  );
+  const renderTx = ({ item: t }: { item: (typeof filtered)[number] }) => {
         const T = TYPE_LABELS[t.type];
         const catLabel = categoryLabelById(categories, t.categoryId);
         const walletLabel = transactionWalletLabel(t, wallets);
@@ -268,15 +263,36 @@ export default function ArchiveScreen() {
             </View>
           </TouchableOpacity>
         );
-      })}
+  };
 
-      <CalendarPickerModal
-        visible={pickerFor !== null}
-        value={pickerFor === 'from' ? customFrom : customTo}
-        onSelect={(d) => { if (pickerFor === 'from') setCustomFrom(d); else setCustomTo(d); }}
-        onClose={() => setPickerFor(null)}
+  return (
+    <View style={styles.container}>
+      <FlatList
+        testID="archive_list"
+        data={filtered}
+        keyExtractor={t => t.id}
+        renderItem={renderTx}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          <Text style={styles.emptyState}>
+            {!serverReachable && transactions.length === 0
+              ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
+              : 'مفيش عمليات في الفترة دي'}
+          </Text>
+          }
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={20}
+        windowSize={7}
       />
-    </ScrollView>
+    <CalendarPickerModal
+      visible={pickerFor !== null}
+      value={pickerFor === 'from' ? customFrom : customTo}
+      onSelect={(d) => { if (pickerFor === 'from') setCustomFrom(d); else setCustomTo(d); }}
+      onClose={() => setPickerFor(null)}
+    />
+    </View>
   );
 }
 
