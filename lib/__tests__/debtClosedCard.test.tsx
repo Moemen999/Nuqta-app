@@ -25,7 +25,8 @@ it('عليا مش متأخر ← مش أحمر؛ عليا متأخر ← "متأ
   const late = screen.getByText(/متأخر — معاده/);
   expect(StyleSheet.flatten(late.props.style).color).toBeDefined();
   const lines = screen.getAllByText(/معاده/);
-  const colorOf = (n: { props: { style: unknown } }) => StyleSheet.flatten(n.props.style as never)?.color;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const colorOf = (n: any) => StyleSheet.flatten(n.props.style)?.color;
   const notLate = lines.find(n => !String(n.props.children).includes('متأخر'))!;
   expect(colorOf(notLate)).not.toBe(colorOf(late));
 });
