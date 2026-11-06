@@ -28,16 +28,29 @@ export function reportBadShape(collection: string, field: string) {
 /** للاختبارات بس */
 export function resetBadShapeReports() { reported.clear(); }
 
-const arr = <T>(data: Data, key: string, collection: string): T[] => {
+/**
+ * قراية **قبل كتابة ذرية** (`strict`): حقل موجود بقيمة مش `null` وشكلها غلط ← **مفيش كتابة** (الذرة بترمي والشاشة
+ * بتقول "ما اتسجلش"). من غيرها الدفعة كانت هتكتب `[الدفعة]` فوق القيمة البايظة ويضيع اللي كان فيها (silent-failure-hunter
+ * جولة 2). `null` أو ناقص ← فاضي عادي (مفيش حاجة تضيع)
+ */
+export class DocShapeError extends Error { name = 'DocShapeError'; }
+
+const arr = <T>(data: Data, key: string, collection: string, strict?: boolean): T[] => {
   const v = data[key];
   if (Array.isArray(v)) return v as T[];
-  if (key in data) reportBadShape(collection, key);
+  if (key in data) {
+    reportBadShape(collection, key);
+    if (strict && v !== null) throw new DocShapeError();
+  }
   return [];
 };
-const obj = <T>(data: Data, key: string, collection: string): Record<string, T> => {
+const obj = <T>(data: Data, key: string, collection: string, strict?: boolean): Record<string, T> => {
   const v = data[key];
   if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, T>;
-  if (key in data) reportBadShape(collection, key);
+  if (key in data) {
+    reportBadShape(collection, key);
+    if (strict && v !== null) throw new DocShapeError();
+  }
   return {};
 };
 export const finiteOr = (v: unknown, fallback: number, where?: [string, string]): number => {
@@ -51,20 +64,20 @@ export function withId<T>(id: string, data: Data): T {
   return { ...data, id } as T;
 }
 
-export function debtFromDoc<T>(id: string, data: Data): T {
-  return { ...data, payments: arr(data, 'payments', 'debts'), increases: arr(data, 'increases', 'debts'), id } as T;
+export function debtFromDoc<T>(id: string, data: Data, strict?: boolean): T {
+  return { ...data, payments: arr(data, 'payments', 'debts', strict), increases: arr(data, 'increases', 'debts', strict), id } as T;
 }
 
-export function subscriptionFromDoc<T>(id: string, data: Data): T {
-  return { ...data, history: arr(data, 'history', 'subscriptions'), id } as T;
+export function subscriptionFromDoc<T>(id: string, data: Data, strict?: boolean): T {
+  return { ...data, history: arr(data, 'history', 'subscriptions', strict), id } as T;
 }
 
-export function gamiyaFromDoc<T>(id: string, data: Data): T {
-  return { ...data, months: arr(data, 'months', 'gamiyas'), id } as T;
+export function gamiyaFromDoc<T>(id: string, data: Data, strict?: boolean): T {
+  return { ...data, months: arr(data, 'months', 'gamiyas', strict), id } as T;
 }
 
-export function incomeFromDoc<T>(id: string, data: Data): T {
-  return { ...data, closed: obj(data, 'closed', 'incomes'), id } as T;
+export function incomeFromDoc<T>(id: string, data: Data, strict?: boolean): T {
+  return { ...data, closed: obj(data, 'closed', 'incomes', strict), id } as T;
 }
 
 /** ميزانية/دخل شخبطة: رقم محدود بس — غير كده مفيش قيمة (زي ما يكون مش متسجل) */

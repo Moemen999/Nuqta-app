@@ -1343,7 +1343,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!debtSnap.exists()) throw new DebtMissingError();
         const txSnap = await t.get(txRef);
         if (!txSnap.exists()) throw new LinkedTxMissingError();
-        const debt = debtFromDoc<Debt>(debtId, debtSnap.data());
+        const debt = debtFromDoc<Debt>(debtId, debtSnap.data(), true);
         const current = txSnap.data() as Transaction;
         // اتعدّلت من جهاز تاني بعد ما المودال اتفتح: التسوية (`settlements`)
         // اتحسبت على الأرقام القديمة، فالكتابة كانت هتسوّي برقم غلط
@@ -1823,7 +1823,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = debtFromDoc<Debt>(debtId, snap.data());
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // كل القرايات قبل كل الكتابات — شرط من فايربيز نفسها
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) throw new WalletMissingError();
 
@@ -1952,7 +1952,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = debtFromDoc<Debt>(debtId, snap.data());
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         const payment = (debt.payments || []).find(p => p.id === paymentId);
         // اتمسحت قبل كده (من جهاز تاني، أو دوسة اتكررت) — مفيش حاجة تتعمل،
         // والنتيجة "تمام" لأن اللي المستخدم عايزه حاصل فعلاً
@@ -2012,7 +2012,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         result.dueNote = null;
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = debtFromDoc<Debt>(debtId, snap.data());
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // الزيادة ممكن تكون من غير محفظة (تسجيل على الورق)، وساعتها مفيش عملية
         // مالية أصلاً ومفيش محفظة تتفحص
         if (walletId && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) {
@@ -2103,7 +2103,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = debtFromDoc<Debt>(debtId, snap.data());
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         const entry = (debt.increases || []).find(e => e.id === entryId);
         // اتمسحت من جهاز تاني: مفيش وعد يتقارن ("المعاد ما رجعش" هنا كانت هتبقى كدب — silent-failure-hunter جولة 2)
         if (out) out.entryGone = !entry;
@@ -2201,7 +2201,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(ref);
         // اتمسح من جهاز تاني ← مش "رجّعنا" (silent-failure-hunter، جولة 2)
         if (!snap.exists()) throw new ChargeMissingError();
-        const server = subscriptionFromDoc<Subscription>(id, snap.data());
+        const server = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // رجع من جهاز تاني خلاص ← مفيش حاجة تتكتب (ومنحرّكش معاده)
         if (server.active !== false) return;
         // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف)
@@ -2249,7 +2249,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         paidToday = false;
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
-        const sub = subscriptionFromDoc<Subscription>(id, snap.data());
+        const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
         if (sub.active === false) throw new SubscriptionStoppedError();
         if (seenAmountDiffers(seenAmount, sub.amount)) throw amountChanged(seenAmount, sub.amount);
@@ -2314,7 +2314,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
-        const sub = subscriptionFromDoc<Subscription>(id, snap.data());
+        const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // الحالة الحقيقية (money-reviewer): الواقف بيتخطّى اللي رجعت تسأل بس، مش فترة عادية
         if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) return;
         const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
@@ -2355,7 +2355,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         stopped = false;
         const snap = await t.get(ref);
         if (!snap.exists()) throw new ChargeMissingError();
-        const data = kind === 'subscription' ? subscriptionFromDoc<Subscription>(id, snap.data()) : gamiyaFromDoc<Gamiya>(id, snap.data());
+        const data = kind === 'subscription' ? subscriptionFromDoc<Subscription>(id, snap.data(), true) : gamiyaFromDoc<Gamiya>(id, snap.data(), true);
         const open = kind === 'subscription'
           ? subscriptionOpenCharges(data as Subscription, today)
           : gamiyaOpenCharges(data as Gamiya, today);
@@ -2542,7 +2542,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         recorded = [];
         const snap = await t.get(incRef);
         if (!snap.exists()) throw new IncomeMissingError();
-        const inc = incomeFromDoc<RecurringIncome>(incomeId, snap.data());
+        const inc = incomeFromDoc<RecurringIncome>(incomeId, snap.data(), true);
         // اتوقف من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
         if (inc.status !== 'active') return;
         const todo = entries.filter(e => !inc.closed?.[e.key] && e.amount > 0);
@@ -2795,7 +2795,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           incomes: i.docs.map(x => incomeFromDoc<RecurringIncome>(x.id, x.data())),
           budgets: budgetsMap, shakhbataIncome: incomeMap,
           // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
-          shakhbataPercents: p ? { needs: finiteOr(p.needs, DEFAULT_PERCENTS.needs), wants: finiteOr(p.wants, DEFAULT_PERCENTS.wants), future: finiteOr(p.future, DEFAULT_PERCENTS.future) } : null,
+          shakhbataPercents: p ? { needs: finiteOr(p.needs, DEFAULT_PERCENTS.needs, ['shakhbata_settings', 'needs']), wants: finiteOr(p.wants, DEFAULT_PERCENTS.wants, ['shakhbata_settings', 'wants']), future: finiteOr(p.future, DEFAULT_PERCENTS.future, ['shakhbata_settings', 'future']) } : null,
           feedback: fb.docs.map(x => feedbackFromDoc(x.id, x.data() as Record<string, unknown>)),
         },
       };
@@ -2881,7 +2881,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(gamiyaRef);
         if (!snap.exists()) return;
-        const g = gamiyaFromDoc<Gamiya>(gamiyaId, snap.data());
+        const g = gamiyaFromDoc<Gamiya>(gamiyaId, snap.data(), true);
         const month = (g.months || []).find(m => m.id === monthId);
         if (!month || month.status === 'done') return;
         if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);

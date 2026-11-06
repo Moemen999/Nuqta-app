@@ -51,3 +51,20 @@ describe('التبليغ (silent-failure-hunter جولة 1)', () => {
     expect(Sentry.captureMessage).toHaveBeenCalledWith('firestore doc bad shape: budgets.limit', expect.anything());
   });
 });
+
+describe('strict قبل كتابة ذرية (silent-failure-hunter جولة 2)', () => {
+  const { DocShapeError } = require('@/lib/fromDoc');
+  it('قيمة موجودة مش null وشكلها غلط ← بترمي (مفيش كتابة فوقها)', () => {
+    expect(() => debtFromDoc('d', { payments: { a: 1 } }, true)).toThrow(DocShapeError);
+    expect(() => subscriptionFromDoc('s', { history: 'x' }, true)).toThrow(DocShapeError);
+    expect(() => incomeFromDoc('i', { closed: [1] }, true)).toThrow(DocShapeError);
+    expect(() => gamiyaFromDoc('g', { months: 5 }, true)).toThrow(DocShapeError);
+  });
+  it('null أو ناقص ← فاضي عادي حتى في strict', () => {
+    expect(debtFromDoc<{ payments: unknown[] }>('d', { payments: null }, true).payments).toEqual([]);
+    expect(subscriptionFromDoc<{ history: unknown[] }>('s', {}, true).history).toEqual([]);
+  });
+  it('من غير strict (العرض) ← فاضي ومبترميش', () => {
+    expect(debtFromDoc<{ payments: unknown[] }>('d', { payments: { a: 1 } }).payments).toEqual([]);
+  });
+});

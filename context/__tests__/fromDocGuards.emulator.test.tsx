@@ -36,3 +36,16 @@ it('دين payments: null وid مزيّف ← مصفوفة فاضية والمع
 });
 
 // النسب: القواعد نفسها بتطلب أرقام (firestore.rules shakhbata_settings) — الحارس في الكلاينت احتياط، واختباره وحدة (fromDoc.test)
+
+it('جولة 2: دين payments بتاعه شكله غلط (مش null) ← الدفعة بتترفض ومبتكتبش فوقه', async () => {
+  const { db } = require('@/firebaseConfig');
+  const { getDoc } = require('firebase/firestore');
+  const ref = doc(db, 'users', getMockUid(), 'debts', 'odd');
+  await setDoc(ref, { personName: 'صاحبي', totalAmount: 100, direction: 'owed_to_me', date: '2026-09-01', payments: { legacy: 50 }, increases: [] });
+  await harness.waitForData(a => a.debts.length === 1);
+  const w = harness.api().wallets[0];
+  const res = await harness.api().addDebtPayment('odd', 20, w.id, '2026-09-02');
+  expect(res.outcome).not.toBe('done');
+  const after = (await getDoc(ref)).data();
+  expect(after.payments).toEqual({ legacy: 50 });
+});
