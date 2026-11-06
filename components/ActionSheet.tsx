@@ -5,7 +5,11 @@ import { createContext, useContext, useEffect, useMemo, useRef, type Context, ty
 import { AccessibilityInfo, findNodeHandle, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import * as SafeArea from 'react-native-safe-area-context';
 
-export type SheetAction = { key: string; label: string; onPress: () => void; danger?: boolean; testID?: string; disabled?: boolean };
+export type SheetAction = {
+  key: string; label: string; onPress: () => void; danger?: boolean; testID?: string; disabled?: boolean;
+  /** اختيار واحد من كذا (زي الثيم) — حالة حقيقية لقارئ الشاشة مش «✓» في النص بس */
+  selected?: boolean;
+};
 
 /** مهلة احتياطية لو `onDismiss` (iOS بس) ما وصلش — الاختبارات بتستنى القيمة دي (+50) */
 export const IOS_DISMISS_FALLBACK_MS = 600;
@@ -67,8 +71,8 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
           {/* سقف وتمرير: بخط كبير أو شاشة صغيرة "إلغاء" و"حذف" كانوا ممكن يطلعوا برّه (a11y-architect) */}
           <ScrollView style={styles.list} bounces={false}>
             {actions.map(a => (
-              <TouchableOpacity key={a.key} testID={a.testID} accessibilityRole="button" disabled={a.disabled}
-                accessibilityState={{ disabled: !!a.disabled }}
+              <TouchableOpacity key={a.key} testID={a.testID} accessibilityRole={a.selected !== undefined ? 'radio' : 'button'} disabled={a.disabled}
+                accessibilityState={{ disabled: !!a.disabled, ...(a.selected !== undefined ? { checked: a.selected, selected: a.selected } : {}) }}
                 accessibilityHint={a.danger ? 'هيسألك الأول قبل ما يمسح' : undefined}
                 style={[styles.item, a.danger && styles.itemDanger, a.disabled && styles.itemDisabled]}
                 onPress={() => choose(a)}>

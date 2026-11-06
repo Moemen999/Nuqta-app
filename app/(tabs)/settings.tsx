@@ -34,10 +34,10 @@ type SettingsRow = {
   tone?: 'default' | 'danger';
 };
 
-/** أيقونة صغيرة لكل صف (دراسة الشكل خطوة 6) — زينة بس، مخفية عن قارئ الشاشة. بالمفتاح عشان المصفوفة متتلخبطش */
 /** «زي الموبايل» بيمشي مع إعداد الموبايل (فاتح بالنهار وغامق بالليل لو مظبوط كده) */
 const THEME_LABEL: Record<ThemePreference, string> = { system: 'زي الموبايل', light: 'فاتح', dark: 'داكن' };
 
+/** أيقونة صغيرة لكل صف (دراسة الشكل خطوة 6) — زينة بس، مخفية عن قارئ الشاشة. بالمفتاح عشان المصفوفة متتلخبطش */
 const ROW_ICON: Record<string, string> = {
   wallets: '👛', categories: '🏷️', archive: '🗂️', notifications: '🔔', lock: '🔒', theme: '🌓',
   guide: '📖', onboarding: '👋', feedback: '💬', about: 'ℹ️', logout: '🚪', deleteAccount: '🗑️',
@@ -227,7 +227,7 @@ export default function SettingsScreen() {
       <ActionSheet visible={themeMenu} testID="theme_menu" title="الشكل" onClose={() => setThemeMenu(false)}
         actions={(['system', 'light', 'dark'] as ThemePreference[]).map(k => ({
           key: k, testID: `theme_option_${k}`,
-          label: k === preference ? `${THEME_LABEL[k]} ✓` : THEME_LABEL[k],
+          label: k === preference ? `${THEME_LABEL[k]} ✓` : THEME_LABEL[k], selected: k === preference,
           onPress: () => setTheme(k),
         }))} />
     </ScrollView>
