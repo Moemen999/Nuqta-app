@@ -1,3 +1,4 @@
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -11,7 +12,7 @@ import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
 import { PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
+import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -182,15 +183,14 @@ export default function ReportsScreen() {
         </View>
       )}
 
-      <View style={styles.metricRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-          {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.metricValue} /> : <Money value={periodExpense} style={styles.metricValue} />}
-        </View>
-        <View style={styles.metricCard}>
+      {/* دراسة الشكل خطوة 5: رقم بطل واحد (مصروف الفترة) والمقارنة سطر صغير تحته — كانوا كارتين بنفس الوزن */}
+      <View testID="reports_hero" style={styles.heroCard}>
+        <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroValue} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
+        <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
-          {spendLoading ? <SpendLoading style={styles.metricValue} /> : (
-            <Text style={[styles.metricValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
+          {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
+            <Text style={[styles.changeValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
             </Text>
           )}
@@ -204,7 +204,7 @@ export default function ReportsScreen() {
           const active = catFilter.includes(c.id);
           return (
             <TouchableOpacity {...selectionA11y(active)} key={c.id} onPress={() => toggleCat(c.id)}
-              style={[styles.chip, selectionStyle(colors, active)]}>
+              style={[styles.chip, quietSelectionStyle(colors, active)]}>
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 12.5 }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
@@ -313,26 +313,27 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right', marginBottom: 14 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 },
-    dateBtnText: { color: c.text, fontSize: 12.5, textAlign: 'center' },
-    metricRow: { flexDirection: 'row-reverse', gap: 10, marginTop: 14 },
-    metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border },
-    metricLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
-    metricValue: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 22, marginBottom: 4 },
-    hintText: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
+    heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
+    changeValue: { fontSize: typeScale.body, fontWeight: '700' },
+    metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xxs },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     bars: { marginTop: 8, gap: 14 },
     barRow: { gap: 6 },
     // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
     barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
-    barName: { flex: 1, minWidth: 120, color: c.text, fontSize: 13, textAlign: 'right' },
-    barValue: { color: c.text, fontSize: 13 },
-    barPercent: { color: c.textSecondary, fontSize: 12.5, minWidth: 36, textAlign: 'left' },
+    barName: { flex: 1, minWidth: 120, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    barValue: { color: c.text, fontSize: typeScale.body },
+    barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
     barTrack: { height: 10, borderRadius: 5, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: 5 },
@@ -344,13 +345,13 @@ function makeStyles(c: ThemeColors) {
     trendFill: { width: '100%', backgroundColor: c.accentText, borderRadius: 6 },
     // الشهر اللي لسه ما خلصش: إطار بس من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل"
     trendFillPartial: { backgroundColor: 'transparent', borderWidth: 2, borderColor: c.accentText },
-    trendLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'center' },
-    trendValue: { color: c.text, fontSize: 11, textAlign: 'center' },
-    personCard: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: c.border },
+    trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center' },
+    trendValue: { color: c.text, fontSize: typeScale.caption, textAlign: 'center' },
+    personCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.sm },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
-    personName: { color: c.text, fontSize: 14, fontWeight: '700' },
-    personBadge: { fontSize: 12, fontWeight: '700' },
-    personRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: 8 },
-    personSub: { color: c.textSecondary, fontSize: 12 },
+    personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    personBadge: { fontSize: typeScale.caption, fontWeight: '700' },
+    personRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: space.sm },
+    personSub: { color: c.textSecondary, fontSize: typeScale.caption },
   });
 }
