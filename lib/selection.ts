@@ -23,6 +23,15 @@ export function selectionStyle(c: ThemeColors, selected: boolean, tone: Selectio
 }
 
 /**
+ * شكل الاختيار **الهادي** (دراسة الشكل 2026-11-05، قرار مؤمن 2026-11-06): الشريحة اللي مش مختارة **من غير إطار** على
+ * خلفية `surface2` (المسافة والخلفية بيفصلوا)، والمختارة زي `selectionStyle` بالظبط (خلفية + إطار بلون نوعها — الإطار هو
+ * المؤشر ≥ 3:1). الشاشات بتتنقل له واحدة واحدة على `design/premium`؛ القديم (`selectionStyle`) فاضل للي لسه ما اتنقلش.
+ */
+export function quietSelectionStyle(c: ThemeColors, selected: boolean, tone: SelectionTone = 'accent'): ViewStyle {
+  return selected ? selectionStyle(c, true, tone) : { borderColor: 'transparent', backgroundColor: c.surface2 };
+}
+
+/**
  * لون نص العنصر. المختار بياخد لون النص الأساسي — هو الأوضح فوق الخلفية
  * الملوّنة (أكتر من 8:1 في الثيمين)، ولأن الإطار والخلفية بقوا هما اللي
  * بيقولوا إنه أخضر ولا أحمر فالنص مش محتاج يكرر نفس الكلام بلون باهت.

@@ -1,7 +1,7 @@
 import { Money } from '@/components/Money';
 import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
 import { speakable } from '@/lib/money';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -388,6 +388,8 @@ function HomeScreen() {
             {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
           </Text>
         )}
+        {/* دراسة الشكل خطوة 2: القايمة كارت واحد من غير خطوط بين الصفوف — المسافة هي اللي بتفصل */}
+        <View testID="home_recent_card" style={styles.txCard}>
         {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
         {cold && recent.length === 0 && cold.recent.map(t => {
           const T = TYPE_LABELS[t.type];
@@ -443,6 +445,7 @@ function HomeScreen() {
             </TouchableOpacity>
           );
         })}
+        </View>
       </ScrollView>
     </View>
   );
@@ -542,29 +545,33 @@ function makeStyles(c: ThemeColors) {
     // (2026-09-29)، فالمسافة دي هي اللي بتضمن إن أي حاجة تحته تتسكرول من تحته:
     // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
-    balanceCard: { backgroundColor: c.surface, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: c.border },
+    // دراسة الشكل خطوة 2 (قرار مؤمن 2026-11-06): الرصيد رقم بطل واحد، حدود أقل، والمقاسات من `typeScale` بس
+    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
-    balanceLabel: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
     balanceValueRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 8, marginTop: 4 },
-    balanceValue: { color: c.text, fontSize: 30, fontWeight: '700', textAlign: 'right' },
-    currency: { fontSize: 14, color: c.textSecondary, fontWeight: '400' },
-    walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 14 },
-    walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6, backgroundColor: c.surface2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
-    walletChipName: { color: c.text, fontSize: 12, fontWeight: '500' },
-    walletChipVal: { color: c.textSecondary, fontSize: 12 },
+    balanceValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    currency: { fontSize: typeScale.body, color: c.textSecondary, fontWeight: '400' },
+    // المحافظ من غير خلفية لكل واحدة — النقطة الملوّنة والمسافة بيفصلوا
+    walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.xxl, rowGap: space.sm, marginTop: space.xxl },
+    walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
+    walletChipName: { color: c.text, fontSize: typeScale.caption, fontWeight: '500' },
+    walletChipVal: { color: c.textSecondary, fontSize: typeScale.caption },
     dot: { width: 8, height: 8, borderRadius: 4 },
-    banner: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, padding: 12, marginTop: 10 },
+    // البانر من غير إطار حواليه (دراسة الشكل): شريط على البداية بس بلون نوعه — البانرات اللي بتحط `borderColor` (خطر/تحذير)
+    // بيبان عليها الشريط، والعادي من غير. قرار مؤمن 2026-10-28 (كل البانرات ظاهرة فوق، كل واحد بـ✕) زي ما هو
+    banner: { backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: 'transparent', borderRadius: radius.lg, padding: space.lg, marginTop: space.md },
     // بانر فيه ✕: النص يمين والـ✕ شمال (RTL)
     bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     bannerFlex: { flex: 1 },
-    bannerText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    bannerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
     // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"أعد إرسال التأكيد" بيستفيد كمان
     bannerAction: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    bannerActionText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textDecorationLine: 'underline' },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 14, marginBottom: 10 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+    bannerActionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxl, marginBottom: space.sm },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     // نفس شكل بانرات الرئيسية (borderStrong، 12) — مش selectedBorder: ده لون "مختار" (visual-identity-reviewer)
     noWallets: {
       backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12,
@@ -578,12 +585,13 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
     },
     noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    txRow: { flexDirection: 'row-reverse', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: 10 },
+    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
-    txTitle: { color: c.text, fontSize: 13.5, fontWeight: '500', textAlign: 'right' },
-    txSub: { color: c.textSecondary, fontSize: 11.5, marginTop: 2, textAlign: 'right' },
+    txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
+    txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },
-    txAmount: { fontSize: 14, fontWeight: '700' },
-    txDate: { color: c.textMuted, fontSize: 10.5, marginTop: 2 },
+    txAmount: { fontSize: typeScale.body, fontWeight: '700' },
+    txDate: { color: c.textMuted, fontSize: typeScale.caption, marginTop: 2 },
   });
 }
