@@ -120,7 +120,9 @@ export default function PersonLedgerScreen() {
       </View>
 
       {/* قايمة مش جدول (دراسة الشكل): 4 عواميد بخط 10–12 على عرض موبايل ← البيان والتاريخ يمين، الحركة والرصيد شمال */}
-      <Text style={styles.sectionTitle}>الحركات</Text>
+      <Text style={[styles.sectionTitle, { marginTop: 0 }]}>الحركات</Text>
+      {/* تفسير العلامات قبل القايمة مش بعدها (القايمة ممكن تطول) — ومبيظهرش من غير حركات */}
+      {rowsWithBalance.length > 0 && <Text style={styles.hintText}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>}
       {rowsWithBalance.length === 0 && <Text style={styles.emptyState}>مفيش حركات لسه</Text>}
       {rowsWithBalance.length > 0 && (
         <View style={styles.listCard}>
@@ -128,19 +130,24 @@ export default function PersonLedgerScreen() {
             <View key={i} testID={`ledger_row_${i}`} style={[styles.listRow, i > 0 && styles.listDivider]}>
               <View style={styles.listMain}>
                 <Text style={styles.listLabel}>{r.label}</Text>
-                <Text style={styles.listSub} numberOfLines={1}>{r.debtLabel} · {r.date}</Text>
+                {/* التاريخ لوحده: الملاحظة الطويلة كانت بتقصّه من آخر السطر */}
+                <Text style={styles.listSub} numberOfLines={1}>{r.debtLabel}</Text>
+                <Text style={styles.listSub}>{r.date}</Text>
               </View>
               <View style={styles.listSide}>
-                <Money value={r.delta} sign={r.delta >= 0 ? '+' : ''} currency={false}
+                {/* العلامة صريحة للاتنين ("−" مش من fmt): مع قناع الخصوصية السالب كان بيبان "••••" من غير علامة */}
+                <Money value={Math.abs(r.delta)} sign={r.delta >= 0 ? '+' : '−'} currency={false}
                   style={[styles.listDelta, { color: r.delta >= 0 ? colors.incomeText : colors.dangerText }]} />
-                <Text style={styles.listSub}>الرصيد <Money value={r.balance} currency={false} /></Text>
+                <View style={styles.balanceRow}>
+                  <Text style={styles.listSub}>الرصيد</Text>
+                  <Money value={Math.abs(r.balance)} sign={r.balance < 0 ? '−' : ''} currency={false} style={styles.listSub} />
+                </View>
               </View>
             </View>
           ))}
         </View>
       )}
 
-      <Text style={styles.footNote}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>
 
       <View style={styles.sectionTitleRow}>
         {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
@@ -224,11 +231,11 @@ function makeStyles(c: ThemeColors) {
     listDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
     listMain: { flex: 1 },
     listLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    listSide: { alignItems: 'flex-start' },
+    listSide: { alignItems: 'flex-end' },
+    balanceRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.xxs },
     listDelta: { fontSize: typeScale.body, fontWeight: '700' },
     listSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
-    footNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xl },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
     sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 6 },
     addDebtBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
