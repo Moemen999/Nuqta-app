@@ -72,7 +72,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           contentContainerStyle={styles.sheetContent}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
-          <Text style={styles.title}>
+          <Text style={styles.title} accessibilityRole="header">
             {mode === 'enable' ? 'تفعيل القفل' : mode === 'change' ? 'تغيير الباسورد' : 'إلغاء القفل'}
           </Text>
 
@@ -80,6 +80,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             <>
               <Text style={styles.label}>{currentType === 'pin' ? 'الرقم السري الحالي' : 'الباسورد الحالي'}</Text>
               <TextInput testID="setlock_old_code" style={styles.input} value={oldCode} onChangeText={setOldCode}
+                accessibilityLabel={currentType === 'pin' ? 'الرقم السري الحالي' : 'الباسورد الحالي'}
                 secureTextEntry keyboardType={currentType === 'pin' ? 'numeric' : 'default'}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
@@ -99,26 +100,29 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
 
               <Text style={styles.label}>{type === 'pin' ? 'الرقم السري الجديد' : 'الباسورد الجديد'}</Text>
               <TextInput testID="setlock_code1" style={styles.input} value={code1} onChangeText={setCode1}
+                accessibilityLabel={type === 'pin' ? 'الرقم السري الجديد' : 'الباسورد الجديد'}
                 secureTextEntry keyboardType={type === 'pin' ? 'numeric' : 'default'}
                 maxLength={type === 'pin' ? 4 : undefined}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
 
               <Text style={styles.label}>تأكيد {type === 'pin' ? 'الرقم' : 'الباسورد'}</Text>
               <TextInput testID="setlock_code2" style={styles.input} value={code2} onChangeText={setCode2}
+                accessibilityLabel={type === 'pin' ? 'تأكيد الرقم' : 'تأكيد الباسورد'}
                 secureTextEntry keyboardType={type === 'pin' ? 'numeric' : 'default'}
                 maxLength={type === 'pin' ? 4 : undefined}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
           )}
 
-          {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+          {/* دايمًا متركّب: live region بيتركّب ونصه جواه مبيتقريش على أندرويد (a11y-architect) */}
+          <Text style={[styles.error, !error && { marginTop: 0 }]} accessibilityLiveRegion="assertive">{error || ''}</Text>
         </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity testID="setlock_cancel" accessibilityRole="button" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="setlock_submit" accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
+          <TouchableOpacity testID="setlock_submit" accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} accessibilityLabel={busy ? 'استنى شوية' : 'تأكيد'} style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
             <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
           </TouchableOpacity>
         </View>

@@ -54,7 +54,7 @@ export default function LockScreen_Settings() {
       keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>قفل التطبيق</Text>
+        <Text style={styles.title} accessibilityRole="header">قفل التطبيق</Text>
       </View>
 
       {!enabled ? (

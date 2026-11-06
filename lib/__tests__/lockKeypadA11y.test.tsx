@@ -9,6 +9,7 @@ const mockLock = {
   lockType: 'pin' as const,
   verify: jest.fn(async () => 'wrong' as const),
   unlock: jest.fn(), clearLock: jest.fn(async () => {}), readFailed: false, retryRead: jest.fn(async () => false),
+  setupLock: jest.fn(), changeCode: jest.fn(), disableLock: jest.fn(),
 };
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => mockLock }));
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ logOut: jest.fn(async () => {}) }) }));
@@ -21,9 +22,20 @@ it('الأرقام والمسح أزرار بأسامي، والنقط بتتح�
     expect([k.props.accessibilityRole, k.props.accessibilityLabel]).toEqual(['button', d]);
   }
   expect(screen.getByTestId('lock_key_backspace').props.accessibilityLabel).toBe('امسح آخر رقم');
-  expect(screen.getByLabelText('اتكتب 0 من 4 أرقام')).toBeTruthy();
+  expect(screen.getByLabelText('لسه مكتبتش أي رقم')).toBeTruthy();
   await act(async () => { fireEvent.press(screen.getByTestId('lock_key_2')); });
-  expect(screen.getByLabelText('اتكتب 1 من 4 أرقام')).toBeTruthy();
+  expect(screen.getByLabelText('اتكتب رقم واحد من 4')).toBeTruthy();
   // الخانة الفاضية مش عنصر بيتوقف عنده قارئ الشاشة (كانت "زرار" من غير اسم)
   expect(screen.getByTestId('lock_key_empty', { includeHiddenElements: true }).props.accessible).toBe(false);
+});
+
+it('صيغة التقدّم بتتفق مع العدد', () => {
+  const { pinProgressLabel } = require('@/components/LockScreen');
+  expect([0, 1, 2, 3, 4].map(pinProgressLabel)).toEqual(['لسه مكتبتش أي رقم', 'اتكتب رقم واحد من 4', 'اتكتب رقمين من 4', 'اتكتب 3 أرقام من 4', 'اتكتب 4 أرقام من 4']);
+});
+
+it('مودال تغيير القفل: الخانات التلاتة ليها أسامي (كانت "حقل تعديل" بس)', async () => {
+  const SetLockModal = require('@/components/SetLockModal').default;
+  await render(<ThemeProvider><SetLockModal visible mode="change" onClose={() => {}} /></ThemeProvider>);
+  for (const name of ['الرقم السري الحالي', 'الرقم السري الجديد', 'تأكيد الرقم']) expect(screen.getByLabelText(name)).toBeTruthy();
 });
