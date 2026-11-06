@@ -130,3 +130,40 @@ describe('الرصيد الابتدائي بيسأل قبل ما يتغيّر (�
     expect(mockData.updateWallet).toHaveBeenCalledWith('w1', { lowAlert: 300 });
   });
 });
+
+describe('الرصيد الابتدائي — تصليحات المراجعين (2026-11-07)', () => {
+  const type = async (v: string) => {
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_opening_input_w1'), v); });
+  };
+  it('سطر «لسه ما اتحفظش» طول ما الرقم مستني تأكيد', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    await render(ui());
+    expect(screen.queryByTestId('wallet_opening_pending_w1')).toBeNull();
+    await type('6000');
+    expect(screen.getByTestId('wallet_opening_pending_w1')).toBeTruthy();
+  });
+  it('خرجت من الشاشة والرقم مستني ← رسالة «ما اتغيّرش» ومفيش كتابة', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    const r = await render(ui());
+    await type('6000');
+    await act(async () => { r.unmount(); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+  });
+  it('الرقم اتغيّر من جهاز تاني والتأكيد مفتوح ← «أيوه» مبتكتبش', async () => {
+    seed([{ ...cash, openingBalance: 5000 }, bank]);
+    const r = await render(ui());
+    await type('6000');
+    await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
+    mockData.wallets = [{ ...cash, openingBalance: 7000 }, bank];
+    await r.rerender(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+  });
+});
+
+it('planWalletOpeningCommit: متقرّب لقرشين، ونفس الرقم بعد التقريب مبيسألش', () => {
+  const { planWalletOpeningCommit } = require('@/lib/finance');
+  expect(planWalletOpeningCommit('15000.456', 5000)).toEqual({ action: 'confirm', value: 15000.46 });
+  expect(planWalletOpeningCommit('5000.001', 5000)).toEqual({ action: 'none' });
+  expect(planWalletOpeningCommit('100', NaN)).toEqual({ action: 'confirm', value: 100 });
+});

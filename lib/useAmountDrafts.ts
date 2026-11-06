@@ -30,6 +30,11 @@ export type AmountDraftOptions = {
    * بيسأل، الاختبار العنيف 2026-11-07: دوسة غلط كانت بتغيّر الرصيد كله ساكت)
    */
   confirmCopy?: (id: string, value: number, stored: number) => { title: string; body: string; yes: string; no: string };
+  /**
+   * مسوّدة مستنية تأكيد والشاشة اتشالت (رجوع، تاب تاني) — مبتتكتبش، فالشاشة لازم تقول (رسالة برّه الشاشة) بدل ما
+   * تضيع ساكت (silent-failure-hunter + money-reviewer 2026-11-07)
+   */
+  onDroppedConfirm?: (id: string, value: number) => void;
 };
 
 /**
@@ -83,8 +88,8 @@ export function useAmountDrafts(
   // `plan` داخل الـref كمان: الاستدعاءات الحالية كلها بتبعت دوال ثابتة من
   // `lib/finance.ts`، بس لو حد بعدين بعت دالة متعرّفة جوه الكومبوننت،
   // المؤقّت وflush الخروج كانوا هيمسكوا نسخة قديمة منها من غير ما حد ياخد باله.
-  const latest = useRef({ storedFor, write, plan });
-  useEffect(() => { latest.current = { storedFor, write, plan }; });
+  const latest = useRef({ storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm });
+  useEffect(() => { latest.current = { storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm }; });
 
   function clearDraft(id: string) {
     setDrafts(d => {
@@ -128,6 +133,7 @@ export function useAmountDrafts(
         // مفيش setState ولا ديالوج والشاشة بتتشال — فبنكتب الأكيد بس
         const p = latest.current.plan(raw, latest.current.storedFor(id));
         if (p.action === 'write') latest.current.write(id, p.value);
+        else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
       });
       held.current = {};
     };
@@ -173,13 +179,29 @@ export function useAmountDrafts(
     const confirmed = p.value;
     // حد معروف (silent-failure-hunter): التطبيق اتقفل والتأكيد مفتوح، أو الـblur جه من القفل نفسه ←
     // التأكيد بيتلغي فـ"لأ" بتمسح المسوّدة السالبة. مفيش كتابة، والخانة بترجع للرقم المتخزّن
-    const copy = opts.confirmCopy?.(id, confirmed, latest.current.storedFor(id))
+    const shownStored = latest.current.storedFor(id);
+    const copy = opts.confirmCopy?.(id, confirmed, shownStored)
       ?? { title: NEGATIVE_CONFIRM_TITLE, body: NEGATIVE_CONFIRM_BODY, yes: NEGATIVE_CONFIRM_YES, no: NEGATIVE_CONFIRM_NO };
     confirm(copy.title, copy.body, [
       { text: copy.no, style: 'cancel', onPress: () => clearDraft(id) },
-      { text: copy.yes, onPress: () => commitWrite(id, confirmed) },
-    ], { key: `confirm_${id}` });
+      {
+        text: copy.yes,
+        onPress: () => {
+          // الرقم اتغيّر من جهاز تاني والتأكيد مفتوح ← منكتبش على كلام المستخدم اللي اتبنى على رقم قديم (money-reviewer)
+          const now = latest.current.storedFor(id);
+          if (!(Object.is(now, shownStored) || now === shownStored)) return;
+          commitWrite(id, confirmed);
+        },
+      },
+      // اتقفل لوحده (قفل التطبيق، رجوع) ← المسوّدة **بتفضل** في الخانة ومعاها سطر "لسه ما اتحفظش"
+    ], { key: `confirm_${id}`, onDismiss: () => {} });
   }
 
-  return { valueFor, numberFor, onChange, onBlur };
+  /** فيه رقم مكتوب مستني تأكيد (عشان الشاشة تكتب "لسه ما اتحفظش") */
+  function pendingConfirm(id: string) {
+    const raw = drafts[id];
+    return raw !== undefined && plan(raw, latest.current.storedFor(id)).action === 'confirm';
+  }
+
+  return { valueFor, numberFor, onChange, onBlur, pendingConfirm };
 }

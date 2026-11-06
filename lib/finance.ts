@@ -586,7 +586,11 @@ export function planWalletAmountRewrite(draft: string | undefined): WalletAmount
  */
 export function planWalletOpeningCommit(draft: string | undefined, stored: number): WalletAmountPlan {
   const base = Number.isNaN(stored) ? planWalletAmountRewrite(draft) : planWalletAmountCommit(draft, stored);
-  return base.action === 'write' ? { action: 'confirm', value: base.value } : base;
+  if (base.action !== 'write' && base.action !== 'confirm') return base;
+  // متقرّب لقرشين: اللي بيتعرض في التأكيد هو اللي بيتكتب (money-reviewer)؛ ولو بعد التقريب نفس المتخزّن مفيش سؤال
+  const value = roundMoney(base.value);
+  if (!Number.isNaN(stored) && Math.abs(value - stored) < 0.005) return { action: 'none' };
+  return { action: 'confirm', value };
 }
 
 export function planBudgetCommit(draft: string | undefined, stored: number): WalletAmountPlan {
