@@ -88,8 +88,9 @@ export const DARK: ThemeColors = {
 export const LIGHT: ThemeColors = {
   bg: '#F5EFE0', surface: '#FFFDF7', surface2: '#F0E8D4', nav: '#FFFDF7',
   border: '#E3D7BA', borderStrong: '#CDBB94',
-  // textMuted كان 2.3–2.8:1 وtextSecondary 4.26 على surface2 — الاتنين بقوا ≥4.5 (بند E). الباهت لسه أفتح من الثانوي
-  text: '#2B2416', textSecondary: '#6F6246', textMuted: '#736648',
+  // textMuted كان 2.3–2.8:1 وtextSecondary 4.26 على surface2 — الاتنين بقوا ≥4.5 (بند E). الثانوي أغمق بدرجة باينة (1.36:1
+  // بينهم، زي الغامق 1.40) عشان التلات مستويات (نص/ثانوي/باهت) ميبقوش اتنين (visual-identity-reviewer)
+  text: '#2B2416', textSecondary: '#5E5239', textMuted: '#736648',
   danger: '#C1554A', dangerBorder: '#E8C4BE',
   success: '#4E9E7A', accent: '#C9A961', onAccent: '#0A0E14', accentText: '#7D6320',
   expenseText: '#A8453B', incomeText: '#2F654B', dangerText: '#A8453B',

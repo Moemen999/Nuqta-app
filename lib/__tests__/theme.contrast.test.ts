@@ -205,3 +205,12 @@ describe.each([
     }
   });
 });
+
+describe.each([
+  ['الفاتح', LIGHT],
+  ['الغامق', DARK],
+])('الثانوي والباهت مستويين باينين — الوضع %s', (_label, colors) => {
+  it('فرق 1.25:1 عالأقل بينهم (وإلا التلات مستويات بيبقوا اتنين — visual-identity-reviewer)', () => {
+    expect(contrast(colors.textSecondary, colors.textMuted)).toBeGreaterThanOrEqual(1.25);
+  });
+});

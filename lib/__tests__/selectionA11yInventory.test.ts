@@ -34,7 +34,14 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
     let idx = 0;
     while ((idx = s.indexOf('selectionStyle(colors', idx)) !== -1) {
       const tagStart = s.lastIndexOf('<TouchableOpacity', idx);
-      const tagClose = s.indexOf('>', idx);
+      // آخر الـtag = أول '>' برّه الأقواس ({ } و( )) — '=>' جوه onPress مش نهايته
+      let tagClose = tagStart, depth = 0;
+      for (; tagClose < s.length; tagClose++) {
+        const ch = s[tagClose];
+        if (ch === '{' || ch === '(') depth++;
+        else if (ch === '}' || ch === ')') depth--;
+        else if (ch === '>' && depth === 0) break;
+      }
       if (tagStart !== -1) {
         const tag = s.slice(tagStart, tagClose + 1);
         // الـselectionStyle جوه نفس الـtag (مفيش عنصر تاني بدأ بينهم)

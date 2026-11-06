@@ -72,7 +72,8 @@ export default function DebtsTabScreen() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      <View style={styles.switcherRow}>
+      {/* tablist: قارئ الشاشة بيقول مكان التاب (1 من 3) مش "تاب" بس (a11y-architect) */}
+      <View style={styles.switcherRow} accessibilityRole="tablist">
         <TouchableOpacity {...selectionA11y(tab === 'debts', 'tab')} testID="debts_tab_debts" onPress={() => setTab('debts')}
           style={[styles.switchBtn, selectionStyle(colors, tab === 'debts')]}>
           <Text style={{ color: tab === 'debts' ? colors.text : colors.textSecondary, fontSize: 12.5, fontWeight: '600' }}>الديون</Text>
