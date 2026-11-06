@@ -141,7 +141,7 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
                     placeholder="0" placeholderTextColor={colors.textSecondary} accessibilityLabel="المبلغ" />
                   <Text style={styles.label} accessible={false}>التاريخ</Text>
                   <TouchableOpacity testID="broken_fix_date" accessibilityRole="button"
-                    accessibilityLabel={date ? `التاريخ ${date}` : `التاريخ. ${FIX_DATE_MISSING}`} accessibilityHint="بيفتح التقويم"
+                    accessibilityLabel={date ? `التاريخ ${date}` : FIX_DATE_MISSING} accessibilityHint="بيفتح التقويم"
                     style={styles.input} onPress={() => setPicker(true)}>
                     <Text style={[styles.inputText, !date && { color: colors.textSecondary }]}>{date || FIX_DATE_MISSING}</Text>
                   </TouchableOpacity>

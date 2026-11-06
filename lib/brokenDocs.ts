@@ -43,11 +43,11 @@ export const FIX_DELETE_PLAIN_BODY = 'العملية دي مش محسوبة في
 export const FIX_INVALID_AMOUNT = 'اكتب مبلغ أكبر من صفر.';
 export const FIX_PICK_DATE = 'اختار تاريخ العملية.';
 export const FIX_DATE_MISSING = 'التاريخ كان ناقص — اختاره';
-export const FIX_LOAD_FAILED = 'مقدرناش نجيب الديون أو الاشتراكات أو الجمعيات، فمش عارفين العملية دي مربوطة بحاجة ولا لأ. جرّب تاني.';
+export const FIX_LOAD_FAILED = 'مقدرناش نجيب الديون أو الاشتراكات أو الجمعيات، فمش عارفين العملية دي مربوطة بحاجة ولا لأ.';
 export const FIX_RETRY = 'جرّب تاني';
 export const FIX_WAITING = 'لسه بنجيب الديون والاشتراكات والجمعيات — استنى لحظة عشان نعرف العملية دي مربوطة بحاجة ولا لأ.';
-export const FIX_SAVED = 'اتحفظت';
-export const FIX_DELETED = 'اتمسحت';
+export const FIX_SAVED = 'العملية اتحفظت';
+export const FIX_DELETED = 'العملية اتمسحت';
 
 export type FixBlock = 'type' | 'linked' | 'wallet';
 export const FIX_BLOCK_TEXT: Record<FixBlock, string> = {
