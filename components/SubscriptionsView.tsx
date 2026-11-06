@@ -1,3 +1,4 @@
+import { ActionSheet } from '@/components/ActionSheet';
 import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
@@ -16,7 +17,7 @@ import ChargeModePicker from '@/components/ChargeModePicker';
 import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
@@ -55,6 +56,9 @@ export default function SubscriptionsView() {
   const { busyKey: resumeBusyKey, run: runResume } = useBusyKey(onBusy);
   const [showAdd, setShowAdd] = useState(false);
   const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  // قايمة "⋯": المعرّف بس — الاشتراك بيتقري حي (نفس كارت الدين)
+  const [menuSubId, setMenuSubId] = useState<string | null>(null);
+  const menuLast = useRef<Subscription | null>(null);
 
   const sorted = [...subscriptions].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate));
   // "اشتراكات واقفة" مطوي تحت (قرار مؤمن 2026-11-02) — نفس غلاف "ديون اتسددت"
@@ -185,18 +189,11 @@ export default function SubscriptionsView() {
               )}
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.editBtn} onPress={() => setEditingSub(s)} accessibilityRole="button" accessibilityLabel={`تعديل اشتراك ${s.name}`}>
-            <Text style={{ color: colors.text, fontSize: 12.5 }}>تعديل</Text>
-          </TouchableOpacity>
-          {!isStopped && (
-            <TouchableOpacity testID={`subscription_stop_${s.id}`} style={styles.editBtn} onPress={() => confirmStop(s)}
-              accessibilityRole="button" accessibilityLabel={`وقّف اشتراك ${s.name} مؤقتًا`}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>وقّف</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity style={[styles.deleteBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => confirmDelete(s)} disabled={busyKey === `del_${s.id}`}
-            accessibilityRole="button" accessibilityLabel={`حذف اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `del_${s.id}`, disabled: busyKey === `del_${s.id}` }}>
-            <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>{busyKey === `del_${s.id}` ? '...' : 'حذف'}</Text>
+          {/* دراسة الشكل خطوة 3: زرار أساسي واحد (اتخصم/رجّعه) والباقي في "⋯" — نفس كارت الدين */}
+          <TouchableOpacity testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
+            accessibilityHint="بيفتح قايمة" disabled={busyKey === `del_${s.id}`} accessibilityState={{ disabled: busyKey === `del_${s.id}`, busy: busyKey === `del_${s.id}` }}
+            style={[styles.moreBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => setMenuSubId(s.id)}>
+            <Text style={styles.moreBtnText}>{busyKey === `del_${s.id}` ? '...' : '⋯'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -225,6 +222,19 @@ export default function SubscriptionsView() {
 
       <AddSubscriptionModal visible={showAdd} onClose={() => setShowAdd(false)} />
       {editingSub && <EditSubscriptionModal sub={editingSub} onClose={() => setEditingSub(null)} />}
+      {(() => {
+        const live = subscriptions.find(x => x.id === menuSubId) ?? null;
+        if (live) menuLast.current = live;
+        const m = live ?? menuLast.current;
+        const busy = busyKey !== null || resumeBusyKey !== null;
+        return (
+          <ActionSheet visible={!!live} testID="subscription_menu" title={m?.name ?? ''} onClose={() => setMenuSubId(null)} actions={m ? [
+            { key: 'edit', label: 'تعديل', testID: `subscription_edit_${m.id}`, disabled: busy, onPress: () => setEditingSub(m) },
+            ...(m.active !== false ? [{ key: 'stop', label: 'وقّفه مؤقتًا', testID: `subscription_stop_${m.id}`, disabled: busy, onPress: () => confirmStop(m) }] : []),
+            { key: 'delete', label: 'حذف', danger: true, testID: `subscription_delete_${m.id}`, disabled: busy, onPress: () => confirmDelete(m) },
+          ] : []} />
+        );
+      })()}
     </ScrollView>
   );
 }
@@ -385,8 +395,8 @@ function makeStyles(c: ThemeColors) {
     actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
     payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
-    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    moreBtn: { minWidth: MIN_TOUCH + 12, minHeight: MIN_TOUCH, borderRadius: 8, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    moreBtnText: { color: c.text, fontSize: 17, fontWeight: '700' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },

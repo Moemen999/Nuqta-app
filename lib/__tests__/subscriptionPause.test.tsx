@@ -71,6 +71,13 @@ async function pressAlertButton(text: string) {
   await act(async () => { await buttons.find(b => b.text === text)?.onPress?.(); });
 }
 
+/** "وقّف" جوه قايمة "⋯" (دراسة الشكل خطوة 3) — بيستنى الورقة تختفي على iOS (افتراضي jest-expo) */
+async function pressStop(id: string) {
+  await act(async () => { fireEvent.press(screen.getByTestId(`subscription_more_${id}`)); });
+  await act(async () => { fireEvent.press(screen.getByTestId(`subscription_stop_${id}`)); });
+  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+}
+
 describe('شاشة الاشتراكات', () => {
   it('الواقف في "اشتراكات واقفة" المطوي، والشغال باين بزرار "وقّف"', async () => {
     await render(wrap());
@@ -78,6 +85,7 @@ describe('شاشة الاشتراكات', () => {
     expect(screen.queryByText('سبوتيفاي')).toBeNull();
     expect(screen.getByText('اشتراكات واقفة (1)')).toBeTruthy();
     expect(screen.getByTestId('subscriptions_stopped_toggle').props.accessibilityLabel).toBe('اشتراكات واقفة، اشتراك واحد');
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_more_s1')); });
     expect(screen.getByTestId('subscription_stop_s1')).toBeTruthy();
   });
 
@@ -85,14 +93,16 @@ describe('شاشة الاشتراكات', () => {
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
     expect(screen.getAllByText('اتخصم')).toHaveLength(1); // بتاع نتفليكس بس
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_more_s2')); });
     expect(screen.queryByTestId('subscription_stop_s2')).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByTestId('subscription_menu_cancel')); });
     expect(screen.getByTestId('subscription_resume_s2')).toBeTruthy();
     expect(screen.getByText('واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه')).toBeTruthy();
   });
 
   it('"وقّف" ← تأكيد ثم setSubscriptionActive(false)', async () => {
     await render(wrap());
-    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    await pressStop('s1');
     expect(alertSpy.mock.calls[0][0]).toBe('توقّف الاشتراك ده مؤقتًا؟');
     expect(mockData.setSubscriptionActive).not.toHaveBeenCalled();
     await pressAlertButton('وقّفه');
@@ -140,14 +150,14 @@ describe('الجولة 1: تحذير المتأخر، رسايل الرجوع، 
   it('وقّف وعليه مرة متأخرة ما اتسجلتش ← التأكيد بيقول إنها مش هتتسجل لو رجّعته', async () => {
     mockData.subscriptions = [sub({ nextDueDate: addDays(today, -5) })];
     await render(wrap());
-    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    await pressStop('s1');
     expect(alertSpy.mock.calls[0][1]).toContain('عليه مرة متأخرة لسه ما اتسجلتش');
   });
 
   it('وقّف ومفيش متأخر ← مفيش سطر تحذير', async () => {
     mockData.subscriptions = [sub({ nextDueDate: addDays(today, 5) })];
     await render(wrap());
-    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    await pressStop('s1');
     expect(alertSpy.mock.calls[0][1]).not.toContain('متأخرة');
   });
 
@@ -162,8 +172,8 @@ describe('الجولة 1: تحذير المتأخر، رسايل الرجوع، 
 
   it('الأزرار بتقول اسم الاشتراك لقارئ الشاشة', async () => {
     await render(wrap());
-    expect(screen.getByTestId('subscription_stop_s1').props.accessibilityLabel).toBe('وقّف اشتراك نتفليكس مؤقتًا');
-    expect(screen.getByLabelText('حذف اشتراك نتفليكس')).toBeTruthy();
+    // "⋯" باسم الاشتراك، والقايمة عنوانها اسمه (الفعل جوّاها بنصّه)
+    expect(screen.getByLabelText('باقي الاختيارات لاشتراك نتفليكس')).toBeTruthy();
     expect(screen.getByLabelText('اتخصم اشتراك نتفليكس')).toBeTruthy();
   });
 
@@ -189,7 +199,7 @@ describe('الجولة 2', () => {
     const back = addDays(today, -3);
     mockData.subscriptions = [sub({ nextDueDate: addDays(today, 10), closed: { [back]: { reopened: true } } } as Partial<Subscription>)];
     await render(wrap());
-    await act(async () => { fireEvent.press(screen.getByTestId('subscription_stop_s1')); });
+    await pressStop('s1');
     expect(alertSpy.mock.calls[0][1]).not.toContain('متأخرة');
   });
 });

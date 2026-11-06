@@ -39,9 +39,18 @@ const press = async (el: unknown) => { await act(async () => { fireEvent.press(e
 const type = async (el: unknown, v: string) => { await act(async () => { fireEvent.changeText(el as never, v); }); };
 const expected = `${LEGACY_VALUE_NOTE} ${ENTRY_MESSAGES.reminderDays}`;
 
+/** "تعديل" الاشتراك جوه قايمة "⋯" (دراسة الشكل خطوة 3)؛ الجمعية لسه على الكارت */
+async function pressEdit() {
+  const more = screen.queryAllByTestId(/^subscription_more_/);
+  if (more.length === 0) { await act(async () => { fireEvent.press(screen.getByText('تعديل')); }); return; }
+  await act(async () => { fireEvent.press(more[0]); });
+  await act(async () => { fireEvent.press(screen.getAllByTestId(/^subscription_edit_/)[0]); });
+  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
+}
+
 it('اشتراك: الرسالة باينة أول ما التعديل يتفتح، والحفظ مرفوض لحد ما الخانة تتصلح', async () => {
   await render(wrap(<SubscriptionsView />));
-  await press(screen.getByText('تعديل'));
+  await pressEdit();
   expect(screen.getByText(expected)).toBeTruthy();
   await press(screen.getByTestId('subscription_edit_save'));
   expect(mockData.updateSubscription).not.toHaveBeenCalled();
@@ -53,13 +62,13 @@ it('اشتراك: الرسالة باينة أول ما التعديل يتفت�
 it('جمعية: نفس الكلام', async () => {
   await render(wrap(<GamiyaView />));
   await press(screen.getByText('جمعية الشغل'));
-  await press(screen.getByText('تعديل'));
+  await pressEdit();
   expect(screen.getByText(expected)).toBeTruthy();
 });
 
 it('قيم سليمة ← مفيش رسالة', async () => {
   mockData.subscriptions = [{ ...sub, reminderDaysBefore: 3 }];
   await render(wrap(<SubscriptionsView />));
-  await press(screen.getByText('تعديل'));
+  await pressEdit();
   expect(screen.queryByText(new RegExp(LEGACY_VALUE_NOTE))).toBeNull();
 });

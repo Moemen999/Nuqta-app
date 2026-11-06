@@ -23,7 +23,10 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
   returnFocusTo?: RefObject<View | null>;
 }) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  // متركّبة دايمًا جوه كروت كتير — من غير Provider (اختبارات، شاشات قديمة) الحافة صفر بدل ما ترمي
+  // (الهوك بيتنادى دايمًا بنفس الترتيب — الـtry بس بيمسك غياب الـProvider)
+  let bottomInset = 0;
+  try { bottomInset = useSafeAreaInsets().bottom; } catch { /* من غير Provider: صفر */ }
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const pending = useRef<(() => void) | null>(null);
   const fallback = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -57,7 +60,7 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
       <TouchableOpacity accessible={false} activeOpacity={1} style={styles.overlay} onPress={cancel}>
         <TouchableOpacity accessible={false} activeOpacity={1} onPress={() => {}} testID={visible ? testID : undefined}
           accessibilityViewIsModal onAccessibilityEscape={cancel}
-          style={[styles.sheet, { paddingBottom: space.xxxl + insets.bottom }]}>
+          style={[styles.sheet, { paddingBottom: space.xxxl + bottomInset }]}>
           <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>{title}</Text>
           {/* سقف وتمرير: بخط كبير أو شاشة صغيرة "إلغاء" و"حذف" كانوا ممكن يطلعوا برّه (a11y-architect) */}
           <ScrollView style={styles.list} bounces={false}>
