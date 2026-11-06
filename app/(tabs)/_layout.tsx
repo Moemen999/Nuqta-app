@@ -33,20 +33,28 @@ import type { ComponentProps } from 'react';
  */
 const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
 
+type IconName = ComponentProps<typeof IconSymbol>['name'];
+
+/**
+ * التاب المختار: خلفية دهبي غامق **وإطار دهبي** (دراسة الشكل خطوة 6). الخلفية لوحدها 1.5–1.75:1 على الشريط، واللون بين
+ * المختار والباقي قريب في الإضاءة — الإطار ≥ 5:1 هو اللي بيشيل المؤشر (a11y-architect)
+ */
+function TabBarIcon({ name, color, focused, selectedBg, selectedBorder }: {
+  name: IconName; color: string; focused: boolean; selectedBg: string; selectedBorder: string;
+}) {
+  return (
+    <View style={[styles.iconPill, focused && { backgroundColor: selectedBg, borderColor: selectedBorder }]}>
+      <IconSymbol size={22} name={name} color={color} />
+    </View>
+  );
+}
+
 export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
   const showFab = FAB_TAB_PATHS.includes(pathname);
   const insets = useSafeAreaInsets();
   // التاب المختار: خلفية دهبي غامق ورا الأيقونة (دراسة الشكل خطوة 6) — كان باللون بس، فمن غير لون مكانش باين أنهي المختار
-  const icon = (name: ComponentProps<typeof IconSymbol>['name']) =>
-    function TabBarIcon({ color, focused }: { color: string; focused: boolean }) {
-      return (
-        <View style={[styles.iconPill, focused && { backgroundColor: colors.selectedBg }]}>
-          <IconSymbol size={22} name={name} color={color} />
-        </View>
-      );
-    };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
@@ -64,21 +72,21 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'الرئيسية',
-            tabBarIcon: icon('house.fill'),
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="house.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="reports"
           options={{
             title: 'التقارير',
-            tabBarIcon: icon('chart.pie.fill'),
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="chart.pie.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="planning"
           options={{
             title: 'التخطيط',
-            tabBarIcon: icon('target'),
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="target" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
@@ -89,14 +97,14 @@ export default function TabLayout() {
             // سكريبت روبو بيوصل لتاب الديون من هنا. من غير معرّف كان بيتطابق
             // بنص عربي، وأي تغيير في الكلمة كان هيفشّل التشغيلة كلها.
             tabBarButtonTestID: 'nav_tab_debts',
-            tabBarIcon: icon('person.2.fill'),
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="person.2.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
             title: 'الإعدادات',
-            tabBarIcon: icon('gearshape.fill'),
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name="gearshape.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
       </Tabs>
@@ -118,5 +126,5 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   fabText: { fontSize: 28, fontWeight: '700', marginTop: -2 },
-  iconPill: { width: 52, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  iconPill: { width: 52, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 });
