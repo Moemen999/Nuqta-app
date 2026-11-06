@@ -2,7 +2,7 @@ import BackButton from '@/components/BackButton';
 import SetLockModal from '@/components/SetLockModal';
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -54,7 +54,7 @@ export default function LockScreen_Settings() {
       keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>قفل التطبيق</Text>
+        <Text style={styles.title} accessibilityRole="header">قفل التطبيق</Text>
       </View>
 
       {!enabled ? (
@@ -65,6 +65,7 @@ export default function LockScreen_Settings() {
           </Text>
           <TouchableOpacity
             testID="lock_enable_button"
+            accessibilityRole="button"
             style={styles.primaryBtn}
             onPress={() => setModalMode('enable')}>
             <Text style={styles.primaryBtnText}>تفعيل قفل التطبيق</Text>
@@ -80,12 +81,14 @@ export default function LockScreen_Settings() {
           <View style={styles.row}>
             <TouchableOpacity
               testID="lock_freq_on_open"
+              {...selectionA11y(frequency === 'onOpen')}
               onPress={() => saveSetting(setFrequency('onOpen'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_freq_every_resume"
+              {...selectionA11y(frequency === 'everyResume')}
               onPress={() => saveSetting(setFrequency('everyResume'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
@@ -100,6 +103,7 @@ export default function LockScreen_Settings() {
                   <TouchableOpacity
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
+                    {...selectionA11y(graceMinutes === opt.m)}
                     onPress={() => saveSetting(setGraceMinutes(opt.m))}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>
@@ -112,12 +116,14 @@ export default function LockScreen_Settings() {
           <View style={[styles.row, { marginTop: 16 }]}>
             <TouchableOpacity
               testID="lock_change_button"
+              accessibilityRole="button"
               style={styles.changeBtn}
               onPress={() => setModalMode('change')}>
               <Text style={styles.btnLabel}>تغيير الباسورد</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_disable_button"
+              accessibilityRole="button"
               style={styles.disableBtn}
               onPress={() => setModalMode('disable')}>
               <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>إلغاء القفل</Text>

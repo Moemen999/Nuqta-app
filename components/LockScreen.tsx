@@ -43,6 +43,14 @@ export const FORGOT_OFFLINE_BODY =
   + 'وصّل النت وجرب تاني.';
 export const FORGOT_OFFLINE_CONTINUE = 'النت شغال عندي، كمّل';
 
+/** تقدّم الـPIN لقارئ الشاشة — العدد بالكلام ومتفق مع المعدود (arabic-copy-reviewer) */
+export function pinProgressLabel(n: number) {
+  return n <= 0 ? 'لسه مكتبتش أي رقم'
+    : n === 1 ? 'اتكتب رقم واحد من 4'
+    : n === 2 ? 'اتكتب رقمين من 4'
+    : `اتكتب ${n} أرقام من 4`;
+}
+
 const KEY_ROWS = [
   ['1', '2', '3'],
   ['4', '5', '6'],
@@ -131,6 +139,8 @@ export default function LockScreen() {
 
   function pressDigit(d: string) {
     if (code.length >= 4) return;
+    // نفس رسالة "غلط" مرتين ورا بعض مبتتقريش تاني (الـlive region بيتكلم مع التغيير بس) — فبتتمسح أول ما يكتب (a11y-architect)
+    if (error) setError('');
     const next = code + d;
     setCode(next);
     if (next.length === 4) handleSubmit(next);
@@ -151,8 +161,8 @@ export default function LockScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
-      <Text style={styles.lockEmoji}>🔒</Text>
-      <Text style={styles.title}>نقطة مقفولة</Text>
+      <Text style={styles.lockEmoji} accessible={false} importantForAccessibility="no">🔒</Text>
+      <Text style={styles.title} accessibilityRole="header">نقطة مقفولة</Text>
 
       {readFailed ? (
         // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
@@ -166,12 +176,13 @@ export default function LockScreen() {
         </View>
       ) : lockType === 'pin' ? (
         <>
-          <View style={styles.dotsRow}>
+          {/* النقط لقارئ الشاشة جملة واحدة بتتحدّث مع كل رقم (a11y-architect، بند E) */}
+          <View style={styles.dotsRow} accessible accessibilityLabel={pinProgressLabel(code.length)} accessibilityLiveRegion="polite">
             {[0, 1, 2, 3].map(i => (
               <View key={i} style={[styles.dot, { backgroundColor: i < code.length ? colors.accent : colors.surface2, borderColor: colors.borderStrong }]} />
             ))}
           </View>
-          <Text style={styles.error}>{error || ' '}</Text>
+          <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>
 
           <View style={styles.keypad}>
             {KEY_ROWS.map((row, ri) => (
@@ -179,6 +190,11 @@ export default function LockScreen() {
                 {row.map((k, ki) => (
                   <TouchableOpacity
                     key={ki}
+                    testID={k === '⌫' ? 'lock_key_backspace' : k === '' ? 'lock_key_empty' : `lock_key_${k}`}
+                    // الخانة الفاضية مش زرار (كانت بتتقري "زرار" من غير اسم)، والمسح ليه اسم بدل "⌫"
+                    {...(k === ''
+                      ? { accessible: false, importantForAccessibility: 'no-hide-descendants' as const }
+                      : { accessibilityRole: 'button' as const, accessibilityLabel: k === '⌫' ? 'امسح آخر رقم' : k })}
                     style={[styles.key, k === '' && styles.keyHidden, { backgroundColor: colors.surface }]}
                     disabled={k === ''}
                     activeOpacity={0.6}
@@ -196,15 +212,16 @@ export default function LockScreen() {
             testID="lock_password_input"
             style={styles.input}
             value={code}
-            onChangeText={setCode}
+            onChangeText={v => { setCode(v); if (error) setError(''); }}
+            accessibilityLabel="الباسورد"
             placeholder="الباسورد"
             placeholderTextColor={colors.textSecondary}
             secureTextEntry
             textAlign="right"
             autoFocus
           />
-          <Text style={styles.error}>{error || ' '}</Text>
-          <TouchableOpacity testID="lock_submit_button" style={styles.submitBtn} onPress={() => handleSubmit()}>
+          <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>
+          <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" style={styles.submitBtn} onPress={() => handleSubmit()}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
           </TouchableOpacity>
         </View>
@@ -220,7 +237,7 @@ export default function LockScreen() {
         يعني المخرج الوحيد من الحبسة كان هو نفسه محبوس.
       */}
       <View testID="lock_footer" style={styles.footer}>
-        <TouchableOpacity testID="lock_forgot_button" style={styles.forgotBtn} onPress={handleForgot}>
+        <TouchableOpacity testID="lock_forgot_button" accessibilityRole="button" style={styles.forgotBtn} onPress={handleForgot}>
           <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
         </TouchableOpacity>
       </View>
