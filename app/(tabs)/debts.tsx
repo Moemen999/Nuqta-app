@@ -248,11 +248,16 @@ function DebtsContent() {
 
     return (
       <View key={d.id} style={styles.debtCard}>
-        <TouchableOpacity accessibilityRole="button" onPress={() => setExpandedDebt(expanded ? null : d.id)}>
+        {/* الكارت بيتفتح ويتقفل: القارئ بيقول الحالة. وزرار جهة الاتصال جوّاه مبيوصلوش TalkBack (الأب بيجمع اللي جواه)، فهو
+            "إجراء" على الكارت نفسه (a11y-architect جولة 2) */}
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded }}
+          accessibilityActions={(d.personContactId || d.personPhone) ? [{ name: 'openContact', label: `افتح كارت ${d.personName}` }] : undefined}
+          onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'openContact') openContactCard(d); }}
+          onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
-                <TouchableOpacity accessibilityRole="button" onPress={() => openContactCard(d)}>
+                <TouchableOpacity accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
                   <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
                 </TouchableOpacity>
               ) : (

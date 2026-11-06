@@ -86,7 +86,7 @@ export default function GamiyaView() {
 
     return (
       <View key={g.id} style={styles.card}>
-        <TouchableOpacity accessibilityRole="button" onPress={() => setExpanded(isExpanded ? null : g.id)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
           <View style={styles.cardHead}>
             <Text style={styles.name}>{g.name}</Text>
             <Text style={styles.sub2}>{walletLabel}</Text>

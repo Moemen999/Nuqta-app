@@ -77,7 +77,8 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       {/* الخلفية والكارت مش أزرار لقارئ الشاشة (accessible=false): الخلفية كانت "زرار" من غير اسم، والكارت ماسك الدوس بس */}
       <TouchableOpacity accessible={false} style={styles.overlay} activeOpacity={1} onPress={close}>
-        <TouchableOpacity accessible={false} activeOpacity={1} style={styles.card} onPress={() => {}}>
+        {/* iOS: التركيز محبوس جوّه، وإيماءة الخروج بتقفل (a11y-architect جولة 2). أندرويد: زرار الرجوع ← onRequestClose */}
+        <TouchableOpacity accessible={false} accessibilityViewIsModal onAccessibilityEscape={close} activeOpacity={1} style={styles.card} onPress={() => {}}>
           <View style={styles.header}>
             <TouchableOpacity onPress={goPrev} style={styles.navBtn} accessibilityRole="button" accessibilityLabel={prevLabel}>
               <Text style={styles.navText}>›</Text>
