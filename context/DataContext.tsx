@@ -2,6 +2,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
+import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, subscriptionFromDoc, withId } from '@/lib/fromDoc';
 import { dueDateAfterIncreaseRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
@@ -1058,20 +1059,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
-      setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      // المعرّف من المسار آخر حاجة — حقل `id` جوه المستند ميغطيهوش (بند B)
+      setWallets(snap.docs.map(d => withId<Wallet>(d.id, d.data())));
       noteConnection(snap.metadata.fromCache);
       noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       loaded('categories');
-      setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      setCategories(snap.docs.map(d => withId<Category>(d.id, d.data())));
     }, failed('categories'));
     // includeMetadataChanges عشان نعرف مين لسه بيرفع ومين وصل: من غيرها فايربيز
     // مبتبعتش snapshot تاني لما السيرفر يأكد كتابة محتواها ما اتغيرش، فالعلامة
     // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
       loaded('transactions');
-      setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      setTransactions(snap.docs.map(d => withId<Transaction>(d.id, d.data())));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
 
@@ -1083,23 +1085,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       loaded('budgets');
       const b: Budgets = {};
-      snap.docs.forEach(d => { b[d.id] = (d.data() as any).limit; });
+      // رقم محدود بس (بند B): `undefined`/نص كان بيدخل حسبة "قربت تخلص" NaN
+      snap.docs.forEach(d => { const v = numberField(d.data(), 'limit', 'budgets'); if (v !== undefined) b[d.id] = v; });
       setBudgets(b);
     }, failed('budgets'));
     const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), (snap) => {
       loaded('shakhbata_income');
       const s: ShakhbataIncome = {};
-      snap.docs.forEach(d => { s[d.id] = (d.data() as any).income; });
+      snap.docs.forEach(d => { const v = numberField(d.data(), 'income', 'shakhbata_income'); if (v !== undefined) s[d.id] = v; });
       setShakhbataIncome(s);
     }, failed('shakhbata_income'));
     const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), (snap) => {
       loaded('shakhbata_settings');
       if (snap.exists()) {
-        const data = snap.data() as any;
+        const data = snap.data();
+        // `??` كان بيعدّي نص ("50") وNaN — المجموع كان بيتلزق نص (بند B)
         setShakhbataPercentsState({
-          needs: data.needs ?? DEFAULT_PERCENTS.needs,
-          wants: data.wants ?? DEFAULT_PERCENTS.wants,
-          future: data.future ?? DEFAULT_PERCENTS.future,
+          needs: finiteOr(data.needs, DEFAULT_PERCENTS.needs, ['shakhbata_settings', 'needs']),
+          wants: finiteOr(data.wants, DEFAULT_PERCENTS.wants, ['shakhbata_settings', 'wants']),
+          future: finiteOr(data.future, DEFAULT_PERCENTS.future, ['shakhbata_settings', 'future']),
         });
       } else {
         setShakhbataPercentsState(DEFAULT_PERCENTS);
@@ -1111,20 +1115,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // مصفوفات مش اختياريين، ومستند قديم من غير الحقلين كان بيخلي النوع
       // يكدب — وأربع شاشات بتعمل `d.payments.forEach/.map/.length` من غير
       // حراسة (`person-ledger`, `reports`, `debts` في مكانين)
-      setDebts(snap.docs.map(d => ({ id: d.id, payments: [], increases: [], ...(d.data() as any) })) as Debt[]);
+      // `payments: null` كان بيغطي الافتراضي بالـspread ويوقّع 4 شاشات (بند B)
+      setDebts(snap.docs.map(d => debtFromDoc<Debt>(d.id, d.data())));
     }, failed('debts'));
     const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
       loaded('subscriptions');
-      setSubscriptions(snap.docs.map(d => ({ id: d.id, history: [], ...(d.data() as any) })) as Subscription[]);
+      setSubscriptions(snap.docs.map(d => subscriptionFromDoc<Subscription>(d.id, d.data())));
     }, failed('subscriptions'));
     const unsubGamiyas = onSnapshot(collection(db, 'users', uid, 'gamiyas'), (snap) => {
       loaded('gamiyas');
-      setGamiyas(snap.docs.map(d => ({ id: d.id, months: [], ...(d.data() as any) })) as Gamiya[]);
+      setGamiyas(snap.docs.map(d => gamiyaFromDoc<Gamiya>(d.id, d.data())));
     }, failed('gamiyas'));
 
     const unsubIncomes = onSnapshot(collection(db, 'users', uid, 'incomes'), (snap) => {
       loaded('incomes');
-      setIncomes(snap.docs.map(d => ({ id: d.id, closed: {}, ...(d.data() as any) })) as RecurringIncome[]);
+      setIncomes(snap.docs.map(d => incomeFromDoc<RecurringIncome>(d.id, d.data())));
     }, failed('incomes'));
 
     return () => {
@@ -1338,7 +1343,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!debtSnap.exists()) throw new DebtMissingError();
         const txSnap = await t.get(txRef);
         if (!txSnap.exists()) throw new LinkedTxMissingError();
-        const debt = { id: debtId, payments: [], increases: [], ...(debtSnap.data() as any) } as Debt;
+        const debt = debtFromDoc<Debt>(debtId, debtSnap.data(), true);
         const current = txSnap.data() as Transaction;
         // اتعدّلت من جهاز تاني بعد ما المودال اتفتح: التسوية (`settlements`)
         // اتحسبت على الأرقام القديمة، فالكتابة كانت هتسوّي برقم غلط
@@ -1818,7 +1823,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // كل القرايات قبل كل الكتابات — شرط من فايربيز نفسها
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) throw new WalletMissingError();
 
@@ -1947,7 +1952,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         const payment = (debt.payments || []).find(p => p.id === paymentId);
         // اتمسحت قبل كده (من جهاز تاني، أو دوسة اتكررت) — مفيش حاجة تتعمل،
         // والنتيجة "تمام" لأن اللي المستخدم عايزه حاصل فعلاً
@@ -2007,7 +2012,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         result.dueNote = null;
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // الزيادة ممكن تكون من غير محفظة (تسجيل على الورق)، وساعتها مفيش عملية
         // مالية أصلاً ومفيش محفظة تتفحص
         if (walletId && !(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) {
@@ -2098,7 +2103,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
-        const debt = { id: debtId, payments: [], increases: [], ...(snap.data() as any) } as Debt;
+        const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         const entry = (debt.increases || []).find(e => e.id === entryId);
         // اتمسحت من جهاز تاني: مفيش وعد يتقارن ("المعاد ما رجعش" هنا كانت هتبقى كدب — silent-failure-hunter جولة 2)
         if (out) out.entryGone = !entry;
@@ -2196,7 +2201,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const snap = await t.get(ref);
         // اتمسح من جهاز تاني ← مش "رجّعنا" (silent-failure-hunter، جولة 2)
         if (!snap.exists()) throw new ChargeMissingError();
-        const server = { id, ...(snap.data() as any) } as Subscription;
+        const server = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // رجع من جهاز تاني خلاص ← مفيش حاجة تتكتب (ومنحرّكش معاده)
         if (server.active !== false) return;
         // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف)
@@ -2244,7 +2249,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         paidToday = false;
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
-        const sub = { id, ...(snap.data() as any) } as Subscription;
+        const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
         if (sub.active === false) throw new SubscriptionStoppedError();
         if (seenAmountDiffers(seenAmount, sub.amount)) throw amountChanged(seenAmount, sub.amount);
@@ -2309,7 +2314,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(subRef);
         if (!snap.exists()) return;
-        const sub = { id, ...(snap.data() as any) } as Subscription;
+        const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
         // الحالة الحقيقية (money-reviewer): الواقف بيتخطّى اللي رجعت تسأل بس، مش فترة عادية
         if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) return;
         const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
@@ -2350,7 +2355,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         stopped = false;
         const snap = await t.get(ref);
         if (!snap.exists()) throw new ChargeMissingError();
-        const data = { id, ...(snap.data() as any) };
+        const data = kind === 'subscription' ? subscriptionFromDoc<Subscription>(id, snap.data(), true) : gamiyaFromDoc<Gamiya>(id, snap.data(), true);
         const open = kind === 'subscription'
           ? subscriptionOpenCharges(data as Subscription, today)
           : gamiyaOpenCharges(data as Gamiya, today);
@@ -2537,7 +2542,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         recorded = [];
         const snap = await t.get(incRef);
         if (!snap.exists()) throw new IncomeMissingError();
-        const inc = { id: incomeId, closed: {}, ...(snap.data() as any) } as RecurringIncome;
+        const inc = incomeFromDoc<RecurringIncome>(incomeId, snap.data(), true);
         // اتوقف من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
         if (inc.status !== 'active') return;
         const todo = entries.filter(e => !inc.closed?.[e.key] && e.amount > 0);
@@ -2773,23 +2778,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ]), EXPORT_READ_TIMEOUT_MS);
       const budgetsMap: Budgets = {};
       // مستند من غير رقم بيتخطّى (كان هيطلع خلية فاضية في الإكسيل من غير ما حد يعرف) — NIT جولة 2
-      b.docs.forEach(x => { const v = (x.data() as any).limit; if (typeof v === 'number' && Number.isFinite(v)) budgetsMap[x.id] = v; });
+      b.docs.forEach(x => { const v = numberField(x.data(), 'limit', 'budgets'); if (v !== undefined) budgetsMap[x.id] = v; });
       const incomeMap: ShakhbataIncome = {};
-      si.docs.forEach(x => { const v = (x.data() as any).income; if (typeof v === 'number' && Number.isFinite(v)) incomeMap[x.id] = v; });
+      si.docs.forEach(x => { const v = numberField(x.data(), 'income', 'shakhbata_income'); if (v !== undefined) incomeMap[x.id] = v; });
       const p = sp.exists() ? (sp.data() as any) : null;
       return {
         outcome: 'done',
         data: {
-          wallets: w.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
-          categories: c.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
-          transactions: t.docs.map(x => ({ id: x.id, ...(x.data() as any) })),
-          debts: d.docs.map(x => ({ id: x.id, payments: [], increases: [], ...(x.data() as any) })),
-          subscriptions: s.docs.map(x => ({ id: x.id, history: [], ...(x.data() as any) })),
-          gamiyas: g.docs.map(x => ({ id: x.id, months: [], ...(x.data() as any) })),
-          incomes: i.docs.map(x => ({ id: x.id, closed: {}, ...(x.data() as any) })),
+          // نفس تطبيع الـlisteners (بند B — money-reviewer): الملف والشاشة يقولوا نفس الحاجة
+          wallets: w.docs.map(x => withId<Wallet>(x.id, x.data())),
+          categories: c.docs.map(x => withId<Category>(x.id, x.data())),
+          transactions: t.docs.map(x => withId<Transaction>(x.id, x.data())),
+          debts: d.docs.map(x => debtFromDoc<Debt>(x.id, x.data())),
+          subscriptions: s.docs.map(x => subscriptionFromDoc<Subscription>(x.id, x.data())),
+          gamiyas: g.docs.map(x => gamiyaFromDoc<Gamiya>(x.id, x.data())),
+          incomes: i.docs.map(x => incomeFromDoc<RecurringIncome>(x.id, x.data())),
           budgets: budgetsMap, shakhbataIncome: incomeMap,
           // مستند النسب مش موجود ← `null`: الملف بيقول "الافتراضي" مش كأن المستخدم اختار 50/30/20
-          shakhbataPercents: p ? { needs: p.needs ?? DEFAULT_PERCENTS.needs, wants: p.wants ?? DEFAULT_PERCENTS.wants, future: p.future ?? DEFAULT_PERCENTS.future } : null,
+          shakhbataPercents: p ? { needs: finiteOr(p.needs, DEFAULT_PERCENTS.needs, ['shakhbata_settings', 'needs']), wants: finiteOr(p.wants, DEFAULT_PERCENTS.wants, ['shakhbata_settings', 'wants']), future: finiteOr(p.future, DEFAULT_PERCENTS.future, ['shakhbata_settings', 'future']) } : null,
           feedback: fb.docs.map(x => feedbackFromDoc(x.id, x.data() as Record<string, unknown>)),
         },
       };
@@ -2875,7 +2881,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(gamiyaRef);
         if (!snap.exists()) return;
-        const g = { id: gamiyaId, ...(snap.data() as any) } as Gamiya;
+        const g = gamiyaFromDoc<Gamiya>(gamiyaId, snap.data(), true);
         const month = (g.months || []).find(m => m.id === monthId);
         if (!month || month.status === 'done') return;
         if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
