@@ -26,11 +26,11 @@ import {
   reverseDebtPrefill, walletHistoryName, type DebtEntryKind,
 } from '@/lib/finance';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
-import { ActionSheet } from '@/components/ActionSheet';
+import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -109,7 +109,10 @@ function DebtsContent() {
   const [increaseForDebt, setIncreaseForDebt] = useState<Debt | null>(null);
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [reverseForDebt, setReverseForDebt] = useState<Debt | null>(null);
-  const [menuForDebt, setMenuForDebt] = useState<Debt | null>(null);
+  // المعرّف بس — الدين نفسه بيتقري حي من `debts` (react-reviewer: نسخة متخزّنة كانت بتبقى قديمة لو اتعدّل/اتمسح والقايمة مفتوحة)
+  const [menuDebtId, setMenuDebtId] = useState<string | null>(null);
+  const moreRefs = useRef(new Map<string, View | null>());
+  const menuReturnFocus = useRef<View | null>(null);
   const [expandedDebt, setExpandedDebt] = useState<string | null>(null);
 
   const owedToMe = debts.filter(d => d.direction === 'owed_to_me');
@@ -331,7 +334,8 @@ function DebtsContent() {
               )}
               <TouchableOpacity accessibilityRole="button" testID={`debt_more_${d.id}`} accessibilityLabel={`باقي الاختيارات لدين ${d.personName}`}
                 disabled={busyKey === d.id} accessibilityState={{ disabled: busyKey === d.id, busy: busyKey === d.id }}
-                style={[styles.moreBtn, busyKey === d.id && styles.btnBusy]} onPress={() => setMenuForDebt(d)}>
+                accessibilityHint="بيفتح قايمة" ref={el => { moreRefs.current.set(d.id, el); }}
+                style={[styles.moreBtn, busyKey === d.id && styles.btnBusy]} onPress={() => { menuReturnFocus.current = moreRefs.current.get(d.id) ?? null; setMenuDebtId(d.id); }}>
                 <Text style={styles.moreBtnText}>{busyKey === d.id ? '...' : '⋯'}</Text>
               </TouchableOpacity>
             </View>
@@ -386,24 +390,10 @@ function DebtsContent() {
       {reverseForDebt && (
         <AddDebtModal onClose={() => setReverseForDebt(null)} prefill={reverseDebtPrefill(reverseForDebt)} />
       )}
-      {menuForDebt && (() => {
-        const d = menuForDebt;
-        return (
-          <ActionSheet visible testID="debt_menu" title={d.personName} onClose={() => setMenuForDebt(null)} actions={[
-            { key: 'increase', label: 'زيادة على الدين', testID: 'debt_menu_increase', onPress: () => setIncreaseForDebt(d) },
-            { key: 'edit', label: 'تعديل البيانات', testID: 'debt_menu_edit', onPress: () => setEditDebt(d) },
-            {
-              key: 'ledger', label: 'كشف الحساب', testID: 'debt_menu_ledger',
-              onPress: () => {
-                const key = personKeyByDebt.get(d.id);
-                if (key) router.push({ pathname: '/person-ledger', params: { personKey: key } });
-              },
-            },
-            { key: 'reverse', label: d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده', testID: 'debt_menu_reverse', onPress: () => setReverseForDebt(d) },
-            { key: 'delete', label: 'حذف', danger: true, testID: 'debt_menu_delete', disabled: busyKey === d.id, onPress: () => confirmDeleteDebt(d) },
-          ]} />
-        );
-      })()}
+      <DebtMenu debt={debts.find(x => x.id === menuDebtId) ?? null} busy={busyKey !== null} returnFocusTo={menuReturnFocus}
+        ledgerKey={menuDebtId ? personKeyByDebt.get(menuDebtId) : undefined}
+        onClose={() => setMenuDebtId(null)} onIncrease={setIncreaseForDebt} onEdit={setEditDebt} onReverse={setReverseForDebt}
+        onDelete={confirmDeleteDebt} />
     </ScrollView>
   );
 }
@@ -573,6 +563,27 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/**
+ * قايمة "⋯" لكارت الدين (دراسة الشكل خطوة 3). متركّبة دايمًا عشان أنيميشن الخروج؛ الدين اتمسح والقايمة مفتوحة ← بتتقفل.
+ * أي كتابة شغالة (`busy`) ← كل الأفعال مقفولة (react-reviewer). "كشف الحساب" مبيظهرش من غير مفتاح الشخص (كان بيبلع الدوسة).
+ */
+function DebtMenu({ debt, busy, ledgerKey, returnFocusTo, onClose, onIncrease, onEdit, onReverse, onDelete }: {
+  debt: Debt | null; busy: boolean; ledgerKey?: string; returnFocusTo: RefObject<View | null>; onClose: () => void;
+  onIncrease: (d: Debt) => void; onEdit: (d: Debt) => void; onReverse: (d: Debt) => void; onDelete: (d: Debt) => void;
+}) {
+  const last = useRef<Debt | null>(null);
+  if (debt) last.current = debt;
+  const d = debt ?? last.current;
+  const actions: SheetAction[] = d ? [
+    { key: 'increase', label: 'زيادة على الدين', testID: 'debt_menu_increase', disabled: busy, onPress: () => onIncrease(d) },
+    { key: 'edit', label: 'تعديل البيانات', testID: 'debt_menu_edit', disabled: busy, onPress: () => onEdit(d) },
+    ...(ledgerKey ? [{ key: 'ledger', label: 'كشف الحساب', testID: 'debt_menu_ledger', onPress: () => router.push({ pathname: '/person-ledger', params: { personKey: ledgerKey } }) }] : []),
+    { key: 'reverse', label: d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده', testID: 'debt_menu_reverse', disabled: busy, onPress: () => onReverse(d) },
+    { key: 'delete', label: 'حذف', danger: true, testID: 'debt_menu_delete', disabled: busy, onPress: () => onDelete(d) },
+  ] : [];
+  return <ActionSheet visible={!!debt} testID="debt_menu" title={d?.personName ?? ''} actions={actions} onClose={onClose} returnFocusTo={returnFocusTo} />;
 }
 
 function makeStyles(c: ThemeColors) {

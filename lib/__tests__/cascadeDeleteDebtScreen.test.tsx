@@ -55,6 +55,8 @@ async function pressDelete() {
   // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
   await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
+  // iOS (افتراضي jest-expo): الفعل بيستنى الورقة تختفي — `onDismiss` مبيوصلش في الاختبار، فالمهلة الاحتياطية
+  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
 }
 
 it('عمليات الدين على محفظة مؤرشفة ← رسالة المنع، ومفيش تأكيد ولا مسح', async () => {
@@ -96,6 +98,8 @@ it('بمكوّن التأكيد: التأكيد قبل المسح، الإلغا
   // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
   await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
+  // iOS (افتراضي jest-expo): الفعل بيستنى الورقة تختفي — `onDismiss` مبيوصلش في الاختبار، فالمهلة الاحتياطية
+  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('مسح الدين');
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
@@ -103,6 +107,8 @@ it('بمكوّن التأكيد: التأكيد قبل المسح، الإلغا
   // "حذف" بقى جوه قايمة "⋯" (دراسة الشكل خطوة 3)
   await act(async () => { fireEvent.press(screen.getByTestId('debt_more_d1')); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_menu_delete')); });
+  // iOS (افتراضي jest-expo): الفعل بيستنى الورقة تختفي — `onDismiss` مبيوصلش في الاختبار، فالمهلة الاحتياطية
+  await act(async () => { await new Promise(r => setTimeout(r, 650)); });
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(mockData.deleteDebt).toHaveBeenCalledWith('d1');
 });
