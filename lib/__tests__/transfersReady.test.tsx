@@ -55,7 +55,18 @@ function setData(transfersStatus: 'loading' | 'ready' | 'failed') {
 }
 
 const wrap = (el: React.ReactElement) => <ThemeProvider><PrivacyProvider>{el}</PrivacyProvider></ThemeProvider>;
-const rendered = () => JSON.stringify(screen.toJSON());
+// النص الظاهر بس — FlatList فيها props دايرية فـJSON.stringify للشجرة كلها بيقع
+const rendered = () => {
+  const out: string[] = [];
+  const walk = (n: unknown) => {
+    if (typeof n === 'string') { out.push(n); return; }
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    walk((n as { children?: unknown }).children);
+  };
+  walk(screen.toJSON());
+  return out.join(' ');
+};
 
 describe('transfersStatusFrom', () => {
   it('الاتنين وصلوا ← ready، واحد بس ← loading، أي واحد اترفض ← failed حتى لو وصل قبل كده', () => {

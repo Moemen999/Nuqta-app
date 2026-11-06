@@ -17,8 +17,8 @@ import { MIN_TOUCH } from '@/lib/tokens';
 import { router } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
@@ -159,10 +159,10 @@ export default function ArchiveScreen() {
     }
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="on-drag">
+  // بند C (مراجعة المشروع 2026-11-05): `FlatList` بدل `ScrollView` + `map` — "الكل" على 5000 عملية كان بيركّب كل
+  // الصفوف مرة واحدة. الهيدر (الفترة والإجماليات والتصدير) هو `ListHeaderComponent`، والصف نفسه زي ما هو
+  const header = (
+    <>
       <View style={styles.headerRow}>
         <BackButton />
         <Text style={styles.title}>أرشيف العمليات</Text>
@@ -235,50 +235,83 @@ export default function ArchiveScreen() {
       )}
 
       <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
-      {filtered.length === 0 && (
-        <Text style={styles.emptyState}>
-          {!serverReachable && transactions.length === 0
-            ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
-            : 'مفيش عمليات في الفترة دي'}
-        </Text>
-      )}
-      {filtered.map(t => {
-        const T = TYPE_LABELS[t.type];
-        const catLabel = categoryLabelById(categories, t.categoryId);
-        const walletLabel = transactionWalletLabel(t, wallets);
-        return (
-          // نفس مودال الرئيسية — فيه التسوية والتأكيد والقيود، مفيش مسار تاني.
-          // من غير ده العملية اللي نزلت تحت أحدث 10 مالهاش تصليح (بند 14)
-          <TouchableOpacity
-            key={t.id}
-            testID={`archive_tx_${t.id}`}
-            style={styles.txRow}
-            accessibilityRole="button"
-            accessibilityHint="بيفتح العملية عشان تعدّلها أو تمسحها"
-            onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
-            <View style={styles.txMid}>
-              <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
-              <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
-            </View>
-            <View style={styles.txRight}>
-              <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-              <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
-              {pendingTxIds.has(t.id) && <PendingSyncMark />}
-              {t.autoRecorded && <AutoRecordedMark />}
-            </View>
-          </TouchableOpacity>
-        );
-      })}
+    </>
+  );
+  // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،
+  // زرار التصدير) كان بيعيد رسم كل الصفوف المتركّبة. `extraData` عشان علامة "بترفع" تتحدّث
+  const renderTx = useCallback(({ item: t }: { item: (typeof filtered)[number] }) => (
+    <TxRow
+      t={t}
+      catLabel={categoryLabelById(categories, t.categoryId)}
+      walletLabel={transactionWalletLabel(t, wallets)}
+      pending={pendingTxIds.has(t.id)}
+      styles={styles}
+      colors={colors}
+    />
+  ), [categories, wallets, pendingTxIds, styles, colors]);
 
+  return (
+    <View style={styles.container}>
+      <FlatList
+        testID="archive_list"
+        data={filtered}
+        keyExtractor={t => t.id}
+        renderItem={renderTx}
+        extraData={pendingTxIds}
+        ListHeaderComponent={header}
+        ListEmptyComponent={
+          <Text style={styles.emptyState}>
+            {!serverReachable && transactions.length === 0
+              ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
+              : 'مفيش عمليات في الفترة دي'}
+          </Text>
+        }
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        initialNumToRender={20}
+        windowSize={7}
+      />
       <CalendarPickerModal
         visible={pickerFor !== null}
         value={pickerFor === 'from' ? customFrom : customTo}
         onSelect={(d) => { if (pickerFor === 'from') setCustomFrom(d); else setCustomTo(d); }}
         onClose={() => setPickerFor(null)}
       />
-    </ScrollView>
+    </View>
   );
 }
+
+type Styles = ReturnType<typeof makeStyles>;
+type Tx = ReturnType<typeof useData>['transactions'][number];
+
+/** صف عملية في الأرشيف — نفس الشكل والمودال اللي قبل `FlatList` بالظبط */
+const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, styles, colors }: {
+  t: Tx; catLabel: string; walletLabel: string; pending: boolean; styles: Styles; colors: ThemeColors;
+}) {
+  const T = TYPE_LABELS[t.type];
+  return (
+    // نفس مودال الرئيسية — فيه التسوية والتأكيد والقيود، مفيش مسار تاني.
+    // من غير ده العملية اللي نزلت تحت أحدث 10 مالهاش تصليح (بند 14)
+    <TouchableOpacity
+      testID={`archive_tx_${t.id}`}
+      style={styles.txRow}
+      accessibilityRole="button"
+      accessibilityHint="بيفتح العملية عشان تعدّلها أو تمسحها"
+      onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
+      <View style={styles.txMid}>
+        <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+        <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
+      </View>
+      <View style={styles.txRight}>
+        <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
+        <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+        {pending && <PendingSyncMark />}
+        {t.autoRecorded && <AutoRecordedMark />}
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
