@@ -2,6 +2,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
+import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, subscriptionFromDoc, withId } from '@/lib/fromDoc';
 import { dueDateAfterIncreaseRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
@@ -1058,20 +1059,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
-      setWallets(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      // المعرّف من المسار آخر حاجة — حقل `id` جوه المستند ميغطيهوش (بند B)
+      setWallets(snap.docs.map(d => withId<Wallet>(d.id, d.data())));
       noteConnection(snap.metadata.fromCache);
       noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
       loaded('categories');
-      setCategories(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      setCategories(snap.docs.map(d => withId<Category>(d.id, d.data())));
     }, failed('categories'));
     // includeMetadataChanges عشان نعرف مين لسه بيرفع ومين وصل: من غيرها فايربيز
     // مبتبعتش snapshot تاني لما السيرفر يأكد كتابة محتواها ما اتغيرش، فالعلامة
     // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
       loaded('transactions');
-      setTransactions(snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })));
+      setTransactions(snap.docs.map(d => withId<Transaction>(d.id, d.data())));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
 
@@ -1083,23 +1085,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
       loaded('budgets');
       const b: Budgets = {};
-      snap.docs.forEach(d => { b[d.id] = (d.data() as any).limit; });
+      // رقم محدود بس (بند B): `undefined`/نص كان بيدخل حسبة "قربت تخلص" NaN
+      snap.docs.forEach(d => { const v = numberField(d.data(), 'limit'); if (v !== undefined) b[d.id] = v; });
       setBudgets(b);
     }, failed('budgets'));
     const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), (snap) => {
       loaded('shakhbata_income');
       const s: ShakhbataIncome = {};
-      snap.docs.forEach(d => { s[d.id] = (d.data() as any).income; });
+      snap.docs.forEach(d => { const v = numberField(d.data(), 'income'); if (v !== undefined) s[d.id] = v; });
       setShakhbataIncome(s);
     }, failed('shakhbata_income'));
     const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), (snap) => {
       loaded('shakhbata_settings');
       if (snap.exists()) {
-        const data = snap.data() as any;
+        const data = snap.data();
+        // `??` كان بيعدّي نص ("50") وNaN — المجموع كان بيتلزق نص (بند B)
         setShakhbataPercentsState({
-          needs: data.needs ?? DEFAULT_PERCENTS.needs,
-          wants: data.wants ?? DEFAULT_PERCENTS.wants,
-          future: data.future ?? DEFAULT_PERCENTS.future,
+          needs: finiteOr(data.needs, DEFAULT_PERCENTS.needs),
+          wants: finiteOr(data.wants, DEFAULT_PERCENTS.wants),
+          future: finiteOr(data.future, DEFAULT_PERCENTS.future),
         });
       } else {
         setShakhbataPercentsState(DEFAULT_PERCENTS);
@@ -1111,20 +1115,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // مصفوفات مش اختياريين، ومستند قديم من غير الحقلين كان بيخلي النوع
       // يكدب — وأربع شاشات بتعمل `d.payments.forEach/.map/.length` من غير
       // حراسة (`person-ledger`, `reports`, `debts` في مكانين)
-      setDebts(snap.docs.map(d => ({ id: d.id, payments: [], increases: [], ...(d.data() as any) })) as Debt[]);
+      // `payments: null` كان بيغطي الافتراضي بالـspread ويوقّع 4 شاشات (بند B)
+      setDebts(snap.docs.map(d => debtFromDoc<Debt>(d.id, d.data())));
     }, failed('debts'));
     const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
       loaded('subscriptions');
-      setSubscriptions(snap.docs.map(d => ({ id: d.id, history: [], ...(d.data() as any) })) as Subscription[]);
+      setSubscriptions(snap.docs.map(d => subscriptionFromDoc<Subscription>(d.id, d.data())));
     }, failed('subscriptions'));
     const unsubGamiyas = onSnapshot(collection(db, 'users', uid, 'gamiyas'), (snap) => {
       loaded('gamiyas');
-      setGamiyas(snap.docs.map(d => ({ id: d.id, months: [], ...(d.data() as any) })) as Gamiya[]);
+      setGamiyas(snap.docs.map(d => gamiyaFromDoc<Gamiya>(d.id, d.data())));
     }, failed('gamiyas'));
 
     const unsubIncomes = onSnapshot(collection(db, 'users', uid, 'incomes'), (snap) => {
       loaded('incomes');
-      setIncomes(snap.docs.map(d => ({ id: d.id, closed: {}, ...(d.data() as any) })) as RecurringIncome[]);
+      setIncomes(snap.docs.map(d => incomeFromDoc<RecurringIncome>(d.id, d.data())));
     }, failed('incomes'));
 
     return () => {
