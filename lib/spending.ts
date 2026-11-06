@@ -68,6 +68,12 @@ export function isCreditPurchase(d: Pick<Debt, 'direction' | 'initialTransaction
   return d.direction === 'i_owe' && !d.initialTransactionId;
 }
 
+/**
+ * سطر تحذير في فورم الدين/الزيادة "عليك له" من غير محفظة (شرا بالأجل) — قرار مؤمن 2026-11-06 على ترشيح المقارنة بالنت:
+ * من غيره المستخدم ممكن يسجّل الشرا مصروف عادي **و**يسجّل السداد ← نفس الفلوس مرتين في المصروف
+ */
+export const CREDIT_PURCHASE_HINT = 'متسجلش الشرا نفسه مصروف — السداد هو اللي بيتحسب';
+
 type Tx = { id: string; type: string; amount: number; date: string };
 
 /** المصروف الحقيقي: `expense` ومش سلفة ولا قسط جمعية */
