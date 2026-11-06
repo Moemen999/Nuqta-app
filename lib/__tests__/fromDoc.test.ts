@@ -1,3 +1,6 @@
+jest.mock('@sentry/react-native', () => ({ captureMessage: jest.fn() }));
+import * as Sentry from '@sentry/react-native';
+import { resetBadShapeReports } from '@/lib/fromDoc';
 import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, subscriptionFromDoc, withId } from '@/lib/fromDoc';
 
 /** بند B (مراجعة المشروع 2026-11-05): شكل المستند من غير قرار — المعرّف، المصفوفات، الأرقام */
@@ -24,4 +27,27 @@ it('الأرقام: محدود بس', () => {
   expect(finiteOr('50', 30)).toBe(30);
   expect(finiteOr(NaN, 30)).toBe(30);
   expect(finiteOr(40, 30)).toBe(40);
+});
+
+describe('التبليغ (silent-failure-hunter جولة 1)', () => {
+  beforeEach(() => { resetBadShapeReports(); (Sentry.captureMessage as jest.Mock).mockClear(); });
+
+  it('حقل موجود وشكله غلط ← تبليغ بالمجموعة والحقل بس، مرة واحدة في الجلسة', () => {
+    debtFromDoc('d1', { payments: null });
+    debtFromDoc('d2', { payments: null });
+    expect(Sentry.captureMessage).toHaveBeenCalledTimes(1);
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('firestore doc bad shape: debts.payments', expect.objectContaining({ tags: { doc_collection: 'debts', doc_field: 'payments' } }));
+  });
+
+  it('حقل ناقص (مستند قديم) ← مفيش تبليغ', () => {
+    debtFromDoc('d1', {});
+    numberField({}, 'limit', 'budgets');
+    finiteOr(undefined, 50, ['shakhbata_settings', 'needs']);
+    expect(Sentry.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it('ميزانية رقمها نص ← تبليغ', () => {
+    numberField({ limit: '500' }, 'limit', 'budgets');
+    expect(Sentry.captureMessage).toHaveBeenCalledWith('firestore doc bad shape: budgets.limit', expect.anything());
+  });
 });
