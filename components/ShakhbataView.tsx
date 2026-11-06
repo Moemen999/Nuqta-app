@@ -133,6 +133,7 @@ export default function ShakhbataView() {
       <Text style={styles.label}>دخل شهر {MONTH_NAMES[Number(nowMonth.slice(5, 7)) - 1]} {nowMonth.slice(0, 4)}</Text>
       <TextInput
         style={styles.incomeInput}
+        accessibilityLabel={`دخل شهر ${MONTH_NAMES[Number(nowMonth.slice(5, 7)) - 1]}`}
         keyboardType="numeric"
         placeholder="0"
         placeholderTextColor={colors.textSecondary}
@@ -164,6 +165,7 @@ export default function ShakhbataView() {
               <Text style={styles.microLabel}>{b.label} %</Text>
               <TextInput
                 style={styles.percentInput}
+                accessibilityLabel={`نسبة ${b.label}`}
                 keyboardType="numeric"
                 value={percentDrafts[b.key]}
                 onChangeText={v => setPercentDrafts(d => d ? { ...d, [b.key]: v } : d)}
@@ -187,6 +189,7 @@ export default function ShakhbataView() {
             // نفس قاعدة الميزانية: لون من 80% بس، والشريط بتوكنز النص (≥ 4.5 على المسار)
             const color = usagePct >= 100 ? colors.dangerText : usagePct >= 80 ? colors.accentText : colors.textSecondary;
             const textColor = color;
+            const cue = usagePct >= 100 ? 'خلص — ' : usagePct >= 80 ? 'قرّب يخلص — ' : '';
             return (
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
@@ -199,7 +202,7 @@ export default function ShakhbataView() {
                       <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
                     </View>
                     <Text style={[styles.bucketSpend, { color: textColor }]}>
-                      اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
+                      {cue}اتصرف: <Money value={spend} currency={false} /> {spend > target ? `(زيادة ${money(spend - target)})` : `(متبقي ${money(target - spend)})`}
                     </Text>
                   </>
                 )}
@@ -212,7 +215,9 @@ export default function ShakhbataView() {
 
       {/* التصنيف كان 30 زرار صغير لـ10 فئات على الشاشة كلها (دراسة الشكل) ← مطوي، والعنوان بيقول فاضل كام */}
       <FoldedSection testID="shakhbata_classify" count={categories.length}
-        title={unassigned.length > 0 ? `صنّف فئاتك — ${unassigned.length} لسه` : 'صنّف فئاتك'}
+        title={unassigned.length > 0 ? `صنّف فئاتك — ${categoriesPhrase(unassigned.length)} لسه` : 'صنّف فئاتك'} showCount={false}
+        // مفتوح من الأول لو فيه فئات من غير تصنيف والدخل متسجل — غير كده الأقسام فوق صفر والحل مستخبي (a11y-architect)
+        defaultOpen={unassigned.length > 0 && income > 0}
         a11yLabel={unassigned.length > 0 ? `صنّف فئاتك، ${categoriesPhrase(unassigned.length)} لسه من غير تصنيف` : 'صنّف فئاتك، كلها متصنّفة'}>
         <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
         {categories.map(c => (
@@ -266,10 +271,10 @@ function makeStyles(c: ThemeColors) {
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     bucketLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     bucketTarget: { color: c.textSecondary, fontSize: typeScale.body },
-    track: { height: 4, backgroundColor: c.surface2, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: 2 },
     bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
     hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
     catRow: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.sm },
     catName: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', marginBottom: 8 },
