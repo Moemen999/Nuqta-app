@@ -11,6 +11,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
+import { LineIcon } from '@/components/LineIcon';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -146,12 +147,17 @@ export default function LockScreen() {
   useEffect(() => { setError(''); }, [waiting]);
 
   // سطر الحالة تحت الكود (نفسه للرقم والباسورد): السبب + العدّ التنازلي، أو رسالة الغلط
-  const statusLine = waiting
-    ? <>
-        <Text testID="lock_wait_reason" style={styles.error}>{LOCK_WAIT_REASON}</Text>
-        <Text testID="lock_wait" style={styles.error}>{lockWaitMessage(waitUntil - now)}</Text>
-      </>
-    : <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>;
+  // مساحة ثابتة لسطرين: لوحة الأرقام كانت بتنط لفوق لما سطر السبب يختفي (اتشاف على الشاومي، بناء 1.0.0.008)
+  const statusLine = (
+    <View testID="lock_screen_status" style={styles.status}>
+      {waiting
+        ? <>
+            <Text testID="lock_wait_reason" style={styles.statusText}>{LOCK_WAIT_REASON}</Text>
+            <Text testID="lock_wait" style={styles.statusText}>{lockWaitMessage(waitUntil - now)}</Text>
+          </>
+        : <Text style={styles.statusText} accessibilityLiveRegion="assertive">{error || ' '}</Text>}
+    </View>
+  );
 
   async function handleSubmit(value?: string) {
     const toCheck = value ?? code;
@@ -194,7 +200,7 @@ export default function LockScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
-      <Text style={styles.lockEmoji} accessible={false} importantForAccessibility="no">🔒</Text>
+      <View style={styles.lockIcon}><LineIcon name="lock-closed-outline" size={44} color={colors.accent} /></View>
       <Text style={styles.title} accessibilityRole="header">نقطة مقفولة</Text>
 
       {readFailed ? (
@@ -285,11 +291,13 @@ function makeStyles(c: ThemeColors) {
     flex: { flex: 1, backgroundColor: c.bg },
     container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     footer: { ...stickyFooterStyle(c, c.bg), justifyContent: 'center' },
-    lockEmoji: { fontSize: 44, marginBottom: 10 },
+    lockIcon: { marginBottom: 10 },
     title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
     dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
     error: { color: c.dangerText, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
+    status: { minHeight: 48, marginBottom: 18, justifyContent: 'center', gap: 4 },
+    statusText: { color: c.dangerText, fontSize: 13, minHeight: 18, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },

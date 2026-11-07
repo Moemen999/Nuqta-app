@@ -8,7 +8,7 @@ import { join } from 'path';
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 const code = (s: string) => s.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
 
-it.each(['app/(tabs)/_layout.tsx', 'app/(tabs)/settings.tsx'])('%s: مفيش إيموجي في الكود، والأيقونات من LineIcon', (f) => {
+it.each(['app/(tabs)/_layout.tsx', 'app/(tabs)/settings.tsx', 'components/LockScreen.tsx'])('%s: مفيش إيموجي في الكود، والأيقونات من LineIcon', (f) => {
   const src = code(read(f));
   expect(src.match(/\p{Extended_Pictographic}/gu) ?? []).toEqual([]);
   expect(src).toContain("from '@/components/LineIcon'");

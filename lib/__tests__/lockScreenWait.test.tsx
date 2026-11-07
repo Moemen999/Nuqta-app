@@ -88,3 +88,14 @@ it('مودال القفل: «استنى» بالسبب، والعدّ بينزل
   await act(async () => { nowMs += 20_001; jest.advanceTimersByTime(1000); });
   expect(screen.queryByTestId('setlock_wait')).toBeNull();
 });
+
+it('مساحة الحالة ثابتة في الحالتين (اللوحة مبتنطش لما سطر السبب يظهر أو يختفي)', async () => {
+  const view = await render(<ThemeProvider><LockScreen /></ThemeProvider>);
+  const waitingStyle = screen.getByTestId('lock_screen_status').props.style;
+  mockLock.waitUntil = 0;
+  await view.rerender(<ThemeProvider><LockScreen /></ThemeProvider>);
+  await act(async () => { jest.advanceTimersByTime(1000); });
+  expect(screen.queryByTestId('lock_wait')).toBeNull();
+  expect(screen.getByTestId('lock_screen_status').props.style).toEqual(waitingStyle);
+  expect(waitingStyle.minHeight).toBeGreaterThanOrEqual(48);
+});
