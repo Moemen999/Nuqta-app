@@ -24,9 +24,33 @@ service cloud.firestore {
     // الحقل موجود في المستند المتخزّن وقيمته هي هي بعد الكتابة — يعني الكتابة
     // دي مش هي اللي كتبته. بيسمح لقيمة قديمة اتكتبت قبل ما القاعدة تتشد إنها
     // تفضل، من غير ما يسمح بقيمة جديدة غلط. في الإنشاء `resource` بـnull.
+    // ── الاختبار العنيف 2026-11-07 (security-reviewer + attackProbe): القيم البايظة جوه الحساب نفسه ──
+    // رقم محدود: بيرفض NaN (أي مقارنة معاه false) وInfinity. الحد 10^18 (مليار مليار) **تقني** مش سقف فلوس — لغة القواعد مبتقبلش 1e300 (قاعدة: متخترعش سقف) —
+    // أكبر من أي مبلغ حقيقي بكتير، ومعمول بس عشان اللا نهائي.
+    function finite(v) {
+      return v is number && v > -1000000000000000000.0 && v < 1000000000000000000.0;
+    }
+    function positiveFinite(v) {
+      return finite(v) && v > 0;
+    }
+    // نص اختياري بطول معقول (ملاحظة 900KB كانت بتتقبل). الحدود واسعة عن قصد — بس بتمنع الملي ميجا
+    function optText(data, k, max) {
+      return !(k in data) || (data[k] is string && data[k].size() <= max);
+    }
+    // اسم مش فاضي وبطول معقول — **وبيتفحص بس لو اتغيّر** عشان أي مستند قديم باسم فاضي ميتقفلش
+    function nameOk(data, k) {
+      return unchangedField(k) || (data[k] is string && data[k].size() > 0 && data[k].size() <= 500);
+    }
+    function isDate(v) {
+      return v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    // NaN مبيساويش نفسه — فمستند قديم قيمته NaN كان هيتقفل للأبد (مراجعة الأمان 2026-11-07). NaN قديم فضل NaN = زي ما هو.
     function unchangedField(f) {
       return resource != null && f in resource.data
-        && request.resource.data[f] == resource.data[f];
+        && (request.resource.data[f] == resource.data[f]
+          || (resource.data[f] is float && resource.data[f] != resource.data[f]
+            && request.resource.data[f] is float && request.resource.data[f] != request.resource.data[f]));
     }
 
     /**
@@ -74,8 +98,10 @@ service cloud.firestore {
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.openingBalance is number
-          && request.resource.data.lowAlert is number
+          && nameOk(request.resource.data, 'name')
+          // محدود — أو زي ما هو (محفظة قديمة رصيدها بايظ تتعدّل في حاجة تانية؛ التطبيق بيعلّمها `openingInvalid`)
+          && (finite(request.resource.data.openingBalance) || unchangedField('openingBalance'))
+          && (finite(request.resource.data.lowAlert) || unchangedField('lowAlert'))
           && archiveFieldsValid(request.resource.data);
       }
 
@@ -99,10 +125,14 @@ service cloud.firestore {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.type in ['expense', 'income', 'withdraw']
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
+          && (positiveFinite(request.resource.data.amount) || unchangedField('amount'))
           && request.resource.data.walletId is string
-          && request.resource.data.date is string
+          // التاريخ YYYY-MM-DD — أو زي ما هو (عملية قديمة تاريخها بايظ: ورقة "صلّح العملية" بتكتب تاريخ صح)
+          && (isDate(request.resource.data.date) || (request.resource.data.date is string && unchangedField('date')))
+          && (optText(request.resource.data, 'note', 5000) || unchangedField('note'))
+          && (!('toWalletId' in request.resource.data) || request.resource.data.toWalletId is string)
+          && (!('categoryId' in request.resource.data) || request.resource.data.categoryId is string)
+          && (!('createdAt' in request.resource.data) || request.resource.data.createdAt is string)
           // تحويل التسوية: بيرجّع رصيد محفظة مؤرشفة لصفر. الحقلين اختياريين
           // زي حقول الأرشفة — كل العمليات الموجودة من قبل مالهاش الحقلين دول
           && (!('isSettlement' in request.resource.data) || request.resource.data.isSettlement is bool)
@@ -114,14 +144,14 @@ service cloud.firestore {
       match /budgets/{budgetId} {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
-          && request.resource.data.limit is number
+          && finite(request.resource.data.limit)
           && request.resource.data.limit >= 0;
       }
 
       match /shakhbata_income/{month} {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
-          && request.resource.data.income is number
+          && finite(request.resource.data.income)
           && request.resource.data.income >= 0;
       }
 
@@ -129,8 +159,11 @@ service cloud.firestore {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.personName is string
-          && request.resource.data.totalAmount is number
-          && request.resource.data.totalAmount > 0
+          && nameOk(request.resource.data, 'personName')
+          && (positiveFinite(request.resource.data.totalAmount) || unchangedField('totalAmount'))
+          && (optText(request.resource.data, 'note', 5000) || unchangedField('note'))
+          && (!('payments' in request.resource.data) || request.resource.data.payments is list)
+          && (!('increases' in request.resource.data) || request.resource.data.increases is list)
           && request.resource.data.direction in ['owed_to_me', 'i_owe']
           // قيمة القسط وعدده اختياريين: الديون اللي اتعملت قبل الميزة مالهاش
           // الحقلين، والقاعدة بتتحقق من **المستند بعد الدمج** — فلو خليناهم
@@ -155,8 +188,8 @@ service cloud.firestore {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
+          && nameOk(request.resource.data, 'name')
+          && (positiveFinite(request.resource.data.amount) || unchangedField('amount'))
           && chargeModeValid(request.resource.data);
       }
 
@@ -168,8 +201,7 @@ service cloud.firestore {
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.amount is number
-          && request.resource.data.amount > 0
+          && (positiveFinite(request.resource.data.amount) || unchangedField('amount'))
           && request.resource.data.walletId is string
           && request.resource.data.frequency in ['monthly', 'weekly']
           && request.resource.data.mode in ['auto', 'confirm']
@@ -186,15 +218,17 @@ service cloud.firestore {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
           && request.resource.data.name is string
-          && request.resource.data.monthlyAmount is number
+          && nameOk(request.resource.data, 'name')
+          && (positiveFinite(request.resource.data.monthlyAmount) || unchangedField('monthlyAmount'))
+          && (!('months' in request.resource.data) || request.resource.data.months is list)
           && chargeModeValid(request.resource.data);
       }
       match /shakhbata_settings/{docId} {
         allow read, delete: if request.auth != null && request.auth.uid == userId;
         allow create, update: if request.auth != null && request.auth.uid == userId
-          && request.resource.data.needs is number
-          && request.resource.data.wants is number
-          && request.resource.data.future is number;
+          && finite(request.resource.data.needs) && request.resource.data.needs >= 0
+          && finite(request.resource.data.wants) && request.resource.data.wants >= 0
+          && finite(request.resource.data.future) && request.resource.data.future >= 0;
       }
     }
   }

@@ -1,5 +1,4 @@
-import { doc, setDoc } from 'firebase/firestore';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser, writeRawDoc } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 import { walletBalance } from '@/lib/finance';
@@ -24,7 +23,6 @@ beforeEach(async () => {
 afterEach(async () => { await harness.unmount(); });
 
 it('حساب مليان بيانات بايظة ← مفيش كراش، والأرصدة والمصروف أرقام محدودة', async () => {
-  const { db } = require('@/firebaseConfig');
   const A = getMockUid();
   await harness.waitForData(a => a.wallets.length > 0);
   const w = harness.api().wallets[0].id;
@@ -45,7 +43,8 @@ it('حساب مليان بيانات بايظة ← مفيش كراش، والأ
     [['budgets', 'c1'], { limit: Infinity }],
     [['shakhbata_income', '2026-01'], { income: Infinity }],
   ];
-  for (const [p, data] of writes) await setDoc(doc(db, 'users', A, ...p), data);
+  // من غير القواعد: القواعد المشدودة (2026-11-07) بترفض الكتابات دي من الكلاينت — بس البيانات القديمة لسه ممكن تكون كده
+  for (const [p, data] of writes) await writeRawDoc(['users', A, ...p].join('/'), data as Record<string, unknown>);
   await harness.waitForData(a => a.wallets.length >= 3 && a.brokenTransactions.length >= 1, 20000);
   const api = harness.api();
   // الأرصدة: كل محفظة رقم محدود (البايظ برّه الحساب)
