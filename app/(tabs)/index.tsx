@@ -128,6 +128,12 @@ function HomeScreen() {
   // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي. **وبس لما الأرقام من السيرفر**
   // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
   // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
+  // بانر الكاش بيظهر بعد مهلة التحميل — قارئ الشاشة مبيقراش live region وقت ما العنصر يظهر، فبنقوله مرة (silent-failure-hunter)
+  const coldShown = !!cold && loadWindowPassed;
+  const coldSavedAt = cold?.savedAt;
+  useEffect(() => {
+    if (coldShown && coldSavedAt !== undefined) AccessibilityInfo.announceForAccessibility(coldFiguresText(coldSavedAt, formatTime));
+  }, [coldShown, coldSavedAt]);
   const wasCold = useRef(false);
   useEffect(() => {
     if (cold) { wasCold.current = true; return; }

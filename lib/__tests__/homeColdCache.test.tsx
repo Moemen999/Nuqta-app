@@ -121,11 +121,18 @@ it('مفيش مسح معلّق ← مفيش بانر', async () => {
 it('الكاش في أول ثانيتين من الفتح ← «(قديم)» ظاهر، وبانر «مفيش نت» لسه لأ (ميلمعش والنت شغال)', async () => {
   setData({ coldSnapshot: cold });
   jest.useFakeTimers();
+  const { AccessibilityInfo } = require('react-native');
+  const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+  announce.mockClear();
   await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   await act(async () => { jest.advanceTimersByTime(1500); });
   expect(screen.getByText('إجمالي رصيدك (قديم)')).toBeTruthy();
   expect(screen.queryByTestId('home_banner_cold')).toBeNull();
+  expect(announce.mock.calls.map(c => c[0])).toEqual([]);
   await act(async () => { jest.advanceTimersByTime(1500); });
   expect(screen.getByTestId('home_banner_cold')).toBeTruthy();
+  // ظهر بعد المهلة ← بيتقال لقارئ الشاشة مرة
+  expect(announce).toHaveBeenCalledTimes(1);
+  expect(announce.mock.calls[0][0]).toContain('مفيش نت دلوقتي');
   jest.useRealTimers();
 });
