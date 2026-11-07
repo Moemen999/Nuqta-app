@@ -367,3 +367,42 @@ describe('تشديد القيم (الاختبار العنيف)', () => {
     await updateDoc(doc(db, 'users', uid, 'debts', 'old'), { note: 'تعديل' });
   });
 });
+
+describe('تشديد القيم — جولة المراجعة (البيانات القديمة متتقفلش)', () => {
+  const tx = { type: 'expense', amount: 10, walletId: 'w1', date: '2026-01-01' };
+  const debt = { personName: 'صاحبي', totalAmount: 100, direction: 'i_owe', payments: [], increases: [] };
+
+  it('دين قديم ملاحظته أطول من 5000 لسه بياخد دفعة (التعديل مبيلمسش الملاحظة)', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/debts/old`, { ...debt, note: 'x'.repeat(6000) });
+    await updateDoc(doc(db, 'users', uid, 'debts', 'old'), { payments: [{ amount: 10, date: '2026-01-02' }] });
+    // بس ملاحظة طويلة جديدة لأ
+    await expectDenied(updateDoc(doc(db, 'users', uid, 'debts', 'old'), { note: 'y'.repeat(6000) }));
+  });
+
+  it('عملية قديمة ملاحظتها مش نص لسه بتتعدّل في حقل تاني', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/transactions/old`, { ...tx, note: { a: 1 } });
+    await updateDoc(doc(db, 'users', uid, 'transactions', 'old'), { categoryId: 'c1' });
+  });
+
+  it('عملية قديمة مبلغها Infinity لسه بتتعدّل في حقل تاني، ومتتكتبش Infinity جديدة', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/transactions/old`, { ...tx, amount: Infinity });
+    await updateDoc(doc(db, 'users', uid, 'transactions', 'old'), { categoryId: 'c1' });
+    await expectDenied(setDoc(doc(db, 'users', uid, 'transactions', 'new'), { ...tx, amount: Infinity }));
+  });
+
+  // NaN مبيساويش نفسه في أغلب اللغات — لو القواعد كده، المحفظة القديمة اللي رصيدها NaN هتتقفل للأبد
+  it('محفظة قديمة رصيدها NaN: نتيجة التعديل في الاسم', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/wallets/old`, { name: 'قديمة', openingBalance: NaN, lowAlert: 0 });
+    await updateDoc(doc(db, 'users', uid, 'wallets', 'old'), { name: 'قديمة 2' });
+  });
+});
+
+it('محفظة قديمة رصيدها NaN: مينفعش تتحط NaN في محفظة سليمة بالتعديل', async () => {
+  const uid = await signInTestUser();
+  await setDoc(doc(db, 'users', uid, 'wallets', 'ok'), { name: 'سليمة', openingBalance: 5, lowAlert: 0 });
+  await expectDenied(updateDoc(doc(db, 'users', uid, 'wallets', 'ok'), { openingBalance: NaN }));
+});
