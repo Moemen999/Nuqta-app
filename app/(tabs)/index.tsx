@@ -128,6 +128,12 @@ function HomeScreen() {
   // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي. **وبس لما الأرقام من السيرفر**
   // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
   // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
+  // بانر الكاش بيظهر بعد مهلة التحميل — قارئ الشاشة مبيقراش live region وقت ما العنصر يظهر، فبنقوله مرة (silent-failure-hunter)
+  const coldShown = !!cold && loadWindowPassed;
+  const coldSavedAt = cold?.savedAt;
+  useEffect(() => {
+    if (coldShown && coldSavedAt !== undefined) AccessibilityInfo.announceForAccessibility(coldFiguresText(coldSavedAt, formatTime));
+  }, [coldShown, coldSavedAt]);
   const wasCold = useRef(false);
   useEffect(() => {
     if (cold) { wasCold.current = true; return; }
@@ -246,7 +252,9 @@ function HomeScreen() {
           </View>
         )}
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
-        {cold && (
+        {/* بعد مهلة التحميل بس، زي «مفيش نت» (offlineEmpty): الكاش بيتعرض في أول ثانية من كل فتح والنت شغال، والجملة
+            «مفيش نت دلوقتي» كانت بتلمع أحمر غلط (اتشاف على الشاومي 2026-11-07). «(قديم)» جنب الإجمالي بيبان من الأول */}
+        {cold && loadWindowPassed && (
           <View testID="home_banner_cold" style={[styles.banner, styles.bannerDanger, { minHeight: MIN_TOUCH }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
