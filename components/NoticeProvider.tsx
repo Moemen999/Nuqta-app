@@ -39,6 +39,20 @@ type Show = (title: string, body: string, onDismiss?: () => void, opts?: NoticeO
 
 const NoticeContext = createContext<Show | null>(null);
 
+/**
+ * «استنى لحد ما القفل يتفتح» (قرار مؤمن 2026-11-07 على الترشيح): الـProvider برّه القفل عن قصد (رسالة «ما اتحفظش» متضيعش
+ * لما التطبيق يتقفل — 2026-11-02)، بس كده رسالة بتوصل والتطبيق مقفول كانت **بتظهر فوق شاشة القفل** وفيها كلام عن الفلوس.
+ * دلوقتي بتفضل في الطابور (مبتتشالش) وبتظهر أول ما القفل يتفتح. `RootNavigator` (جوه القفل) هو اللي بيقول مقفول ولا لأ.
+ */
+const NoticeHoldContext = createContext<((held: boolean) => void) | null>(null);
+
+export function useHoldNotices(held: boolean) {
+  const set = useContext(NoticeHoldContext);
+  useEffect(() => { set?.(held); }, [set, held]);
+  // الـgate اتشال (خروج) ← ميفضلش ماسك الرسايل للأبد
+  useEffect(() => () => { set?.(false); }, [set]);
+}
+
 const nativeAlert: Show = (title, body, onDismiss) =>
   onDismiss
     ? Alert.alert(title, body, [{ text: 'تمام', onPress: onDismiss }], { onDismiss })
@@ -52,6 +66,7 @@ export function useNotice(): Show {
 
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Notice[]>([]);
+  const [held, setHeld] = useState(false);
   const show = useCallback<Show>((title, body, onDismiss, opts) => {
     setQueue(q => [...q, { title, body, onDismiss, celebrate: !!opts?.celebrate }]);
   }, []);
@@ -68,10 +83,12 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
 
   return (
     <NoticeContext.Provider value={show}>
+    <NoticeHoldContext.Provider value={setHeld}>
       {children}
       {/* بيقفل الرسالة اللي اتعرضت بس: دوستين بسرعة على "تمام" وقت الاختفاء كانت
           هتقفل الجاية كمان من غير ما تتشاف — ودي ممكن تبقى "ما اتسجلش" (a11y-architect) */}
-      <NoticeDialog notice={current} onDismiss={dismiss} />
+      <NoticeDialog notice={held ? null : current} onDismiss={dismiss} />
+    </NoticeHoldContext.Provider>
     </NoticeContext.Provider>
   );
 }
