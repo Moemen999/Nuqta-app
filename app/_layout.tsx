@@ -21,7 +21,7 @@ import { AppLockProvider, shouldShowLock, useAppLock } from '@/context/AppLockCo
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import FirstRunSetup from '@/components/FirstRunSetup';
-import { NoticeProvider, useHoldNotices } from '@/components/NoticeProvider';
+import { NoticeProvider, useClearNoticesOnAccountChange, useHoldNotices } from '@/components/NoticeProvider';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
@@ -64,6 +64,7 @@ function RootNavigator() {
   const ready = !loading && !lockLoading && onboardingDone !== null;
   // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)
   useHoldNotices(lockLoading || shouldShowLock({ enabled, isLocked, readFailed }));
+  useClearNoticesOnAccountChange(user?.uid ?? null);
   useEffect(() => {
     if (ready) releaseSplash();
   }, [ready]);

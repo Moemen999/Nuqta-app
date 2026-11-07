@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { NoticeProvider, useHoldNotices, useNotice } from '@/components/NoticeProvider';
+import { NoticeProvider, useClearNoticesOnAccountChange, useHoldNotices, useNotice } from '@/components/NoticeProvider';
 import { ThemeProvider } from '@/context/ThemeContext';
 
 /**
@@ -49,4 +49,24 @@ it('الماسك اتشال (خروج) ← الرسايل مبتفضلش مست�
 it('_layout بيمسك الرسايل وقت شاشة القفل ووقت قراية إعداد القفل', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'app', '_layout.tsx'), 'utf8');
   expect(src).toContain('useHoldNotices(lockLoading || shouldShowLock({ enabled, isLocked, readFailed }))');
+  expect(src).toContain('useClearNoticesOnAccountChange(user?.uid ?? null)');
+});
+
+function Account({ uid, held }: { uid: string | null; held: boolean }) { useHoldNotices(held); useClearNoticesOnAccountChange(uid); return null; }
+const tree2 = (uid: string | null, held: boolean) => (
+  <ThemeProvider><NoticeProvider><Grab /><Account uid={uid} held={held} /></NoticeProvider></ThemeProvider>
+);
+
+it('«نسيت الكود؟»: خروج + القفل اتفك ← الرسالة المستنية اتشالت ومبتظهرش على شاشة الدخول', async () => {
+  const view = await render(tree2('u1', true));
+  await act(async () => { show('الكتابة ما وصلتش', 'الدين "صاحبي" ما اتحفظش'); });
+  await view.rerender(tree2(null, false));
+  expect(screen.queryByTestId('notice_dialog')).toBeNull();
+});
+
+it('أول تسجيل دخول (من null) مبيمسحش رسالة اتبعتت قبله', async () => {
+  const view = await render(tree2(null, false));
+  await act(async () => { show('t', 'b'); });
+  await view.rerender(tree2('u1', false));
+  expect(screen.getByTestId('notice_dialog')).toBeTruthy();
 });
