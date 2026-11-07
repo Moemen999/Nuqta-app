@@ -25,6 +25,7 @@ import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
 /**
  * مودالات تسجيل دفعة وزيادة على دين ودين جديد.
@@ -519,7 +520,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput testID="debt_add_person" style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
@@ -572,7 +573,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           />
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput style={styles.input} value={note} onChangeText={setNote}
+          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           {!!error && <Text style={styles.error}>{error}</Text>}

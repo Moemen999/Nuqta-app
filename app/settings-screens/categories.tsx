@@ -20,6 +20,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 /** إدارة الفئات — اتنقلت من شاشة الإعدادات بنفس منطق الحفظ بالحرف */
 export default function CategoriesScreen() {
@@ -179,7 +180,7 @@ export default function CategoriesScreen() {
             <TextInput
               testID={`category_name_input_${c.id}`}
               style={styles.nameInput}
-              value={nameDrafts[c.id] !== undefined ? nameDrafts[c.id] : c.name}
+              maxLength={NAME_MAX_LENGTH} value={nameDrafts[c.id] !== undefined ? nameDrafts[c.id] : c.name}
               onChangeText={v => setNameDrafts(d => ({ ...d, [c.id]: v }))}
               onBlur={() => saveName(c.id, c.name)}
               textAlign="right"
@@ -196,7 +197,7 @@ export default function CategoriesScreen() {
 
         <View style={styles.addRow}>
           <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
-            value={newCategory} onChangeText={setNewCategory} textAlign="right" />
+            maxLength={NAME_MAX_LENGTH} value={newCategory} onChangeText={setNewCategory} textAlign="right" />
           <TouchableOpacity accessibilityRole="button"
             testID="category_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}

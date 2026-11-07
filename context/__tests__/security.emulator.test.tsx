@@ -1,5 +1,5 @@
 import { db } from '@/firebaseConfig';
-import { clearFirestore, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser, writeLegacyDoc, writeRawDoc } from '@/test-utils/emulator';
 import { addDoc, collection, deleteDoc, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 
 /**
@@ -300,5 +300,70 @@ describe('ديون قديمة فيها عدد أقساط غلط مبتتقفلش
     const uid = await signInTestUser();
     await writeLegacyDoc(`users/${uid}/debts/legacy`, { ...base, installmentCount: 200, installmentAmount: 0 });
     await updateDoc(doc(db, 'users', uid, 'debts', 'legacy'), { personName: 'صاحبي ب' });
+  });
+});
+
+/**
+ * تشديد القواعد بعد الاختبار العنيف (2026-11-07): القيم البايظة جوه حساب الواحد نفسه بتترفض وقت الكتابة —
+ * وكانت كلها بتتقبل (attackProbe). وكمان: مستند قديم فيه قيمة بايظة **لسه بيتعدّل** في حقل تاني (`unchangedField`)،
+ * عشان التشديد ميقفلش حد على بياناته القديمة.
+ */
+describe('تشديد القيم (الاختبار العنيف)', () => {
+  const tx = { type: 'expense', amount: 10, walletId: 'w1', date: '2026-01-01' };
+  const deniedCases: [string, string, Record<string, unknown>][] = [
+    ['عملية مبلغها Infinity', 'transactions', { ...tx, amount: Infinity }],
+    ['عملية مبلغها NaN', 'transactions', { ...tx, amount: NaN }],
+    ['عملية تاريخها مش YYYY-MM-DD', 'transactions', { ...tx, date: '1/9/2026' }],
+    ['عملية ملاحظتها أطول من 5000', 'transactions', { ...tx, note: 'x'.repeat(5001) }],
+    ['عملية ملاحظتها مش نص', 'transactions', { ...tx, note: { a: 1 } }],
+    ['عملية toWalletId رقم', 'transactions', { ...tx, toWalletId: 5 }],
+    ['عملية createdAt رقم', 'transactions', { ...tx, createdAt: 12345 }],
+    ['محفظة رصيدها Infinity', 'wallets', { name: 'x', openingBalance: Infinity, lowAlert: 0 }],
+    ['محفظة حد التنبيه NaN', 'wallets', { name: 'x', openingBalance: 0, lowAlert: NaN }],
+    ['محفظة اسمها أطول من 500', 'wallets', { name: 'x'.repeat(501), openingBalance: 0, lowAlert: 0 }],
+    ['دين اسمه فاضي', 'debts', { personName: '', totalAmount: 1, direction: 'i_owe' }],
+    ['دين مبلغه Infinity', 'debts', { personName: 'x', totalAmount: Infinity, direction: 'i_owe' }],
+    ['دين payments مش مصفوفة', 'debts', { personName: 'x', totalAmount: 1, direction: 'i_owe', payments: { a: 1 } }],
+    ['دين increases نص', 'debts', { personName: 'x', totalAmount: 1, direction: 'i_owe', increases: 'x' }],
+    ['اشتراك اسمه فاضي', 'subscriptions', { name: '', amount: 1 }],
+    ['اشتراك مبلغه Infinity', 'subscriptions', { name: 'x', amount: Infinity }],
+    ['جمعية مبلغها سالب', 'gamiyas', { name: 'x', monthlyAmount: -5 }],
+    ['جمعية months مش مصفوفة', 'gamiyas', { name: 'x', monthlyAmount: 5, months: 'x' }],
+    ['ميزانية Infinity', 'budgets', { limit: Infinity }],
+    ['دخل شخبطة Infinity', 'shakhbata_income', { income: Infinity }],
+    ['نسب شخبطة سالبة', 'shakhbata_settings', { needs: 50, wants: -50, future: 20 }],
+    ['نسب شخبطة NaN', 'shakhbata_settings', { needs: NaN, wants: 30, future: 20 }],
+  ];
+  it.each(deniedCases)('%s بيترفض', async (_label, coll, data) => {
+    const uid = await signInTestUser();
+    await expectDenied(setDoc(doc(db, 'users', uid, coll, 'bad'), data));
+  });
+
+  it('ملاحظة 5000 بالظبط واسم 500 بالظبط بيتقبلوا (الحد مش أقل من اللي الخانة بتسمح بيه)', async () => {
+    const uid = await signInTestUser();
+    await setDoc(doc(db, 'users', uid, 'transactions', 'ok'), { ...tx, note: 'x'.repeat(5000) });
+    await setDoc(doc(db, 'users', uid, 'wallets', 'ok'), { name: 'x'.repeat(500), openingBalance: 0, lowAlert: 0 });
+  });
+
+  it('محفظة قديمة رصيدها Infinity لسه بتتعدّل في الاسم (القيمة البايظة زي ما هي)', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/wallets/old`, { name: 'قديمة', openingBalance: Infinity, lowAlert: 0 });
+    await updateDoc(doc(db, 'users', uid, 'wallets', 'old'), { name: 'قديمة 2' });
+    // بس متتكتبش قيمة بايظة جديدة
+    await expectDenied(updateDoc(doc(db, 'users', uid, 'wallets', 'old'), { openingBalance: NaN }));
+  });
+
+  it('عملية قديمة تاريخها بايظ بتتصلّح بتاريخ صح، ومتتعدّلش لتاريخ بايظ تاني', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/transactions/old`, { ...tx, date: '1/9/2026' });
+    await updateDoc(doc(db, 'users', uid, 'transactions', 'old'), { note: 'لسه بتتعدّل' });
+    await expectDenied(updateDoc(doc(db, 'users', uid, 'transactions', 'old'), { date: '2/9/2026' }));
+    await updateDoc(doc(db, 'users', uid, 'transactions', 'old'), { date: '2026-09-01' });
+  });
+
+  it('دين قديم اسمه فاضي لسه بيتعدّل في حقل تاني', async () => {
+    const uid = await signInTestUser();
+    await writeRawDoc(`users/${uid}/debts/old`, { personName: '', totalAmount: 100, direction: 'i_owe', payments: [], increases: [] });
+    await updateDoc(doc(db, 'users', uid, 'debts', 'old'), { note: 'تعديل' });
   });
 });

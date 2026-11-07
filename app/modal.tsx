@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
 const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
   { key: 'expense', label: 'مصروف', tone: 'danger' },
@@ -428,7 +429,7 @@ export default function AddTransactionModal() {
       </TouchableOpacity>
 
       <Text style={styles.label}>ملاحظة</Text>
-      <TextInput style={styles.input} value={note} onChangeText={setNote}
+      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
         placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
       <CalendarPickerModal

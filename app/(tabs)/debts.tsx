@@ -33,6 +33,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
 /**
  * "القسط 3 من 6 · 1,000 ج.م" — الرقم اللي المستخدم محتاجه على الكارت.
@@ -487,7 +488,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>رقم التليفون</Text>
@@ -530,7 +531,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           )}
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput style={styles.input} value={note} onChangeText={setNote}
+          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           {!!error && <Text style={styles.error}>{error}</Text>}

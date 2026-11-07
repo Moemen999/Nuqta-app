@@ -77,3 +77,30 @@ export async function legacyDocExists(path: string): Promise<boolean> {
 export function settle(ms = 1500) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/** قيمة JS ← قيمة REST بتاعة Firestore (أي شكل: Infinity/NaN كنص زي proto3 JSON، null، مصفوفة، كائن متداخل) */
+function toRestValue(v: unknown): Record<string, unknown> {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'string') return { stringValue: v };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number') {
+    if (Number.isNaN(v)) return { doubleValue: 'NaN' };
+    if (!Number.isFinite(v)) return { doubleValue: v > 0 ? 'Infinity' : '-Infinity' };
+    return Number.isInteger(v) && Math.abs(v) <= Number.MAX_SAFE_INTEGER ? { integerValue: String(v) } : { doubleValue: v };
+  }
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(toRestValue) } };
+  return { mapValue: { fields: Object.fromEntries(Object.entries(v as object).map(([k, x]) => [k, toRestValue(x)])) } };
+}
+
+/**
+ * زي `writeLegacyDoc` بس لأي شكل بيانات — **من غير القواعد** (`Bearer owner`). لتمثيل بيانات بايظة اتكتبت قبل تشديد
+ * القواعد (2026-11-07) أو من كلاينت معدّل: الكلاينت الحقيقي مبقاش يقدر يكتبها، بس اللي اتكتب قبل كده لسه موجود والتطبيق لازم يستحمله.
+ */
+export async function writeRawDoc(path: string, data: Record<string, unknown>) {
+  const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, toRestValue(v)]));
+  const res = await fetch(
+    `http://${emulatorHost()}/v1/projects/${PROJECT_ID}/databases/(default)/documents/${path}`,
+    { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) }
+  );
+  if (!res.ok) throw new Error(`مقدرتش أكتب المستند البايظ: ${res.status} ${await res.text()}`);
+}

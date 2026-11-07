@@ -18,6 +18,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, S
 import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
+import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 /** «متأخر —» لو المعاد فات، «قرّب —» لو جوّه مهلة التذكير، وإلا ولا حاجة */
 export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
@@ -240,7 +241,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholder="مثلاً: جمعية الشغل" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>القسط الشهري</Text>
@@ -397,7 +398,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           </Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>

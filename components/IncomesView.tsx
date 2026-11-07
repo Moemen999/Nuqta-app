@@ -21,6 +21,7 @@ import {
   TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 /** نفس أسامي الاشتراكات والجمعية — مصدر واحد في `lib/autoCharge.ts` */
 export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;
@@ -326,7 +327,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
               {step === 0 && (
                 <>
                   <Text style={styles.label}>اسمه</Text>
-                  <TextInput testID="income_name" style={styles.input} value={name} onChangeText={setName}
+                  <TextInput maxLength={NAME_MAX_LENGTH} testID="income_name" style={styles.input} value={name} onChangeText={setName}
                     placeholder="المرتب" placeholderTextColor={colors.textMuted} textAlign="right" autoFocus={!income} />
                   <Text style={styles.label}>المبلغ المعتاد</Text>
                   <TextInput testID="income_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}

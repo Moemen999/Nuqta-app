@@ -20,6 +20,7 @@ import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 // الاسم من مكان واحد: "كل 45 يوم" بدل "مخصص" (lib/frequencyLabel.ts)
 
@@ -300,7 +301,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.sheetTitle}>اشتراك جديد</Text>
 
           <Text style={styles.label}>الاسم</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholder="مثلاً: نتفليكس" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ</Text>
@@ -483,7 +484,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.sheetTitle}>تعديل اشتراك</Text>
 
           <Text style={styles.label}>الاسم</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ</Text>

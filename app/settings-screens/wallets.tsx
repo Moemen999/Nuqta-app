@@ -24,6 +24,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 /**
  * إدارة المحافظ. اتنقلت من شاشة الإعدادات زي ما هي — منطق الحفظ ما اتغيرش
@@ -318,7 +319,7 @@ export default function WalletsScreen() {
               <TextInput
                 testID={`wallet_name_input_${w.id}`}
                 style={styles.nameInput}
-                value={nameDrafts[w.id] !== undefined ? nameDrafts[w.id] : w.name}
+                maxLength={NAME_MAX_LENGTH} value={nameDrafts[w.id] !== undefined ? nameDrafts[w.id] : w.name}
                 onChangeText={v => setNameDrafts(d => ({ ...d, [w.id]: v }))}
                 onBlur={() => saveName(w.id, w.name)}
                 textAlign="right"
@@ -364,7 +365,7 @@ export default function WalletsScreen() {
 
         <View style={styles.addRow}>
           <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
-            value={newWallet} onChangeText={setNewWallet} textAlign="right" />
+            maxLength={NAME_MAX_LENGTH} value={newWallet} onChangeText={setNewWallet} textAlign="right" />
           <TouchableOpacity accessibilityRole="button"
             testID="wallet_add_button"
             style={[styles.addBtn, adding && styles.btnBusy]}
