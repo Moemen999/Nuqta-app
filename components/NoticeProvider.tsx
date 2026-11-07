@@ -1,7 +1,9 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { LineIcon } from '@/components/LineIcon';
+import { hapticSuccess } from '@/lib/haptics';
 import { Text } from '@/components/AppText';
 
 /**
@@ -26,9 +28,14 @@ import { Text } from '@/components/AppText';
  * iOS مبيضمنش ده، ورسالة فشل مختفية أوحش من رسالة شكلها مش بتاعنا.
  */
 
-export type Notice = { title: string; body: string; onDismiss?: () => void };
+/**
+ * `celebrate`: «لحظة حلوة واحدة بس» (بحث «فخم» اقتراح 10، اختيار اللوب 2026-11-07 — ممكن يترجع): علامة صح بتترسم فوق
+ * العنوان + اهتزاز نجاح. **لدين اتقفل خالص بس** (`settledNow` من السيرفر) — مش مع كل عملية، عشان تفضل نادرة وليها معنى.
+ */
+export type NoticeOptions = { celebrate?: boolean };
+export type Notice = { title: string; body: string; onDismiss?: () => void; celebrate?: boolean };
 /** `onDismiss` اختياري: بيتنادى مرة واحدة لما الرسالة دي بالذات تتقفل ("تمام" أو رجوع) */
-type Show = (title: string, body: string, onDismiss?: () => void) => void;
+type Show = (title: string, body: string, onDismiss?: () => void, opts?: NoticeOptions) => void;
 
 const NoticeContext = createContext<Show | null>(null);
 
@@ -45,8 +52,8 @@ export function useNotice(): Show {
 
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Notice[]>([]);
-  const show = useCallback<Show>((title, body, onDismiss) => {
-    setQueue(q => [...q, { title, body, onDismiss }]);
+  const show = useCallback<Show>((title, body, onDismiss, opts) => {
+    setQueue(q => [...q, { title, body, onDismiss, celebrate: !!opts?.celebrate }]);
   }, []);
   const current = queue[0] ?? null;
   // `onDismiss` بيتنادى برّه دالة setQueue (ممكن تتنادى مرتين في الـStrictMode)، ومرة بس:
@@ -94,6 +101,7 @@ function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss:
         {notice && (
           <View testID="notice_dialog" style={styles.card} accessibilityViewIsModal>
             {/* بتتسكرول: جملة طويلة بخط كبير (200%) كانت هتطلع برّه الشاشة */}
+            {notice.celebrate && <Celebrate key={notice.title + notice.body} />}
             <ScrollView style={{ maxHeight: height * 0.6 }} contentContainerStyle={styles.textBlock}>
               <View accessible accessibilityLabel={spoken(notice)}>
                 <Text testID="notice_title" style={styles.title}>{notice.title}</Text>
@@ -107,6 +115,34 @@ function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss:
         )}
       </View>
     </Modal>
+  );
+}
+
+/**
+ * العلامة بتكبر من 0.6 لـ1 وبتظهر في ~350ms (Animated بتاع RN على الـnative driver — مفيش اعتمادية جديدة على مسار
+ * الرسايل). «قلّل الحركة» مفعّل ← بتظهر ثابتة من غير حركة. زينة: مخفية عن قارئ الشاشة (العنوان بيقول اللي حصل).
+ */
+function Celebrate() {
+  const { colors } = useTheme();
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    hapticSuccess();
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then(reduce => {
+        if (!alive) return;
+        if (reduce) { progress.setValue(1); return; }
+        Animated.timing(progress, { toValue: 1, duration: 350, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }).start();
+      });
+    return () => { alive = false; };
+  }, [progress]);
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
+  return (
+    <Animated.View testID="notice_celebrate" style={{ alignSelf: 'center', opacity: progress, transform: [{ scale }] }}
+      accessible={false} importantForAccessibility="no-hide-descendants">
+      <LineIcon name="checkmark-circle" size={56} color={colors.incomeText} />
+    </Animated.View>
   );
 }
 

@@ -137,7 +137,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       // قدامه (silent-failure-hunter). من **السيرفر** (`settledNow` جوه الذرة)، مش من نسخة الدين
       // اللي المودال اتفتح بيها — جهاز تاني ممكن يكون غيّره
       if (result.settledNow) {
-        notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY);
+        notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY, undefined, { celebrate: true });
       } else if (result.note) {
         // "دفعت 700 بدل 1000، الأقساط بقت 7" — التغيير بيتقال بالكلام، عشان
         // المستخدم ميلاقيش العدد اتغيّر لوحده ومحدش قاله ليه
