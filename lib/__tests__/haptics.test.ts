@@ -6,26 +6,26 @@ import { join } from 'path';
  * ومحدش بيستدعي `expo-haptics` غير `lib/haptics.ts` — عشان «مش مع كل دوسة» تفضل قرار في مكان واحد.
  */
 const mockHaptics = {
-  performAndroidHapticsAsync: jest.fn(async () => {}),
+  performAndroidHapticsAsync: jest.fn(async (_t?: string) => {}),
   selectionAsync: jest.fn(async () => {}),
   notificationAsync: jest.fn(async () => {}),
-  AndroidHaptics: { Segment_Tick: 'segment-tick', Confirm: 'confirm', Reject: 'reject' },
+  AndroidHaptics: { Clock_Tick: 'clock-tick', Confirm: 'confirm', Reject: 'reject', Context_Click: 'context-click', Long_Press: 'long-press' },
   NotificationFeedbackType: { Success: 'success', Error: 'error' },
 };
 jest.mock('expo-haptics', () => mockHaptics);
 
-function load(os: 'android' | 'ios') {
+function load(os: 'android' | 'ios', version = 31) {
   jest.resetModules();
-  jest.doMock('react-native', () => ({ Platform: { OS: os } }));
+  jest.doMock('react-native', () => ({ Platform: { OS: os, Version: version } }));
   return require('@/lib/haptics') as typeof import('@/lib/haptics');
 }
 
 beforeEach(() => { for (const f of [mockHaptics.performAndroidHapticsAsync, mockHaptics.selectionAsync, mockHaptics.notificationAsync]) f.mockClear(); });
 
-it('أندرويد: اهتزاز النظام بالنوع الصح، ومن غير الهزاز', () => {
+it('أندرويد: اهتزاز النظام بالنوع الصح، ومن غير الهزاز — والتابة نوع موجود في كل النسخ (مش segment-tick 14+)', () => {
   const h = load('android');
   h.hapticSelect(); h.hapticSuccess(); h.hapticError();
-  expect(mockHaptics.performAndroidHapticsAsync.mock.calls).toEqual([['segment-tick'], ['confirm'], ['reject']]);
+  expect(mockHaptics.performAndroidHapticsAsync.mock.calls).toEqual([['clock-tick'], ['confirm'], ['reject']]);
   expect(mockHaptics.notificationAsync).not.toHaveBeenCalled();
 });
 
@@ -65,4 +65,16 @@ it('محدش بيستورد expo-haptics غير lib/haptics.ts', () => {
   };
   for (const d of ['app', 'components', 'context', 'lib', 'hooks']) walk(join(root, d));
   expect(offenders.map(p => p.replace(/\\/g, '/'))).toEqual(['lib/haptics.ts']);
+});
+
+it('أندرويد أقدم من 11 (API 29): مبيبعتش confirm/reject أصلًا — بيبعت النوع اللي موجود (الرفض مبيتمسكش في expo-haptics)', () => {
+  const h = load('android', 29);
+  h.hapticSelect(); h.hapticSuccess(); h.hapticError();
+  expect(mockHaptics.performAndroidHapticsAsync.mock.calls).toEqual([['clock-tick'], ['context-click'], ['long-press']]);
+});
+
+it('مفيش نوع 14+ (segment-tick وأخواته) بيتبعت في أي نسخة', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'haptics.ts'), 'utf8');
+  const code = src.split('\n').filter((l: string) => !/^\s*(\*|\/\/|\/\*)/.test(l)).join('\n');
+  expect(code).not.toMatch(/Segment_Tick|Segment_Frequent_Tick|Gesture_Start|Gesture_End|Toggle_On|Toggle_Off|Drag_Start|Keyboard_Press|Keyboard_Release|Virtual_Key_Release|No_Haptics|Text_Handle_Move/);
 });
