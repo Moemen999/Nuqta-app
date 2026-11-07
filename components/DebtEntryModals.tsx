@@ -516,7 +516,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="اختار من جهات الاتصال">
-              <LineIcon name="person-circle-outline" size={20} color={colors.accent} />
+              <LineIcon name="person-circle-outline" size={18} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>

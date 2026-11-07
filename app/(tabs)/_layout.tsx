@@ -86,7 +86,7 @@ export default function TabLayout() {
           name="planning"
           options={{
             title: 'التخطيط',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['calculator-outline', 'calculator']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['layers-outline', 'layers']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen

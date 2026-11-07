@@ -17,7 +17,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LineIcon, type LineIconName } from '@/components/LineIcon';
+import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
 
 /** عشان الجملة تطلع بلغة طبيعية مع كل عدد بدل "1 تعديلات" */
 function pendingSentence(n: number) {
@@ -42,7 +42,7 @@ const THEME_LABEL: Record<ThemePreference, string> = { system: 'زي الموب�
 const ROW_ICON: Record<string, LineIconName> = {
   wallets: 'wallet-outline', categories: 'pricetag-outline', archive: 'archive-outline', notifications: 'notifications-outline',
   lock: 'lock-closed-outline', theme: 'contrast-outline', guide: 'book-outline', onboarding: 'hand-left-outline',
-  feedback: 'chatbubble-outline', about: 'information-circle-outline', logout: 'log-out-outline', deleteAccount: 'trash-outline',
+  feedback: 'chatbubble-ellipses-outline', about: 'information-circle-outline', logout: 'log-out-outline', deleteAccount: 'trash-outline',
 };
 type SettingsSection = { key: string; title: string; subtitle?: string; rows: SettingsRow[] };
 
@@ -211,7 +211,7 @@ export default function SettingsScreen() {
                 style={[styles.row, i > 0 && styles.rowDivider]}
                 onPress={row.onPress}>
                 <View style={styles.rowLead}>
-                  {!!ROW_ICON[row.key] && <LineIcon name={ROW_ICON[row.key]} size={20} color={row.tone === 'danger' ? colors.dangerText : colors.textSecondary} />}
+                  {!!ROW_ICON[row.key] && <LineIcon name={ROW_ICON[row.key]} mirrored={MIRRORED_ICONS.has(ROW_ICON[row.key])} size={20} color={row.tone === 'danger' ? colors.dangerText : colors.textSecondary} />}
                   <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.dangerText }]}>
                     {row.title}
                   </Text>

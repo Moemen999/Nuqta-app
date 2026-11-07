@@ -19,3 +19,9 @@ it('التابة المختارة مليانة والباقي خطي (كل تا�
   expect(pairs).toHaveLength(5);
   for (const [outline, filled] of pairs) expect(outline).toBe(`${filled}-outline`);
 });
+
+it('سهم الخروج بيتقلب مع RTL (visual-identity-reviewer)', () => {
+  const { MIRRORED_ICONS } = require('@/components/LineIcon');
+  expect(MIRRORED_ICONS.has('log-out-outline')).toBe(true);
+  expect(read('app/(tabs)/settings.tsx')).toContain('mirrored={MIRRORED_ICONS.has(ROW_ICON[row.key])}');
+});

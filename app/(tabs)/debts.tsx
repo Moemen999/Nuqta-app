@@ -316,7 +316,7 @@ function DebtsContent() {
                           accessibilityState={{ busy: entryBusy, disabled: busyKey !== null }}>
                           {entryBusy
                             ? <ActivityIndicator size="small" color={colors.danger} />
-                            : <LineIcon name="trash-outline" size={17} color={colors.textMuted} />}
+                            : <LineIcon name="trash-outline" size={18} color={colors.textMuted} />}
                         </TouchableOpacity>
                       )}
                     </View>
@@ -484,7 +484,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="اختار من جهات الاتصال">
-              <LineIcon name="person-circle-outline" size={20} color={colors.accent} />
+              <LineIcon name="person-circle-outline" size={18} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
