@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
-import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LineIcon } from '@/components/LineIcon';
 import { hapticSuccess } from '@/lib/haptics';
@@ -39,6 +39,35 @@ type Show = (title: string, body: string, onDismiss?: () => void, opts?: NoticeO
 
 const NoticeContext = createContext<Show | null>(null);
 
+/**
+ * «استنى لحد ما القفل يتفتح» (قرار مؤمن 2026-11-07 على الترشيح): الـProvider برّه القفل عن قصد (رسالة «ما اتحفظش» متضيعش
+ * لما التطبيق يتقفل — 2026-11-02)، بس كده رسالة بتوصل والتطبيق مقفول كانت **بتظهر فوق شاشة القفل** وفيها كلام عن الفلوس.
+ * دلوقتي بتفضل في الطابور (مبتتشالش) وبتظهر أول ما القفل يتفتح. `RootNavigator` (جوه القفل) هو اللي بيقول مقفول ولا لأ.
+ */
+type Hold = { setHeld: (held: boolean) => void; clear: () => void };
+const NoticeHoldContext = createContext<Hold | null>(null);
+
+export function useHoldNotices(held: boolean) {
+  const h = useContext(NoticeHoldContext);
+  // قبل الرسم (layout effect): مع effect عادي الرسالة كانت بتبان فريم واحد فوق شاشة القفل وقت الرجوع للتطبيق (silent-failure-hunter)
+  useLayoutEffect(() => { h?.setHeld(held); }, [h, held]);
+  // الـgate اتشال ← ميفضلش ماسك الرسايل للأبد
+  useEffect(() => () => { h?.setHeld(false); }, [h]);
+}
+
+/**
+ * الحساب اتغيّر أو خرج ← الرسايل المستنية بتتشال من غير ما تتعرض. «نسيت الكود؟» بيعمل خروج ويفك القفل، فالرسالة
+ * المستنية (فيها اسم السجل) كانت هتظهر على شاشة الدخول قدام اللي معرفش الكود — يعني غالبًا مش صاحب الموبايل (security-reviewer)
+ */
+export function useClearNoticesOnAccountChange(uid: string | null) {
+  const h = useContext(NoticeHoldContext);
+  const prev = useRef(uid);
+  useLayoutEffect(() => {
+    if (prev.current !== uid && prev.current !== null) h?.clear();
+    prev.current = uid;
+  }, [h, uid]);
+}
+
 const nativeAlert: Show = (title, body, onDismiss) =>
   onDismiss
     ? Alert.alert(title, body, [{ text: 'تمام', onPress: onDismiss }], { onDismiss })
@@ -52,6 +81,8 @@ export function useNotice(): Show {
 
 export function NoticeProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Notice[]>([]);
+  const [held, setHeld] = useState(false);
+  const hold = useMemo<Hold>(() => ({ setHeld, clear: () => setQueue([]) }), []);
   const show = useCallback<Show>((title, body, onDismiss, opts) => {
     setQueue(q => [...q, { title, body, onDismiss, celebrate: !!opts?.celebrate }]);
   }, []);
@@ -68,10 +99,12 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
 
   return (
     <NoticeContext.Provider value={show}>
+    <NoticeHoldContext.Provider value={hold}>
       {children}
       {/* بيقفل الرسالة اللي اتعرضت بس: دوستين بسرعة على "تمام" وقت الاختفاء كانت
           هتقفل الجاية كمان من غير ما تتشاف — ودي ممكن تبقى "ما اتسجلش" (a11y-architect) */}
-      <NoticeDialog notice={current} onDismiss={dismiss} />
+      <NoticeDialog notice={held ? null : current} onDismiss={dismiss} />
+    </NoticeHoldContext.Provider>
     </NoticeContext.Provider>
   );
 }
