@@ -46,6 +46,12 @@ it('الاهتزاز فشل (جهاز من غير موتور) ← الرفض م�
   await new Promise(r => setImmediate(r));
 });
 
+it('الموديول رمى على طول (مش وعد مرفوض) ← مبيطلعش برّه', () => {
+  const h = load('android');
+  mockHaptics.performAndroidHapticsAsync.mockImplementationOnce(() => { throw new Error('native module missing'); });
+  expect(() => h.hapticSuccess()).not.toThrow();
+});
+
 it('محدش بيستورد expo-haptics غير lib/haptics.ts', () => {
   const root = join(__dirname, '..', '..');
   const offenders: string[] = [];
