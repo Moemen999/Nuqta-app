@@ -10,7 +10,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
-import { lockWaitMessage } from '@/lib/lockThrottle';
+import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -68,7 +68,8 @@ export default function LockScreen() {
   useEffect(() => {
     if (waitUntil <= Date.now()) { setNow(Date.now()); return; }
     setNow(Date.now());
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    // بيقف لوحده أول ما الوقت يخلص (كان بيفضل يعدّ لحد ما waitUntil يتغيّر)
+    const id = setInterval(() => { const t = Date.now(); setNow(t); if (t >= waitUntil) clearInterval(id); }, 1000);
     return () => clearInterval(id);
   }, [waitUntil]);
   // العدّ بيتغيّر كل ثانية — لو جوه live region قارئ الشاشة هيقراه كل ثانية. فبيتقال مرة واحدة أول ما الانتظار يبدأ
@@ -76,7 +77,7 @@ export default function LockScreen() {
   useEffect(() => {
     if (waiting && announcedFor.current !== waitUntil) {
       announcedFor.current = waitUntil;
-      AccessibilityInfo.announceForAccessibility(lockWaitMessage(waitUntil - Date.now()));
+      AccessibilityInfo.announceForAccessibility(`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - Date.now())}`);
     }
   }, [waiting, waitUntil]);
   const [retrying, setRetrying] = useState(false);
@@ -140,9 +141,15 @@ export default function LockScreen() {
     confirmForgot();
   }
 
-  // سطر الحالة تحت الكود (نفسه للرقم والباسورد): العدّ التنازلي، أو رسالة الغلط
+  // الغلطة اللي بدأت الانتظار: «غلط» بتتمسح — كانت بتستخبى ورا العدّ وترجع لوحدها بعده (silent-failure-hunter)
+  useEffect(() => { if (waiting) setError(''); }, [waiting]);
+
+  // سطر الحالة تحت الكود (نفسه للرقم والباسورد): السبب + العدّ التنازلي، أو رسالة الغلط
   const statusLine = waiting
-    ? <Text testID="lock_wait" style={styles.error}>{lockWaitMessage(waitUntil - now)}</Text>
+    ? <>
+        <Text testID="lock_wait_reason" style={styles.error}>{LOCK_WAIT_REASON}</Text>
+        <Text testID="lock_wait" style={styles.error}>{lockWaitMessage(waitUntil - now)}</Text>
+      </>
     : <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>;
 
   async function handleSubmit(value?: string) {
@@ -157,7 +164,7 @@ export default function LockScreen() {
     } else {
       // "error" = التخزين فشل، الكود ممكن يكون صح (بند A)
       // "wait" = الرسالة من العدّ التنازلي نفسه (waitUntil اتحدّث)
-      setError(res === 'error' ? LOCK_STORAGE_ERROR : res === 'wait' ? '' : 'غلط، جرب تاني');
+      setError(res === 'error' ? LOCK_STORAGE_ERROR : res === 'wait' ? '' : 'غلط، جرّب تاني');
       setCode('');
     }
   }

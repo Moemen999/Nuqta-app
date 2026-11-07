@@ -1,5 +1,5 @@
 import {
-  FREE_ATTEMPTS, lockDelayMs, lockWaitMessage, parseLockFails, parseStoredHash, formatStoredHash, recordFailure, remainingWaitMs,
+  FREE_ATTEMPTS, lockDelayMs, maxFails, lockWaitMessage, parseLockFails, parseStoredHash, formatStoredHash, recordFailure, remainingWaitMs,
 } from '@/lib/lockThrottle';
 
 describe('حد محاولات القفل — المنطق الصافي', () => {
@@ -30,18 +30,29 @@ describe('حد محاولات القفل — المنطق الصافي', () => {
   });
 
   it('الرسالة بالعامية والعدد بصيغته', () => {
-    expect(lockWaitMessage(30_000)).toBe('استنى 30 ثانية وجرّب تاني');
-    expect(lockWaitMessage(1_500)).toBe('استنى ثانيتين وجرّب تاني');
-    expect(lockWaitMessage(500)).toBe('استنى ثانية وجرّب تاني');
-    expect(lockWaitMessage(5_000)).toBe('استنى 5 ثواني وجرّب تاني');
-    expect(lockWaitMessage(60_000)).toBe('استنى دقيقة وجرّب تاني');
-    expect(lockWaitMessage(299_000)).toBe('استنى 5 دقايق وجرّب تاني');
-    expect(lockWaitMessage(900_000)).toBe('استنى 15 دقيقة وجرّب تاني');
-    expect(lockWaitMessage(3_600_000)).toBe('استنى ساعة وجرّب تاني');
+    expect(lockWaitMessage(30_000)).toBe('جرّب تاني بعد 30 ثانية');
+    expect(lockWaitMessage(1_500)).toBe('جرّب تاني بعد ثانيتين');
+    expect(lockWaitMessage(500)).toBe('جرّب تاني بعد ثانية');
+    expect(lockWaitMessage(5_000)).toBe('جرّب تاني بعد 5 ثواني');
+    expect(lockWaitMessage(60_000)).toBe('جرّب تاني بعد دقيقة');
+    expect(lockWaitMessage(299_000)).toBe('جرّب تاني بعد 5 دقايق');
+    expect(lockWaitMessage(900_000)).toBe('جرّب تاني بعد 15 دقيقة');
+    expect(lockWaitMessage(3_600_000)).toBe('جرّب تاني بعد ساعة');
   });
 
   it('الهاش المتخزّن: v2 بملح، والقديم من غير ملح بيتقري زي ما هو', () => {
     expect(parseStoredHash(formatStoredHash('ab', 'cd'))).toEqual({ salt: 'ab', hash: 'cd' });
     expect(parseStoredHash('deadbeef')).toEqual({ salt: null, hash: 'deadbeef' });
+  });
+
+  it('الانتظار محدود بتأخير العدّ — ساعة اتقدّمت واتصلّحت متحبسش صاحب الموبايل أيام', () => {
+    expect(remainingWaitMs({ count: 3, until: 10 * 86_400_000 }, 0)).toBe(30_000);
+    expect(remainingWaitMs({ count: 9, until: 10 * 86_400_000 }, 0)).toBe(3_600_000);
+    expect(remainingWaitMs({ count: 1, until: 999 }, 0)).toBe(0);
+  });
+
+  it('maxFails: الأكبر عدًّا، وعند التساوي الأقرب (الساعة المتصلّحة)', () => {
+    expect(maxFails({ count: 4, until: 1 }, { count: 2, until: 9 })).toEqual({ count: 4, until: 1 });
+    expect(maxFails({ count: 3, until: 1 }, { count: 3, until: 9 })).toEqual({ count: 3, until: 1 });
   });
 });

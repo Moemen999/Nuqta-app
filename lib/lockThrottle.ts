@@ -45,18 +45,40 @@ export function recordFailure(prev: LockFails, now: number): LockFails {
   return { count, until: delay ? now + delay : 0 };
 }
 
-/** فاضل قد إيه على المحاولة الجاية (0 = يقدر يجرّب دلوقتي) */
+/**
+ * فاضل قد إيه على المحاولة الجاية (0 = يقدر يجرّب دلوقتي). **محدود بتأخير العدّ نفسه** (security-reviewer +
+ * silent-failure-hunter): ساعة الموبايل كانت قدّام وقت الغلط واتصلّحت ← `until` بعيد بأيام، وصاحب الموبايل محبوس
+ * والرسالة بتقول «ساعة».
+ */
 export function remainingWaitMs(f: LockFails, now: number): number {
-  return Math.max(0, f.until - now);
+  return Math.max(0, capFails(f, now).until - now);
 }
 
-/** «استنى 30 ثانية وجرّب تاني» — بالعامية، والعدد بصيغته الصح */
+/**
+ * الأكبر عدًّا — عدّاد الذاكرة أرضية لعدّاد التخزين (قراية أو كتابة فشلت مترجّعش العدّ لصفر). عند تساوي العدّ الأقرب
+ * `until`: الفرق الوحيد بينهم ساعة اتصلّحت (`capFails` في الذاكرة والقديم البعيد في التخزين)، والأقرب هو الصح.
+ */
+export function maxFails(a: LockFails, b: LockFails): LockFails {
+  if (a.count !== b.count) return a.count > b.count ? a : b;
+  return a.until <= b.until ? a : b;
+}
+
+/** `until` مبيبعدش عن دلوقتي أكتر من تأخير العدّ (ساعة اتصلّحت). **بيتحفظ** — لو اتحسب كل مرة من جديد الانتظار مبيخلصش */
+export function capFails(f: LockFails, now: number): LockFails {
+  const max = now + lockDelayMs(f.count);
+  return f.until > max ? { count: f.count, until: max } : f;
+}
+
+/** السبب — بيظهر فوق العدّ التنازلي عشان «استنى» لوحدها تتقري عطل (arabic-copy-reviewer) */
+export const LOCK_WAIT_REASON = 'غلطت في الكود كذا مرة ورا بعض';
+
+/** «جرّب تاني بعد 30 ثانية» — الرقم اللي بيتغيّر في الآخر، والعدد بصيغته الصح */
 export function lockWaitMessage(ms: number): string {
   const s = Math.max(1, Math.ceil(ms / 1000));
-  if (s < 60) return `استنى ${secondsPhrase(s)} وجرّب تاني`;
+  if (s < 60) return `جرّب تاني بعد ${secondsPhrase(s)}`;
   const m = Math.ceil(s / 60);
-  if (m >= 60) return 'استنى ساعة وجرّب تاني';
-  return `استنى ${minutesPhrase(m)} وجرّب تاني`;
+  if (m >= 60) return 'جرّب تاني بعد ساعة';
+  return `جرّب تاني بعد ${minutesPhrase(m)}`;
 }
 
 function secondsPhrase(s: number): string {
