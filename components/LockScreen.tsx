@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert, KeyboardAvoidingView, Platform, ScrollView,
+  AccessibilityInfo, Alert, KeyboardAvoidingView, Platform, ScrollView,
   StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -10,6 +10,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
+import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -60,7 +61,25 @@ const KEY_ROWS = [
 
 export default function LockScreen() {
   const { colors } = useTheme();
-  const { lockType, verify, unlock, clearLock, readFailed, retryRead } = useAppLock();
+  const { lockType, verify, unlock, clearLock, readFailed, retryRead, waitUntil } = useAppLock();
+  // حد المحاولات (2026-11-07): عدّ تنازلي كل ثانية طول ما فيه انتظار، والأرقام و«دخول» مقفولين. «نسيت الكود؟» شغال دايمًا
+  const [now, setNow] = useState(() => Date.now());
+  const waiting = waitUntil > now;
+  useEffect(() => {
+    if (waitUntil <= Date.now()) { setNow(Date.now()); return; }
+    setNow(Date.now());
+    // بيقف لوحده أول ما الوقت يخلص (كان بيفضل يعدّ لحد ما waitUntil يتغيّر)
+    const id = setInterval(() => { const t = Date.now(); setNow(t); if (t >= waitUntil) clearInterval(id); }, 1000);
+    return () => clearInterval(id);
+  }, [waitUntil]);
+  // العدّ بيتغيّر كل ثانية — لو جوه live region قارئ الشاشة هيقراه كل ثانية. فبيتقال مرة واحدة أول ما الانتظار يبدأ
+  const announcedFor = useRef(0);
+  useEffect(() => {
+    if (waiting && announcedFor.current !== waitUntil) {
+      announcedFor.current = waitUntil;
+      AccessibilityInfo.announceForAccessibility(`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - Date.now())}`);
+    }
+  }, [waiting, waitUntil]);
   const [retrying, setRetrying] = useState(false);
   const [retryFailed, setRetryFailed] = useState(false);
   async function retry() {
@@ -122,9 +141,22 @@ export default function LockScreen() {
     confirmForgot();
   }
 
+  // الغلطة اللي بدأت الانتظار: «غلط» بتتمسح — كانت بتستخبى ورا العدّ وترجع لوحدها بعده (silent-failure-hunter)
+  // بيتمسح مع البداية **والنهاية** — مش معتمد على إن setError وsetWaitUntil يترسموا في نفس الدفعة (silent-failure-hunter جولة 2)
+  useEffect(() => { setError(''); }, [waiting]);
+
+  // سطر الحالة تحت الكود (نفسه للرقم والباسورد): السبب + العدّ التنازلي، أو رسالة الغلط
+  const statusLine = waiting
+    ? <>
+        <Text testID="lock_wait_reason" style={styles.error}>{LOCK_WAIT_REASON}</Text>
+        <Text testID="lock_wait" style={styles.error}>{lockWaitMessage(waitUntil - now)}</Text>
+      </>
+    : <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>;
+
   async function handleSubmit(value?: string) {
     const toCheck = value ?? code;
     if (!toCheck) return;
+    if (waiting) return;
     const res = await verify(toCheck);
     if (res === 'ok') {
       unlock();
@@ -132,13 +164,14 @@ export default function LockScreen() {
       setError('');
     } else {
       // "error" = التخزين فشل، الكود ممكن يكون صح (بند A)
-      setError(res === 'error' ? LOCK_STORAGE_ERROR : 'غلط، جرب تاني');
+      // "wait" = الرسالة من العدّ التنازلي نفسه (waitUntil اتحدّث)
+      setError(res === 'error' ? LOCK_STORAGE_ERROR : res === 'wait' ? '' : 'غلط، جرّب تاني');
       setCode('');
     }
   }
 
   function pressDigit(d: string) {
-    if (code.length >= 4) return;
+    if (waiting || code.length >= 4) return;
     // نفس رسالة "غلط" مرتين ورا بعض مبتتقريش تاني (الـlive region بيتكلم مع التغيير بس) — فبتتمسح أول ما يكتب (a11y-architect)
     if (error) setError('');
     const next = code + d;
@@ -182,7 +215,7 @@ export default function LockScreen() {
               <View key={i} style={[styles.dot, { backgroundColor: i < code.length ? colors.accent : colors.surface2, borderColor: colors.borderStrong }]} />
             ))}
           </View>
-          <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>
+          {statusLine}
 
           <View style={styles.keypad}>
             {KEY_ROWS.map((row, ri) => (
@@ -196,7 +229,8 @@ export default function LockScreen() {
                       ? { accessible: false, importantForAccessibility: 'no-hide-descendants' as const }
                       : { accessibilityRole: 'button' as const, accessibilityLabel: k === '⌫' ? 'امسح آخر رقم' : k })}
                     style={[styles.key, k === '' && styles.keyHidden, { backgroundColor: colors.surface }]}
-                    disabled={k === ''}
+                    disabled={k === '' || (waiting && k !== '⌫')}
+                    accessibilityState={k === '' ? undefined : { disabled: waiting && k !== '⌫' }}
                     activeOpacity={0.6}
                     onPress={() => (k === '⌫' ? backspace() : k !== '' && pressDigit(k))}>
                     <Text style={[styles.keyText, { color: colors.text }]}>{k}</Text>
@@ -220,8 +254,9 @@ export default function LockScreen() {
             textAlign="right"
             autoFocus
           />
-          <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>
-          <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" style={styles.submitBtn} onPress={() => handleSubmit()}>
+          {statusLine}
+          <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" accessibilityState={{ disabled: waiting }}
+            disabled={waiting} style={[styles.submitBtn, waiting && { opacity: 0.6 }]} onPress={() => handleSubmit()}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
           </TouchableOpacity>
         </View>

@@ -1,18 +1,26 @@
-import { useAppLock } from '@/context/AppLockContext';
+import { useAppLock, type VerifyResult } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
-import { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
+import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
+
+/** علامة «استنى» — النص بيتحسب وقت الرسم من `waitUntil` (الحالة بتتحدّث بعد ما `verify` يرجع) */
+const WAIT = '__lock_wait__';
+/** رسالة نتيجة التحقق — `wrongText` بيختلف بين الإلغاء («غلط، جرّب تاني») والتغيير («الكود القديم غلط») */
+function verifyError(res: VerifyResult, wrongText: string): string {
+  return res === 'error' ? LOCK_STORAGE_ERROR : res === 'wait' ? WAIT : wrongText;
+}
 
 type Mode = 'enable' | 'change' | 'disable';
 
 export default function SetLockModal({ visible, mode, onClose }: { visible: boolean; mode: Mode; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const { lockType: currentType, setupLock, changeCode, disableLock } = useAppLock();
+  const { lockType: currentType, setupLock, changeCode, disableLock, waitUntil } = useAppLock();
 
   const [type, setType] = useState<'pin' | 'password'>('pin');
   const [oldCode, setOldCode] = useState('');
@@ -20,6 +28,22 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
   const [code2, setCode2] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // «استنى»: العدّ بينزل كل ثانية، وأول ما يخلص الرسالة بتتشال (كانت واقفة وبتقول «ثانية» للأبد — silent-failure-hunter).
+  // قارئ الشاشة بيسمعها مرة واحدة؛ العدّ نفسه برّه الـlive region
+  const [now, setNow] = useState(() => Date.now());
+  const waitShown = error === WAIT;
+  useEffect(() => {
+    if (!waitShown) return;
+    if (waitUntil <= Date.now()) { setError(''); return; }
+    AccessibilityInfo.announceForAccessibility(`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - Date.now())}`);
+    setNow(Date.now());
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      if (t >= waitUntil) { clearInterval(id); setError(''); }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [waitShown, waitUntil]);
 
   function reset() {
     setType('pin'); setOldCode(''); setCode1(''); setCode2(''); setError('');
@@ -33,7 +57,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
       const res = await disableLock(oldCode);
       setBusy(false);
       // "error" = التخزين نفسه فشل، مش الكود اللي غلط (بند A)
-      if (res !== 'ok') { setError(res === 'error' ? LOCK_STORAGE_ERROR : 'غلط، جرب تاني'); return; }
+      if (res !== 'ok') { setError(verifyError(res, 'غلط، جرّب تاني')); return; }
       reset(); onClose();
       return;
     }
@@ -43,7 +67,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
     if (type === 'password' && code1.length < 4) { setError('الباسورد لازم 4 حروف على الأقل'); return; }
 
     setBusy(true);
-    let res: 'ok' | 'wrong' | 'error' = 'ok';
+    let res: VerifyResult = 'ok';
     try {
       if (mode === 'enable') {
         // بيرمي لو الحفظ فشل — والقفل القديم (أو مفيش قفل) زي ما هو، مش نص-نص (بند A)
@@ -57,7 +81,7 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
       // كان على المسار السعيد بس: رمية كانت بتسيب الزرار "..." للأبد
       setBusy(false);
     }
-    if (res !== 'ok') { setError(res === 'error' ? LOCK_STORAGE_ERROR : 'الكود القديم غلط'); return; }
+    if (res !== 'ok') { setError(verifyError(res, 'الكود القديم غلط')); return; }
     reset();
     onClose();
   }
@@ -115,7 +139,9 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
           )}
 
           {/* دايمًا متركّب: live region بيتركّب ونصه جواه مبيتقريش على أندرويد (a11y-architect) */}
-          <Text style={[styles.error, !error && { marginTop: 0 }]} accessibilityLiveRegion="assertive">{error || ''}</Text>
+          {waitShown
+            ? <Text testID="setlock_wait" style={styles.error}>{`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - now)}`}</Text>
+            : <Text style={[styles.error, !error && { marginTop: 0 }]} accessibilityLiveRegion="assertive">{error || ''}</Text>}
         </ScrollView>
 
         <View style={styles.footer}>

@@ -7,7 +7,7 @@ import { LOCK_READ_FAILED, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 /**
  * بند A على الشاشة:
  * - القراية فشلت ← رسالة + "جرّب تاني" (بينادي retryRead) ومفيش لوحة أرقام، و"نسيت الكود؟" لسه موجود.
- * - التحقق رجّع error ← رسالة التخزين، مش "غلط، جرب تاني".
+ * - التحقق رجّع error ← رسالة التخزين، مش "غلط، جرّب تاني".
  */
 
 const mockLock = {
@@ -47,16 +47,16 @@ it('التحقق رجّع error ← رسالة التخزين مش "غلط"', as
   await act(async () => { fireEvent.changeText(screen.getByTestId('lock_password_input'), 'abcd'); });
   await act(async () => { fireEvent.press(screen.getByTestId('lock_submit_button')); });
   expect(screen.getByText(LOCK_STORAGE_ERROR)).toBeTruthy();
-  expect(screen.queryByText('غلط، جرب تاني')).toBeNull();
+  expect(screen.queryByText('غلط، جرّب تاني')).toBeNull();
   expect(mockLock.unlock).not.toHaveBeenCalled();
 });
 
-it('التحقق رجّع wrong ← "غلط، جرب تاني" زي الأول', async () => {
+it('التحقق رجّع wrong ← "غلط، جرّب تاني" زي الأول', async () => {
   mockLock.lockType = 'password';
   await renderLock();
   await act(async () => { fireEvent.changeText(screen.getByTestId('lock_password_input'), 'abcd'); });
   await act(async () => { fireEvent.press(screen.getByTestId('lock_submit_button')); });
-  expect(screen.getByText('غلط، جرب تاني')).toBeTruthy();
+  expect(screen.getByText('غلط، جرّب تاني')).toBeTruthy();
 });
 
 it('"جرب تاني" ومحاولة فشلت تاني ← سطر إنها ما نفعتش (مش ساكت)', async () => {
