@@ -23,6 +23,7 @@ function fire(call: () => Promise<void>) {
  * `Segment_Tick` 14+ (كان على التابات — مكانتش بتهتز على الشاومي)، `Confirm`/`Reject` 11+ (API 30)،
  * و`Clock_Tick`/`Context_Click`/`Long_Press` في كل النسخ. وكلهم بيحترموا إعداد «اهتزاز اللمس» — مقفول = مفيش، وده الصح.
  */
+// **أي نوع جديد لازم يتراجع على HapticsRecord.kt ونسخة أندرويد اللي ظهر فيها** — catch مش هتحمي هنا (silent-failure-hunter)
 const API = Platform.OS === 'android' ? Number(Platform.Version) : 0;
 function android(type: Haptics.AndroidHaptics) {
   fire(() => Haptics.performAndroidHapticsAsync(type));
