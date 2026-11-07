@@ -45,6 +45,7 @@ import {
   type SetupChoice, type SetupOutcome, type SetupStatus,
 } from '@/lib/firstRunSetup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { hapticError } from '@/lib/haptics';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -899,6 +900,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
      * ورا رسايل تانية، الفشل الجديد بعد `WRITE_ERROR_RESET_MS` بيتصف وراها مش بيضيع.
      */
     const backstop = setTimeout(() => { errorShown.current = false; }, WRITE_ERROR_RESET_MS);
+    hapticError();
     notice(WRITE_ERROR_TITLE, writeErrorBody(label), () => {
       clearTimeout(backstop);
       errorShown.current = false;
