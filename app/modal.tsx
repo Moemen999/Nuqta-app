@@ -22,6 +22,7 @@ import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleShe
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
+import { hapticSuccess } from '@/lib/haptics';
 
 const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
   { key: 'expense', label: 'مصروف', tone: 'danger' },
@@ -166,10 +167,12 @@ export default function AddTransactionModal() {
         }
         settle.request(changes, settlements => {
           updateTransaction(existing.id, payload, settlements);
+          hapticSuccess();
           router.back();
         });
       } else {
         await addTransaction(payload);
+        hapticSuccess();
         router.back();
       }
     } catch {
