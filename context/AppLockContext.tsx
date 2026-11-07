@@ -201,7 +201,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       const h = await newStoredHash(code);
       await SecureStore.setItemAsync(K_HASH, h);
       failsRef.current = NO_FAILS;
-      try { await SecureStore.deleteItemAsync(K_FAILS); } catch (e) { reportAtomicFailure('حفظ القفل', e); }
+      await resetStoredFails();
       await SecureStore.setItemAsync(K_TYPE, type);
       const existingFreq = await SecureStore.getItemAsync(K_FREQ);
       if (!existingFreq) await SecureStore.setItemAsync(K_FREQ, 'onOpen');
@@ -303,6 +303,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * حد المحاولات (2026-11-07): العدّاد بيتقري من التخزين **كل مرة** (مش من الحالة) — قفل التطبيق وفتحه ميصفّرهوش.
    * وفي الانتظار مبنحسبش الهاش أصلاً، فالكود الصح كمان بيستنى (غير كده التخمين بيكمّل والرد بس اللي بيتأخر).
    */
+  /**
+   * تصفير العدّاد المتخزّن. المسح فشل ← نكتب صفر بداله (silent-failure-hunter جولة 2): العدّ القديم كان بيرجع من التخزين
+   * بعد فتح صح (`maxFails` بيختار الأكبر)، فغلطة واحدة بعدها كانت بتدّي انتظار طويل
+   */
+  async function resetStoredFails() {
+    try { await SecureStore.deleteItemAsync(K_FAILS); return; } catch (e) { reportAtomicFailure('حفظ عدّاد القفل', e); }
+    try { await SecureStore.setItemAsync(K_FAILS, JSON.stringify(NO_FAILS)); } catch (e) { reportAtomicFailure('حفظ عدّاد القفل', e); }
+  }
+
   function verify(code: string): Promise<VerifyResult> {
     const run = verifyChain.current.then(() => verifyOnce(code));
     verifyChain.current = run.catch(() => undefined);
@@ -348,7 +357,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setWaitUntil(0);
     failsRef.current = NO_FAILS;
     if (fails.count > 0) {
-      try { await SecureStore.deleteItemAsync(K_FAILS); } catch (e) { reportAtomicFailure('حفظ عدّاد القفل', e); }
+      await resetStoredFails();
     }
     // هاش قديم من غير ملح ← يترقّى دلوقتي (الكود الصح في إيدينا). فشل الترقية مبيأثرش: القديم لسه شغال
     if (stored && !parseStoredHash(stored).salt) {

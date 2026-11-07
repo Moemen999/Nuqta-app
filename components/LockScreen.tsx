@@ -142,7 +142,8 @@ export default function LockScreen() {
   }
 
   // الغلطة اللي بدأت الانتظار: «غلط» بتتمسح — كانت بتستخبى ورا العدّ وترجع لوحدها بعده (silent-failure-hunter)
-  useEffect(() => { if (waiting) setError(''); }, [waiting]);
+  // بيتمسح مع البداية **والنهاية** — مش معتمد على إن setError وsetWaitUntil يترسموا في نفس الدفعة (silent-failure-hunter جولة 2)
+  useEffect(() => { setError(''); }, [waiting]);
 
   // سطر الحالة تحت الكود (نفسه للرقم والباسورد): السبب + العدّ التنازلي، أو رسالة الغلط
   const statusLine = waiting

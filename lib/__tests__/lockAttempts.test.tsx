@@ -174,3 +174,19 @@ describe('جولة المراجعة (security-reviewer + silent-failure-hunter)'
     expect(await verify('5678')).toBe('ok');
   });
 });
+
+it('جولة 2: مسح العدّاد فشل بعد فتح صح ← بيتكتب صفر، والغلطة الجاية مش انتظار', async () => {
+  const SS = require('expo-secure-store') as { getItemAsync: jest.Mock; setItemAsync: jest.Mock; deleteItemAsync: jest.Mock };
+  SS.getItemAsync.mockImplementation(async (k: string) => mockStore[k] ?? null);
+  SS.setItemAsync.mockImplementation(async (k: string, v: string) => { mockStore[k] = v; });
+  await mount();
+  await setup();
+  for (let i = 0; i < 3; i++) await verify('0000');
+  nowMs += 30_001;
+  SS.deleteItemAsync.mockImplementation(async (k: string) => { if (k === 'nuqta_lock_fails') throw new Error('keystore'); delete mockStore[k]; });
+  expect(await verify('1234')).toBe('ok');
+  expect(JSON.parse(mockStore.nuqta_lock_fails)).toEqual({ count: 0, until: 0 });
+  expect(await verify('0000')).toBe('wrong');
+  expect(lock().waitUntil).toBe(0);
+  SS.deleteItemAsync.mockImplementation(async (k: string) => { delete mockStore[k]; });
+});
