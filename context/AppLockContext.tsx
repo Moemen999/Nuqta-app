@@ -3,13 +3,17 @@ import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
+import {
+  bytesToHex, formatStoredHash, NO_FAILS, parseLockFails, parseStoredHash, recordFailure, remainingWaitMs,
+} from '@/lib/lockThrottle';
 
 type LockType = 'pin' | 'password';
 /**
  * نتيجة التحقق من الكود (بند A، مراجعة المشروع 2026-11-05): `error` = التخزين الآمن نفسه فشل — مش "الكود غلط".
  * قبل كده الاتنين كانوا `false`، فالمستخدم كان بيتقاله "غلط" على كود صح
  */
-export type VerifyResult = 'ok' | 'wrong' | 'error';
+/** `wait` = غلط كتير ورا بعض، والمحاولة الجاية بعد `waitUntil` (حد المحاولات 2026-11-07 — `lib/lockThrottle.ts`) */
+export type VerifyResult = 'ok' | 'wrong' | 'error' | 'wait';
 type LockFrequency = 'onOpen' | 'everyResume';
 
 type AppLockContextType = {
@@ -53,6 +57,8 @@ type AppLockContextType = {
   graceMinutes: number;
   setGraceMinutes: (m: number) => Promise<boolean>;
   verify: (code: string) => Promise<VerifyResult>;
+  /** وقت المحاولة الجاية (ms من ساعة الجهاز)، 0 = مفيش انتظار. بيتحدّث مع كل `verify` ووقت الفتح */
+  waitUntil: number;
   unlock: () => void;
 };
 
@@ -71,6 +77,8 @@ const K_TYPE = 'nuqta_lock_type';
 const K_FREQ = 'nuqta_lock_freq';
 const K_HASH = 'nuqta_lock_hash';
 const K_GRACE = 'nuqta_lock_grace';
+/** عدّاد الغلط ورا بعض + امتى المحاولة الجاية (JSON) — في التخزين الآمن عشان قفل التطبيق وفتحه ميصفّرهوش */
+const K_FAILS = 'nuqta_lock_fails';
 
 /** محاولات قراية الإعدادات وقت الفتح قبل ما نعتبرها فشلت — الـkeystore ساعات بيرمي مرة ويرجع */
 const READ_ATTEMPTS = 3;
@@ -78,6 +86,12 @@ const READ_RETRY_MS = 300;
 
 async function hash(code: string) {
   return Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, code);
+}
+
+/** هاش جديد بملح عشوائي (16 بايت) — نفس الكود على موبايلين بيطلع هاش مختلف، فجدول جاهز للـ10,000 رقم مبينفعش */
+async function newStoredHash(code: string) {
+  const salt = bytesToHex(await Crypto.getRandomBytesAsync(16));
+  return formatStoredHash(salt, await hash(salt + code));
 }
 
 export function AppLockProvider({ children }: { children: ReactNode }) {
@@ -88,6 +102,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [readFailed, setReadFailed] = useState(false);
   const [graceMinutes, setGraceMinutesState] = useState(0);
+  const [waitUntil, setWaitUntil] = useState(0);
   const appState = useRef(AppState.currentState);
   const backgroundedAt = useRef<number | null>(null);
   // كل قراية ليها رقم؛ القراية الأقدم أو اللي جت بعد فتح/تفعيل/مسح مبتكتبش فوق الحالة الأحدث (security-reviewer)
@@ -128,11 +143,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       try { t = await SecureStore.getItemAsync(K_TYPE); f = await SecureStore.getItemAsync(K_FREQ); }
       catch (e) { if (isEnabled) { if (seq === readSeq.current) return fail(e); return null; } reportAtomicFailure('قراية القفل', e); }
       try { g = await SecureStore.getItemAsync(K_GRACE); } catch (e) { reportAtomicFailure('قراية القفل', e); }
+      // الانتظار (لو فيه) يبان من أول ما الشاشة تفتح — مش بعد أول محاولة. فشلها مش حرج: verify بيقرا تاني
+      let w: string | null = null;
+      try { w = await SecureStore.getItemAsync(K_FAILS); } catch (e) { reportAtomicFailure('قراية عدّاد القفل', e); }
       if (seq !== readSeq.current) return null;
       setEnabled(isEnabled);
       if (t === 'pin' || t === 'password') setLockType(t);
       if (f === 'onOpen' || f === 'everyResume') setFrequencyState(f);
       if (g !== null) setGraceMinutesState(Number(g) || 0);
+      setWaitUntil(parseLockFails(w).until);
       setIsLocked(isEnabled);
       setReadFailed(false);
       return true;
@@ -174,8 +193,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    */
   async function setupLock(type: LockType, code: string) {
     try {
-      const h = await hash(code);
+      const h = await newStoredHash(code);
       await SecureStore.setItemAsync(K_HASH, h);
+      try { await SecureStore.deleteItemAsync(K_FAILS); } catch (e) { reportAtomicFailure('حفظ القفل', e); }
       await SecureStore.setItemAsync(K_TYPE, type);
       const existingFreq = await SecureStore.getItemAsync(K_FREQ);
       if (!existingFreq) await SecureStore.setItemAsync(K_FREQ, 'onOpen');
@@ -202,7 +222,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setEnabled(false);
     setIsLocked(false);
     setReadFailed(false);
-    for (const k of [K_TYPE, K_HASH, K_FREQ]) {
+    setWaitUntil(0);
+    for (const k of [K_TYPE, K_HASH, K_FREQ, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
   }
@@ -226,7 +247,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setIsLocked(false);
     setReadFailed(false);
     setGraceMinutesState(0);
-    for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE]) {
+    setWaitUntil(0);
+    for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(key); }
       catch (e) { console.warn('[lock] wipe key failed', key, e instanceof Error ? e.name : 'unknown'); }
     }
@@ -242,7 +264,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     let oldHash: string | null = null;
     try {
       oldHash = await SecureStore.getItemAsync(K_HASH);
-      await SecureStore.setItemAsync(K_HASH, await hash(newCode));
+      await SecureStore.setItemAsync(K_HASH, await newStoredHash(newCode));
       await SecureStore.setItemAsync(K_TYPE, newType);
     } catch (e) {
       reportAtomicFailure('حفظ القفل', e);
@@ -268,17 +290,48 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     return true;
   }
 
+  /**
+   * حد المحاولات (2026-11-07): العدّاد بيتقري من التخزين **كل مرة** (مش من الحالة) — قفل التطبيق وفتحه ميصفّرهوش.
+   * وفي الانتظار مبنحسبش الهاش أصلاً، فالكود الصح كمان بيستنى (غير كده التخمين بيكمّل والرد بس اللي بيتأخر).
+   */
   async function verify(code: string): Promise<VerifyResult> {
+    let fails = NO_FAILS;
+    try { fails = parseLockFails(await SecureStore.getItemAsync(K_FAILS)); }
+    catch (e) { reportAtomicFailure('قراية عدّاد القفل', e); }
+    const now = Date.now();
+    if (remainingWaitMs(fails, now) > 0) { setWaitUntil(fails.until); return 'wait'; }
+    let ok: boolean;
+    let stored: string | null;
     try {
-      const stored = await SecureStore.getItemAsync(K_HASH);
+      stored = await SecureStore.getItemAsync(K_HASH);
       // مفعّل من غير هاش (مفروض ميحصلش بعد ترتيب التفعيل) ← "غلط": المخرج "نسيت الكود؟"
-      if (!stored) return 'wrong';
-      const h = await hash(code);
-      return h === stored ? 'ok' : 'wrong';
+      if (!stored) ok = false;
+      else {
+        const { salt, hash: want } = parseStoredHash(stored);
+        ok = (await hash(salt ? salt + code : code)) === want;
+      }
     } catch (e) {
       reportAtomicFailure('التحقق من كود القفل', e);
       return 'error';
     }
+    if (!ok) {
+      const next = recordFailure(fails, now);
+      // الحفظ فشل ← العدّاد في الذاكرة بس لحد الفتحة الجاية؛ الرد لسه "غلط" (مش "error": الكود فعلاً غلط)
+      try { await SecureStore.setItemAsync(K_FAILS, JSON.stringify(next)); }
+      catch (e) { reportAtomicFailure('حفظ عدّاد القفل', e); }
+      setWaitUntil(next.until);
+      return 'wrong';
+    }
+    setWaitUntil(0);
+    if (fails.count > 0) {
+      try { await SecureStore.deleteItemAsync(K_FAILS); } catch (e) { reportAtomicFailure('حفظ عدّاد القفل', e); }
+    }
+    // هاش قديم من غير ملح ← يترقّى دلوقتي (الكود الصح في إيدينا). فشل الترقية مبيأثرش: القديم لسه شغال
+    if (stored && !parseStoredHash(stored).salt) {
+      try { await SecureStore.setItemAsync(K_HASH, await newStoredHash(code)); }
+      catch (e) { reportAtomicFailure('ترقية هاش القفل', e); }
+    }
+    return 'ok';
   }
 
   function unlock() {
@@ -288,7 +341,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, readFailed, retryRead, setupLock, disableLock, clearLock, wipeLockForDeletedAccount, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, unlock }}>
+    <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, readFailed, retryRead, setupLock, disableLock, clearLock, wipeLockForDeletedAccount, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, waitUntil, unlock }}>
       {children}
     </AppLockContext.Provider>
   );

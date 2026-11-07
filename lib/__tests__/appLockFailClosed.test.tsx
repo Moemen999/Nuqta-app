@@ -31,6 +31,7 @@ jest.mock('@sentry/react-native', () => ({ captureMessage: jest.fn() }));
 jest.mock('expo-crypto', () => ({
   CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
   digestStringAsync: jest.fn(async (_a: string, s: string) => `h:${s}`),
+  getRandomBytesAsync: jest.fn(async (n: number) => new Uint8Array(n).fill(7)),
 }));
 
 const holder: { current: ReturnType<typeof useAppLock> | null } = { current: null };
@@ -93,7 +94,11 @@ it('التحقق: صح ← ok، غلط ← wrong، التخزين فشل ← err
   await act(async () => { await lock().setupLock('pin', '1234'); });
   expect(await lock().verify('1234')).toBe('ok');
   expect(await lock().verify('9999')).toBe('wrong');
-  (SecureStore.getItemAsync as jest.Mock).mockImplementationOnce(async () => { throw new Error('keystore'); });
+  // قراية الهاش بالاسم (أول قراية في verify بقت عدّاد المحاولات — فشلها مش حرج)
+  (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (k: string) => {
+    if (k === 'nuqta_lock_hash') throw new Error('keystore');
+    return mockStore[k] ?? null;
+  });
   expect(await lock().verify('1234')).toBe('error');
 });
 
