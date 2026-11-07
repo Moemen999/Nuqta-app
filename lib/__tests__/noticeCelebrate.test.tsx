@@ -46,9 +46,34 @@ it('من غير celebrate ← مفيش علامة ولا اهتزاز (الرس�
   await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
 });
 
-it('الدين اتقفل (settledNow) ← الرسالة بـcelebrate — ومفيش رسالة تانية بتاخدها', () => {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'components', 'DebtEntryModals.tsx'), 'utf8');
-  expect(src).toContain('notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY, undefined, { celebrate: true })');
-  const all = (require('child_process').execSync('git grep -n "celebrate: true" -- app components', { cwd: require('path').join(__dirname, '..', '..') }) as Buffer).toString().trim().split('\n');
-  expect(all).toHaveLength(1);
+it('الدين اتقفل (settledNow) ← الرسالة بـcelebrate — ومفيش مكان تاني بيستخدمه', () => {
+  const { readdirSync, readFileSync, statSync } = require('fs');
+  const { join } = require('path');
+  const root = join(__dirname, '..', '..');
+  const hits: string[] = [];
+  const walk = (dir: string) => {
+    for (const n of readdirSync(dir)) {
+      if (n === '__tests__' || n === 'node_modules') continue;
+      const p = join(dir, n);
+      if (statSync(p).isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(n) && n !== 'NoticeProvider.tsx' && /celebrate\s*[:}]/.test(readFileSync(p, 'utf8'))) hits.push(n);
+    }
+  };
+  for (const d of ['app', 'components', 'context', 'lib']) walk(join(root, d));
+  expect(hits).toEqual(['DebtEntryModals.tsx']);
+  expect(readFileSync(join(root, 'components', 'DebtEntryModals.tsx'), 'utf8'))
+    .toContain('notice(DEBT_SETTLED_TITLE, DEBT_SETTLED_BODY, undefined, { celebrate: true })');
+});
+
+it('الزينة وقعت ← الرسالة و«تمام» لسه ظاهرين', async () => {
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(false);
+  mockHapticSuccess.mockImplementationOnce(() => { throw new Error('boom'); });
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const err = jest.spyOn(console, 'error').mockImplementation(() => {});
+  await mount();
+  await act(async () => { show('الدين اتسدد بالكامل', 'جملة', undefined, { celebrate: true }); });
+  expect(screen.queryByTestId('notice_celebrate', { includeHiddenElements: true })).toBeNull();
+  expect(screen.getByTestId('notice_ok')).toBeTruthy();
+  expect(screen.getByLabelText('الدين اتسدد بالكامل. جملة')).toBeTruthy();
+  warn.mockRestore(); err.mockRestore();
 });

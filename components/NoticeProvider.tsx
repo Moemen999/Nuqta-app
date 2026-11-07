@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LineIcon } from '@/components/LineIcon';
 import { hapticSuccess } from '@/lib/haptics';
@@ -101,7 +101,7 @@ function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss:
         {notice && (
           <View testID="notice_dialog" style={styles.card} accessibilityViewIsModal>
             {/* بتتسكرول: جملة طويلة بخط كبير (200%) كانت هتطلع برّه الشاشة */}
-            {notice.celebrate && <Celebrate key={notice.title + notice.body} />}
+            {notice.celebrate && <DecorBoundary><Celebrate /></DecorBoundary>}
             <ScrollView style={{ maxHeight: height * 0.6 }} contentContainerStyle={styles.textBlock}>
               <View accessible accessibilityLabel={spoken(notice)}>
                 <Text testID="notice_title" style={styles.title}>{notice.title}</Text>
@@ -122,20 +122,30 @@ function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss:
  * العلامة بتكبر من 0.6 لـ1 وبتظهر في ~350ms (Animated بتاع RN على الـnative driver — مفيش اعتمادية جديدة على مسار
  * الرسايل). «قلّل الحركة» مفعّل ← بتظهر ثابتة من غير حركة. زينة: مخفية عن قارئ الشاشة (العنوان بيقول اللي حصل).
  */
+/** زينة جوه رسالة فلوس: لو وقعت متترسمش — الرسالة و«تمام» لازم يفضلوا (مفيش ErrorBoundary تاني في التطبيق) */
+class DecorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(e: unknown) { console.warn('[notice] decoration failed', e instanceof Error ? e.name : 'unknown'); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
 function Celebrate() {
   const { colors } = useTheme();
   const progress = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     hapticSuccess();
     let alive = true;
+    let anim: Animated.CompositeAnimation | undefined;
     AccessibilityInfo.isReduceMotionEnabled()
       .catch(() => false)
       .then(reduce => {
         if (!alive) return;
         if (reduce) { progress.setValue(1); return; }
-        Animated.timing(progress, { toValue: 1, duration: 350, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true }).start();
+        anim = Animated.timing(progress, { toValue: 1, duration: 350, easing: Easing.out(Easing.back(1.6)), useNativeDriver: true });
+        anim.start();
       });
-    return () => { alive = false; };
+    return () => { alive = false; anim?.stop(); };
   }, [progress]);
   const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] });
   return (
