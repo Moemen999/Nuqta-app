@@ -81,7 +81,7 @@
 `themed-view`, `ui/collapsible`، و`hooks/use-color-scheme` (+`.web`)،
 و`hooks/use-theme-color`، و`constants/theme.ts`. ومعاهم `toggleTheme` من
 `ThemeContext` (مكانش حد بيستخدمه).
-**اللي لسه شغّال من القالب:** `haptic-tab.tsx` و`ui/icon-symbol.tsx` (+ `.ios.tsx`).
+**اللي لسه شغّال من القالب:** `haptic-tab.tsx` بس (`ui/icon-symbol` اتشال 2026-11-07 — الأيقونات من `components/LineIcon.tsx`).
 - `FirstRunSetup.tsx` — شاشة "نبدأ بإيه؟" لأول تجهيز للحساب الجديد (شوف `setupStatus` تحت)
 - `DataLoadErrorBanner.tsx` — بانر "مقدرناش نجيب بياناتك" لما listener يترفض
 

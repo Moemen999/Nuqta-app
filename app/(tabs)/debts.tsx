@@ -15,7 +15,7 @@ import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LineIcon } from '@/components/LineIcon';
 import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
@@ -316,7 +316,7 @@ function DebtsContent() {
                           accessibilityState={{ busy: entryBusy, disabled: busyKey !== null }}>
                           {entryBusy
                             ? <ActivityIndicator size="small" color={colors.danger} />
-                            : <IconSymbol name="trash" size={17} color={colors.textMuted} />}
+                            : <LineIcon name="trash-outline" size={18} color={colors.textMuted} />}
                         </TouchableOpacity>
                       )}
                     </View>
@@ -484,7 +484,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="اختار من جهات الاتصال">
-              <IconSymbol name="person.crop.circle" size={20} color={colors.accent} />
+              <LineIcon name="person-circle-outline" size={18} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
