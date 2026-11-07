@@ -11,6 +11,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { stickyFooterStyle } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
+import { LineIcon } from '@/components/LineIcon';
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -146,12 +147,21 @@ export default function LockScreen() {
   useEffect(() => { setError(''); }, [waiting]);
 
   // سطر الحالة تحت الكود (نفسه للرقم والباسورد): السبب + العدّ التنازلي، أو رسالة الغلط
-  const statusLine = waiting
-    ? <>
-        <Text testID="lock_wait_reason" style={styles.error}>{LOCK_WAIT_REASON}</Text>
-        <Text testID="lock_wait" style={styles.error}>{lockWaitMessage(waitUntil - now)}</Text>
-      </>
-    : <Text style={styles.error} accessibilityLiveRegion="assertive">{error || ' '}</Text>;
+  // مساحة ثابتة لسطرين: لوحة الأرقام كانت بتنط لفوق لما سطر السبب يختفي (اتشاف على الشاومي، بناء 1.0.0.008)
+  const statusLine = (
+    <View testID="lock_screen_status" style={styles.status}>
+      {waiting
+        ? <>
+            <Text testID="lock_wait_reason" style={styles.statusText}>{LOCK_WAIT_REASON}</Text>
+            <Text testID="lock_wait" style={styles.statusText}>{lockWaitMessage(waitUntil - now)}</Text>
+          </>
+        : <>
+            <Text style={styles.statusText} accessibilityLiveRegion="assertive">{error || ' '}</Text>
+            {/* السطر التاني فاضي عن قصد: نفس ارتفاع حالة الانتظار مهما كان حجم الخط (visual-identity-reviewer) */}
+            <Text style={styles.statusText} accessible={false} importantForAccessibility="no">{' '}</Text>
+          </>}
+    </View>
+  );
 
   async function handleSubmit(value?: string) {
     const toCheck = value ?? code;
@@ -194,14 +204,14 @@ export default function LockScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
-      <Text style={styles.lockEmoji} accessible={false} importantForAccessibility="no">🔒</Text>
+      <View style={styles.lockIcon}><LineIcon name="lock-closed-outline" size={44} color={colors.accentText} /></View>
       <Text style={styles.title} accessibilityRole="header">نقطة مقفولة</Text>
 
       {readFailed ? (
         // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
         <View style={styles.passwordArea}>
           <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
-          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error}>{LOCK_STORAGE_ERROR}</Text>}
+          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_STORAGE_ERROR}</Text>}
           <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{retrying ? '...' : LOCK_RETRY}</Text>
@@ -285,11 +295,14 @@ function makeStyles(c: ThemeColors) {
     flex: { flex: 1, backgroundColor: c.bg },
     container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
     footer: { ...stickyFooterStyle(c, c.bg), justifyContent: 'center' },
-    lockEmoji: { fontSize: 44, marginBottom: 10 },
+    lockIcon: { marginBottom: 10 },
     title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
     dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
     error: { color: c.dangerText, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
+    status: { marginBottom: 18, gap: 4 },
+    // ارتفاع سطر صريح: سطرين دايمًا × ارتفاع ثابت = اللوحة مبتنطش حتى مع تكبير الخط
+    statusText: { color: c.dangerText, fontSize: 13, lineHeight: 20, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },
