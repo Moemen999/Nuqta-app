@@ -117,3 +117,15 @@ it('مفيش مسح معلّق ← مفيش بانر', async () => {
   await mount();
   expect(screen.queryByTestId('home_banner_delete_pending')).toBeNull();
 });
+
+it('الكاش في أول ثانيتين من الفتح ← «(قديم)» ظاهر، وبانر «مفيش نت» لسه لأ (ميلمعش والنت شغال)', async () => {
+  setData({ coldSnapshot: cold });
+  jest.useFakeTimers();
+  await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(screen.getByText('إجمالي رصيدك (قديم)')).toBeTruthy();
+  expect(screen.queryByTestId('home_banner_cold')).toBeNull();
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(screen.getByTestId('home_banner_cold')).toBeTruthy();
+  jest.useRealTimers();
+});

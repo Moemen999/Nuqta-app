@@ -246,7 +246,9 @@ function HomeScreen() {
           </View>
         )}
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
-        {cold && (
+        {/* بعد مهلة التحميل بس، زي «مفيش نت» (offlineEmpty): الكاش بيتعرض في أول ثانية من كل فتح والنت شغال، والجملة
+            «مفيش نت دلوقتي» كانت بتلمع أحمر غلط (اتشاف على الشاومي 2026-11-07). «(قديم)» جنب الإجمالي بيبان من الأول */}
+        {cold && loadWindowPassed && (
           <View testID="home_banner_cold" style={[styles.banner, styles.bannerDanger, { minHeight: MIN_TOUCH }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
