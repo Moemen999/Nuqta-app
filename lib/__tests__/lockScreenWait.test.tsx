@@ -91,11 +91,16 @@ it('مودال القفل: «استنى» بالسبب، والعدّ بينزل
 
 it('مساحة الحالة ثابتة في الحالتين (اللوحة مبتنطش لما سطر السبب يظهر أو يختفي)', async () => {
   const view = await render(<ThemeProvider><LockScreen /></ThemeProvider>);
-  const waitingStyle = screen.getByTestId('lock_screen_status').props.style;
+  // سطرين دايمًا بارتفاع سطر ثابت — الارتفاع واحد مهما كان حجم الخط
+  const lines = () => screen.getByTestId('lock_screen_status', { includeHiddenElements: true }).props.children;
+  const count = (c: unknown): number => Array.isArray(c) ? c.filter(Boolean).length : (c as { props?: { children?: unknown } })?.props?.children ? count((c as { props: { children: unknown } }).props.children) : 1;
+  expect(count(lines())).toBe(2);
   mockLock.waitUntil = 0;
   await view.rerender(<ThemeProvider><LockScreen /></ThemeProvider>);
   await act(async () => { jest.advanceTimersByTime(1000); });
   expect(screen.queryByTestId('lock_wait')).toBeNull();
-  expect(screen.getByTestId('lock_screen_status').props.style).toEqual(waitingStyle);
-  expect(waitingStyle.minHeight).toBeGreaterThanOrEqual(48);
+  expect(count(lines())).toBe(2);
+  // ارتفاع السطر صريح في الاستايل (من غيره تكبير الخط بيغيّر الارتفاع بين الحالتين)
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'components', 'LockScreen.tsx'), 'utf8');
+  expect(src).toMatch(/statusText: {[^}]*lineHeight: 20/);
 });

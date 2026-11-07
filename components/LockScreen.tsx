@@ -155,7 +155,11 @@ export default function LockScreen() {
             <Text testID="lock_wait_reason" style={styles.statusText}>{LOCK_WAIT_REASON}</Text>
             <Text testID="lock_wait" style={styles.statusText}>{lockWaitMessage(waitUntil - now)}</Text>
           </>
-        : <Text style={styles.statusText} accessibilityLiveRegion="assertive">{error || ' '}</Text>}
+        : <>
+            <Text style={styles.statusText} accessibilityLiveRegion="assertive">{error || ' '}</Text>
+            {/* السطر التاني فاضي عن قصد: نفس ارتفاع حالة الانتظار مهما كان حجم الخط (visual-identity-reviewer) */}
+            <Text style={styles.statusText} accessible={false} importantForAccessibility="no">{' '}</Text>
+          </>}
     </View>
   );
 
@@ -200,14 +204,14 @@ export default function LockScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}>
-      <View style={styles.lockIcon}><LineIcon name="lock-closed-outline" size={44} color={colors.accent} /></View>
+      <View style={styles.lockIcon}><LineIcon name="lock-closed-outline" size={44} color={colors.accentText} /></View>
       <Text style={styles.title} accessibilityRole="header">نقطة مقفولة</Text>
 
       {readFailed ? (
         // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
         <View style={styles.passwordArea}>
           <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
-          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error}>{LOCK_STORAGE_ERROR}</Text>}
+          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_STORAGE_ERROR}</Text>}
           <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{retrying ? '...' : LOCK_RETRY}</Text>
@@ -296,8 +300,9 @@ function makeStyles(c: ThemeColors) {
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
     dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
     error: { color: c.dangerText, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
-    status: { minHeight: 48, marginBottom: 18, justifyContent: 'center', gap: 4 },
-    statusText: { color: c.dangerText, fontSize: 13, minHeight: 18, textAlign: 'center' },
+    status: { marginBottom: 18, gap: 4 },
+    // ارتفاع سطر صريح: سطرين دايمًا × ارتفاع ثابت = اللوحة مبتنطش حتى مع تكبير الخط
+    statusText: { color: c.dangerText, fontSize: 13, lineHeight: 20, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },
