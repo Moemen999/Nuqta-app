@@ -17,6 +17,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LineIcon, type LineIconName } from '@/components/LineIcon';
 
 /** عشان الجملة تطلع بلغة طبيعية مع كل عدد بدل "1 تعديلات" */
 function pendingSentence(n: number) {
@@ -38,9 +39,10 @@ type SettingsRow = {
 const THEME_LABEL: Record<ThemePreference, string> = { system: 'زي الموبايل', light: 'فاتح', dark: 'داكن' };
 
 /** أيقونة صغيرة لكل صف (دراسة الشكل خطوة 6) — زينة بس، مخفية عن قارئ الشاشة. بالمفتاح عشان المصفوفة متتلخبطش */
-const ROW_ICON: Record<string, string> = {
-  wallets: '👛', categories: '🏷️', archive: '🗂️', notifications: '🔔', lock: '🔒', theme: '🌓',
-  guide: '📖', onboarding: '👋', feedback: '💬', about: 'ℹ️', logout: '🚪', deleteAccount: '🗑️',
+const ROW_ICON: Record<string, LineIconName> = {
+  wallets: 'wallet-outline', categories: 'pricetag-outline', archive: 'archive-outline', notifications: 'notifications-outline',
+  lock: 'lock-closed-outline', theme: 'contrast-outline', guide: 'book-outline', onboarding: 'hand-left-outline',
+  feedback: 'chatbubble-outline', about: 'information-circle-outline', logout: 'log-out-outline', deleteAccount: 'trash-outline',
 };
 type SettingsSection = { key: string; title: string; subtitle?: string; rows: SettingsRow[] };
 
@@ -209,7 +211,7 @@ export default function SettingsScreen() {
                 style={[styles.row, i > 0 && styles.rowDivider]}
                 onPress={row.onPress}>
                 <View style={styles.rowLead}>
-                  {!!ROW_ICON[row.key] && <Text style={styles.rowIcon} accessible={false} importantForAccessibility="no">{ROW_ICON[row.key]}</Text>}
+                  {!!ROW_ICON[row.key] && <LineIcon name={ROW_ICON[row.key]} size={20} color={row.tone === 'danger' ? colors.dangerText : colors.textSecondary} />}
                   <Text style={[styles.rowTitle, row.tone === 'danger' && { color: colors.dangerText }]}>
                     {row.title}
                   </Text>
@@ -247,7 +249,6 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxl, minHeight: MIN_TOUCH + space.md },
     rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
     rowLead: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, flexShrink: 1 },
-    rowIcon: { fontSize: typeScale.body },
     rowTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', flexShrink: 1 },
     rowRight: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     rowStatus: { color: c.textSecondary, fontSize: typeScale.caption },

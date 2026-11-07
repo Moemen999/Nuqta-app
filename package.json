@@ -84,6 +84,7 @@
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1",
+      "^expo-asset$": "<rootDir>/node_modules/expo/node_modules/expo-asset",
       "postinstall\\.mjs$": "<rootDir>/node_modules/@firebase/util/dist/postinstall.js"
     },
     "testPathIgnorePatterns": [

@@ -8,7 +8,7 @@ import PendingSummary from '@/components/PendingSheet';
 import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LineIcon } from '@/components/LineIcon';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
@@ -186,7 +186,7 @@ function HomeScreen() {
               accessibilityLabel="إخفاء الأرصدة والمبالغ"
               accessibilityHint="في الرئيسية بس — مبالغ آخر العمليات بتفضل ظاهرة"
               accessibilityState={{ checked: amountsHidden }}>
-              <IconSymbol name={amountsHidden ? 'eye.slash' : 'eye'} size={18} color={colors.textSecondary} />
+              <LineIcon name={amountsHidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textSecondary} />
             </TouchableOpacity>
             {/* كاش: "قديم" جنب الإجمالي نفسه — الرصيد فوق برّه التمرير، والبانر تحت ممكن يتمرر أو قارئ الشاشة يقرا
                 الرقم قبله (a11y-architect) */}

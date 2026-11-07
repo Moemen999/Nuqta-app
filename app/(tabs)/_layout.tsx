@@ -4,11 +4,10 @@ import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LineIcon, type LineIconName } from '@/components/LineIcon';
 import { useTheme } from '@/context/ThemeContext';
 import { tabLabelStyle } from '@/lib/appFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ComponentProps } from 'react';
 
 /**
  * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
@@ -33,18 +32,19 @@ import type { ComponentProps } from 'react';
  */
 const FAB_TAB_PATHS = ['/', '/reports', '/planning'];
 
-type IconName = ComponentProps<typeof IconSymbol>['name'];
+/** التابة: [خطي، مليان] — المختارة مليانة */
+type TabIcon = readonly [LineIconName, LineIconName];
 
 /**
  * التاب المختار: خلفية دهبي غامق **وإطار دهبي** (دراسة الشكل خطوة 6). الخلفية لوحدها 1.5–1.75:1 على الشريط، واللون بين
  * المختار والباقي قريب في الإضاءة — الإطار ≥ 5:1 هو اللي بيشيل المؤشر (a11y-architect)
  */
 function TabBarIcon({ name, color, focused, selectedBg, selectedBorder }: {
-  name: IconName; color: string; focused: boolean; selectedBg: string; selectedBorder: string;
+  name: TabIcon; color: string; focused: boolean; selectedBg: string; selectedBorder: string;
 }) {
   return (
     <View style={[styles.iconPill, focused && { backgroundColor: selectedBg, borderColor: selectedBorder }]}>
-      <IconSymbol size={22} name={name} color={color} />
+      <LineIcon size={22} name={focused ? name[1] : name[0]} color={color} />
     </View>
   );
 }
@@ -72,21 +72,21 @@ export default function TabLayout() {
           name="index"
           options={{
             title: 'الرئيسية',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name="house.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['home-outline', 'home']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="reports"
           options={{
             title: 'التقارير',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name="chart.pie.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['pie-chart-outline', 'pie-chart']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="planning"
           options={{
             title: 'التخطيط',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name="target" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['calculator-outline', 'calculator']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
@@ -97,14 +97,14 @@ export default function TabLayout() {
             // سكريبت روبو بيوصل لتاب الديون من هنا. من غير معرّف كان بيتطابق
             // بنص عربي، وأي تغيير في الكلمة كان هيفشّل التشغيلة كلها.
             tabBarButtonTestID: 'nav_tab_debts',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name="person.2.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['people-outline', 'people']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
         <Tabs.Screen
           name="settings"
           options={{
             title: 'الإعدادات',
-            tabBarIcon: ({ color, focused }) => <TabBarIcon name="gearshape.fill" color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
+            tabBarIcon: ({ color, focused }) => <TabBarIcon name={['settings-outline', 'settings']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
         />
       </Tabs>

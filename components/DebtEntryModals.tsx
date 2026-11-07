@@ -7,7 +7,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { LineIcon } from '@/components/LineIcon';
 import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -516,7 +516,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="اختار من جهات الاتصال">
-              <IconSymbol name="person.crop.circle" size={20} color={colors.accent} />
+              <LineIcon name="person-circle-outline" size={20} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
