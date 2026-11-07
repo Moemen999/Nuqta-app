@@ -214,6 +214,7 @@ export default function AddTransactionModal() {
         return;
       }
       if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
+      hapticSuccess();
       router.back();
     } catch (e) {
       // الدالة بترجّع نتيجة مبترميش — لو رمت يبقى حاجة مش متوقعة، ولازم توصل

@@ -13,7 +13,7 @@ function fire(p: Promise<void>) {
   p.catch(() => undefined);
 }
 
-/** تغيير تابة أو اختيار */
+/** دوسة على تابة (مع الضغط — حتى لو هي نفس التابة المفتوحة) */
 export function hapticSelect() {
   if (Platform.OS === 'android') fire(Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Segment_Tick));
   else if (Platform.OS === 'ios') fire(Haptics.selectionAsync());

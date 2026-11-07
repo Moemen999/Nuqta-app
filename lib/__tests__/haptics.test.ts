@@ -36,10 +36,13 @@ it('آيفون: selection وnotification', () => {
   expect(mockHaptics.notificationAsync.mock.calls).toEqual([['success'], ['error']]);
 });
 
-it('الاهتزاز فشل (جهاز من غير موتور) ← مفيش رمية ولا رفض متساب', async () => {
+it('الاهتزاز فشل (جهاز من غير موتور) ← الرفض متمسوك (مش unhandledRejection)', async () => {
   const h = load('android');
-  mockHaptics.performAndroidHapticsAsync.mockImplementationOnce(async () => { throw new Error('no vibrator'); });
-  expect(() => h.hapticSuccess()).not.toThrow();
+  const rejected = Promise.reject(new Error('no vibrator'));
+  const caught = jest.spyOn(rejected, 'catch');
+  mockHaptics.performAndroidHapticsAsync.mockImplementationOnce(() => rejected);
+  h.hapticSuccess();
+  expect(caught).toHaveBeenCalled();
   await new Promise(r => setImmediate(r));
 });
 
@@ -51,7 +54,7 @@ it('محدش بيستورد expo-haptics غير lib/haptics.ts', () => {
       if (['node_modules', '.git', '__tests__', 'android', 'ios', '.expo'].includes(name)) continue;
       const p = join(dir, name);
       if (statSync(p).isDirectory()) walk(p);
-      else if (/\.(tsx?|jsx?)$/.test(name) && readFileSync(p, 'utf8').includes("from 'expo-haptics'")) offenders.push(p.slice(root.length + 1));
+      else if (/\.(tsx?|jsx?)$/.test(name) && /['"]expo-haptics['"]/.test(readFileSync(p, 'utf8'))) offenders.push(p.slice(root.length + 1));
     }
   };
   for (const d of ['app', 'components', 'context', 'lib', 'hooks']) walk(join(root, d));
