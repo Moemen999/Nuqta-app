@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import ReportsTab from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -43,25 +43,52 @@ it('الصف مش عنصر واحد (a11y-architect BLOCKER): المبلغ وا�
   expect(screen.getAllByText(/300/).length).toBeGreaterThan(0);
 });
 
-describe('رسم الاتجاه (آخر 6 شهور)', () => {
-  const thisMonth = today.slice(0, 7);
-  it('6 أعمدة، والشهر ده فيه مصروفه، والعمود زخرفي', async () => {
-    await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
-    expect(screen.getByTestId('reports_trend')).toBeTruthy();
-    expect(screen.getByTestId(`reports_trend_${thisMonth}`)).toBeTruthy();
-    expect(screen.getByTestId('reports_trend').children.length).toBe(6);
-    expect(screen.getByText('الشهر ده لسه ما خلصش، فعموده محسوب لحد النهارده بس')).toBeTruthy();
-    // القارئ بيعرف أنهي شهر لسه ما خلصش (الإشارة مش بصرية بس)
-    expect(screen.getByLabelText(/، لسه ما خلصش$/)).toBeTruthy();
+describe('رسم الفترة (بيتغير مع الفترة والفئات)', () => {
+  const renderScreen = () => render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+  const columns = () => screen.getByTestId('reports_trend').children.length;
+
+  it('تغيير الفترة بيغيّر الأعمدة والعنوان', async () => {
+    await renderScreen();
+    expect(screen.getByText('مصروفك أسبوع بأسبوع')).toBeTruthy();
+
+    await fireEvent.press(screen.getByTestId('reports_preset_last7'));
+    expect(screen.getByText('مصروفك يوم بيوم')).toBeTruthy();
+    expect(columns()).toBe(7);
+
+    await fireEvent.press(screen.getByTestId('reports_preset_last6Months'));
+    expect(screen.getByText('مصروفك شهر بشهر')).toBeTruthy();
+    expect(columns()).toBe(6);
   });
 
-  it('السلفة مش في الاتجاه (نفس spendingExpenses)', async () => {
+  it('فئة واحدة: العمود بمبلغها بس ومن غير تقسيم ولا مفتاح', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('reports_preset_last7'));
+    await fireEvent.press(screen.getAllByText(/مواصلات/)[0]);
+    expect(screen.getByText('مصروفك يوم بيوم (الفئات المختارة)')).toBeTruthy();
+    expect(screen.queryByTestId('reports_trend_legend', { includeHiddenElements: true })).toBeNull();
+    expect(screen.queryByTestId(`reports_trend_${today}_c2`, { includeHiddenElements: true })).toBeNull();
+    expect(screen.getByTestId('reports_bar_c2')).toBeTruthy();
+  });
+
+  it('فئتين: العمود متقسم بيهم، والمفتاح ظاهر', async () => {
+    await renderScreen();
+    await fireEvent.press(screen.getByTestId('reports_preset_last7'));
+    await fireEvent.press(screen.getAllByText(/أكل/)[0]);
+    await fireEvent.press(screen.getAllByText(/مواصلات/)[0]);
+    expect(screen.getByTestId('reports_trend_legend', { includeHiddenElements: true })).toBeTruthy();
+    // القارئ بيسمع التقسيم نسب من غير مبالغ
+    expect(screen.getByLabelText(/75 بالمية.*25 بالمية$/)).toBeTruthy();
+    expect(screen.getByTestId(`reports_trend_${today}_c1`, { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId(`reports_trend_${today}_c2`, { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('السلفة مش في الرسم (نفس spendingExpenses)', async () => {
     Object.assign(mockData, {
       transactions: [{ id: 'loan', type: 'expense', amount: 500, date: today, walletId: 'w' }],
       debts: [{ id: 'd', personName: 'أ', totalAmount: 500, direction: 'owed_to_me', payments: [], initialTransactionId: 'loan', date: today }],
     });
-    await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+    await renderScreen();
     expect(screen.queryByTestId('reports_trend')).toBeNull();
-    expect(screen.getByText('مفيش مصاريف في آخر 6 شهور')).toBeTruthy();
+    expect(screen.getAllByText('مفيش مصاريف في الفترة دي').length).toBeGreaterThan(0);
   });
 });
