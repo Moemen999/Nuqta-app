@@ -128,8 +128,10 @@ function DebtsContent() {
     return debtGrandTotal(d) - debtPaid(d);
   }
 
-  const totalOwedToMe = owedToMe.reduce((s, d) => s + Math.max(0, remainingOf(d)), 0);
-  const totalIOwe = iOwe.reduce((s, d) => s + Math.max(0, remainingOf(d)), 0);
+  // المتسدد (بنفس تعريف الكارت) صفر في الإجمالي، مش باقي الكسور
+  const openRemaining = (d: Debt) => (isDebtSettled(d) ? 0 : Math.max(0, remainingOf(d)));
+  const totalOwedToMe = owedToMe.reduce((s, d) => s + openRemaining(d), 0);
+  const totalIOwe = iOwe.reduce((s, d) => s + openRemaining(d), 0);
 
   /**
    * المسح بيشيل كل عمليات الدين ومبيعملش تسوية، فلو واحدة منهم على محفظة

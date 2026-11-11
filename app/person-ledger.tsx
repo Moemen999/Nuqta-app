@@ -3,8 +3,9 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
+import { debtHasPendingEntry, isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
+import { debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -34,7 +35,7 @@ export default function PersonLedgerScreen() {
   // personKey جاي من groupDebtsByPerson — مش الاسم، عشان نفس الشخص ميتقسمش
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
-  const { debts } = useData();
+  const { debts, pendingTxIds } = useData();
   const { money } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
@@ -53,8 +54,10 @@ export default function PersonLedgerScreen() {
    * بتبقى دوسة واحدة وبرضه من غير أي تخمين.
    */
   const openDebts = useMemo(
-    () => (group?.debts || []).filter(d => debtGrandTotal(d) - debtPaid(d) > 0.001),
-    [group]
+    // نفس تعريف تاب الديون بالظبط (`isFolded` في debts.tsx): متسدد ومفيش حاجة لسه بترفع عليه —
+    // دفعة بتقفل الدين ولسه بترفع ← يفضل باين هنا زي هناك، عشان لو اترفضت ميختفيش
+    () => (group?.debts || []).filter(d => !isDebtSettled(d) || debtHasPendingEntry(d, pendingTxIds)),
+    [group, pendingTxIds]
   );
   const soleOpenDebt = openDebts.length === 1 ? openDebts[0] : null;
 
@@ -93,10 +96,20 @@ export default function PersonLedgerScreen() {
   let running = 0;
   const rowsWithBalance = rows.map(r => {
     running += r.delta;
-    return { ...r, balance: running };
+    return { ...r, balance: snapPiastre(running) };
   });
 
-  const finalBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
+  const lastBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
+  // كل الديون متسددة (نفس تعريف الكارت) ومفيش زيادة ← صفر، حتى لو باقي كذا دين قديم اتجمع فوق نص قرش
+  // (money-reviewer: "ليك عنده 0.01" وتحتها "كل حاجة متسددة")
+  // الراس من الديون اللي فعلًا مش متسددة — مش `openDebts` (فيها المتسدد اللي دفعته لسه بترفع، عشان
+  // يفضل باين في القايمة): دين واحد دفعته الأخيرة بترفع كان بيطلّع "اللي ليك قد اللي عليك" (silent-failure-hunter جولة 2)
+  const unsettled = (group?.debts || []).filter(d => !isDebtSettled(d));
+  const allSettled = unsettled.length === 0 && (group?.debts || []).every(d => debtExcess(d) === 0);
+  const finalBalance = allSettled ? 0 : lastBalance;
+  // صفر وفيه ديون مفتوحة فعلًا في الاتجاهين = قد بعض، مش "متسدد بالكامل"
+  const evenWithOpen = finalBalance === 0
+    && unsettled.some(d => d.direction === 'owed_to_me') && unsettled.some(d => d.direction === 'i_owe');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
@@ -115,7 +128,7 @@ export default function PersonLedgerScreen() {
         {/* دراسة الشكل خطوة 5: الرصيد الحالي هو البطل — الاتجاه بالكلمة فوقه، والرقم 34 */}
         <Text style={styles.summaryLabel}>{finalBalance > 0 ? 'ليك عنده' : finalBalance < 0 ? 'عليك له' : 'الرصيد الحالي'}</Text>
         {finalBalance === 0
-          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>متسدد بالكامل</Text>
+          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>{evenWithOpen ? 'اللي ليك قد اللي عليك' : 'متسدد بالكامل'}</Text>
           : <Money value={Math.abs(finalBalance)} fit style={[styles.summaryHero, { color: finalBalance > 0 ? colors.incomeText : colors.dangerText }]} />}
       </View>
 

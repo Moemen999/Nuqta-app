@@ -6,7 +6,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
 import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
@@ -179,9 +179,11 @@ export default function ReportsScreen() {
             s.balance -= sign * p.amount;
           });
         });
+        // نص قرش زي كشف الشخص و`isDebtSettled`: كسور الجمع كانت بتطلّع "ليك عنده 0.00"
+        s.balance = snapPiastre(s.balance);
         return s;
       })
-      .filter(s => s.outFlow > 0 || s.inFlow > 0 || Math.abs(s.balance) > 0.001);
+      .filter(s => s.outFlow > 0 || s.inFlow > 0 || s.balance !== 0);
   }, [debts, range]);
 
   return (

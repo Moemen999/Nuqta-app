@@ -35,7 +35,7 @@ const gamiya = (id: string, name: string, statuses: ('done' | 'pending')[]) => (
 }) as unknown as Gamiya;
 
 describe('الحساب', () => {
-  it('isDebtSettled = نفس شرط "اتسدد بالكامل" (الباقي ≤ 0)، والزيادة بترجّعه', () => {
+  it('isDebtSettled = "اتسدد بالكامل" (الباقي ≤ نص قرش)، والزيادة بترجّعه', () => {
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000))).toBe(true);
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1200))).toBe(true);
     expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
@@ -188,5 +188,55 @@ describe('جمعيات خلصت — ليبل قارئ الشاشة', () => {
     mockData.gamiyas = [gamiya('g2', 'جمعية العيلة', ['done', 'done'])];
     await render(wrap(<GamiyaView />));
     expect(screen.getByTestId('gamiyas_finished_toggle').props.accessibilityLabel).toBe('جمعيات خلصت، جمعية واحدة');
+  });
+});
+
+describe('isDebtSettled بسماحية نص قرش (fix/settled-epsilon)', () => {
+  const pays = (amounts: number[]) => amounts.map((amount, i) => ({ id: `p${i}`, date: '2026-08-01', amount }));
+  it('دين متسدد بالقرش والمجموع العشري ساب ~1e-13 ← متسدد (قبل كده كان 0.00 ومش متسدد)', () => {
+    const amounts = [205.7, 420.39, 4.17, 245.11]; // مجموعهم بالقرش 875.37
+    const d = { ...debt('a', 'أ', 'owed_to_me', 875.37, 0), payments: pays(amounts) } as unknown as Debt;
+    expect(875.37 - amounts.reduce((x, y) => x + y, 0)).toBeGreaterThan(0); // المشكلة نفسها موجودة
+    expect(isDebtSettled(d)).toBe(true);
+  });
+  it('الحد: باقي 0.003 أو 0.005 ← متسدد؛ 0.006 أو قرش ← لأ؛ دفع زيادة ← متسدد', () => {
+    // داتا قديمة قبل تقريب القرش (2026-09-30) ممكن يبقى فيها باقي أقل من قرش
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.003, 100))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.005, 100))).toBe(true);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 100.006, 100))).toBe(false);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 999.99))).toBe(false);
+    expect(isDebtSettled(debt('a', 'أ', 'owed_to_me', 1000, 1000.5))).toBe(true);
+  });
+
+  it('الكارت والتذكير والدفع متفقين على نفس الدين (باقي 0.004 قديم)', () => {
+    const { overpayCheck, debtRemaining } = jest.requireActual('@/lib/finance');
+    const d = debt('a', 'أ', 'owed_to_me', 100.004, 100);
+    expect(isDebtSettled(d)).toBe(true);
+    expect(overpayCheck(0.01, debtRemaining(d))).toBe('settled');
+  });
+});
+
+describe('عتبة "اتسدد" في باقي الأماكن (fix/settled-epsilon، جولة 2)', () => {
+  const fin = jest.requireActual('@/lib/finance');
+  it('overpayCheck: نص قرش ← settled، أكتر ← مش settled، و"exceeds" لسه بالقرش', () => {
+    expect(fin.overpayCheck(0.01, 0.004)).toBe('settled');
+    expect(fin.overpayCheck(0.01, 0.006)).toBe('exceeds');
+    expect(fin.overpayCheck(550.01, 550)).toBe('exceeds');
+    expect(fin.overpayCheck(550, 550)).toBe('none');
+  });
+  it('lastInstalmentOf: باقي كسور (~1e-13) ← مفيش قسط أخير تافه', () => {
+    const amounts = [205.7, 420.39, 4.17, 245.11];
+    const d = { ...debt('a', 'أ', 'i_owe', 875.37, 0), isInstallment: true, installmentAmount: 100, installmentCount: 9,
+      payments: amounts.map((amount, i) => ({ id: `p${i}`, date: '2026-08-01', amount })) } as unknown as Debt;
+    expect(fin.lastInstalmentOf(d)).toBeNull();
+  });
+});
+
+describe('تاب الديون: دين باقيه أقل من نص قرش', () => {
+  it('دين باقيه 0.004 (قديم) بيتطوي متسدد، والنشط باين (فرق الإجمالي أقل من قرش فمش بيتقاس هنا)', async () => {
+    mockData.debts = [debt('d1', 'أحمد', 'owed_to_me', 1000, 400), debt('d2', 'منى', 'owed_to_me', 100.004, 100)];
+    await render(wrap(<DebtsTabScreen />));
+    expect(screen.queryByText('منى')).toBeNull();
+    expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
   });
 });
