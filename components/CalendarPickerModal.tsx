@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { overlayCenteredStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -87,16 +87,16 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
             <View style={styles.labelRow}>
               {level === 'days' && (
                 <>
-                  <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('years')}>
+                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('years')}>
                     <Text style={styles.label}>{viewYear}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('months')}>
+                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('months')}>
                     <Text style={styles.label}>{MONTH_NAMES[viewMonth]}</Text>
                   </TouchableOpacity>
                 </>
               )}
               {level === 'months' && (
-                <TouchableOpacity accessibilityRole="button" onPress={() => setLevel('years')}>
+                <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('years')}>
                   <Text style={styles.label}>{viewYear}</Text>
                 </TouchableOpacity>
               )}
@@ -165,6 +165,7 @@ function makeStyles(c: ThemeColors) {
     navBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: 20 },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
+    labelBtn: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     label: { color: c.accentText, fontSize: 15, fontWeight: '700' },
     weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
     weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: 11 },

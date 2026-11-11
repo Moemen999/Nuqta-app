@@ -95,7 +95,7 @@ function makeStyles(c: ThemeColors) {
     clearBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 10 },
     clearText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
   });
 }

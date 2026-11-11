@@ -164,14 +164,14 @@ export default function AuthScreen() {
       </TouchableOpacity>
 
       {mode === 'login' && (
-        <TouchableOpacity accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
+        <TouchableOpacity hitSlop={{ top: 12, bottom: 6 }} accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
           <Text style={[styles.resetText, resetBusy && { opacity: 0.6 }]}>
             {resetBusy ? '...' : RESET_LABEL}
           </Text>
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
+      <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
         <Text style={styles.switchText}>
           {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب بالفعل؟ سجّل دخول'}
         </Text>

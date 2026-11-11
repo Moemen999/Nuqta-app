@@ -57,7 +57,7 @@ export const INSTALLMENT_COUNT_INVALID = 'عدد الأقساط لازم يكو�
  * فوق وتحت ٢ بس: السطور بينها ٤ (paddingVertical ٢ لكل سطر)، فأي أكبر من كده
  * كان هيخلي دوسة بين سطرين تمسح دفعة السطر التاني. ٣٦ طول × ٤٤ عرض.
  */
-const ENTRY_DELETE_SLOP = { top: 2, bottom: 2, left: 6, right: 6 };
+const ENTRY_DELETE_SLOP = { top: 6, bottom: 6, left: 6, right: 6 };
 
 function debtDate(d: Debt) {
   return d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '0000-00-00');
@@ -260,7 +260,7 @@ function DebtsContent() {
           <View style={styles.debtHead}>
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
-                <TouchableOpacity accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
+                <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
                   <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
                 </TouchableOpacity>
               ) : (
@@ -598,7 +598,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     title: { color: c.text, fontSize: 18, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
     summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
