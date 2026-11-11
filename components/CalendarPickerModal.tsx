@@ -1,10 +1,13 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { selectionA11y } from '@/lib/selection';
 import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
 const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
+/** اسم اليوم كامل لقارئ الشاشة («الأربع 11 نوفمبر 2026») — الخانة نفسها بتعرض الرقم بس */
+const WEEKDAY_NAMES = ['الحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
 const MONTH_NAMES = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 function daysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
@@ -120,7 +123,10 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
                   const dateStr = day ? `${viewYear}-${pad(viewMonth + 1)}-${pad(day)}` : null;
                   const isSelected = dateStr === value;
                   return (
-                    <TouchableOpacity accessibilityRole="button" key={i} disabled={!day} onPress={() => day && selectDay(day)}
+                    <TouchableOpacity key={i} disabled={!day} onPress={() => day && selectDay(day)}
+                      {...selectionA11y(isSelected)}
+                      accessible={!!day}
+                      accessibilityLabel={day ? `${WEEKDAY_NAMES[(startWeekday + day - 1) % 7]} ${day} ${MONTH_NAMES[viewMonth]} ${viewYear}` : undefined}
                       style={[styles.dayCell, isSelected && styles.cellSelected]}>
                       {day ? <Text style={[styles.cellText, isSelected && styles.cellTextSelected]}>{day}</Text> : null}
                     </TouchableOpacity>
@@ -133,7 +139,8 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
           {level === 'months' && (
             <View style={styles.grid}>
               {['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'].map((m, i) => (
-                <TouchableOpacity accessibilityRole="button" key={m} onPress={() => selectMonth(i)}
+                <TouchableOpacity key={m} onPress={() => selectMonth(i)}
+                  {...selectionA11y(i === viewMonth)} accessibilityLabel={`${MONTH_NAMES[i]} ${viewYear}`}
                   style={[styles.monthCell, i === viewMonth && styles.cellSelected]}>
                   <Text style={[styles.cellText, i === viewMonth && styles.cellTextSelected]}>{m}</Text>
                 </TouchableOpacity>
@@ -144,7 +151,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
           {level === 'years' && (
             <View style={styles.grid}>
               {Array.from({ length: 12 }, (_, i) => yearsPageStart + i).map(y => (
-                <TouchableOpacity accessibilityRole="button" key={y} onPress={() => selectYear(y)}
+                <TouchableOpacity key={y} onPress={() => selectYear(y)} {...selectionA11y(y === viewYear)}
                   style={[styles.monthCell, y === viewYear && styles.cellSelected]}>
                   <Text style={[styles.cellText, y === viewYear && styles.cellTextSelected]}>{y}</Text>
                 </TouchableOpacity>
@@ -170,8 +177,10 @@ function makeStyles(c: ThemeColors) {
     weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
     weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: 11 },
     grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
-    dayCell: { width: '14.28%', aspectRatio: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-    monthCell: { width: '33.33%', aspectRatio: 1.6, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+    // طول ثابت مش `aspectRatio`: مع عرض بالنسبة جوه صف بيلف، أندرويد كان بيحسب الطول من غير ما يعيد
+    // توسيط الرقم — على الشاومي (1.0.0.011) الخانة 32 بس والرقم لازق تحت في كل الصفوف ماعدا صف واحد
+    dayCell: { width: '14.28%', height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
+    monthCell: { width: '33.33%', height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
     cellSelected: { backgroundColor: c.accent },
     cellText: { color: c.text, fontSize: 13 },
     cellTextSelected: { color: c.onAccent, fontWeight: '700' },
