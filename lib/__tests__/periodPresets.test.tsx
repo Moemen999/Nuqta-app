@@ -35,7 +35,7 @@ beforeEach(() => {
 describe('أسامي الفترات', () => {
   it('عامية مصري، مش فصحى', () => {
     expect(PERIOD_PRESET_WORDS).toEqual({
-      thisMonth: 'الشهر ده', last7: 'آخر 7 أيام', lastMonth: 'الشهر اللي فات', all: 'الكل', custom: 'تواريخ تانية',
+      thisMonth: 'الشهر ده', last7: 'آخر 7 أيام', lastMonth: 'الشهر اللي فات', last6Months: 'آخر 6 شهور', all: 'الكل', custom: 'تواريخ تانية',
     });
     for (const w of [...Object.values(PERIOD_PRESET_WORDS), PREVIOUS_PERIOD_LABEL]) expect(w).not.toMatch(FUSHA);
   });

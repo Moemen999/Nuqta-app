@@ -16,13 +16,14 @@
  * مش كلمة كاملة بتختفي. والشاشة بتحط `numberOfLines={1}` كمان.
  */
 
-export type PeriodPresetKey = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
+export type PeriodPresetKey = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'all' | 'custom';
 
 /** الكلام زي ما بيتقال — المسافات العادية هنا للدليل والقراية */
 export const PERIOD_PRESET_WORDS: Record<PeriodPresetKey, string> = {
   thisMonth: 'الشهر ده',
   last7: 'آخر 7 أيام',
   lastMonth: 'الشهر اللي فات',
+  last6Months: 'آخر 6 شهور',
   all: 'الكل',
   custom: 'تواريخ تانية',
 };
