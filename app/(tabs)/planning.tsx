@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SegmentedControl } from '@/components/SegmentedControl';
@@ -10,6 +11,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 type Section = 'budget' | 'shakhbata' | 'incomes';
 
 export default function PlanningScreen() {
+  useRenderProbe('Planning');
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);

@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { router, Tabs, usePathname } from 'expo-router';
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -50,6 +51,7 @@ function TabBarIcon({ name, color, focused, selectedBg, selectedBorder }: {
 }
 
 export default function TabLayout() {
+  useRenderProbe('TabLayout');
   const { colors } = useTheme();
   const pathname = usePathname();
   const showFab = FAB_TAB_PATHS.includes(pathname);
