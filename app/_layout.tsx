@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
@@ -49,6 +50,7 @@ function SetupChecking() {
 }
 
 function RootNavigator() {
+  useRenderProbe('RootNavigator');
   const { user, loading } = useAuth();
   const { theme } = useTheme();
   const { enabled, isLocked, readFailed, loading: lockLoading } = useAppLock();
@@ -153,6 +155,7 @@ function RootNavigator() {
 initSentry();
 
 export default function RootLayout() {
+  useRenderProbe('RootLayout');
   // نفس الأسامي اللي الغلاف (components/AppText.tsx) بيطلبها — APP_FONT في lib/appFont.ts
   const [fontsLoaded, fontError] = useFonts(APP_FONT_SOURCES);
 

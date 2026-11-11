@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -52,6 +53,7 @@ type NotificationsContextType = {
 export const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
+  useRenderProbe('NotificationsProvider');
   const { subscriptions, gamiyas, debts, incomes } = useData();
   // التفضيل نفسه مش النطاق: الإشعار بيظهر على شاشة القفل برّه أي شاشة
   const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();

@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
@@ -736,6 +737,7 @@ function sameIds(prev: Set<string>, next: string[]) {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  useRenderProbe('DataProvider');
   const { user } = useAuth();
   const uid = user?.uid;
   const creationTime = user?.metadata?.creationTime;

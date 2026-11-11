@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { debtsPhrase } from '@/lib/archiving';
 import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
@@ -66,6 +67,7 @@ function debtDate(d: Debt) {
 type Tab = 'debts' | 'subscriptions' | 'gamiya';
 
 export default function DebtsTabScreen() {
+  useRenderProbe('Debts');
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -88,6 +90,7 @@ export default function DebtsTabScreen() {
 }
 
 function DebtsContent() {
+  useRenderProbe('DebtsContent');
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { debts, wallets, categories, transactions, loadErrors, figuresPending, pendingTxIds, deleteDebt, deleteDebtPayment, deleteDebtIncrease } = useData();

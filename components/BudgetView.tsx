@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { Money } from '@/components/Money';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
@@ -17,6 +18,7 @@ import { Text, TextInput } from '@/components/AppText';
 const TOTAL_KEY = 'total_budget';
 
 export default function BudgetView() {
+  useRenderProbe('BudgetView');
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();

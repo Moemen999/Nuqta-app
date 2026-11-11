@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
 import { Money } from '@/components/Money';
@@ -23,6 +24,7 @@ type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
 const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'last6Months', 'custom'];
 
 export default function ReportsScreen() {
+  useRenderProbe('Reports');
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);

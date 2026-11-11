@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
@@ -58,6 +59,7 @@ type SettingsSection = { key: string; title: string; subtitle?: string; rows: Se
  * الإشعارات) بقت ملفات لوحدها بنفس منطق الحفظ بالحرف.
  */
 export default function SettingsScreen() {
+  useRenderProbe('Settings');
   const insets = useSafeAreaInsets();
   const { colors, preference, setTheme } = useTheme();
   const [themeMenu, setThemeMenu] = useState(false);

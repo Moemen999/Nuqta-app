@@ -1,3 +1,4 @@
+import { useRenderProbe } from '@/lib/perfProbe';
 import { Money } from '@/components/Money';
 import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
 import { speakable } from '@/lib/money';
@@ -42,6 +43,7 @@ const TOTAL_BUDGET_KEY = 'total_budget';
  * (كروت الدخل الثابت، البانرات) بيتخبّى؛ أي شاشة تانية بتعرض أرقامها.
  */
 export default function HomeTab() {
+  useRenderProbe('Home');
   return (
     <AmountsMaskScope>
       <HomeScreen />
@@ -50,6 +52,7 @@ export default function HomeTab() {
 }
 
 function HomeScreen() {
+  useRenderProbe('HomeScreen');
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
