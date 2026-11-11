@@ -1,13 +1,15 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y } from '@/lib/selection';
-import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, radius } from '@/lib/tokens';
+// اسم اليوم كامل لقارئ الشاشة («الأربع، 11 نوفمبر 2026») — نفس قايمة الدخل الثابت، عشان الاتنين ميختلفوش
+import { WEEKDAY_NAMES } from '@/lib/recurringIncome';
 import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
 const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
-/** اسم اليوم كامل لقارئ الشاشة («الأربع 11 نوفمبر 2026») — الخانة نفسها بتعرض الرقم بس */
-const WEEKDAY_NAMES = ['الحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
+/** خانة الشهر — نفس طول الشكل القديم (عرض ~104 × 1/1.6)، ثابت عشان مفيش aspectRatio (شوف dayCell) */
+const MONTH_CELL_HEIGHT = 64;
 const MONTH_NAMES = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 function daysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
@@ -90,16 +92,16 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
             <View style={styles.labelRow}>
               {level === 'days' && (
                 <>
-                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('years')}>
+                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" accessibilityHint="اختار سنة تانية" onPress={() => setLevel('years')}>
                     <Text style={styles.label}>{viewYear}</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('months')}>
+                  <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" accessibilityHint="اختار شهر تاني" onPress={() => setLevel('months')}>
                     <Text style={styles.label}>{MONTH_NAMES[viewMonth]}</Text>
                   </TouchableOpacity>
                 </>
               )}
               {level === 'months' && (
-                <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" onPress={() => setLevel('years')}>
+                <TouchableOpacity style={styles.labelBtn} accessibilityRole="button" accessibilityHint="اختار سنة تانية" onPress={() => setLevel('years')}>
                   <Text style={styles.label}>{viewYear}</Text>
                 </TouchableOpacity>
               )}
@@ -115,7 +117,8 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 
           {level === 'days' && (
             <>
-              <View style={styles.weekRow}>
+              {/* كل خانة فيها اسم يومها، فالصف ده سبع محطات زيادة لقارئ الشاشة */}
+              <View style={styles.weekRow} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                 {WEEKDAYS.map(d => <Text key={d} style={styles.weekday}>{d}</Text>)}
               </View>
               <View style={styles.grid}>
@@ -126,7 +129,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
                     <TouchableOpacity key={i} disabled={!day} onPress={() => day && selectDay(day)}
                       {...selectionA11y(isSelected)}
                       accessible={!!day}
-                      accessibilityLabel={day ? `${WEEKDAY_NAMES[(startWeekday + day - 1) % 7]} ${day} ${MONTH_NAMES[viewMonth]} ${viewYear}` : undefined}
+                      accessibilityLabel={day ? `${WEEKDAY_NAMES[(startWeekday + day - 1) % 7]}، ${day} ${MONTH_NAMES[viewMonth]} ${viewYear}` : undefined}
                       style={[styles.dayCell, isSelected && styles.cellSelected]}>
                       {day ? <Text style={[styles.cellText, isSelected && styles.cellTextSelected]}>{day}</Text> : null}
                     </TouchableOpacity>
@@ -138,7 +141,8 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 
           {level === 'months' && (
             <View style={styles.grid}>
-              {['ينا', 'فبر', 'مار', 'أبر', 'ماي', 'يون', 'يول', 'أغس', 'سبت', 'أكت', 'نوف', 'ديس'].map((m, i) => (
+              {/* الاسم كامل: «سبت» المختصر كان بيتقري السبت */}
+              {MONTH_NAMES.map((m, i) => (
                 <TouchableOpacity key={m} onPress={() => selectMonth(i)}
                   {...selectionA11y(i === viewMonth)} accessibilityLabel={`${MONTH_NAMES[i]} ${viewYear}`}
                   style={[styles.monthCell, i === viewMonth && styles.cellSelected]}>
@@ -167,9 +171,10 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayCenteredStyle,
-    card: { backgroundColor: c.surface, borderRadius: 16, padding: 16, width: '88%', borderWidth: 1, borderColor: c.borderStrong },
+    // أقصى عرض: الخانة طولها ثابت، فعلى تابلت أو موبايل بيتفرد كانت هتبقى شريط عريض (visual-identity-reviewer)
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: 16, width: '88%', maxWidth: 360, borderWidth: 1, borderColor: c.borderStrong },
     header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    navBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
+    navBtn: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: 20 },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
     labelBtn: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
@@ -179,8 +184,8 @@ function makeStyles(c: ThemeColors) {
     grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
     // طول ثابت مش `aspectRatio`: مع عرض بالنسبة جوه صف بيلف، أندرويد كان بيحسب الطول من غير ما يعيد
     // توسيط الرقم — على الشاومي (1.0.0.011) الخانة 32 بس والرقم لازق تحت في كل الصفوف ماعدا صف واحد
-    dayCell: { width: '14.28%', height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: 8 },
-    monthCell: { width: '33.33%', height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+    dayCell: { width: '14.28%', height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
+    monthCell: { width: '33.33%', height: MONTH_CELL_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
     cellSelected: { backgroundColor: c.accent },
     cellText: { color: c.text, fontSize: 13 },
     cellTextSelected: { color: c.onAccent, fontWeight: '700' },

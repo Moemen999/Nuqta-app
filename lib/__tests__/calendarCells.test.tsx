@@ -16,15 +16,15 @@ const show = (value = '2026-11-11') =>
 describe('خانات أيام التقويم', () => {
   it('اسم كامل: اليوم والرقم والشهر والسنة، والمختار عليه selected', async () => {
     await show();
-    const sel = screen.getByLabelText('الأربع 11 نوفمبر 2026');
+    const sel = screen.getByLabelText('الأربع، 11 نوفمبر 2026');
     expect(sel.props.accessibilityState).toMatchObject({ selected: true });
-    expect(screen.getByLabelText('الحد 1 نوفمبر 2026').props.accessibilityState).toMatchObject({ selected: false });
-    expect(screen.getByLabelText('الاتنين 30 نوفمبر 2026')).toBeTruthy();
+    expect(screen.getByLabelText('الأحد، 1 نوفمبر 2026').props.accessibilityState).toMatchObject({ selected: false });
+    expect(screen.getByLabelText('الاتنين، 30 نوفمبر 2026')).toBeTruthy();
   });
 
   it('طول ثابت ≥ 44 ومن غير aspectRatio (الخانة والشهر)', async () => {
     await show();
-    const day = StyleSheet.flatten(screen.getByLabelText('الأربع 11 نوفمبر 2026').props.style);
+    const day = StyleSheet.flatten(screen.getByLabelText('الأربع، 11 نوفمبر 2026').props.style);
     expect(day.aspectRatio).toBeUndefined();
     expect(day.height).toBeGreaterThanOrEqual(MIN_TOUCH);
     await fireEvent.press(screen.getByText('نوفمبر'));
@@ -37,9 +37,9 @@ describe('خانات أيام التقويم', () => {
   it('الخانات الفاضية قبل أول يوم مش عناصر لقارئ الشاشة', async () => {
     await show('2026-11-11'); // نوفمبر 2026 بيبدأ الحد ← مفيش فاضي؛ أكتوبر بيبدأ الخميس ← 4 فاضيين
     await fireEvent.press(screen.getByLabelText('الشهر اللي فات'));
-    expect(screen.getByLabelText('الخميس 1 أكتوبر 2026')).toBeTruthy();
+    expect(screen.getByLabelText('الخميس، 1 أكتوبر 2026')).toBeTruthy();
     // الخانات الفاضية الأربعة مش زراير من غير اسم (كانت بتتقري «زرار» وبس)
-    const days = screen.getAllByLabelText(/ أكتوبر 2026$/);
+    const days = screen.getAllByLabelText(/^[^ ]+، [0-9]+ أكتوبر 2026$/);
     expect(days).toHaveLength(31);
     expect(screen.getAllByRole('button').some(el => el.props.accessibilityLabel === undefined && el.props.disabled)).toBe(false);
   });
