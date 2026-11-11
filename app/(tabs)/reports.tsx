@@ -8,7 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
-import { monthlyTrend, TREND_MONTHS } from '@/lib/monthlyTrend';
+import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
@@ -19,8 +19,8 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'custom';
-const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'custom'];
+type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
+const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'last6Months', 'custom'];
 
 export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
@@ -34,25 +34,29 @@ export default function ReportsScreen() {
   const { money } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
-  const [catFilter, setCatFilter] = useState<string[]>([]);
+  const [selectedCats, setCatFilter] = useState<string[]>([]);
+  // فئة اتمسحت والشاشة مفتوحة تخرج من الفلتر: الرقم كان هيعدّها والشرايح لأ، فالعمود يبقى من غير جزء يوضّحه
+  const catFilter = useMemo(() => selectedCats.filter(id => categories.some(c => c.id === id)), [selectedCats, categories]);
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
 
+  // اليوم في الـdeps: لو الشاشة فضلت مفتوحة بعد نص الليل، الفترة والعمود الحالي بيتحرّكوا معاه
+  const today = todayStr();
   const range = useMemo(() => {
-    const today = todayStr();
     if (preset === 'last7') return { from: addDays(today, -6), to: today };
     if (preset === 'lastMonth') {
       const prevMonthDay = addDays(startOfMonth(today), -1);
       return { from: startOfMonth(prevMonthDay), to: endOfMonth(prevMonthDay) };
     }
+    if (preset === 'last6Months') return { from: sixMonthsStart(today), to: endOfMonth(today) };
     if (preset === 'custom') {
       const from = customFrom <= customTo ? customFrom : customTo;
       const to = customFrom <= customTo ? customTo : customFrom;
       return { from, to };
     }
     return { from: startOfMonth(today), to: endOfMonth(today) };
-  }, [preset, customFrom, customTo]);
+  }, [preset, customFrom, customTo, today]);
 
   const filtered = useMemo(
     () => transactions.filter(t => t.date >= range.from && t.date <= range.to),
@@ -90,7 +94,7 @@ export default function ReportsScreen() {
     [expenseByCat, colors.textSecondary]
   );
 
-  // كل المصروف الحقيقي (من غير سلفة وجمعية) على كل التواريخ — للفترة اللي فاتت وللاتجاه
+  // كل المصروف الحقيقي (من غير سلفة وجمعية) على كل التواريخ — للفترة اللي فاتت
   const allSpending = useMemo(() => spendingExpenses(transactions, transfers), [transactions, transfers]);
 
   const change = useMemo(() => {
@@ -106,14 +110,30 @@ export default function ReportsScreen() {
     return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
   }, [range, visibleIds, allSpending, periodExpense]);
 
-  // الاتجاه شهور كاملة دايمًا (مش فلتر الفترة)، بس بيمشي مع فلتر الفئات — `lib/monthlyTrend.ts`
-  // اليوم في الـdeps: لو الشاشة اترسمت تاني بعد نص الليل/أول الشهر، الشهر الحالي بيتحرّك (silent-failure-hunter)
-  const today = todayStr();
-  const trend = useMemo(
-    () => monthlyTrend(allSpending, today, visibleIds),
-    [allSpending, today, visibleIds]
+  // الأعمدة من الفترة والفئات المختارين ومن نفس صفوف الرقم البطل — `lib/spendTimeline.ts`
+  const sliceIds = useMemo(() => visibleIds ? pieSlices.map(s => s.id) : undefined, [visibleIds, pieSlices]);
+  const timeline = useMemo(
+    () => spendTimeline(periodExpenses, range, today, visibleIds, sliceIds),
+    [periodExpenses, range, today, visibleIds, sliceIds]
   );
-  const trendEmpty = trend.every(m => m.amount === 0);
+  const timelineEmpty = timeline.buckets.every(b => b.amount === 0);
+  const timelineHasPartial = timeline.buckets.some(b => b.partial);
+  // فئة واحدة = عمود بلونها، أكتر من فئة = العمود متقسم بألوانهم، ومن غير فلتر = الإجمالي بلون التطبيق.
+  // اللون تبع الفئة مش ترتيبها (`useChartColors`)، فالفلتر مبيغيّرش لون اللي فضل
+  const stacked = catFilter.length > 0 && pieSlices.length > 1;
+  const columnColor = catFilter.length > 0 && pieSlices.length === 1 ? pieSlices[0].color : colors.accentText;
+  const sliceColors = useMemo(() => new Map(pieSlices.map(s => [s.id, s.color])), [pieSlices]);
+  const sliceNames = useMemo(() => new Map(pieSlices.map(s => [s.id, s.name])), [pieSlices]);
+  // فوق 6 أعمدة العرض حوالي 36 نقطة: القروش بتصغّر الرقم لحد ما يتقص. الرسم للمقارنة، والرقم بالقرش في الرقم البطل
+  const roundColumns = timeline.buckets.length > 6;
+  // القارئ مبيشوفش ألوان العمود: نسب مش مبالغ عشان القناع يفضل شغال
+  function columnLabel(b: TimelineBucket) {
+    const parts = stacked ? b.segments.map(s => {
+      const pct = (s.amount / b.amount) * 100;
+      return `${sliceNames.get(s.id) ?? ''} ${pct < 1 ? 'أقل من 1' : Math.round(pct)} بالمية`;
+    }) : [];
+    return [b.spoken, ...(b.partial ? ['مش فترة كاملة'] : []), ...parts].join('، ');
+  }
 
   /**
    * الفئة المؤرشفة مالهاش لازمة في الفلتر إلا لو ليها مصروف في الفترة دي
@@ -246,34 +266,58 @@ export default function ReportsScreen() {
         </>
       )}
 
-      <Text style={styles.sectionTitle}>مصروفك آخر {TREND_MONTHS} شهور{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+      <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+      <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to)}</Text>
       {spendLoading ? (
         <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
-      ) : trendEmpty ? (
-        <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في آخر {TREND_MONTHS} شهور</Text>
+      ) : timelineEmpty ? (
+        <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي</Text>
       ) : (
         <>
-          {/* عمود لكل شهر، الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع الشهر (و"لسه ما خلصش" للحالي)
+          {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع التاريخ كامل (و"مش فترة كاملة" لو ناقص)
               وبعده المبلغ — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
           <View testID="reports_trend" style={styles.trendRow}>
-            {trend.map(m => (
-              <View key={m.key} testID={`reports_trend_${m.key}`} style={styles.trendCol}>
+            {timeline.buckets.map(b => (
+              <View key={b.key} testID={`reports_trend_${b.key}`} style={styles.trendCol}>
                 <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                   <View style={[
                     styles.trendFill,
-                    { height: `${Math.max(m.share * 100, m.amount > 0 ? 2 : 0)}%` },
-                    m.partial && styles.trendFillPartial,
-                    // الشهر الحالي إطار من غير ملو، فالعمود لازم يبان حتى لو صغير
-                    m.partial && m.amount > 0 && { minHeight: 6 },
-                  ]} />
+                    { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%`, backgroundColor: stacked ? 'transparent' : columnColor },
+                    b.partial && { backgroundColor: 'transparent', borderWidth: 2, borderColor: columnColor },
+                    // العمود الناقص إطار، فلازم يبان حتى لو صغير
+                    b.partial && b.amount > 0 && { minHeight: 6 },
+                    // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
+                    stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },
+                  ]}>
+                    {stacked && b.segments.map(s => (
+                      <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
+                    ))}
+                  </View>
                 </View>
-                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}
-                  accessibilityLabel={m.partial ? `${m.label}، لسه ما خلصش` : undefined}>{m.label}</Text>
-                <Money value={m.amount} currency={false} style={styles.trendValue} />
+                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                  accessibilityLabel={columnLabel(b)}>{b.label}</Text>
+                {b.sublabel !== '' && (
+                  <Text style={styles.trendSublabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                    importantForAccessibility="no" accessibilityElementsHidden>{b.sublabel}</Text>
+                )}
+                {b.future && b.amount === 0
+                  ? <Text style={styles.trendValue} accessibilityLabel="لسه ما جاش">—</Text>
+                  : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} />}
               </View>
             ))}
           </View>
-          <Text style={styles.hintText}>الشهر ده لسه ما خلصش، فعموده محسوب لحد النهارده بس</Text>
+          {/* المفتاح نسخة من أسامي الأعمدة الأفقية اللي فوقه، فالقارئ مش محتاج يسمعها تاني */}
+          {stacked && (
+            <View testID="reports_trend_legend" style={styles.legend} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+              {pieSlices.map(s => (
+                <View key={s.id} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: s.color }]} />
+                  <Text numberOfLines={1} style={styles.legendText}>{s.name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+          {timelineHasPartial && <Text style={styles.hintText}>العمود اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
         </>
       )}
 
@@ -346,12 +390,19 @@ function makeStyles(c: ThemeColors) {
     trendCol: { flex: 1, alignItems: 'center', gap: 4 },
     // العمود بيطلع من تحت
     trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
-    // accentText مش accent: الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect)
-    trendFill: { width: '100%', backgroundColor: c.accentText, borderRadius: 6 },
-    // الشهر اللي لسه ما خلصش: إطار بس من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل"
-    trendFillPartial: { backgroundColor: 'transparent', borderWidth: 2, borderColor: c.accentText },
-    trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center' },
-    trendValue: { color: c.text, fontSize: typeScale.caption, textAlign: 'center' },
+    // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
+    // العمود الناقص إطار من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل".
+    // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
+    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden', flexDirection: 'column-reverse', gap: 2 },
+    trendSegment: { minHeight: 2 },
+    // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
+    trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
+    trendSublabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch', marginTop: -space.xxs },
+    trendValue: { color: c.text, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
+    legend: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.lg, rowGap: space.xs, marginTop: space.sm, marginBottom: space.sm },
+    legendItem: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, maxWidth: '100%' },
+    legendDot: { width: 10, height: 10, borderRadius: 5 },
+    legendText: { color: c.textSecondary, fontSize: typeScale.caption },
     personCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.sm },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },
     personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
