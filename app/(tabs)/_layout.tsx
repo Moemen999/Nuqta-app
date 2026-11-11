@@ -49,6 +49,16 @@ function TabBarIcon({ name, color, focused, selectedBg, selectedBorder }: {
   );
 }
 
+/**
+ * التاب المستخبي مبيترسمش (بند D، 2026-11-11). القياس على الشاومي (`reports/2026-11-11-render-probe-measure.md`): كل عملية
+ * بتتحفظ = 3–4 رسمات للـ`DataProvider`، وحوالي 80% من زمنها كان في التابات اللي مش قدام المستخدم. التاب بيترسم بآخر
+ * بيانات أول ما ترجعله.
+ *
+ * **الرئيسية برّه عن قصد:** `ChargeAutoNotices`/`IncomeAutoNotices` فيها هما اللي بيشغّلوا التسجيل التلقائي، ولازم يفضلوا
+ * شغالين وانت في تاب تاني. أي تاب جديد فيه effect لازم يشتغل وهو مستخبي ميتحطش عليه العلم ده.
+ */
+const FREEZE_HIDDEN_TAB = true;
+
 export default function TabLayout() {
   const { colors } = useTheme();
   const pathname = usePathname();
@@ -78,6 +88,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="reports"
           options={{
+            freezeOnBlur: FREEZE_HIDDEN_TAB,
             title: 'التقارير',
             tabBarIcon: ({ color, focused }) => <TabBarIcon name={['pie-chart-outline', 'pie-chart']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
@@ -85,6 +96,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="planning"
           options={{
+            freezeOnBlur: FREEZE_HIDDEN_TAB,
             title: 'التخطيط',
             tabBarIcon: ({ color, focused }) => <TabBarIcon name={['layers-outline', 'layers']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
@@ -92,6 +104,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="debts"
           options={{
+            freezeOnBlur: FREEZE_HIDDEN_TAB,
             // «الالتزامات» مش «الديون» (دراسة الشكل، قرار مؤمن 2026-11-06): جوّه كمان الاشتراكات والجمعية
             title: 'الالتزامات',
             // سكريبت روبو بيوصل لتاب الديون من هنا. من غير معرّف كان بيتطابق
@@ -103,6 +116,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="settings"
           options={{
+            freezeOnBlur: FREEZE_HIDDEN_TAB,
             title: 'الإعدادات',
             tabBarIcon: ({ color, focused }) => <TabBarIcon name={['settings-outline', 'settings']} color={color} focused={focused} selectedBg={colors.selectedBg} selectedBorder={colors.selectedBorder} />,
           }}
