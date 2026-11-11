@@ -20,7 +20,7 @@ import {
   increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -631,8 +631,8 @@ function makeStyles(c: ThemeColors) {
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center' },
+    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     // اختيارين فوق بعض بعرض كامل، كل واحد بشرحه (arabic-copy-reviewer: جنب بعض مش هيكفي الشرح)
     leftoverQuestion: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 14, marginBottom: 8, lineHeight: 20 },
     leftoverOption: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, minHeight: 44 },

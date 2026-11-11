@@ -1,3 +1,4 @@
+import { MIN_TOUCH } from '@/lib/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -96,7 +97,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg, paddingHorizontal: 24 },
-    skipBtn: { alignSelf: 'flex-start', padding: 8 },
+    skipBtn: { alignSelf: 'flex-start', padding: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     skipText: { color: c.textMuted, fontSize: 13 },
     slideArea: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
     emoji: { fontSize: 64, marginBottom: 24 },

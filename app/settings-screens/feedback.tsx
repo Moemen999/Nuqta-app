@@ -7,7 +7,7 @@ import {
   feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -125,7 +125,7 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 8 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 },
+    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: MIN_TOUCH, justifyContent: 'center' },
     textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 12, minHeight: 150 },
     counter: { color: c.textMuted, fontSize: 11.5, textAlign: 'left', marginTop: 6 },
     note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 16, lineHeight: 17 },

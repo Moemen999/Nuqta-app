@@ -8,7 +8,7 @@ import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 import { LineIcon } from '@/components/LineIcon';
@@ -312,7 +312,7 @@ function makeStyles(c: ThemeColors) {
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
     submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
     readFailed: { color: c.text, fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
-    forgotBtn: { padding: 8 },
+    forgotBtn: { padding: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     forgotText: { color: c.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
   });
 }
