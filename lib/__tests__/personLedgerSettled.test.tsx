@@ -44,9 +44,11 @@ describe('كشف الشخص: الراس والقايمة نفس الكلام', (
     expect(screen.getByText('اللي ليك قد اللي عليك')).toBeTruthy();
   });
 
-  it('دفعة بتقفل الدين ولسه بترفع ← الدين يفضل مفتوح هنا زي تاب الديون', async () => {
+  it('دفعة بتقفل الدين ولسه بترفع ← الدين يفضل في القايمة زي تاب الديون، والراس مبيقولش "قد بعض"', async () => {
     await show([debt('a', 'owed_to_me', 100, [100])], new Set(['tp_a_0']));
-    expect(screen.queryByText('متسدد بالكامل')).toBeNull();
+    expect(screen.queryByText(/كل حاجة متسددة/)).toBeNull();
+    expect(screen.queryByText('اللي ليك قد اللي عليك')).toBeNull();
+    expect(screen.getByText('متسدد بالكامل')).toBeTruthy();
   });
 
   it('كسور الجمع (~1e-13) مبتطلّعش "−0.00" في رصيد آخر سطر', async () => {

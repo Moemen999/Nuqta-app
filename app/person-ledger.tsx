@@ -102,10 +102,14 @@ export default function PersonLedgerScreen() {
   const lastBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
   // كل الديون متسددة (نفس تعريف الكارت) ومفيش زيادة ← صفر، حتى لو باقي كذا دين قديم اتجمع فوق نص قرش
   // (money-reviewer: "ليك عنده 0.01" وتحتها "كل حاجة متسددة")
-  const allSettled = openDebts.length === 0 && (group?.debts || []).every(d => debtExcess(d) === 0);
+  // الراس من الديون اللي فعلًا مش متسددة — مش `openDebts` (فيها المتسدد اللي دفعته لسه بترفع، عشان
+  // يفضل باين في القايمة): دين واحد دفعته الأخيرة بترفع كان بيطلّع "اللي ليك قد اللي عليك" (silent-failure-hunter جولة 2)
+  const unsettled = (group?.debts || []).filter(d => !isDebtSettled(d));
+  const allSettled = unsettled.length === 0 && (group?.debts || []).every(d => debtExcess(d) === 0);
   const finalBalance = allSettled ? 0 : lastBalance;
-  // صفر وفيه ديون مفتوحة في الاتجاهين = متعادلين، مش "متسدد بالكامل"
-  const evenWithOpen = finalBalance === 0 && openDebts.length > 0;
+  // صفر وفيه ديون مفتوحة فعلًا في الاتجاهين = قد بعض، مش "متسدد بالكامل"
+  const evenWithOpen = finalBalance === 0
+    && unsettled.some(d => d.direction === 'owed_to_me') && unsettled.some(d => d.direction === 'i_owe');
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
