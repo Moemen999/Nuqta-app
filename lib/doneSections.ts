@@ -9,7 +9,7 @@ import { PIASTRE_EPS, debtGrandTotal, debtPaid } from '@/lib/finance';
 /**
  * "اتسدد بالكامل" — الكارت والطيّ مع بعض. **بسماحية نص قرش** (`PIASTRE_EPS`، زي الذرة في
  * `addDebtPayment`): مجموع الدفعات بالكسور ممكن يسيب باقي زي 2e-12 في دين متسدد بالقرش،
- * فكان بيفضل "مش متسدد" ويعرض 0.00 (money-reviewer، 2026-11-02). **مستني موافقة مؤمن**
+ * فكان بيفضل "مش متسدد" ويعرض 0.00 (money-reviewer، 2026-11-02). قرار مؤمن 2026-11-02 (TIMELINE)
  */
 export function isDebtSettled(d: Debt): boolean {
   return debtGrandTotal(d) - debtPaid(d) <= PIASTRE_EPS;

@@ -3,9 +3,9 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
-import { isDebtSettled } from '@/lib/doneSections';
+import { debtHasPendingEntry, isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { PIASTRE_EPS, debtGrandTotal, debtPaid, findPersonGroup } from '@/lib/finance';
+import { debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -35,7 +35,7 @@ export default function PersonLedgerScreen() {
   // personKey جاي من groupDebtsByPerson — مش الاسم، عشان نفس الشخص ميتقسمش
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
-  const { debts } = useData();
+  const { debts, pendingTxIds } = useData();
   const { money } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
@@ -54,9 +54,10 @@ export default function PersonLedgerScreen() {
    * بتبقى دوسة واحدة وبرضه من غير أي تخمين.
    */
   const openDebts = useMemo(
-    // نفس تعريف تاب الديون (`isDebtSettled`) — الدين اللي هناك مطوي متسدد ميبانش هنا مفتوح
-    () => (group?.debts || []).filter(d => !isDebtSettled(d)),
-    [group]
+    // نفس تعريف تاب الديون بالظبط (`isFolded` في debts.tsx): متسدد ومفيش حاجة لسه بترفع عليه —
+    // دفعة بتقفل الدين ولسه بترفع ← يفضل باين هنا زي هناك، عشان لو اترفضت ميختفيش
+    () => (group?.debts || []).filter(d => !isDebtSettled(d) || debtHasPendingEntry(d, pendingTxIds)),
+    [group, pendingTxIds]
   );
   const soleOpenDebt = openDebts.length === 1 ? openDebts[0] : null;
 
@@ -95,12 +96,16 @@ export default function PersonLedgerScreen() {
   let running = 0;
   const rowsWithBalance = rows.map(r => {
     running += r.delta;
-    return { ...r, balance: running };
+    return { ...r, balance: snapPiastre(running) };
   });
 
-  const rawBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
-  // نص قرش زي `isDebtSettled`: الكسور كانت بتطلّع "ليك عنده 0.00" وتحت "كل حاجة متسددة"
-  const finalBalance = Math.abs(rawBalance) <= PIASTRE_EPS ? 0 : rawBalance;
+  const lastBalance = rowsWithBalance.length > 0 ? rowsWithBalance[rowsWithBalance.length - 1].balance : 0;
+  // كل الديون متسددة (نفس تعريف الكارت) ومفيش زيادة ← صفر، حتى لو باقي كذا دين قديم اتجمع فوق نص قرش
+  // (money-reviewer: "ليك عنده 0.01" وتحتها "كل حاجة متسددة")
+  const allSettled = openDebts.length === 0 && (group?.debts || []).every(d => debtExcess(d) === 0);
+  const finalBalance = allSettled ? 0 : lastBalance;
+  // صفر وفيه ديون مفتوحة في الاتجاهين = متعادلين، مش "متسدد بالكامل"
+  const evenWithOpen = finalBalance === 0 && openDebts.length > 0;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
@@ -119,7 +124,7 @@ export default function PersonLedgerScreen() {
         {/* دراسة الشكل خطوة 5: الرصيد الحالي هو البطل — الاتجاه بالكلمة فوقه، والرقم 34 */}
         <Text style={styles.summaryLabel}>{finalBalance > 0 ? 'ليك عنده' : finalBalance < 0 ? 'عليك له' : 'الرصيد الحالي'}</Text>
         {finalBalance === 0
-          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>متسدد بالكامل</Text>
+          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>{evenWithOpen ? 'اللي ليك قد اللي عليك' : 'متسدد بالكامل'}</Text>
           : <Money value={Math.abs(finalBalance)} fit style={[styles.summaryHero, { color: finalBalance > 0 ? colors.incomeText : colors.dangerText }]} />}
       </View>
 

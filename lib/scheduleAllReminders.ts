@@ -80,9 +80,9 @@ export async function scheduleAllReminders(opts: {
    */
   opts.debts.forEach(d => {
     if (!d.dueDate || d.reminderDaysBefore === undefined || d.reminderDaysBefore === null) return;
-    const remaining = debtGrandTotal(d) - debtPaid(d);
     // نفس تعريف الكارت ("اتسدد بالكامل"): دين متسدد ميرنّش تذكير برقم 0.00
     if (isDebtSettled(d)) return;
+    const remaining = debtGrandTotal(d) - debtPaid(d);
     const mine = d.direction === 'owed_to_me';
     candidates.push({
       title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,

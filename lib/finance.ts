@@ -352,6 +352,11 @@ const MONEY_EPS = 1e-9;
  */
 export const PIASTRE_EPS = 0.005;
 
+/** رصيد بنص قرش زي `isDebtSettled`: كسور الجمع (2e-12) بتبقى صفر بدل "0.00" بعلامة */
+export function snapPiastre(value: number) {
+  return Math.abs(value) <= PIASTRE_EPS ? 0 : value;
+}
+
 /** تقريب مبلغ لأقرب قرش — الرقم اللي بيتخزّن هو الرقم اللي بيتعرض */
 export function roundMoney(value: number) {
   return Math.round(value * 100) / 100;
@@ -387,7 +392,8 @@ export function debtRemaining(d: Debt) {
 /** الزيادة اللي اتدفعت فوق إجمالي الدين — صفر لو مفيش زيادة. */
 export function debtExcess(d: Debt) {
   const over = debtPaid(d) - debtGrandTotal(d);
-  return over > MONEY_EPS ? over : 0;
+  // نفس سماحية "اتسدد" (نص قرش): زيادة أقل من قرش كانت بتطلّع "زيادة 0.00"
+  return over > PIASTRE_EPS ? over : 0;
 }
 
 export type OverpayCheck = 'none' | 'exceeds' | 'settled';
