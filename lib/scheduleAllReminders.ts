@@ -1,5 +1,6 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { addDays, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
+import { isDebtSettled } from '@/lib/doneSections';
 import { cancelAllReminders, scheduleDailyReminder, scheduleReminder } from '@/lib/notifications';
 import { incomeDueDate, incomeOpenPeriods, incomeUpcomingPeriod, type RecurringIncome } from '@/lib/recurringIncome';
 
@@ -79,8 +80,9 @@ export async function scheduleAllReminders(opts: {
    */
   opts.debts.forEach(d => {
     if (!d.dueDate || d.reminderDaysBefore === undefined || d.reminderDaysBefore === null) return;
+    // نفس تعريف الكارت ("اتسدد بالكامل"): دين متسدد ميرنّش تذكير برقم 0.00
+    if (isDebtSettled(d)) return;
     const remaining = debtGrandTotal(d) - debtPaid(d);
-    if (remaining <= 0.001) return;
     const mine = d.direction === 'owed_to_me';
     candidates.push({
       title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,

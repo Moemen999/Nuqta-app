@@ -66,6 +66,12 @@ describe('تذكيرات الديون', () => {
     expect(scheduled).toHaveLength(0);
   });
 
+  it('مبيجدولش لدين متسدد بنفس تعريف الكارت (باقي 0.004 قديم، isDebtSettled)', async () => {
+    await run({ debts: [debt({ personName: 'كريم', totalAmount: 100.004, dueDate: soon(10), reminderDaysBefore: 3,
+      payments: [{ id: 'p1', date: '2026-02-01', amount: 100 }] as Debt['payments'] })] });
+    expect(scheduled).toHaveLength(0);
+  });
+
   it('مبيجدولش لدين اتسدد بالكامل', async () => {
     await run({
       debts: [debt({
