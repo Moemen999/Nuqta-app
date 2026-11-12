@@ -21,6 +21,7 @@ import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
+import { transactionsPhrase } from '@/lib/archiving';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, entryTime, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
@@ -453,6 +454,18 @@ function HomeScreen() {
             </TouchableOpacity>
           );
         })}
+        {transactions.length > recent.length && (
+          <TouchableOpacity
+            testID="home_see_all"
+            style={styles.seeAll}
+            onPress={() => router.push({ pathname: '/archive', params: { preset: 'all' } })}
+            accessibilityRole="button"
+            accessibilityLabel={`شوف كل العمليات، ${transactionsPhrase(transactions.length)}`}
+            accessibilityHint="بيفتح الأرشيف بكل عملياتك">
+            <Text style={styles.seeAllText}>شوف كل العمليات ({transactions.length})</Text>
+            <Text style={styles.seeAllChevron} accessible={false}>‹</Text>
+          </TouchableOpacity>
+        )}
         </View>
       </ScrollView>
     </View>
@@ -597,6 +610,12 @@ function makeStyles(c: ThemeColors) {
     },
     noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
     txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    seeAll: {
+      flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: MIN_TOUCH,
+      paddingVertical: space.lg,
+    },
+    seeAllText: { color: c.accentText, fontSize: typeScale.body },
+    seeAllChevron: { color: c.textSecondary, fontSize: typeScale.title },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
     txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },

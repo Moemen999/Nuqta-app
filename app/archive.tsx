@@ -15,7 +15,7 @@ import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -46,7 +46,9 @@ export default function ArchiveScreen() {
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
-  const [preset, setPreset] = useState<Preset>('thisMonth');
+  // «شوف كل العمليات» من الرئيسية بتفتح على "الكل"؛ أي قيمة تانية أو من غير باراميتر ← الشهر ده زي الأول
+  const params = useLocalSearchParams<{ preset?: string }>();
+  const [preset, setPreset] = useState<Preset>(params.preset === 'all' ? 'all' : 'thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);

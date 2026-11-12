@@ -10,8 +10,9 @@ import { ThemeProvider } from '@/context/ThemeContext';
  */
 
 const mockData: Record<string, unknown> = {};
+let mockParams: Record<string, string> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => mockParams }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
 const today = new Date().toISOString().slice(0, 10);
@@ -65,5 +66,40 @@ describe('وقت العملية في صف الأرشيف', () => {
     fireEvent.press(screen.getByTestId('archive_preset_all'));
     expect(within(screen.getByTestId('archive_tx_back')).getByText('2026-11-10')).toBeTruthy();
     expect(within(screen.getByTestId('archive_tx_same')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+  });
+});
+
+describe('الفتح على فلتر من باراميتر (شوف كل العمليات من الرئيسية)', () => {
+  afterEach(() => { mockParams = {}; });
+
+  function seedOldAndNew() {
+    seed(0);
+    const old = (id: string, date: string) => ({ id, type: 'expense', amount: 5, date, walletId: 'w', createdAt: `${date}T10:00:00Z` });
+    mockData.transactions = [old('new1', today), old('old1', '2020-01-15'), old('old2', '2020-02-15')];
+  }
+
+  it('preset=all ← "الكل" هي المختارة وكل العمليات ظاهرة', async () => {
+    mockParams = { preset: 'all' };
+    seedOldAndNew();
+    await render(ui());
+    expect(screen.getByTestId('archive_preset_all').props.accessibilityState).toEqual({ checked: true });
+    expect(screen.getByTestId('archive_preset_thisMonth').props.accessibilityState).toEqual({ checked: false });
+    expect(screen.getByText(/العمليات \(3\)/)).toBeTruthy();
+    expect(screen.getByTestId('archive_tx_old1')).toBeTruthy();
+  });
+
+  it('من غير باراميتر ← "الشهر ده" زي الأول', async () => {
+    seedOldAndNew();
+    await render(ui());
+    expect(screen.getByTestId('archive_preset_thisMonth').props.accessibilityState).toEqual({ checked: true });
+    expect(screen.getByTestId('archive_preset_all').props.accessibilityState).toEqual({ checked: false });
+    expect(screen.queryByTestId('archive_tx_old1')).toBeNull();
+  });
+
+  it('باراميتر غير "all" ← بيتتجاهل', async () => {
+    mockParams = { preset: 'custom' };
+    seedOldAndNew();
+    await render(ui());
+    expect(screen.getByTestId('archive_preset_thisMonth').props.accessibilityState).toEqual({ checked: true });
   });
 });
