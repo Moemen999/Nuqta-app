@@ -82,9 +82,9 @@ export const WALLET_BLOCKED_TITLE = 'استنى البيانات توصل';
  * العنوان والـlistener-error من نفس نصوص المسح (`WALLET_BLOCKED_TITLE`, `loadErrorBody`).
  */
 export function walletsNotReadyNotice(loadErrors: ListenerName[], figuresPending: ListenerName[]): { title: string; body: string } | null {
-  if (loadErrors.includes('wallets')) return { title: WALLET_BLOCKED_TITLE, body: loadErrorBody(['wallets']) };
+  if (loadErrors.includes('wallets')) return { title: WALLET_BLOCKED_TITLE, body: `${loadErrorBody(['wallets'])} مفيش حاجة اتسجلت.` };
   if (figuresPending.includes('wallets')) {
-    return { title: WALLET_BLOCKED_TITLE, body: `بيانات ${LISTENER_LABELS.wallets} لسه بتوصل، فمش قادرين نتأكد من المحفظة. استنى ثواني وجرب تاني.` };
+    return { title: WALLET_BLOCKED_TITLE, body: `بيانات ${LISTENER_LABELS.wallets} لسه بتوصل، فمش قادرين نتأكد من المحفظة. مفيش حاجة اتسجلت — استنى ثواني وجرب تاني.` };
   }
   return null;
 }

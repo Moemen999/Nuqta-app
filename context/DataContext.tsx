@@ -232,7 +232,7 @@ export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: str
  */
 export const PERIOD_CHANGED_ALERT = {
   title: 'الفترة اتغيّرت',
-  body: 'الاشتراك ده اتسجّل له دفع من مكان تاني، فما اتسجلش أي خصم. بص عليه تاني قبل ما تسجّل.',
+  body: 'الاشتراك ده اتغيّر من جهاز تاني، فما اتسجلش أي خصم. راجعه تاني قبل ما تسجّل.',
 };
 
 /** شهر استلام الجمعية: نفس رسالة المحفظة بس بكلام الاستلام ("خصم" هنا غلط) */
@@ -2270,6 +2270,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // السيرفر، فكانت هتلاقيه مش موجود وتخرج من غير ما تعمل حاجة — الزرار يشتغل
     // ومفيش سداد يتسجل. فبنستنى الأول اللي عندنا يرفع
     if (!(await waitForOurWritesToLand())) return 'no-connection';
+    // مفتاح الفترة بيتحسب من todayStr() بتاعة الدالة دي مش من بارامتر date، فلو حد بعت date قديم مفيش ضمان إنهم زي بعض
     const today = todayStr();
     let paidToday = false;
     try {
