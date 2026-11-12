@@ -158,7 +158,7 @@ let kbSeq = 0;
 for (const name of ['keyboardDidShow', 'keyboardDidHide'] as const) {
   Keyboard.addListener(name, e => {
     const w = Dimensions.get('window'), sc = Dimensions.get('screen');
-    console.log();
+    console.log(`[kb] #${++kbSeq} ${name} screenY=${e?.endCoordinates?.screenY} height=${e?.endCoordinates?.height} window=${w.height} screen=${sc.height} t=${Date.now()}`);
   });
 }
 
