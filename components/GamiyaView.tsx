@@ -1,16 +1,16 @@
-import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, GAMIYA_PAYOUT_WALLET_MISSING_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import type { ChargeMode } from '@/lib/autoCharge';
+import { gamiyaMarkConfirmBody, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -24,6 +24,9 @@ import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
   return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
 }
+
+/** شهر الاستلام ما اتسجلش فيه "خصم" — الرسالة بتقول استلام */
+const walletMissingAlert = (isPayout: boolean) => (isPayout ? GAMIYA_PAYOUT_WALLET_MISSING_ALERT : PAY_OUTCOME_ALERT_GAMIYA['wallet-missing']);
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -55,10 +58,20 @@ export default function GamiyaView() {
       },
     ]);
   }
-  function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {
+  function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number, dueDate: string, monthIndex: number) {
+    // محفظة مؤرشفة أو ممسوحة ← الكتابة الذرية هترفض (wallet-missing)، فمنوعدش بخصم من غير ما نفتح التأكيد
+    // المحافظ لسه ما وصلتش (أو الـlistener وقع) ← مش نحكم إن المحفظة مفقودة
+    const notReady = walletsNotReadyNotice(loadErrors, figuresPending);
+    if (notReady) { notice(notReady.title, notReady.body); return; }
+    const wallet = wallets.find(w => w.id === g.walletId);
+    if (!wallet || wallet.archived) {
+      const m = walletMissingAlert(isPayout);
+      notice(m.title, m.body);
+      return;
+    }
     confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
-      isPayout ? `هتستلم ${plainAmount(amount)} ج.م في محفظتك؟` : `هيتخصم ${plainAmount(amount)} ج.م من محفظتك؟`,
+      gamiyaMarkConfirmBody({ name: g.name, monthIndex, dueDate, amount, isPayout }, walletHistoryName(wallets, g.walletId), todayStr()),
       [
         { text: 'إلغاء', style: 'cancel' },
         {
@@ -68,6 +81,9 @@ export default function GamiyaView() {
             const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
             if (outcome === 'amount-changed') {
               notice(AMOUNT_CHANGED_ALERT.gamiya.title, AMOUNT_CHANGED_ALERT.gamiya.body);
+            } else if (outcome === 'wallet-missing') {
+              const m = walletMissingAlert(isPayout);
+              notice(m.title, m.body);
             } else if (outcome !== 'done') {
               const m = PAY_OUTCOME_ALERT_GAMIYA[outcome];
               notice(m.title, m.body);
@@ -123,7 +139,7 @@ export default function GamiyaView() {
                   <TouchableOpacity accessibilityRole="button"
                     // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
                     accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
-                    onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
+                    onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount, m.dueDate, m.monthIndex)}
                     style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                     disabled={busyKey === `month_${m.id}`}>
                     {busyKey === `month_${m.id}` ? (
