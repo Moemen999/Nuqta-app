@@ -9,7 +9,7 @@ import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
@@ -88,7 +88,7 @@ export default function ArchiveScreen() {
       const rows = filtered.map(t => {
         return {
           Date: t.date,
-          Time: formatTime(t.createdAt) || '',
+          Time: entryTime(t.date, t.createdAt),
           Type: TYPE_LABELS[t.type]?.label || t.type,
           Wallet: walletHistoryName(wallets, t.walletId),
           ToWallet: t.type === 'withdraw' ? walletHistoryName(wallets, t.toWalletId) : '',
@@ -305,7 +305,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       </View>
       <View style={styles.txRight}>
         <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-        <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+        <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}

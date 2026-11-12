@@ -21,7 +21,7 @@ import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, entryTime, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { useBusy } from '@/lib/useBusy';
@@ -419,7 +419,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+                <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
               </View>
             </View>
           );
@@ -445,7 +445,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+                <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
                 {transfers.has(t.id) && <TransferMark />}

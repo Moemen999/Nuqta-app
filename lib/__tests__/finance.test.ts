@@ -1,7 +1,7 @@
 import type { Debt, Transaction } from '@/context/DataContext';
 import {
   DEFAULT_CATEGORY_ICON, DELETED_WALLET_LABEL, addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid,
-  endOfMonth, fmt, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
+  endOfMonth, entryTime, fmt, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
 } from '@/lib/finance';
 
 // مصنع عمليات مختصر — بنحدد اللي يهم الاختبار بس
@@ -437,5 +437,27 @@ describe('transactionWalletLabel — وصف محافظ العملية', () => {
       .toBe(DELETED_WALLET_LABEL);
     expect(transactionWalletLabel({ type: 'withdraw', walletId: 'w1', toWalletId: 'محذوفة' }, wallets))
       .toBe(`من CASH إلى ${DELETED_WALLET_LABEL}`);
+  });
+});
+
+describe('entryTime — الوقت بيظهر بس لو العملية اتسجلت في نفس يوم تاريخها', () => {
+  const at = (h: number, m: number) => new Date(2026, 10, 12, h, m).toISOString();
+
+  it('نفس اليوم المحلي ← الوقت', () => {
+    expect(entryTime('2026-11-12', at(11, 34))).toBe('11:34 ص');
+  });
+
+  it('عملية بتاريخ قديم اتسجلت النهارده ← فاضي', () => {
+    expect(entryTime('2026-11-10', at(11, 34))).toBe('');
+  });
+
+  it('عملية بتاريخ في المستقبل ← فاضي', () => {
+    expect(entryTime('2026-11-13', at(11, 34))).toBe('');
+  });
+
+  it('من غير createdAt أو createdAt مش مفهوم ← فاضي', () => {
+    expect(entryTime('2026-11-12')).toBe('');
+    expect(entryTime('2026-11-12', '')).toBe('');
+    expect(entryTime('2026-11-12', 'مش تاريخ')).toBe('');
   });
 });

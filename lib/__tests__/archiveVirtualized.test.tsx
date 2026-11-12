@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, within } from '@testing-library/react-native';
 import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -52,4 +52,18 @@ it('الصف memo: علامة "لسه بترفع" بتظهر وتختفي مع p
   mockData.pendingTxIds = new Set();
   await view.rerender(ui());
   expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
+});
+
+describe('وقت العملية في صف الأرشيف', () => {
+  const made = new Date(2026, 10, 12, 11, 34).toISOString();
+  const tx = (id: string, date: string) => ({ id, type: 'expense', amount: 5, date, walletId: 'w', createdAt: made });
+
+  it('بتاريخ قديم ← التاريخ لوحده، ونفس يومها ← التاريخ والوقت', async () => {
+    seed(0);
+    mockData.transactions = [tx('back', '2026-11-10'), tx('same', '2026-11-12')];
+    await render(ui());
+    fireEvent.press(screen.getByTestId('archive_preset_all'));
+    expect(within(screen.getByTestId('archive_tx_back')).getByText('2026-11-10')).toBeTruthy();
+    expect(within(screen.getByTestId('archive_tx_same')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+  });
 });

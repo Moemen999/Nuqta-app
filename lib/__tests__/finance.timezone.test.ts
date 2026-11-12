@@ -1,4 +1,4 @@
-import { addDays, addMonths, currentMonth, daysUntil, endOfMonth, startOfMonth, todayStr } from '@/lib/finance';
+import { entryTime, addDays, addMonths, currentMonth, daysUntil, endOfMonth, startOfMonth, todayStr } from '@/lib/finance';
 
 /**
  * حسابات التواريخ اتكسرت قبل كده بسبب الخلط بين UTC والتوقيت المحلي، والباجات
@@ -179,5 +179,21 @@ describe('todayStr بياخد اليوم من ساعة الجهاز المحلي
     expect(startOfMonth(today) <= today).toBe(true);
     expect(today <= endOfMonth(today)).toBe(true);
     expect(endOfMonth(today).slice(0, 7)).toBe(currentMonth());
+  });
+});
+
+describe(`entryTime بتوقيت ${process.env.TZ || '(توقيت الجهاز)'}`, () => {
+  it('بعد نص الليل بالتوقيت المحلي بتتطابق مع اليوم المحلي مش يوم UTC', () => {
+    const iso = new Date(2026, 10, 12, 0, 30).toISOString(); // 12:30 ص محلي
+    expect(entryTime('2026-11-12', iso)).toBe('12:30 ص');
+    const utcDate = iso.slice(0, 10);
+    // في القاهرة (UTC+2) يوم UTC هو 11 — لازم ميتطابقش؛ في UTC نفسه هما واحد
+    if (utcDate !== '2026-11-12') expect(entryTime(utcDate, iso)).toBe('');
+  });
+
+  it('قبل نص الليل بدقيقة بتتطابق مع اليوم المحلي', () => {
+    const iso = new Date(2026, 10, 12, 23, 59).toISOString();
+    expect(entryTime('2026-11-12', iso)).toBe('11:59 م');
+    expect(entryTime('2026-11-13', iso)).toBe('');
   });
 });
