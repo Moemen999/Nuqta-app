@@ -219,3 +219,31 @@ describe('شاشة العملية من غير محفظة', () => {
     expect(screen.queryByTestId('tx_no_wallets')).toBeNull();
   });
 });
+
+describe('شوف كل العمليات', () => {
+  const makeTxs = (n: number) => Array.from({ length: n }, (_, i) => ({
+    id: `t${i}`, type: 'expense', amount: 10 + i, walletId: 'w1',
+    date: `2026-10-${String(1 + i).padStart(2, '0')}`, createdAt: `2026-10-${String(1 + i).padStart(2, '0')}T00:00:00Z`,
+  }));
+
+  it('11 عملية ← الصف ظاهر وبيعرض الإجمالي وبيفتح الأرشيف', async () => {
+    setData({ transactions: makeTxs(11) });
+    await mountHome();
+    const row = screen.getByTestId('home_see_all');
+    expect(within(row).getByText(/شوف كل العمليات/)).toBeTruthy();
+    expect(within(row).getByText(/11/)).toBeTruthy();
+    fireEvent.press(row);
+    expect(mockRouter.push).toHaveBeenCalledWith('/archive');
+  });
+
+  it('10 عمليات بالظبط ← مش ظاهر', async () => {
+    setData({ transactions: makeTxs(10) });
+    await mountHome();
+    expect(screen.queryByTestId('home_see_all')).toBeNull();
+  });
+
+  it('من غير عمليات ← مش ظاهر', async () => {
+    await mountHome();
+    expect(screen.queryByTestId('home_see_all')).toBeNull();
+  });
+});
