@@ -6,7 +6,7 @@ import ArchiveScreen from '@/app/archive';
 import ReportsScreen from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { PERIOD_PRESET_WORDS, PREVIOUS_PERIOD_LABEL, chipText, periodPresets } from '@/lib/periodPresets';
+import { PERIOD_PRESET_WORDS, PREVIOUS_PERIOD_LABEL, chipText, periodPresets, previousPeriodLabel } from '@/lib/periodPresets';
 import { MIN_TOUCH } from '@/lib/tokens';
 
 /**
@@ -38,6 +38,17 @@ describe('أسامي الفترات', () => {
       thisMonth: 'الشهر ده', last7: 'آخر 7 أيام', lastMonth: 'الشهر اللي فات', last6Months: 'آخر 6 شهور', all: 'الكل', custom: 'تواريخ تانية',
     });
     for (const w of [...Object.values(PERIOD_PRESET_WORDS), PREVIOUS_PERIOD_LABEL]) expect(w).not.toMatch(FUSHA);
+  });
+
+  it('نص المقارنة: «الشهر ده» بيقول نفس الأيام، والباقي الفترة اللي قبلها', () => {
+    expect(previousPeriodLabel('thisMonth')).toBe('مقارنة بنفس الأيام من الشهر اللي فات');
+    expect(previousPeriodLabel('thisMonth')).not.toMatch(FUSHA);
+    for (const p of ['last7', 'last6Months', 'custom']) expect(previousPeriodLabel(p)).toBe(PREVIOUS_PERIOD_LABEL);
+  });
+
+  it('نص المقارنة: «الشهر اللي فات» بيقارن بالشهر اللي قبله كله', () => {
+    expect(previousPeriodLabel('lastMonth')).toBe('مقارنة بالشهر اللي قبله');
+    expect(previousPeriodLabel('lastMonth')).not.toMatch(FUSHA);
   });
 
   it('الشريحة مفيهاش مسافة عادية تتكسر عندها — والكلام نفسه زي ما هو', () => {
@@ -75,6 +86,8 @@ describe('مفيش فصحى رجعت في الشاشات التلاتة', () => 
     const src = readFileSync('app/user-guide.tsx', 'utf8');
     expect(src).toContain('PERIOD_PRESET_WORDS');
     expect(src).toContain('PREVIOUS_PERIOD_LABEL');
+    expect(src).toContain('SAME_DAYS_LABEL');
+    expect(src).toContain('PREVIOUS_MONTH_LABEL');
   });
 
   it('زرار التصدير بيعدّ بالعربي ("عملية واحدة" مش "1 عملية")', () => {
