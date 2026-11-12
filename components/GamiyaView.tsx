@@ -263,7 +263,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -404,7 +404,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>

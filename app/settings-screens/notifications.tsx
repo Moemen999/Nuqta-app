@@ -4,7 +4,7 @@ import BackButton from '@/components/BackButton';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { hourLabel } from '@/lib/notificationStatus';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
 import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
@@ -206,7 +206,7 @@ export default function NotificationsScreen() {
                 {intervalOptions(type).map(o => (
                   <TouchableOpacity key={o.id} testID={`banner_interval_${snake(type)}_${o.id}`}
                     onPress={() => banners.setInterval(type, o.id)}
-                    accessibilityRole="button" accessibilityState={{ selected: chosen === o.ms }}
+                    {...selectionA11y(chosen === o.ms, 'radio')}
                     accessibilityLabel={`${BANNER_LABELS[type]}: يرجع بعد ${o.label}`}
                     style={[styles.graceBtn, selectionStyle(colors, chosen === o.ms)]}>
                     <Text style={{ color: colors.text, fontSize: 11.5 }}>{o.label}</Text>

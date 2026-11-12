@@ -72,8 +72,8 @@ describe('ظهور السؤال', () => {
   it('مفيش اختيار مسبق (لا افتراضي): الاتنين مش مختارين', async () => {
     await open();
     await type('100');
-    expect(screen.getByTestId('debt_leftover_absorb').props.accessibilityState?.selected).toBeFalsy();
-    expect(screen.getByTestId('debt_leftover_separate').props.accessibilityState?.selected).toBeFalsy();
+    expect(screen.getByTestId('debt_leftover_absorb').props.accessibilityState?.checked).toBe(false);
+    expect(screen.getByTestId('debt_leftover_separate').props.accessibilityState?.checked).toBe(false);
   });
 
   it('+0.03 ← بيتسأل حتى لو الباقي صغير', async () => {
@@ -206,7 +206,7 @@ describe('الحفظ', () => {
     // دفعة 100 اتسجلت من جهاز تاني ← الذيل بقى 0.04 مش 16.71
     const paid = { ...debt, payments: [{ id: 'p1', date: '2026-01-15', amount: 100, walletId: 'w1', transactionId: 'tx_p1' }] } as unknown as Debt;
     await act(async () => { r.rerender(ui(paid)); });
-    expect(screen.getByTestId('debt_leftover_absorb').props.accessibilityState?.selected).toBeFalsy();
+    expect(screen.getByTestId('debt_leftover_absorb').props.accessibilityState?.checked).toBe(false);
     expect(textOf(screen.getByTestId('debt_leftover_question'))).toContain(`الزيادة سابت ${fmt(0.04)} ج.م`);
     await save();
     expect(mockData.addDebtIncrease).not.toHaveBeenCalled();

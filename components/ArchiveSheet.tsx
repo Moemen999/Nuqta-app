@@ -66,7 +66,7 @@ export default function ArchiveSheet({
                 <Text style={styles.label}>{targetLabel}</Text>
                 <View style={styles.chipRow}>
                   {targets.map(t => (
-                    <TouchableOpacity {...selectionA11y(assignments[item.id] === t.id)}
+                    <TouchableOpacity {...selectionA11y(assignments[item.id] === t.id, 'radio')}
                       key={t.id}
                       onPress={() => setAssignments(a => ({ ...a, [item.id]: t.id }))}
                       style={[styles.chip, selectionStyle(colors, assignments[item.id] === t.id)]}>

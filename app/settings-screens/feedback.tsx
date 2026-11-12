@@ -69,7 +69,7 @@ export default function FeedbackScreen() {
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
         <View style={styles.chipRow}>
           {FEEDBACK_TYPES.map(t => (
-            <TouchableOpacity {...selectionA11y(type === t)}
+            <TouchableOpacity {...selectionA11y(type === t, 'radio')}
               key={t}
               testID={`feedback_type_${t}`}
               onPress={() => setType(t)}

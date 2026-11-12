@@ -364,9 +364,9 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity accessibilityRole="button" key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
+          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
             disabled={typeLocked && type !== t.key}
-            accessibilityState={{ selected: type === t.key, disabled: typeLocked && type !== t.key }}
+            accessibilityState={{ checked: type === t.key, disabled: typeLocked && type !== t.key }}
             style={[styles.typeBtn, quietSelectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
             <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: typeScale.body }}>{t.label}</Text>
           </TouchableOpacity>
@@ -392,7 +392,7 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity {...selectionA11y(walletId === w.id)} key={w.id} onPress={() => setWalletId(w.id)}
+          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
@@ -404,7 +404,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(toWalletId === w.id)} key={w.id} onPress={() => setToWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => setToWalletId(w.id)}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -418,7 +418,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => setCategoryId(c.id)}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>

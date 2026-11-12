@@ -82,14 +82,14 @@ export default function LockScreen_Settings() {
           <View style={styles.row}>
             <TouchableOpacity
               testID="lock_freq_on_open"
-              {...selectionA11y(frequency === 'onOpen')}
+              {...selectionA11y(frequency === 'onOpen', 'radio')}
               onPress={() => saveSetting(setFrequency('onOpen'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_freq_every_resume"
-              {...selectionA11y(frequency === 'everyResume')}
+              {...selectionA11y(frequency === 'everyResume', 'radio')}
               onPress={() => saveSetting(setFrequency('everyResume'))}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
@@ -104,7 +104,7 @@ export default function LockScreen_Settings() {
                   <TouchableOpacity
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
-                    {...selectionA11y(graceMinutes === opt.m)}
+                    {...selectionA11y(graceMinutes === opt.m, 'radio')}
                     onPress={() => saveSetting(setGraceMinutes(opt.m))}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>

@@ -72,7 +72,7 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
           <ScrollView style={styles.list} bounces={false}>
             {actions.map(a => (
               <TouchableOpacity key={a.key} testID={a.testID} accessibilityRole={a.selected !== undefined ? 'radio' : 'button'} disabled={a.disabled}
-                accessibilityState={{ disabled: !!a.disabled, ...(a.selected !== undefined ? { checked: a.selected, selected: a.selected } : {}) }}
+                accessibilityState={{ disabled: !!a.disabled, ...(a.selected !== undefined ? { checked: a.selected } : {}) }}
                 accessibilityHint={a.danger ? 'هيسألك الأول قبل ما يمسح' : undefined}
                 style={[styles.item, a.danger && styles.itemDanger, a.disabled && styles.itemDisabled]}
                 onPress={() => choose(a)}>

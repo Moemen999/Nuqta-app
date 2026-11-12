@@ -22,7 +22,7 @@ export function PeriodChips<K extends PeriodPresetKey>({ keys, value, onChange, 
       {periodPresets(keys).map(p => {
         const selected = p.key === value;
         return (
-          <TouchableOpacity key={p.key} testID={`${testIDPrefix}_${p.key}`} {...selectionA11y(selected)}
+          <TouchableOpacity key={p.key} testID={`${testIDPrefix}_${p.key}`} {...selectionA11y(selected, 'radio')}
             onPress={() => onChange(p.key as K)} style={[styles.chip, selected && styles.chipSelected]}>
             <Text numberOfLines={1} style={[styles.label, selected && styles.labelSelected]}>{p.label}</Text>
           </TouchableOpacity>
