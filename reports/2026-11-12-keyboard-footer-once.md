@@ -53,3 +53,31 @@
 **اللي مش معروف:** هل ده بيحصل كمان مع تحديث من المتجر (مش `adb`)، ومع أول تثبيت نضيف. لو آه، كل مستخدم هيشوفها مرة مع كل تحديث.
 
 **الأثر زي ما هو:** مش طريق مسدود (✓ بيقفل الكيبورد و«حفظ» بيبان)، ومرة واحدة بعد التحديث.
+
+## بحث التصليح (2026-11-12، `rnd-researcher` — طلب مؤمن)
+**اتقرا** = الصفحة أو الملف اتفتح فعلاً · **استنتاج** = مش مثبت.
+
+### هل المشكلة معروفة؟
+- **مفيش بلاغ بنفس العَرَض** (أول ظهور بس، أو بعد تثبيت فوق القديم) في facebook/react-native ولا expo/expo ولا متتبع keyboard-controller.
+- **الأقرب** (اتقرا): facebook/react-native#49759 «KeyboardAvoidingView do not keep input in view under Android 15 (target SDK 35)»، مقفول: «fixed by @zoontek in #55855. The fix will be available in the upcoming 0.86 release.» — https://github.com/facebook/react-native/issues/49759
+- **PR #55855** (اتقرا، اتدمج): «Fix Keyboard events and KeyboardAvoidingView on Android (edge-to-edge)» — «Keyboard events relied on a legacy detection path». https://github.com/facebook/react-native/pull/55855 · ومتابعة #56486.
+- **من كود RN 0.81.5 عندنا** (`ReactRootView.java` سطور 859–932، اتقرا واتراجع): `keyboardDidShow` بيتبعت من `OnGlobalLayoutListener` بس، مرة واحدة لما حالة الكيبورد تتقلب، و`screenY` من `getWindowVisibleDisplayFrame().bottom`.
+- **طريقين ممكن الحدث الأول يبوظ فيهم** (استنتاج): (أ) مع edge-to-edge الشباك مبيتقصّرش، فمفيش ضمان إن فيه layout pass لما الكيبورد يطلع؛ (ب) الفحص اشتغل والإطار لسه قديم، فـ`screenY` = طول الشاشة والـKAV حسب صفر — وبعدها `mKeyboardIsVisible` بقت true فمفيش حدث تاني لحد قفل وفتح. **(ب) مطابق لـ«بتتظبط من تاني ظهور».**
+
+### الاختيارات
+| الاختيار | الحكم | السبب |
+|---|---|---|
+| البقاء على KAV بتاع RN مع بديل من `Keyboard.metrics()`/`isVisible()` أو تغيير `behavior` | ❌ **ميت** | الاتنين بيتغذّوا من نفس الحدث (`Keyboard.js` 116–185، `KeyboardAvoidingView.js` 210–213 — اتقرا) |
+| `react-native-keyboard-controller` | ممكن، بتكلفة | Expo SDK 54 مثبّت **1.18.5** (`bundledNativeModules.json` — اتراجع)؛ جدول التوافق «1.18.0+ ‖ 0.81.0+»؛ محتاج `KeyboardProvider` في الجذر و`react-native-reanimated` (عندنا `~4.1.1`)؛ **معاه mock لـJest**؛ الـKAV بتاعه «maintains the familiar React Native API» بس مش بيقول drop-in وفيه ملاحظات على `Modal`. 98 issue مفتوحة منها أندرويد. **مفيش دليل مستقل إنه بيصلّح الحالة دي بالذات** (التوثيق بتاع صاحب المكتبة) |
+| الترقية لـRN 0.86 (فيها #55855) | ❌ دلوقتي | قفزة Expo SDK كاملة عشان عَرَض بيتظبط لوحده |
+| `useAnimatedKeyboard` من Reanimated | ما اتبحثش | — |
+
+### الترشيح
+**منهاجرش دلوقتي. بناء تشخيص واحد الأول** — سطر لوج على `keyboardDidShow` و`endCoordinates.screenY` في أول ظهور بعد تثبيت فوق القديم: يفرّق «الحدث ما وصلش» من «وصل بـ`screenY` غلط». ولو التصليح اتبرّر، يبقى keyboard-controller 1.18.5 — **مش** البديل اليدوي.
+
+**ليه:** السبب مش مثبت، العَرَض بيتظبط من تاني ظهور، واتشاف بس بعد `adb install -r`. نقل ~25 مكان (أغلبهم جوّه `Modal`، أضعف حتة في المكتبة) على اعتمادية native جديدة لحاجة مش متأكدين إنها بتوصل للمستخدم = صفقة وحشة.
+
+**تكلفة الهجرة لو اتقررت:** بناء native، Provider في `app/_layout.tsx`، سطر mock، ~25 تبديل استيراد، ومراجعة أماكن `keyboardVerticalOffset` و`stickyFooterModals.test.ts`.
+
+### اللي ما اتأكدش
+توثيق reactnative.dev للـKAV (الصفحة ما فتحتش) · هل keyboard-controller شغال في Expo Go SDK 54 (صفحتين في Expo بيقولوا عكس بعض — وMaestro بيشتغل على Expo Go) · هل المشكلة بتحصل مع تحديث من المتجر · أي سلوك خاص بـMIUI.
