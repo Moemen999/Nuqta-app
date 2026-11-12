@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import ChargeHomeCards from '@/components/ChargeHomeCards';
+import ChargeHomeCards, { SUB_RECORDS_TODAY_HINT } from '@/components/ChargeHomeCards';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -60,4 +60,34 @@ it('من غير نت ← رسالة "ما اتغيّرش حاجة" بتبان ب
   await openSkip();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT['no-connection'].title);
+});
+
+// تلميح "هتتسجل بتاريخ النهاردة": بس لاشتراك فترته من شهر غير الشهر ده. "النهاردة" من todayStr() زي باقي الملف
+const firstOfPrevMonth = () => {
+  const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
+  return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, '0')}-01`;
+};
+
+it('اشتراك فترته في شهر فات ← تلميح "هتتسجل بتاريخ النهاردة" ظاهر', async () => {
+  (mockData.subscriptions as { nextDueDate: string }[])[0].nextDueDate = firstOfPrevMonth();
+  await render(ui());
+  expect(screen.getByText(SUB_RECORDS_TODAY_HINT)).toBeTruthy();
+});
+
+it('اشتراك فترته في الشهر ده ← مفيش تلميح', async () => {
+  await render(ui());
+  expect(screen.getByText(/معاده/)).toBeTruthy();
+  expect(screen.queryByText(SUB_RECORDS_TODAY_HINT)).toBeNull();
+});
+
+it('شهر جمعية في شهر فات ← مفيش تلميح (الجمعية بتتسجل بمعادها)', async () => {
+  mockData.subscriptions = [];
+  mockData.gamiyas = [{
+    id: 'g1', name: 'جمعية العيلة', monthlyAmount: 500, totalMonths: 6, payoutMonthIndex: 6, payoutAmount: 3000,
+    walletId: 'w1', startDate: firstOfPrevMonth(), reminderDaysBefore: 3, createdAt: '2026-01-01',
+    months: [{ id: 'm1', monthIndex: 1, dueDate: firstOfPrevMonth(), isPayoutMonth: false, amount: 500, status: 'pending' }],
+  }];
+  await render(ui());
+  expect(screen.getByTestId('charge_card_g1')).toBeTruthy();
+  expect(screen.queryByText(SUB_RECORDS_TODAY_HINT)).toBeNull();
 });

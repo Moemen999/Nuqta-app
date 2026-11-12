@@ -78,6 +78,9 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
   ];
 }
 
+/** اشتراك فترته من شهر فات: التأكيد بإيدك بيتسجل بتاريخ النهاردة (قرار مؤمن 2026-11-12) فبيتحسب على الشهر ده */
+export const SUB_RECORDS_TODAY_HINT = 'هتتسجل بتاريخ النهاردة، فهتتحسب على الشهر ده';
+
 const snoozeKey = (p: PendingCharge, today: string) => `${p.id}:${p.charges[0].key}:${today}`;
 
 /** اللي بيستنى تأكيد دلوقتي — مصدر واحد للكروت ولعدّاد سطر "مستنيين ردك" */
@@ -210,6 +213,9 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
             </Text>
+            {p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) && (
+              <Text style={styles.sub} testID={`charge_card_today_hint_${p.id}`}>{SUB_RECORDS_TODAY_HINT}</Text>
+            )}
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
             <View style={styles.actions}>
               <TouchableOpacity

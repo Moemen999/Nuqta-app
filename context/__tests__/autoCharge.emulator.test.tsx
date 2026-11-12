@@ -543,4 +543,55 @@ describe('تأكيد يدوي من الكارت ← تاريخ اليوم (قر�
     expect(txs.map(t => t.id)).toEqual([subscriptionTxId(id, k1), subscriptionTxId(id, k2)]);
     expect(before - balanceOf(walletId)).toBe(400);
   });
+
+  it('دورة كاملة: تأكيد من الكارت ← مسح العملية ← "سدّد" من الشاشة ← عملية واحدة بنفس المعرّف وبتاريخ النهاردة، والرصيد نقص مرة', async () => {
+    const k = addDays(today, -3);
+    const { walletId, id } = await makeSub({ nextDueDate: k });
+    const before = balanceOf(walletId);
+    const r = await harness.api().recordCharges('subscription', id, [{ key: k, amount: 200 }]);
+    expect(r.recorded).toEqual([k]);
+    await harness.waitForData(() => subTxs(id).length === 1);
+    expect(subTxs(id)[0]).toMatchObject({ id: subscriptionTxId(id, k), date: today });
+    expect(before - balanceOf(walletId)).toBe(200);
+
+    await harness.api().deleteTransaction(subTxs(id)[0].id);
+    await harness.waitForData(() => subTxs(id).length === 0 && !!sub().closed?.[k]?.reopened);
+    expect(balanceOf(walletId)).toBe(before);
+    expect(sub().nextDueDate).toBe(k);
+
+    expect(await harness.api().markSubscriptionPaid(id, today, 200)).toBe('done');
+    await harness.waitForData(() => subTxs(id).length === 1);
+    expect(subTxs(id)).toHaveLength(1);
+    expect(subTxs(id)[0]).toMatchObject({ id: subscriptionTxId(id, k), date: today, amount: 200 });
+    expect(before - balanceOf(walletId)).toBe(200);
+  });
+
+  // الحارس (نفس التاريخ + نفس المبلغ) متعمل لدوسة "سدّد" مرتين، ومؤمن قبل الرفض ده يوم 2026-11-12
+  // لما الكارت يكون سجّل فترة النهاردة: الفترة التانية بتفضل متاحة من كارت "اتخصم؟" في الرئيسية
+  it('فترتين متأخرتين: كارت لفترة ثم "سدّد" ← already-paid-today من غير كتابة، وبعدها الكارت يسجّل التانية', async () => {
+    const k1 = addMonths(today, -1);
+    const k2 = today;
+    const { walletId, id } = await makeSub({ nextDueDate: k1 });
+    const before = balanceOf(walletId);
+    const r1 = await harness.api().recordCharges('subscription', id, [{ key: k1, amount: 200 }]);
+    expect(r1.recorded).toEqual([k1]);
+    await harness.waitForData(() => subTxs(id).length === 1);
+    expect(subTxs(id)[0]).toMatchObject({ id: subscriptionTxId(id, k1), date: today });
+    const afterFirst = balanceOf(walletId);
+    expect(before - afterFirst).toBe(200);
+
+    expect(await harness.api().markSubscriptionPaid(id, today, 200)).toBe('already-paid-today');
+    await harness.waitForData(api => api.pendingWrites === 0);
+    expect(subTxs(id)).toHaveLength(1);
+    expect(balanceOf(walletId)).toBe(afterFirst);
+    expect(sub().closed?.[k2]).toBeUndefined();
+
+    const r2 = await harness.api().recordCharges('subscription', id, [{ key: k2, amount: 200 }]);
+    expect(r2.recorded).toEqual([k2]);
+    await harness.waitForData(() => subTxs(id).length === 2);
+    const txs = subTxs(id).sort((a, b) => (a.periodKey! < b.periodKey! ? -1 : 1));
+    expect(txs.map(t => t.date)).toEqual([today, today]);
+    expect(txs.map(t => t.id)).toEqual([subscriptionTxId(id, k1), subscriptionTxId(id, k2)]);
+    expect(before - balanceOf(walletId)).toBe(400);
+  });
 });
