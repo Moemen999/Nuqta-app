@@ -6,7 +6,7 @@ import ArchiveScreen from '@/app/archive';
 import ReportsScreen from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { PERIOD_PRESET_WORDS, PREVIOUS_PERIOD_LABEL, chipText, periodPresets } from '@/lib/periodPresets';
+import { PERIOD_PRESET_WORDS, PREVIOUS_PERIOD_LABEL, chipText, periodPresets, previousPeriodLabel } from '@/lib/periodPresets';
 import { MIN_TOUCH } from '@/lib/tokens';
 
 /**
@@ -38,6 +38,12 @@ describe('أسامي الفترات', () => {
       thisMonth: 'الشهر ده', last7: 'آخر 7 أيام', lastMonth: 'الشهر اللي فات', last6Months: 'آخر 6 شهور', all: 'الكل', custom: 'تواريخ تانية',
     });
     for (const w of [...Object.values(PERIOD_PRESET_WORDS), PREVIOUS_PERIOD_LABEL]) expect(w).not.toMatch(FUSHA);
+  });
+
+  it('نص المقارنة: «الشهر ده» بيقول نفس الأيام، والباقي الفترة اللي قبلها', () => {
+    expect(previousPeriodLabel('thisMonth')).toBe('مقارنة بنفس الأيام من الشهر اللي فات');
+    expect(previousPeriodLabel('thisMonth')).not.toMatch(FUSHA);
+    for (const p of ['last7', 'lastMonth', 'last6Months', 'custom']) expect(previousPeriodLabel(p)).toBe(PREVIOUS_PERIOD_LABEL);
   });
 
   it('الشريحة مفيهاش مسافة عادية تتكسر عندها — والكلام نفسه زي ما هو', () => {

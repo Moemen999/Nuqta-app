@@ -39,3 +39,10 @@ export function periodPresets(keys: PeriodPresetKey[]): { key: PeriodPresetKey; 
 
 /** نص خانة المقارنة في التقارير */
 export const PREVIOUS_PERIOD_LABEL = 'مقارنة بالفترة اللي قبلها';
+
+/** «الشهر ده» بيتقارن بنفس الأيام من الشهر اللي فات (`lib/periodCompare.ts`) فالنص لازم يقول كده */
+export const SAME_DAYS_LABEL = 'مقارنة بنفس الأيام من الشهر اللي فات';
+
+export function previousPeriodLabel(preset: string): string {
+  return preset === 'thisMonth' ? SAME_DAYS_LABEL : PREVIOUS_PERIOD_LABEL;
+}

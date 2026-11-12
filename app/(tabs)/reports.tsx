@@ -9,7 +9,8 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
 import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
-import { PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
+import { previousPeriodLabel } from '@/lib/periodPresets';
+import { comparisonWindows } from '@/lib/periodCompare';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
@@ -98,17 +99,22 @@ export default function ReportsScreen() {
   const allSpending = useMemo(() => spendingExpenses(transactions, transfers), [transactions, transfers]);
 
   const change = useMemo(() => {
-    const days = Math.max(1, Math.round((new Date(range.to).getTime() - new Date(range.from).getTime()) / 86400000) + 1);
-    const prevFrom = addDays(range.from, -days);
-    const prevTo = addDays(range.from, -1);
+    const windows = comparisonWindows(range, today, preset);
+    if (!windows) return null;
+    const { current, previous } = windows;
+    // البسط مصروف الفترة لحد النهارده بس، عشان عملية تاريخها جاي ميبوّظش النسبة
+    const curExpense = periodExpenseTotal(
+      allSpending.filter(t => t.date >= current.from && t.date <= current.to),
+      visibleIds,
+    );
     // نفس قاعدة الفترة الحالية بالظبط. قبل كده الفترة السابقة كانت بتتفلتر
     // على الفئات الموجودة حتى وإحنا مش فالتين حاجة، فالمصروف اللي فئته
     // اتمسحت كان بيتشال من فترة واحدة بس — ومقارنة بقاعدتين بتدي نسبة غلط
     const prevExpenses = allSpending
-      .filter(t => t.date >= prevFrom && t.date <= prevTo);
+      .filter(t => t.date >= previous.from && t.date <= previous.to);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
-    return prevExpense === 0 ? null : Math.round(((periodExpense - prevExpense) / prevExpense) * 100);
-  }, [range, visibleIds, allSpending, periodExpense]);
+    return prevExpense === 0 ? null : Math.round(((curExpense - prevExpense) / prevExpense) * 100);
+  }, [range, today, preset, visibleIds, allSpending]);
 
   // الأعمدة من الفترة والفئات المختارين ومن نفس صفوف الرقم البطل — `lib/spendTimeline.ts`
   const sliceIds = useMemo(() => visibleIds ? pieSlices.map(s => s.id) : undefined, [visibleIds, pieSlices]);
@@ -210,7 +216,7 @@ export default function ReportsScreen() {
         <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
         {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
         <View style={styles.changeRow}>
-          <Text style={styles.metricLabel}>{PREVIOUS_PERIOD_LABEL}</Text>
+          <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
           {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
             <Text style={[styles.changeValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
