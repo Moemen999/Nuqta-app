@@ -72,7 +72,8 @@ export function daysUntil(dateStr: string) {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
-/** عدد الأيام من `from` لـ`to` (من غير الطرفين الاتنين: 10 → 12 = 2) — على UTC زي باقي الحسابات */
+/** عدد الأيام من `from` لـ`to` (من غير الطرفين الاتنين: 10 → 12 = 2) — على UTC زي باقي الحسابات
+ *  المنادي لازم يتأكد من النصين بـ`isDateStr` الأول: القارئ بيرجع لـ1970-01-01 لو الشكل غلط بدل NaN */
 export function daysBetween(from: string, to: string) {
   return Math.round((parseDateStr(to).getTime() - parseDateStr(from).getTime()) / 86400000);
 }

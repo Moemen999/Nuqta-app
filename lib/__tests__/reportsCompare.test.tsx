@@ -77,7 +77,8 @@ it('سلفة وقسط جمعية جوه الفترة الحالية مش داخ�
 });
 
 it('الشهر اللي فات: بيتقارن بالشهر اللي قبله كله وبالنص ده', async () => {
-  mockData.transactions = [exp('s1', 2000, '2026-09-15'), exp('o1', 3775, '2026-10-05'), exp('o2', 3370, '2026-10-20')];
+  // صف 31 أغسطس برّه سبتمبر: القاعدة القديمة (31 يوم قبل 1 أكتوبر) كانت هتحسبه وتطلع -29% بدل +257%
+  mockData.transactions = [exp('a1', 8000, '2026-08-31'), exp('s1', 2000, '2026-09-15'), exp('o1', 3775, '2026-10-05'), exp('o2', 3370, '2026-10-20')];
   await renderScreen();
   await fireEvent.press(screen.getByTestId('reports_preset_lastMonth'));
   expect(screen.getByText('مقارنة بالشهر اللي قبله')).toBeTruthy();
