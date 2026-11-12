@@ -219,3 +219,19 @@ describe('شاشة العملية من غير محفظة', () => {
     expect(screen.queryByTestId('tx_no_wallets')).toBeNull();
   });
 });
+
+describe('وقت العملية في الصف', () => {
+  const made = new Date(2026, 10, 12, 11, 34).toISOString(); // اتسجلت 12 نوفمبر 11:34 ص محلي
+
+  it('عملية بتاريخ قديم اتسجلت النهارده ← التاريخ لوحده من غير وقت', async () => {
+    setData({ transactions: [{ id: 'a', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-10', createdAt: made }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_a')).getByText('2026-11-10')).toBeTruthy();
+  });
+
+  it('عملية اتسجلت في نفس يومها ← التاريخ والوقت', async () => {
+    setData({ transactions: [{ id: 'b', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-12', createdAt: made }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_b')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+  });
+});

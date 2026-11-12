@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, render, screen, within } from '@testing-library/react-native';
 import HomeTab from '@/app/(tabs)/index';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -92,6 +92,23 @@ it('coldSnapshot موجود ← البانر، الإجمالي من الكاش�
   // قارئ الشاشة: الإجمالي بيقول "قديم"، والصف عقدة واحدة أولها "قديم" (a11y-architect)
   expect(screen.getByText('إجمالي رصيدك (قديم)')).toBeTruthy();
   expect(screen.getByTestId('home_cold_tx_c2').props.accessibilityLabel).toMatch(/^قديم: دين، كاش، 300 جنيه، 2026-10-31$/);
+});
+
+it('صف الكاش: نفس يوم createdAt ← التاريخ والوقت، وتاريخ قبله بيومين ← التاريخ لوحده', async () => {
+  const made = new Date(2026, 10, 1, 11, 34).toISOString(); // اتسجلت 1 نوفمبر 11:34 ص محلي
+  const withTimes = {
+    ...cold,
+    recent: [
+      { id: 'd1', type: 'expense', amount: 40, walletId: 'w1', date: '2026-11-01', createdAt: made },
+      { id: 'd2', type: 'expense', amount: 50, walletId: 'w1', date: '2026-10-30', createdAt: made },
+    ],
+  };
+  setData({ wallets: [], transactions: [], serverReachable: false, figuresFromServer: false, coldSnapshot: withTimes });
+  await mount();
+  expect(within(screen.getByTestId('home_cold_tx_d1')).getByText('2026-11-01 · 11:34 ص')).toBeTruthy();
+  const alone = within(screen.getByTestId('home_cold_tx_d2')).getByText('2026-10-30');
+  expect(alone).toBeTruthy();
+  expect(alone.props.children).not.toContain(' · ');
 });
 
 it('مفيش coldSnapshot ← مفيش بانر قديم ولا صفوف كاش', async () => {
