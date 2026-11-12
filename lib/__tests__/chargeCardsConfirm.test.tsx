@@ -62,13 +62,13 @@ it('من غير نت ← رسالة "ما اتغيّرش حاجة" بتبان ب
   expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT['no-connection'].title);
 });
 
-// تلميح "هتتسجل بتاريخ النهاردة": بس لاشتراك فترته من شهر غير الشهر ده. "النهاردة" من todayStr() زي باقي الملف
+// تلميح "هيتسجل بتاريخ النهاردة": بس لاشتراك فترته من شهر غير الشهر ده. "النهاردة" من todayStr() زي باقي الملف
 const firstOfPrevMonth = () => {
   const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));
   return m === 1 ? `${y - 1}-12-01` : `${y}-${String(m - 1).padStart(2, '0')}-01`;
 };
 
-it('اشتراك فترته في شهر فات ← تلميح "هتتسجل بتاريخ النهاردة" ظاهر', async () => {
+it('اشتراك فترته في شهر فات ← تلميح "هيتسجل بتاريخ النهاردة" ظاهر', async () => {
   (mockData.subscriptions as { nextDueDate: string }[])[0].nextDueDate = firstOfPrevMonth();
   await render(ui());
   expect(screen.getByText(SUB_RECORDS_TODAY_HINT)).toBeTruthy();

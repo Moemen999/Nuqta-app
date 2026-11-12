@@ -79,7 +79,7 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
 }
 
 /** اشتراك فترته من شهر فات: التأكيد بإيدك بيتسجل بتاريخ النهاردة (قرار مؤمن 2026-11-12) فبيتحسب على الشهر ده */
-export const SUB_RECORDS_TODAY_HINT = 'هتتسجل بتاريخ النهاردة، فهتتحسب على الشهر ده';
+export const SUB_RECORDS_TODAY_HINT = 'هيتسجل بتاريخ النهاردة، فهيتحسب على الشهر ده';
 
 const snoozeKey = (p: PendingCharge, today: string) => `${p.id}:${p.charges[0].key}:${today}`;
 
