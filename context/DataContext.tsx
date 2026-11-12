@@ -120,6 +120,8 @@ class SubscriptionStoppedError extends Error { name = 'SubscriptionStoppedError'
 class LeftoverChangedError extends Error { name = 'LeftoverChangedError'; }
 /** المبلغ اللي اتعرض في التأكيد مش هو اللي على السيرفر (اتعدّل من جهاز تاني) — مفيش كتابة خالص */
 class AmountChangedError extends Error { name = 'AmountChangedError'; }
+/** الفترة اللي التأكيد سمّاها مش اللي الذرة هتقفلها (جهاز تاني قفلها الأول) — مفيش كتابة خالص */
+class PeriodChangedError extends Error { name = 'PeriodChangedError'; }
 /** الرقمين للّوج في نسخ التطوير بس (silent-failure-hunter): رفض من غير تعديل حقيقي يبان */
 const amountChanged = (seen: number | undefined, actual: number) => Object.assign(new AmountChangedError(), { seen, actual });
 /** `[seen, actual]` في التطوير، ولا حاجة في الإنتاج (مفيش رقم فلوس بيخرج — CLAUDE.md: Sentry) */
@@ -222,6 +224,21 @@ export const PAY_OUTCOME_ALERT: Record<Exclude<PayOutcome, 'done'>, { title: str
     title: 'محتاج محفظة تانية',
     body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل الاشتراك واختار محفظة شغالة وجرب تاني.',
   },
+};
+
+/**
+ * `period-changed` (الاشتراك بس): الفترة اللي التأكيد سمّاها اتقفلت من جهاز تاني. نفس قالب `AMOUNT_CHANGED_ALERT`:
+ * إيه اللي حصل، ومفيش فلوس اتحركت، وتعمل إيه. نوع لوحده مش جوه `PayOutcome` (زي `amount-changed`): باقي مسارات الدفع مالهاش الحالة دي.
+ */
+export const PERIOD_CHANGED_ALERT = {
+  title: 'الفترة اتغيّرت',
+  body: 'الاشتراك ده اتسجّل له دفع من مكان تاني، فما اتسجلش أي خصم. بص عليه تاني قبل ما تسجّل.',
+};
+
+/** شهر استلام الجمعية: نفس رسالة المحفظة بس بكلام الاستلام ("خصم" هنا غلط) */
+export const GAMIYA_PAYOUT_WALLET_MISSING_ALERT = {
+  title: 'محتاج محفظة تانية',
+  body: 'المحفظة المربوطة بيها اتمسحت أو اتأرشفت، فما اتسجلش أي استلام. عدّل الجمعية واختار محفظة شغالة وجرب تاني.',
 };
 
 /**
@@ -627,7 +644,7 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
-  markSubscriptionPaid: (id: string, date: string, seenAmount?: number) => Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed'>;
+  markSubscriptionPaid: (id: string, date: string, seenAmount?: number, seenKey?: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed'>;
   /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
   setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome | 'missing'>;
   addGamiya: (data: {
@@ -2241,7 +2258,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string, seenAmount?: number): Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed'> {
+  async function markSubscriptionPaid(id: string, date: string, seenAmount?: number, seenKey?: string): Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed'> {
     if (deletingRef.current) return 'failed';
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
@@ -2274,6 +2291,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // مفيش — اللي جاية. نفس مفتاح التلقائي ونفس معرّف العملية، فالتلقائي
         // على جهاز تاني بيلاقيها مقفولة ومبيخصمش تاني
         const key = subscriptionManualKey(sub, today);
+        // التأكيد سمّى فترة معيّنة؛ لو جهاز تاني قفلها، الأقدم المفتوحة بقت اللي بعدها — مبنقفلش فترة مش اللي المستخدم وافق عليها
+        if (seenKey !== undefined && seenKey !== key) throw new PeriodChangedError();
         const txRef = doc(db, 'users', uid!, 'transactions', subscriptionTxId(id, key));
 
         // المحفظة بتتقري من جوه العملية الذرية عشان الإجابة تبقى عن الحالة
@@ -2305,6 +2324,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (e instanceof SubscriptionStoppedError) return 'stopped';
       // مش فشل (مش Sentry): الشاشة بتقول إن المبلغ اتغيّر والمستخدم يقرر تاني على الجديد
       if (e instanceof AmountChangedError) { console.warn('[subscription] amount changed since shown, nothing written', id, ...amountsForDevLog(e)); return 'amount-changed'; }
+      if (e instanceof PeriodChangedError) { console.warn('[subscription] period changed since shown, nothing written', id); return 'period-changed'; }
       // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
       // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
       if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);

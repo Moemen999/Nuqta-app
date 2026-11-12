@@ -3,7 +3,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, useData, type Subscription } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, PERIOD_CHANGED_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { CUSTOM_DAYS_FIELD, CUSTOM_FREQUENCY_BUTTON, frequencyLabel } from '@/lib/frequencyLabel';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
@@ -13,7 +13,8 @@ import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryNam
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
+import { walletsNotReadyNotice } from '@/lib/listenerErrors';
+import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState, useRef } from 'react';
@@ -30,6 +31,11 @@ export const SUBSCRIPTION_STOPPED_ALERT = {
 export const SUBSCRIPTION_RESUME_WALLET_ALERT = {
   title: 'محتاج محفظة تانية',
   body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت وهو واقف. عدّل الاشتراك واختار محفظة شغالة، وبعدين رجّعه.',
+};
+/** معاد الاشتراك المتخزّن مش تاريخ مقروء ← مفيش تأكيد لفترة مجهولة */
+export const SUBSCRIPTION_DATE_UNREADABLE_ALERT = {
+  title: 'معاد الاشتراك مش مقروء',
+  body: 'ما اتسجلش أي خصم. عدّل الاشتراك وظبّط معاده وجرب تاني.',
 };
 /** الرجوع ذري من السيرفر — النتيجة قاطعة: رجع ولا لسه واقف */
 export const SUBSCRIPTION_RESUME_FAIL_ALERT = {
@@ -118,12 +124,23 @@ export default function SubscriptionsView() {
   }
   function confirmPay(s: Subscription) {
     // محفظة مؤرشفة أو ممسوحة ← الكتابة الذرية هترفض (wallet-missing)، فمنوعدش بخصم من غير ما نفتح التأكيد
+    // المحافظ لسه ما وصلتش (أو الـlistener وقع) ← مش نحكم إن المحفظة مفقودة
+    const notReady = walletsNotReadyNotice(loadErrors, figuresPending);
+    if (notReady) { notice(notReady.title, notReady.body); return; }
     const wallet = wallets.find(w => w.id === s.walletId);
     if (!wallet || wallet.archived) {
       notice(PAY_OUTCOME_ALERT['wallet-missing'].title, PAY_OUTCOME_ALERT['wallet-missing'].body);
       return;
     }
-    confirm('تسجيل الدفع', subscriptionPayConfirmBody(s, walletHistoryName(wallets, s.walletId), todayStr()), [
+    // الفترة بتتحسب **مرة واحدة**: اللي التأكيد بيسمّيها هي اللي بتتبعت للكتابة، والكتابة بترفض لو اتغيّرت
+    const today = todayStr();
+    const periodKey = subscriptionPayKey(s, today);
+    if (periodKey === null) {
+      console.warn('[subscription] unreadable due date, pay confirm not offered');
+      notice(SUBSCRIPTION_DATE_UNREADABLE_ALERT.title, SUBSCRIPTION_DATE_UNREADABLE_ALERT.body);
+      return;
+    }
+    confirm('تسجيل الدفع', subscriptionPayConfirmBody(s, walletHistoryName(wallets, s.walletId), today, periodKey), [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'تأكيد',
@@ -132,9 +149,12 @@ export default function SubscriptionsView() {
           // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
           // نفس الرسايل بالظبط في شاشة الجمعية
           // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
-          const outcome = await markSubscriptionPaid(s.id, todayStr(), s.amount);
+          // + الفترة اللي في الجملة: لو جهاز تاني قفلها، الذرة بترفض (period-changed) بدل ما تقفل اللي بعدها
+          const outcome = await markSubscriptionPaid(s.id, todayStr(), s.amount, periodKey);
           if (outcome === 'amount-changed') {
             notice(AMOUNT_CHANGED_ALERT.subscription.title, AMOUNT_CHANGED_ALERT.subscription.body);
+          } else if (outcome === 'period-changed') {
+            notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
           } else if (outcome === 'stopped') {
             notice(SUBSCRIPTION_STOPPED_ALERT.title, SUBSCRIPTION_STOPPED_ALERT.body);
           } else if (outcome === 'already-paid-today') {

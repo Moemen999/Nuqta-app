@@ -75,6 +75,19 @@ export function categoryBlockedBody(missing: ListenerName[]): string {
 }
 
 export const WALLET_BLOCKED_TITLE = 'استنى البيانات توصل';
+
+/**
+ * قبل ما شاشة الدفع/الاستلام تحكم إن المحفظة "اتمسحت أو اتأرشفت": `wallets` فاضية لحد ما الـlistener يوصّل
+ * (وبتفضل قديمة لو وقع)، فمحفظة سليمة كانت هتتقال عليها مفقودة. `null` = المحافظ معروفة، كمّل الفحص.
+ * العنوان والـlistener-error من نفس نصوص المسح (`WALLET_BLOCKED_TITLE`, `loadErrorBody`).
+ */
+export function walletsNotReadyNotice(loadErrors: ListenerName[], figuresPending: ListenerName[]): { title: string; body: string } | null {
+  if (loadErrors.includes('wallets')) return { title: WALLET_BLOCKED_TITLE, body: loadErrorBody(['wallets']) };
+  if (figuresPending.includes('wallets')) {
+    return { title: WALLET_BLOCKED_TITLE, body: `بيانات ${LISTENER_LABELS.wallets} لسه بتوصل، فمش قادرين نتأكد من المحفظة. استنى ثواني وجرب تاني.` };
+  }
+  return null;
+}
 export function walletBlockedBody(missing: ListenerName[]): string {
   return `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش هنقدر نتأكد من رصيد المحفظة ولا إيه اللي مربوط بيها. دوس "${LOAD_ERROR_RETRY}" فوق، وهتقدر تكمل بعد ما البيانات توصل.`;
 }

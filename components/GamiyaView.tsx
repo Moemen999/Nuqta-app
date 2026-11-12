@@ -2,7 +2,8 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, GAMIYA_PAYOUT_WALLET_MISSING_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
@@ -23,6 +24,9 @@ import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
   return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
 }
+
+/** شهر الاستلام ما اتسجلش فيه "خصم" — الرسالة بتقول استلام */
+const walletMissingAlert = (isPayout: boolean) => (isPayout ? GAMIYA_PAYOUT_WALLET_MISSING_ALERT : PAY_OUTCOME_ALERT_GAMIYA['wallet-missing']);
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -56,9 +60,13 @@ export default function GamiyaView() {
   }
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number, dueDate: string, monthIndex: number) {
     // محفظة مؤرشفة أو ممسوحة ← الكتابة الذرية هترفض (wallet-missing)، فمنوعدش بخصم من غير ما نفتح التأكيد
+    // المحافظ لسه ما وصلتش (أو الـlistener وقع) ← مش نحكم إن المحفظة مفقودة
+    const notReady = walletsNotReadyNotice(loadErrors, figuresPending);
+    if (notReady) { notice(notReady.title, notReady.body); return; }
     const wallet = wallets.find(w => w.id === g.walletId);
     if (!wallet || wallet.archived) {
-      notice(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].title, PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].body);
+      const m = walletMissingAlert(isPayout);
+      notice(m.title, m.body);
       return;
     }
     confirm(
@@ -73,6 +81,9 @@ export default function GamiyaView() {
             const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
             if (outcome === 'amount-changed') {
               notice(AMOUNT_CHANGED_ALERT.gamiya.title, AMOUNT_CHANGED_ALERT.gamiya.body);
+            } else if (outcome === 'wallet-missing') {
+              const m = walletMissingAlert(isPayout);
+              notice(m.title, m.body);
             } else if (outcome !== 'done') {
               const m = PAY_OUTCOME_ALERT_GAMIYA[outcome];
               notice(m.title, m.body);

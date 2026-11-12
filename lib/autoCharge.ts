@@ -126,6 +126,19 @@ export function subscriptionManualKey(sub: SubscriptionLike, today: string) {
   return d;
 }
 
+/**
+ * `subscriptionManualKey` لكن لشاشة التأكيد: `null` لو المفتاح مش قابل للحساب أو مش تاريخ صالح (معاد متخزّن بايظ).
+ * الشاشة بترفض ساعتها بدل ما تعرض تأكيد عام لفترة مجهولة.
+ */
+export function subscriptionPayKey(sub: SubscriptionLike, today: string): string | null {
+  try {
+    const key: unknown = subscriptionManualKey(sub, today);
+    return isDateStr(key) ? key : null;
+  } catch {
+    return null;
+  }
+}
+
 /** الفترة دي لسه ينفع تتقفل؟ (مش مقفولة، ومن الجدول الحالي أو رجعت تسأل) */
 export function subscriptionKeyOpen(sub: SubscriptionLike, key: string) {
   const c = sub.closed?.[key];
@@ -212,12 +225,10 @@ export function chargeModePatch(next: ChargeMode, current: { chargeMode?: Charge
  * والمبلغ والمحفظة. العملية بتتسجل دايمًا بتاريخ اليوم، فأي فترة مش معادها النهارده الجملة بتقول كده.
  * `walletName` لازم يبقى اسم محفظة شغالة — الشاشة بتمنع قبل كده لو مؤرشفة أو ممسوحة.
  */
-export function subscriptionPayConfirmBody(s: SubscriptionLike, walletName: string, today: string) {
-  // نفس الدالة ونفس الحجج اللي بتقفل بيها `markSubscriptionPaid` — الفترة المسمّاة هي المقفولة
-  let key: unknown;
-  try { key = subscriptionManualKey(s, today); } catch { key = undefined; }
+export function subscriptionPayConfirmBody(s: SubscriptionLike, walletName: string, today: string, key: string) {
+  // `key` من `subscriptionPayKey` — **نفس القيمة** اللي الشاشة بتبعتها للكتابة كـ`seenKey`، فالفترة المسمّاة هي اللي بتتقفل
   const what = nameOk(s.name) ? quotedName('اشتراك', s.name) : 'الاشتراك';
-  if (!isDateStr(key) || !Number.isFinite(s.amount)) {
+  if (!Number.isFinite(s.amount)) {
     return nameOk(s.name) ? `${what} — نسجّل خصم الاشتراك ده؟` : 'نسجّل خصم الاشتراك ده؟';
   }
   const base = `${what} بتاع ${dueDateLabel(key)} — نسجّل خصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
