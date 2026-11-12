@@ -16,7 +16,7 @@ import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, TRANSFERS_SLOW, transfersStat
  * الرقم بيظهر ومعاه سطر إنه ممكن يكون فيه سلف. بانر "الميزانية قربت تخلص" مبيولّعش وهو بيحمّل.
  */
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({}) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({

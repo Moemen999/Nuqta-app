@@ -21,6 +21,7 @@ import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
+import { transactionsPhrase } from '@/lib/archiving';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
@@ -457,9 +458,9 @@ function HomeScreen() {
           <TouchableOpacity
             testID="home_see_all"
             style={styles.seeAll}
-            onPress={() => router.push('/archive')}
+            onPress={() => router.push({ pathname: '/archive', params: { preset: 'all' } })}
             accessibilityRole="button"
-            accessibilityLabel={`شوف كل العمليات، ${transactions.length} عملية`}
+            accessibilityLabel={`شوف كل العمليات، ${transactionsPhrase(transactions.length)}`}
             accessibilityHint="بيفتح الأرشيف بكل عملياتك">
             <Text style={styles.seeAllText}>شوف كل العمليات ({transactions.length})</Text>
             <Text style={styles.seeAllChevron} accessible={false}>‹</Text>
@@ -611,7 +612,7 @@ function makeStyles(c: ThemeColors) {
     txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
     seeAll: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: MIN_TOUCH,
-      borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border,
+      paddingVertical: space.lg,
     },
     seeAllText: { color: c.accentText, fontSize: typeScale.body },
     seeAllChevron: { color: c.textSecondary, fontSize: typeScale.title },
