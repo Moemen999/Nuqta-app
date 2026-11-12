@@ -419,7 +419,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
+                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
               </View>
             </View>
           );
@@ -445,7 +445,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
+                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
                 {transfers.has(t.id) && <TransferMark />}

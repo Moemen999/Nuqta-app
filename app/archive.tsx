@@ -305,7 +305,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       </View>
       <View style={styles.txRight}>
         <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-        <Text style={styles.txDate}>{t.date}{entryTime(t.date, t.createdAt) ? ' · ' + entryTime(t.date, t.createdAt) : ''}</Text>
+        <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}
