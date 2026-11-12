@@ -55,6 +55,12 @@ export default function GamiyaView() {
     ]);
   }
   function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number, dueDate: string, monthIndex: number) {
+    // محفظة مؤرشفة أو ممسوحة ← الكتابة الذرية هترفض (wallet-missing)، فمنوعدش بخصم من غير ما نفتح التأكيد
+    const wallet = wallets.find(w => w.id === g.walletId);
+    if (!wallet || wallet.archived) {
+      notice(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].title, PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].body);
+      return;
+    }
     confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
       gamiyaMarkConfirmBody({ name: g.name, monthIndex, dueDate, amount, isPayout }, walletHistoryName(wallets, g.walletId), todayStr()),

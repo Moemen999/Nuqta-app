@@ -117,6 +117,12 @@ export default function SubscriptionsView() {
     ]);
   }
   function confirmPay(s: Subscription) {
+    // محفظة مؤرشفة أو ممسوحة ← الكتابة الذرية هترفض (wallet-missing)، فمنوعدش بخصم من غير ما نفتح التأكيد
+    const wallet = wallets.find(w => w.id === s.walletId);
+    if (!wallet || wallet.archived) {
+      notice(PAY_OUTCOME_ALERT['wallet-missing'].title, PAY_OUTCOME_ALERT['wallet-missing'].body);
+      return;
+    }
     confirm('تسجيل الدفع', subscriptionPayConfirmBody(s, walletHistoryName(wallets, s.walletId), todayStr()), [
       { text: 'إلغاء', style: 'cancel' },
       {

@@ -8,7 +8,7 @@ import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { todayStr } from '@/lib/finance';
-import { AMOUNT_CHANGED_ALERT } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA } from '@/context/DataContext';
 
 /**
  * نقل التأكيدات — الشاشات المالية بالمكوّن نفسه (silent-failure-hunter + money-reviewer، جولة 1):
@@ -66,7 +66,7 @@ it('الاشتراك: "اتخصم" ← تأكيد قبل الدفع، بيتقف
   await render(wrap(<SubscriptionsView />));
   await act(async () => { fireEvent.press(screen.getByLabelText('اتخصم اشتراك نتفليكس')); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('تسجيل الدفع');
-  expect(screen.getByTestId('confirm_body').props.children).toBe('اشتراك "نتفليكس" بتاع 1 يناير 2099 — هيتخصم 150 ج.م من الكاش؟');
+  expect(screen.getByTestId('confirm_body').props.children).toBe('اشتراك "نتفليكس" بتاع 1 يناير 2099 — نسجّل خصم 150 ج.م من الكاش؟ هيتسجل بتاريخ النهارده.');
   expect(mockData.markSubscriptionPaid).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
@@ -94,7 +94,7 @@ it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة
   const pay = screen.getAllByText('اتخصم')[0];
   await act(async () => { fireEvent.press(pay); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('تسجيل القسط');
-  expect(screen.getByTestId('confirm_body').props.children).toBe('قسط شهر 1 من جمعية "جمعية الشغل" (1 يوليو 2099) — هيتخصم 1,000 ج.م من الكاش؟ هيتسجل بتاريخ المعاد مش النهارده.');
+  expect(screen.getByTestId('confirm_body').props.children).toBe('قسط شهر 1 من جمعية "جمعية الشغل" (1 يوليو 2099) — نسجّل خصم 1,000 ج.م من الكاش؟ هيتسجل بتاريخ المعاد مش النهارده.');
   expect(mockData.markGamiyaMonthDone).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
@@ -110,6 +110,31 @@ it('الجمعية: شهرين بنفس القسط ورا بعض بسرعة ← 
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   // من غير المفتاح، التاني كان هيتلغي لأن نصه زي الأول بالظبط
   expect(screen.getByTestId('confirm_dialog')).toBeTruthy();
+});
+
+describe('محفظة مؤرشفة أو ممسوحة: مفيش تأكيد بيوعد بحاجة الكتابة هترفضها', () => {
+  const walletStates: [string, unknown[]][] = [['مؤرشفة', [{ ...W, archived: true }]], ['ممسوحة', []]];
+
+  it.each(walletStates)('الاشتراك، محفظة %s ← مفيش تأكيد، ورسالة wallet-missing، ومفيش كتابة', async (_label, wallets) => {
+    mockData.wallets = wallets;
+    await render(wrap(<SubscriptionsView />));
+    await act(async () => { fireEvent.press(screen.getByLabelText('اتخصم اشتراك نتفليكس')); });
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT['wallet-missing'].title);
+    expect(screen.getByTestId('notice_body').props.children).toBe(PAY_OUTCOME_ALERT['wallet-missing'].body);
+    expect(mockData.markSubscriptionPaid).not.toHaveBeenCalled();
+  });
+
+  it.each(walletStates)('الجمعية، محفظة %s ← مفيش تأكيد، ورسالة wallet-missing، ومفيش كتابة', async (_label, wallets) => {
+    mockData.wallets = wallets;
+    await render(wrap(<GamiyaView />));
+    await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
+    await act(async () => { fireEvent.press(screen.getAllByText('اتخصم')[0]); });
+    expect(screen.queryByTestId('confirm_dialog')).toBeNull();
+    expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].title);
+    expect(screen.getByTestId('notice_body').props.children).toBe(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].body);
+    expect(mockData.markGamiyaMonthDone).not.toHaveBeenCalled();
+  });
 });
 
 describe('المبلغ اتعدّل من جهاز تاني والتأكيد مفتوح', () => {

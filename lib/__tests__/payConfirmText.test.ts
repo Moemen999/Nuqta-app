@@ -1,37 +1,67 @@
-import { gamiyaMarkConfirmBody, subscriptionPayConfirmBody } from '@/lib/autoCharge';
-import { walletHistoryName } from '@/lib/finance';
+import { gamiyaMarkConfirmBody, subscriptionPayConfirmBody, subscriptionManualKey } from '@/lib/autoCharge';
 
 const TODAY = '2026-11-12';
+const sub = (over: Record<string, unknown> = {}) => ({
+  id: 's1', name: 'Netflix', amount: 240, frequency: 'monthly' as const, nextDueDate: '2026-11-12', ...over,
+});
 
 describe('نص تأكيد دفع الاشتراك', () => {
-  it('في معاده: بيسمّي الاشتراك والمعاد والمبلغ والمحفظة، من غير جملة التاريخ', () => {
-    expect(subscriptionPayConfirmBody({ name: 'Netflix', nextDueDate: '2026-11-12', amount: 240 }, 'CIB', TODAY))
-      .toBe('اشتراك "Netflix" بتاع 12 نوفمبر 2026 — هيتخصم 240 ج.م من CIB؟');
-  });
-
-  it('معاده لسه جاي: برضو من غير جملة التاريخ', () => {
-    expect(subscriptionPayConfirmBody({ name: 'Netflix', nextDueDate: '2026-12-20', amount: 240 }, 'CIB', TODAY))
-      .toBe('اشتراك "Netflix" بتاع 20 ديسمبر 2026 — هيتخصم 240 ج.م من CIB؟');
+  it('معاده النهارده: بيسمّي الاشتراك والمعاد والمبلغ والمحفظة، من غير جملة التاريخ', () => {
+    expect(subscriptionPayConfirmBody(sub(), 'CIB', TODAY))
+      .toBe('اشتراك "Netflix" بتاع 12 نوفمبر 2026 — نسجّل خصم 240 ج.م من CIB؟');
   });
 
   it('متأخر: بيقول إن العملية هتتسجل بتاريخ النهارده', () => {
-    expect(subscriptionPayConfirmBody({ name: 'Netflix', nextDueDate: '2026-10-15', amount: 240 }, 'CIB', TODAY))
-      .toBe('اشتراك "Netflix" بتاع 15 أكتوبر 2026 — هيتخصم 240 ج.م من CIB؟ هيتسجل بتاريخ النهارده.');
+    expect(subscriptionPayConfirmBody(sub({ nextDueDate: '2026-10-15' }), 'CIB', TODAY))
+      .toBe('اشتراك "Netflix" بتاع 15 أكتوبر 2026 — نسجّل خصم 240 ج.م من CIB؟ هيتسجل بتاريخ النهارده.');
   });
 
-  it('محفظة مؤرشفة: الاسم بيجي من walletHistoryName زي ما هو', () => {
-    const wallets = [{ id: 'w1', name: 'CIB', archived: true }];
-    const name = walletHistoryName(wallets, 'w1');
-    const body = subscriptionPayConfirmBody({ name: 'Netflix', nextDueDate: '2026-11-12', amount: 240 }, name, TODAY);
-    expect(body).toContain(`من ${name}؟`);
-    expect(name).not.toBe('CIB');
+  it('دفع بدري: برضو بيقول إنها هتتسجل بتاريخ النهارده (العملية دايمًا بتاريخ اليوم)', () => {
+    expect(subscriptionPayConfirmBody(sub({ nextDueDate: '2026-12-20' }), 'CIB', TODAY))
+      .toBe('اشتراك "Netflix" بتاع 20 ديسمبر 2026 — نسجّل خصم 240 ج.م من CIB؟ هيتسجل بتاريخ النهارده.');
+  });
+
+  it('فترتين متأخرتين: بيسمّي الأقدم (اللي الكتابة هتقفلها)', () => {
+    const s = sub({ nextDueDate: '2026-09-15' });
+    expect(subscriptionManualKey(s, TODAY)).toBe('2026-09-15');
+    expect(subscriptionPayConfirmBody(s, 'CIB', TODAY)).toContain('بتاع 15 سبتمبر 2026');
+  });
+
+  it('سبتمبر رجعت تسأل و nextDueDate 15 نوفمبر: بيسمّي 15 سبتمبر مش 15 نوفمبر', () => {
+    const s = sub({
+      nextDueDate: '2026-11-15',
+      closed: {
+        '2026-09-15': { txId: 't1', at: '2026-09-15T00:00:00Z', reopened: true },
+        '2026-10-15': { txId: 't2', at: '2026-10-15T00:00:00Z' },
+      },
+    });
+    const body = subscriptionPayConfirmBody(s, 'CIB', TODAY);
+    expect(body).toContain('بتاع 15 سبتمبر 2026');
+    expect(body).not.toContain('نوفمبر');
+    expect(body.endsWith('هيتسجل بتاريخ النهارده.')).toBe(true);
+  });
+
+  it('البناء بياخد اسم محفظة شغالة زي ما هو (مفيش لاحقة مؤرشفة بتتحط هنا — الشاشة بتمنع قبل كده)', () => {
+    expect(subscriptionPayConfirmBody(sub(), 'الكاش', TODAY)).toContain('من الكاش؟');
   });
 
   it('اسم فيه علامة تنصيص: يفضل زوج واحد بس حوالين الاسم', () => {
-    const body = subscriptionPayConfirmBody({ name: 'نت "فاست"', nextDueDate: '2026-11-12', amount: 240 }, 'CIB', TODAY);
+    const body = subscriptionPayConfirmBody(sub({ name: 'نت "فاست"' }), 'CIB', TODAY);
     expect(body.match(/"/g)).toHaveLength(2);
     expect(body.startsWith('اشتراك "')).toBe(true);
     expect(body).toContain('فاست');
+  });
+
+  it('معاد ناقص: جملة عامة من غير تاريخ ولا undefined', () => {
+    const body = subscriptionPayConfirmBody(sub({ nextDueDate: undefined }), 'CIB', TODAY);
+    expect(body).toBe('اشتراك "Netflix" — نسجّل خصم الاشتراك ده؟');
+    expect(body).not.toContain('undefined');
+  });
+
+  it('مبلغ NaN: جملة عامة من غير 0 ج.م ولا NaN', () => {
+    const body = subscriptionPayConfirmBody(sub({ amount: NaN }), 'CIB', TODAY);
+    expect(body).toBe('اشتراك "Netflix" — نسجّل خصم الاشتراك ده؟');
+    expect(body).not.toMatch(/NaN|0 ج\.م/);
   });
 });
 
@@ -40,21 +70,33 @@ describe('نص تأكيد شهر الجمعية', () => {
 
   it('قسط متأخر: بيقول إنه هيتسجل بتاريخ المعاد مش النهارده', () => {
     expect(gamiyaMarkConfirmBody({ ...base, isPayout: false }, 'CIB', TODAY))
-      .toBe('قسط شهر 2 من جمعية "Work" (5 نوفمبر 2026) — هيتخصم 1,500 ج.م من CIB؟ هيتسجل بتاريخ المعاد مش النهارده.');
+      .toBe('قسط شهر 2 من جمعية "Work" (5 نوفمبر 2026) — نسجّل خصم 1,500 ج.م من CIB؟ هيتسجل بتاريخ المعاد مش النهارده.');
   });
 
   it('قسط معاده النهارده: من غير جملة التاريخ', () => {
     expect(gamiyaMarkConfirmBody({ ...base, dueDate: TODAY, isPayout: false }, 'CIB', TODAY))
-      .toBe('قسط شهر 2 من جمعية "Work" (12 نوفمبر 2026) — هيتخصم 1,500 ج.م من CIB؟');
+      .toBe('قسط شهر 2 من جمعية "Work" (12 نوفمبر 2026) — نسجّل خصم 1,500 ج.م من CIB؟');
   });
 
-  it('استلام: بصيغة الاستلام والمحفظة اللي هتدخل فيها', () => {
+  it('استلام: بصيغة الاستلام والمحفظة اللي هيتسجل فيها', () => {
     expect(gamiyaMarkConfirmBody({ name: 'Work', monthIndex: 4, dueDate: '2027-01-05', amount: 15000, isPayout: true }, 'CIB', TODAY))
-      .toBe('استلام جمعية "Work" (شهر 4، 5 يناير 2027) — هتستلم 15,000 ج.م في CIB؟ هيتسجل بتاريخ المعاد مش النهارده.');
+      .toBe('استلام جمعية "Work" (شهر 4، 5 يناير 2027) — نسجّل استلام 15,000 ج.م في CIB؟ هيتسجل بتاريخ المعاد مش النهارده.');
   });
 
   it('اسم فيه علامة تنصيص: زوج واحد بس', () => {
     const body = gamiyaMarkConfirmBody({ ...base, name: 'ج"مية', isPayout: false }, 'CIB', TODAY);
     expect(body.match(/"/g)).toHaveLength(2);
+  });
+
+  it('معاد ناقص: جملة عامة للقسط وللاستلام', () => {
+    const noDate = { ...base, dueDate: undefined as unknown as string };
+    expect(gamiyaMarkConfirmBody({ ...noDate, isPayout: false }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل خصم القسط ده؟');
+    expect(gamiyaMarkConfirmBody({ ...noDate, isPayout: true }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل استلام الجمعية؟');
+  });
+
+  it('مبلغ NaN: جملة عامة من غير 0 ج.م', () => {
+    const body = gamiyaMarkConfirmBody({ ...base, amount: NaN, isPayout: false }, 'CIB', TODAY);
+    expect(body).toBe('جمعية "Work" — نسجّل خصم القسط ده؟');
+    expect(body).not.toMatch(/NaN|0 ج\.م/);
   });
 });

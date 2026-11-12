@@ -1,4 +1,4 @@
-import { addDays, addMonths, fmt } from '@/lib/finance';
+import { addDays, addMonths, fmt, isDateStr } from '@/lib/finance';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
 import { dueDateLabel } from '@/lib/reopenDue';
 import { namedLabel } from '@/lib/writeError';
@@ -207,13 +207,22 @@ export function chargeModePatch(next: ChargeMode, current: { chargeMode?: Charge
 }
 
 /**
- * جملة تأكيد "تسجيل الدفع" للاشتراك: بتسمّي الاشتراك والفترة (معاده) والمبلغ والمحفظة.
- * العملية بتتسجل بتاريخ اليوم اللي المستخدم داس فيه (`markSubscriptionPaid(id, todayStr(), …)`)،
- * فلو الفترة متأخرة الجملة بتقول كده صراحة. `walletName` من `walletHistoryName` (المؤرشفة بتاخد اسمها).
+ * جملة تأكيد "تسجيل الدفع" للاشتراك: بتسمّي الاشتراك والفترة اللي الكتابة هتقفلها فعلاً
+ * (`subscriptionManualKey(s, today)` — مش `nextDueDate`، لأن الأقدم المفتوحة ممكن تكون فترة رجعت تسأل)
+ * والمبلغ والمحفظة. العملية بتتسجل دايمًا بتاريخ اليوم، فأي فترة مش معادها النهارده الجملة بتقول كده.
+ * `walletName` لازم يبقى اسم محفظة شغالة — الشاشة بتمنع قبل كده لو مؤرشفة أو ممسوحة.
  */
-export function subscriptionPayConfirmBody(s: { name: string; nextDueDate: string; amount: number }, walletName: string, today: string) {
-  const base = `${quotedName('اشتراك', s.name)} بتاع ${dueDateLabel(s.nextDueDate)} — هيتخصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
-  return s.nextDueDate < today ? `${base} هيتسجل بتاريخ النهارده.` : base;
+export function subscriptionPayConfirmBody(s: SubscriptionLike, walletName: string, today: string) {
+  // نفس الدالة ونفس الحجج اللي بتقفل بيها `markSubscriptionPaid` — الفترة المسمّاة هي المقفولة
+  let key: unknown;
+  try { key = subscriptionManualKey(s, today); } catch { key = undefined; }
+  const what = nameOk(s.name) ? quotedName('اشتراك', s.name) : 'الاشتراك';
+  if (!isDateStr(key) || !Number.isFinite(s.amount)) {
+    return nameOk(s.name) ? `${what} — نسجّل خصم الاشتراك ده؟` : 'نسجّل خصم الاشتراك ده؟';
+  }
+  const base = `${what} بتاع ${dueDateLabel(key)} — نسجّل خصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
+  // العملية دايمًا بتاريخ النهارده، فأي فترة معادها مش النهارده (متأخرة أو بدري) بتتقال
+  return key !== today ? `${base} هيتسجل بتاريخ النهارده.` : base;
 }
 
 /**
@@ -225,11 +234,20 @@ export function gamiyaMarkConfirmBody(
   walletName: string,
   today: string,
 ) {
-  const g = quotedName('جمعية', m.name);
+  const named = nameOk(m.name);
+  const g = named ? quotedName('جمعية', m.name) : 'الجمعية';
+  if (!isDateStr(m.dueDate) || !Number.isFinite(m.amount) || !Number.isFinite(m.monthIndex)) {
+    const generic = m.isPayout ? 'نسجّل استلام الجمعية؟' : 'نسجّل خصم القسط ده؟';
+    return named ? `${g} — ${generic}` : generic;
+  }
   const base = m.isPayout
-    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate)}) — هتستلم ${fmt(m.amount)} ج.م في ${walletName}؟`
-    : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate)}) — هيتخصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
+    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}؟`
+    : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate)}) — نسجّل خصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
   return m.dueDate === today ? base : `${base} هيتسجل بتاريخ المعاد مش النهارده.`;
+}
+
+function nameOk(name: unknown): name is string {
+  return typeof name === 'string' && name.trim().length > 0;
 }
 
 /** `namedLabel` بس مع تحويل علامة التنصيص المزدوجة جوه الاسم لمفردة، عشان الاقتباس يفضل زوج واحد (Sentry scrub) */
