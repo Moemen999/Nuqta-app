@@ -66,6 +66,7 @@ it('الاشتراك: "اتخصم" ← تأكيد قبل الدفع، بيتقف
   await render(wrap(<SubscriptionsView />));
   await act(async () => { fireEvent.press(screen.getByLabelText('اتخصم اشتراك نتفليكس')); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('تسجيل الدفع');
+  expect(screen.getByTestId('confirm_body').props.children).toBe('اشتراك "نتفليكس" بتاع 1 يناير 2099 — هيتخصم 150 ج.م من الكاش؟');
   expect(mockData.markSubscriptionPaid).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
@@ -93,6 +94,7 @@ it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة
   const pay = screen.getAllByText('اتخصم')[0];
   await act(async () => { fireEvent.press(pay); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('تسجيل القسط');
+  expect(screen.getByTestId('confirm_body').props.children).toBe('قسط شهر 1 من جمعية "جمعية الشغل" (1 يوليو 2099) — هيتخصم 1,000 ج.م من الكاش؟ هيتسجل بتاريخ المعاد مش النهارده.');
   expect(mockData.markGamiyaMonthDone).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();

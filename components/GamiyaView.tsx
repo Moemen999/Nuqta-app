@@ -1,4 +1,3 @@
-import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
@@ -10,7 +9,7 @@ import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import type { ChargeMode } from '@/lib/autoCharge';
+import { gamiyaMarkConfirmBody, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
@@ -55,10 +54,10 @@ export default function GamiyaView() {
       },
     ]);
   }
-  function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number) {
+  function confirmMark(g: Gamiya, monthId: string, isPayout: boolean, amount: number, dueDate: string, monthIndex: number) {
     confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
-      isPayout ? `هتستلم ${plainAmount(amount)} ج.م في محفظتك؟` : `هيتخصم ${plainAmount(amount)} ج.م من محفظتك؟`,
+      gamiyaMarkConfirmBody({ name: g.name, monthIndex, dueDate, amount, isPayout }, walletHistoryName(wallets, g.walletId), todayStr()),
       [
         { text: 'إلغاء', style: 'cancel' },
         {
@@ -123,7 +122,7 @@ export default function GamiyaView() {
                   <TouchableOpacity accessibilityRole="button"
                     // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
                     accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
-                    onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount)}
+                    onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount, m.dueDate, m.monthIndex)}
                     style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
                     disabled={busyKey === `month_${m.id}`}>
                     {busyKey === `month_${m.id}` ? (

@@ -1,5 +1,7 @@
 import { addDays, addMonths, fmt } from '@/lib/finance';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
+import { dueDateLabel } from '@/lib/reopenDue';
+import { namedLabel } from '@/lib/writeError';
 
 /**
  * الخصم التلقائي للاشتراكات وأقساط الجمعية — نفس نموذج الدخل الثابت
@@ -202,4 +204,35 @@ export function chargeModePatch(next: ChargeMode, current: { chargeMode?: Charge
     return { chargeMode: 'auto' as const, chargeAutoSince: current?.chargeMode === 'auto' && current.chargeAutoSince ? current.chargeAutoSince : today };
   }
   return { chargeMode: 'confirm' as const };
+}
+
+/**
+ * جملة تأكيد "تسجيل الدفع" للاشتراك: بتسمّي الاشتراك والفترة (معاده) والمبلغ والمحفظة.
+ * العملية بتتسجل بتاريخ اليوم اللي المستخدم داس فيه (`markSubscriptionPaid(id, todayStr(), …)`)،
+ * فلو الفترة متأخرة الجملة بتقول كده صراحة. `walletName` من `walletHistoryName` (المؤرشفة بتاخد اسمها).
+ */
+export function subscriptionPayConfirmBody(s: { name: string; nextDueDate: string; amount: number }, walletName: string, today: string) {
+  const base = `${quotedName('اشتراك', s.name)} بتاع ${dueDateLabel(s.nextDueDate)} — هيتخصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
+  return s.nextDueDate < today ? `${base} هيتسجل بتاريخ النهارده.` : base;
+}
+
+/**
+ * جملة تأكيد شهر الجمعية. عكس الاشتراك: العملية بتتسجل بتاريخ **معاد الشهر** (`month.dueDate`
+ * جوه `markGamiyaMonthDone`) مش النهارده، فأي شهر معاده مش النهارده بيتقال له كده.
+ */
+export function gamiyaMarkConfirmBody(
+  m: { name: string; monthIndex: number; dueDate: string; amount: number; isPayout: boolean },
+  walletName: string,
+  today: string,
+) {
+  const g = quotedName('جمعية', m.name);
+  const base = m.isPayout
+    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate)}) — هتستلم ${fmt(m.amount)} ج.م في ${walletName}؟`
+    : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate)}) — هيتخصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
+  return m.dueDate === today ? base : `${base} هيتسجل بتاريخ المعاد مش النهارده.`;
+}
+
+/** `namedLabel` بس مع تحويل علامة التنصيص المزدوجة جوه الاسم لمفردة، عشان الاقتباس يفضل زوج واحد (Sentry scrub) */
+function quotedName(kind: string, name: string) {
+  return namedLabel(kind, name.replace(/"/g, "'"));
 }

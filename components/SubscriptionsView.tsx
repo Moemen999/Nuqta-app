@@ -1,5 +1,4 @@
 import { ActionSheet } from '@/components/ActionSheet';
-import { plainAmount } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
@@ -14,7 +13,7 @@ import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryNam
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import { subscriptionOpenCharges, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
+import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState, useRef } from 'react';
@@ -118,7 +117,7 @@ export default function SubscriptionsView() {
     ]);
   }
   function confirmPay(s: Subscription) {
-    confirm('تسجيل الدفع', `اتخصم ${plainAmount(s.amount)} ج.م من محفظتك دلوقتي؟`, [
+    confirm('تسجيل الدفع', subscriptionPayConfirmBody(s, walletHistoryName(wallets, s.walletId), todayStr()), [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'تأكيد',
