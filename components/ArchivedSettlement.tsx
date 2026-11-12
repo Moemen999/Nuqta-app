@@ -3,7 +3,7 @@ import { useData, type Settlement } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/archiving';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -185,8 +185,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                         onPress={() => setPicked(p => ({ ...p, [d.walletId]: t.id }))}
                         testID={`settle_target_${t.id}`}
                         // المختار بيتقري مش بيتشاف بس (a11y-architect)
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: picked[d.walletId] === t.id }}
+                        {...selectionA11y(picked[d.walletId] === t.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, picked[d.walletId] === t.id)]}>
                         <Text style={{ color: colors.text, fontSize: 13 }}>{t.name}</Text>
                       </TouchableOpacity>

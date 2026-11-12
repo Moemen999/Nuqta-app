@@ -43,8 +43,18 @@ export function selectionTextColor(c: ThemeColors, selected: boolean): string {
 
 /**
  * بند E (مراجعة المشروع 2026-11-05): الاختيار كان باللون والإطار بس — قارئ الشاشة مكانش بيقول "مختار" ولا حتى "زرار"
- * (WCAG 1.4.1 و4.1.2). أي عنصر بياخد `selectionStyle` بياخد ده معاه. `tab` للتابات الفرعية، `button` للباقي
+ * (WCAG 1.4.1 و4.1.2). أي عنصر بياخد `selectionStyle` بياخد ده معاه.
+ *
+ * الدور: `radio` لاختيار واحد من مجموعة مبيتلغيش بدوسة تانية (محفظة، تكرار، نوع القفل…)؛ `tab` للتابات الفرعية؛ `button`
+ * للاختيار المتعدد، واللي بيتشال بدوسة تانية، وشبكة التاريخ.
+ *
+ * **الـradio بيقول `checked` بس، مش `selected` معاها** (a11y-architect 2026-11-12، من كود RN): `checked` بتخلّي أندرويد يقول
+ * "متعلّم/مش متعلّم" لزرار الراديو؛ والاتنين مع بعض بيبعتوا الحدث مرتين وTalkBack بيقرا الحالتين.
+ *
+ * **ومفيش `radiogroup` على الحاوية:** في المعمارية الجديدة `View` من غير `accessible`/`testID` بيتشال من الشجرة فالدور والاسم
+ * مبيوصلوش، ولو وصلوا الحاوية بتبقى وقفة زيادة بتعيد قراية السؤال الظاهر فوقها. الدور على العناصر كفاية (WCAG 1.3.1 و4.1.2).
  */
-export function selectionA11y(selected: boolean, role: 'button' | 'tab' = 'button') {
+export function selectionA11y(selected: boolean, role: 'button' | 'tab' | 'radio' = 'button') {
+  if (role === 'radio') return { accessibilityRole: role, accessibilityState: { checked: selected } } as const;
   return { accessibilityRole: role, accessibilityState: { selected } } as const;
 }

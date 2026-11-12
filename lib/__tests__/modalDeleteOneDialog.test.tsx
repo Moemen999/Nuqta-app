@@ -178,7 +178,7 @@ describe('الجولة 1 على D3', () => {
     await act(async () => { fireEvent.press(chip); });
     const chipBtn = screen.getByTestId('settle_target_w');
     expect(chipBtn.props.accessibilityRole).toBe('radio');
-    expect(chipBtn.props.accessibilityState).toEqual(expect.objectContaining({ selected: true }));
+    expect(chipBtn.props.accessibilityState).toEqual(expect.objectContaining({ checked: true }));
     expect(screen.getByTestId('settle_confirm').props.accessibilityState).toEqual(expect.objectContaining({ disabled: false }));
   });
 });

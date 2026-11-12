@@ -27,8 +27,8 @@ it('PeriodChips: testID `{prefix}_{key}` زي القديم، وحالة الاخ
   const onChange = jest.fn();
   await render(<ThemeProvider><PeriodChips keys={['thisMonth', 'last7']} value="last7" onChange={onChange} testIDPrefix="x_preset" /></ThemeProvider>);
   const c = screen.getByTestId('x_preset_last7');
-  expect(c.props.accessibilityState.selected).toBe(true);
-  expect(screen.getByTestId('x_preset_thisMonth').props.accessibilityState.selected).toBe(false);
+  expect([c.props.accessibilityRole, c.props.accessibilityState.checked]).toEqual(['radio', true]);
+  expect(screen.getByTestId('x_preset_thisMonth').props.accessibilityState.checked).toBe(false);
   expect(StyleSheet.flatten(c.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
   expect(StyleSheet.flatten(c.props.style).borderColor).not.toBe('transparent');
   await act(async () => { fireEvent.press(screen.getByTestId('x_preset_thisMonth')); });

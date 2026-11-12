@@ -1,6 +1,6 @@
 import { useTheme } from '@/context/ThemeContext';
 import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
@@ -20,7 +20,7 @@ export default function ChargeModePicker({ value, onChange, what, verb, testIDPr
       <Text style={[styles.label, { color: colors.textSecondary }]} accessible={false}>{`لما معاد ${what} ييجي`}</Text>
       {(['confirm', 'auto'] as const).map(m => (
         <TouchableOpacity key={m} testID={`${testIDPrefix}_mode_${m}`} onPress={() => onChange(m)}
-          accessibilityRole="radio" accessibilityState={{ selected: value === m }}
+          {...selectionA11y(value === m, 'radio')}
           style={[styles.card, selectionStyle(colors, value === m)]}>
           <Text style={[styles.title, { color: colors.text }]}>{CHARGE_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>

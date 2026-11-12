@@ -114,10 +114,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
             <>
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
-                <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
+                <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin', 'radio')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
-                <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
+                <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password', 'radio')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
                   <Text style={{ color: colors.text, fontSize: 13 }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>

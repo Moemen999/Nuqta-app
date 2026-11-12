@@ -53,13 +53,13 @@ export default function DebtReminderFields({
         <>
           <Text style={styles.label}>فكّرني قبله</Text>
           <View style={styles.chipRow}>
-            <TouchableOpacity {...selectionA11y(reminderDaysBefore === null)}
+            <TouchableOpacity {...selectionA11y(reminderDaysBefore === null, 'radio')}
               onPress={() => onChangeReminder(null)}
               style={[styles.chip, selectionStyle(colors, reminderDaysBefore === null)]}>
               <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === null), fontSize: 13 }}>من غير تذكير</Text>
             </TouchableOpacity>
             {DAYS_OPTIONS.map(opt => (
-              <TouchableOpacity {...selectionA11y(reminderDaysBefore === opt.days)}
+              <TouchableOpacity {...selectionA11y(reminderDaysBefore === opt.days, 'radio')}
                 key={opt.days}
                 onPress={() => onChangeReminder(opt.days)}
                 style={[styles.chip, selectionStyle(colors, reminderDaysBefore === opt.days)]}>

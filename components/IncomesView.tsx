@@ -11,7 +11,7 @@ import {
   WEEKDAY_NAMES, incomeDueDate, incomeHasRecords, incomeOpenPeriods, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel,
   incomeUpcomingPeriod, validateIncomeDraft, type IncomeFrequency, type IncomeMode, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
@@ -343,7 +343,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   <View style={styles.chipRow}>
                     {selectableOptions(wallets, walletId).map(w => (
                       <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
-                        accessibilityRole="button" accessibilityState={{ selected: walletId === w.id }}
+                        {...selectionA11y(walletId === w.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                         <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
                       </TouchableOpacity>
@@ -353,7 +353,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   <View style={styles.row}>
                     {(['monthly', 'weekly'] as const).map(f => (
                       <TouchableOpacity key={f} onPress={() => setFrequency(f)}
-                        accessibilityRole="button" accessibilityState={{ selected: frequency === f }}
+                        {...selectionA11y(frequency === f, 'radio')}
                         style={[styles.typeBtn, selectionStyle(colors, frequency === f)]}>
                         <Text style={{ color: colors.text, fontSize: 12.5 }}>{f === 'monthly' ? 'كل شهر' : 'كل أسبوع'}</Text>
                       </TouchableOpacity>
@@ -379,7 +379,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <View style={styles.chipRow}>
                         {WEEKDAY_NAMES.map((n, i) => (
                           <TouchableOpacity key={n} onPress={() => setWeekday(i)}
-                            accessibilityRole="button" accessibilityState={{ selected: weekday === i }}
+                            {...selectionA11y(weekday === i, 'radio')}
                             style={[styles.chip, selectionStyle(colors, weekday === i)]}>
                             <Text style={{ color: colors.text, fontSize: 13 }}>{n}</Text>
                           </TouchableOpacity>
@@ -394,7 +394,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                 <>
                   {(['confirm', 'auto'] as const).map(m => (
                     <TouchableOpacity key={m} testID={`income_mode_${m}`} onPress={() => setMode(m)}
-                      accessibilityRole="button" accessibilityState={{ selected: mode === m }}
+                      {...selectionA11y(mode === m, 'radio')}
                       style={[styles.modeCard, selectionStyle(colors, mode === m)]}>
                       <Text style={styles.modeTitle}>{INCOME_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
                       <Text style={styles.modeBody}>

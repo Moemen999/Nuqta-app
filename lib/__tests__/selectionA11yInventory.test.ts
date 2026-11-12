@@ -92,3 +92,60 @@ it('بند E جولة 2: زرار أيقونة الفئة و"حذف" المحف�
   expect(wal).toContain('accessibilityLabel={`امسح محفظة ${w.name}`}');
   expect(wal).toMatch(/deleteBtn: \{ minHeight: MIN_TOUCH, minWidth: MIN_TOUCH/);
 });
+
+/**
+ * بند E — radio (2026-11-12، STANDARDS 4.4): مجموعة «اختيار واحد من كذا» (محفظة، تكرار، نوع القفل، نوع العملية…) كانت بتتقري
+ * «زرار، مختار» — قارئ الشاشة مكانش بيقول إنها اختيار واحد من مجموعة. بقت `radio` بحالة `checked`.
+ *
+ * - `selectionA11y(x)` من غير دور مسموح بس في القايمة تحت — شريحة جديدة لازم تختار دورها.
+ * - حالة «مختار» مكتوبة بالإيد (`accessibilityState={{ selected: …`) مسموحة بس في القايمة التانية: الجولة الأولى فاتها 6 مجموعات
+ *   عشان كانت مكتوبة بالإيد والجرد مبيشوفهاش (a11y-architect).
+ * - مفيش حاوية `radiogroup` جديدة: مبتوصلش لأندرويد (الشرح في `lib/selection.ts`). اللي في `ChargeModePicker` قديمة ومتسابة.
+ */
+const PLAIN_ALLOWED: Record<string, number> = {
+  // فلتر فئات التقارير: اختيار متعدد (تقدر تختار أكتر من فئة) — مش radio
+  'app/(tabs)/reports.tsx': 1,
+  // شبكة تاريخ (يوم/شهر/سنة): زراير باسم كامل وحالة مختار — `calendarCells.test`
+  'components/CalendarPickerModal.tsx': 3,
+  // "دوس تاني عشان تشيل": اختيار بيتلغي بدوسة تانية — الـradio مبيتلغيش، فدول زراير بحالة مختار
+  'components/ShakhbataView.tsx': 1,
+  'components/SubscriptionsView.tsx': 2,
+  'components/DebtEntryModals.tsx': 1,
+};
+const HANDWRITTEN_SELECTED_ALLOWED: Record<string, number> = {
+  // شبكة أيقونات (من غير أيقونة / أيقونة / أيقونة قديمة) — شبكة مش مجموعة راديو
+  'components/CategoryIconPicker.tsx': 3,
+};
+
+it('selectionA11y للـradio بيقول checked بس — من غير selected', () => {
+  expect(selectionA11y(true, 'radio')).toEqual({ accessibilityRole: 'radio', accessibilityState: { checked: true } });
+  expect(selectionA11y(false, 'radio')).toEqual({ accessibilityRole: 'radio', accessibilityState: { checked: false } });
+});
+
+it('مجموعات الاختيار الواحد radio — والاختيار من غير دور في القايمة المسموحة بس', () => {
+  const plain: Record<string, number> = {};
+  const handwritten: Record<string, number> = {};
+  const radioWithSelected: string[] = [];
+  let radios = 0;
+  for (const f of [...files('app'), ...files('components')]) {
+    const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    for (const m of s.matchAll(/selectionA11y\(([^)]*(?:\([^)]*\)[^)]*)*)\)/g)) {
+      if (/,\s*'radio'\s*$/.test(m[1])) radios++;
+      else if (!/,\s*'tab'\s*$/.test(m[1])) plain[f] = (plain[f] ?? 0) + 1;
+    }
+    const hand = s.match(/accessibilityState=\{\{\s*selected\b/g)?.length ?? 0;
+    if (hand) handwritten[f] = hand;
+    // radio مكتوب بالإيد (مودال العملية، ActionSheet): checked من غير selected
+    const lines = s.split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (!/accessibilityRole=(\{[^}]*'radio'|"radio")/.test(line)) return;
+      radios++;
+      const near = lines.slice(i, i + 3).join(' ');
+      if (!/checked/.test(near) || /\bselected:/.test(near)) radioWithSelected.push(`${f}:${i + 1}`);
+    });
+  }
+  expect(plain).toEqual(PLAIN_ALLOWED);
+  expect(handwritten).toEqual(HANDWRITTEN_SELECTED_ALLOWED);
+  expect(radioWithSelected).toEqual([]);
+  expect(radios).toBeGreaterThan(35);
+});
