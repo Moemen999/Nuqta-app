@@ -2394,15 +2394,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
           todo.forEach((e, i) => {
             const txId = txRefs[i].id;
             closed[e.key] = auto ? { txId, auto: true, at } : { txId, at };
+            // قرار مؤمن 2026-11-12: التأكيد بإيدك من الكارت بيتسجل بتاريخ النهاردة زي "سدّد" من الشاشة
+            // (التلقائي بيفضل بتاريخ المعاد). المعرّف ومفتاح الفترة بيفضلوا بالمعاد
+            const recDate = auto ? e.key : today;
             if (!history.some(h => h.transactionId === txId)) {
               history.push({
                 id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i,
-                date: e.key, amount: e.amount, transactionId: txId, periodKey: e.key, ...(auto ? { auto: true } : {}),
+                date: recDate, amount: e.amount, transactionId: txId, periodKey: e.key, ...(auto ? { auto: true } : {}),
               });
             }
             if (existing[i].exists()) return;
             const txData = {
-              type: 'expense' as const, amount: e.amount, walletId: sub.walletId, date: e.key,
+              type: 'expense' as const, amount: e.amount, walletId: sub.walletId, date: recDate,
               categoryId: sub.categoryId, note: `اشتراك: ${sub.name}`,
               subscriptionId: id, periodKey: e.key, createdAt: at, ...(auto ? { autoRecorded: true } : {}),
             };
