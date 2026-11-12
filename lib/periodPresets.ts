@@ -43,6 +43,11 @@ export const PREVIOUS_PERIOD_LABEL = 'مقارنة بالفترة اللي قب�
 /** «الشهر ده» بيتقارن بنفس الأيام من الشهر اللي فات (`lib/periodCompare.ts`) فالنص لازم يقول كده */
 export const SAME_DAYS_LABEL = 'مقارنة بنفس الأيام من الشهر اللي فات';
 
+/** «الشهر اللي فات» بيتقارن بالشهر اللي قبله كله (`lib/periodCompare.ts`) */
+export const PREVIOUS_MONTH_LABEL = 'مقارنة بالشهر اللي قبله';
+
 export function previousPeriodLabel(preset: string): string {
-  return preset === 'thisMonth' ? SAME_DAYS_LABEL : PREVIOUS_PERIOD_LABEL;
+  if (preset === 'thisMonth') return SAME_DAYS_LABEL;
+  if (preset === 'lastMonth') return PREVIOUS_MONTH_LABEL;
+  return PREVIOUS_PERIOD_LABEL;
 }

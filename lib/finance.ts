@@ -72,6 +72,11 @@ export function daysUntil(dateStr: string) {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
+/** عدد الأيام من `from` لـ`to` (من غير الطرفين الاتنين: 10 → 12 = 2) — على UTC زي باقي الحسابات */
+export function daysBetween(from: string, to: string) {
+  return Math.round((parseDateStr(to).getTime() - parseDateStr(from).getTime()) / 86400000);
+}
+
 export function addDays(dateStr: string, days: number) {
   const d = parseDateStr(dateStr);
   d.setUTCDate(d.getUTCDate() + days);

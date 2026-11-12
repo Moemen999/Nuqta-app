@@ -6,7 +6,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
 import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
@@ -113,7 +113,7 @@ export default function ReportsScreen() {
     const prevExpenses = allSpending
       .filter(t => t.date >= previous.from && t.date <= previous.to);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
-    return prevExpense === 0 ? null : Math.round(((curExpense - prevExpense) / prevExpense) * 100);
+    return Math.abs(prevExpense) < PIASTRE_EPS ? null : Math.round(((curExpense - prevExpense) / prevExpense) * 100);
   }, [range, today, preset, visibleIds, allSpending]);
 
   // الأعمدة من الفترة والفئات المختارين ومن نفس صفوف الرقم البطل — `lib/spendTimeline.ts`
@@ -218,7 +218,7 @@ export default function ReportsScreen() {
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
           {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
-            <Text style={[styles.changeValue, { color: change === null ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
+            <Text style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
             </Text>
           )}

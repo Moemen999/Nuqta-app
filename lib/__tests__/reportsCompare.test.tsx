@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 import ReportsTab from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -37,6 +37,50 @@ it('الشهر ده: +41% بنص المقارنة بنفس الأيام، مش -
   await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
   expect(screen.getByText('مقارنة بنفس الأيام من الشهر اللي فات')).toBeTruthy();
   expect(screen.getByText('+41%')).toBeTruthy();
-  expect(screen.queryByText('-25%')).toBeNull();
+  // +101% هو اللي كانت القاعدة القديمة بتدّيه على نفس البيانات
+  expect(screen.queryByText('+101%')).toBeNull();
+  expect(screen.queryByText('مقارنة بالفترة اللي قبلها')).toBeNull();
+  // الرقم البطل فيه العملية اللي تاريخها جاي (5,333 + 9,000)، والنسبة لأ — الفرق ده مقصود
+  expect(screen.getAllByText(/14,333/).length).toBeGreaterThan(0);
+});
+
+const exp = (id: string, amount: number, date: string, categoryId: string | undefined = 'c1') =>
+  ({ id, type: 'expense', amount, date, walletId: 'w', categoryId });
+const renderScreen = () => render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
+
+it('فلتر فئة: النسبة من الفئة المختارة بس في الفترتين', async () => {
+  mockData.categories = [{ id: 'c1', name: 'أكل' }, { id: 'c2', name: 'مواصلات' }];
+  mockData.transactions = [
+    exp('o1', 1000, '2026-10-05', 'c1'), exp('o2', 500, '2026-10-06', 'c2'),
+    exp('n1', 1500, '2026-11-12', 'c1'), exp('n2', 100, '2026-11-10', 'c2'),
+  ];
+  await renderScreen();
+  // من غير فلتر: 1,600 قصاد 1,500
+  expect(screen.getByText('+7%')).toBeTruthy();
+  await fireEvent.press(screen.getAllByText(/أكل/)[0]);
+  // أكل بس: 1,500 قصاد 1,000
+  expect(screen.getByText('+50%')).toBeTruthy();
+  expect(screen.queryByText('+7%')).toBeNull();
+});
+
+it('سلفة وقسط جمعية جوه الفترة الحالية مش داخلين في النسبة', async () => {
+  mockData.debts = [{ id: 'd1', direction: 'owed_to_me', initialTransactionId: 'dbt1', payments: [], increases: [] }];
+  mockData.gamiyas = [{ id: 'g1', months: [{ transactionId: 'gm1' }] }];
+  mockData.transactions = [
+    exp('o1', 1000, '2026-10-05'),
+    exp('n1', 1200, '2026-11-12'),
+    exp('dbt1', 5000, '2026-11-10', undefined),
+    exp('gm1', 700, '2026-11-11', undefined),
+  ];
+  await renderScreen();
+  expect(screen.getByText('+20%')).toBeTruthy();
+});
+
+it('الشهر اللي فات: بيتقارن بالشهر اللي قبله كله وبالنص ده', async () => {
+  mockData.transactions = [exp('s1', 2000, '2026-09-15'), exp('o1', 3775, '2026-10-05'), exp('o2', 3370, '2026-10-20')];
+  await renderScreen();
+  await fireEvent.press(screen.getByTestId('reports_preset_lastMonth'));
+  expect(screen.getByText('مقارنة بالشهر اللي قبله')).toBeTruthy();
+  expect(screen.getByText('+257%')).toBeTruthy();
   expect(screen.queryByText('مقارنة بالفترة اللي قبلها')).toBeNull();
 });
