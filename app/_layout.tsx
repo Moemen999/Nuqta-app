@@ -7,7 +7,7 @@ import { useEffect } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Keyboard, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { initSentry } from '@/lib/sentry';
@@ -151,6 +151,16 @@ function RootNavigator() {
  * بترجع من غير ما تعمل حاجة، فالتطبيق بيشتغل عادي على أي جهاز مطوّر.
  */
 initSentry();
+
+// تشخيص مؤقت (diag/keyboard-events — بناء بس، مش للدمج): reports/2026-11-12-keyboard-footer-once.md
+// بيفرّق "الحدث ما وصلش" من "وصل بـscreenY غلط" في أول ظهور للكيبورد بعد تثبيت فوق القديم
+let kbSeq = 0;
+for (const name of ['keyboardDidShow', 'keyboardDidHide'] as const) {
+  Keyboard.addListener(name, e => {
+    const w = Dimensions.get('window'), sc = Dimensions.get('screen');
+    console.log();
+  });
+}
 
 export default function RootLayout() {
   // نفس الأسامي اللي الغلاف (components/AppText.tsx) بيطلبها — APP_FONT في lib/appFont.ts
