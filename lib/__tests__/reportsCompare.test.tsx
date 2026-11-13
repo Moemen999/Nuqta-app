@@ -57,6 +57,7 @@ it('فلتر فئة: النسبة من الفئة المختارة بس في ا�
   await renderScreen();
   // من غير فلتر: 1,600 قصاد 1,500
   expect(screen.getByText('+7%')).toBeTruthy();
+  await fireEvent.press(screen.getByTestId('reports_filter_toggle')); // الفلتر مطوي افتراضيًا
   await fireEvent.press(screen.getAllByText(/أكل/)[0]);
   // أكل بس: 1,500 قصاد 1,000
   expect(screen.getByText('+50%')).toBeTruthy();

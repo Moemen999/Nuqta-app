@@ -15,6 +15,8 @@ import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, 
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { takeReportsRequest } from '@/lib/reportsRequest';
+import FoldedSection from '@/components/FoldedSection';
+import { selectedCategoriesPhrase } from '@/lib/archiving';
 import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
@@ -242,22 +244,22 @@ export default function ReportsScreen() {
       {transfersStatus === 'failed' && <TransfersFailedNote testID="reports_transfers_failed" />}
 
       <Text style={styles.sectionTitle}>توزيع المصاريف حسب الفئة</Text>
+      {/* الفلتر مطوي افتراضيًا: السطر بيقول كام فئة مختارة، و«مسح الفلتر» جنبه من غير ما تفتح — الاختيار عمره ما يستخبّى ساكت */}
+      <FoldedSection testID="reports_filter" title="فلتر الفئات" count={catFilter.length} showCount={false} alwaysShow
+        status={catFilter.length > 0 ? selectedCategoriesPhrase(catFilter.length) : undefined}
+        action={catFilter.length > 0 ? { label: 'مسح الفلتر', onPress: () => setCatFilter([]), testID: 'reports_filter_clear' } : undefined}>
       <View style={styles.chipRow}>
         {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
           return (
-            <TouchableOpacity {...selectionA11y(active)} key={c.id} onPress={() => toggleCat(c.id)}
+            <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
         })}
-        {catFilter.length > 0 && (
-          <TouchableOpacity accessibilityRole="button" onPress={() => setCatFilter([])} style={[styles.chip, { borderColor: colors.borderStrong }]}>
-            <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>مسح الفلتر</Text>
-          </TouchableOpacity>
-        )}
       </View>
+      </FoldedSection>
 
       {spendLoading ? (
         <SpendLoading testID="reports_bars_loading" style={styles.emptyState} />

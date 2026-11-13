@@ -346,6 +346,7 @@ describe('التقارير: الطلب المعلّق من الكارت (فوك�
   const twoCats = () => setData({ categories: [{ id: 'c1', name: 'أكل' }, { id: 'c2', name: 'مواصلات' }], transactions: [exp('a', 10, '2026-11-02', { categoryId: 'c1' }), exp('b', 20, '2026-11-03', { categoryId: 'c2' })] });
   const userPicks = async () => {
     await press('reports_preset_last7');
+    if (!screen.queryByTestId('reports_filter_chip_c1')) await press('reports_filter_toggle'); // الفلتر مطوي افتراضيًا
     await fireEvent.press(screen.getAllByText(/أكل/)[0]);
     expect(screen.getByText('مسح الفلتر')).toBeTruthy();
   };

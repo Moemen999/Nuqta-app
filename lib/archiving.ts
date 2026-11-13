@@ -237,6 +237,11 @@ export function categoriesPhrase(n: number) {
   return countPhrase(n, 'مفيش فئات', 'فئة واحدة', 'فئتين', 'فئات', 'فئة');
 }
 
+/** سطر فلتر الفئات المطوي: «فئة واحدة مختارة» / «فئتين مختارتين» / «3 فئات مختارة» */
+export function selectedCategoriesPhrase(n: number) {
+  return n === 2 ? 'فئتين مختارتين' : `${categoriesPhrase(n)} مختارة`;
+}
+
 export function lettersPhrase(n: number) {
   return countPhrase(n, 'مفيش حروف', 'حرف واحد', 'حرفين', 'حروف', 'حرف');
 }
