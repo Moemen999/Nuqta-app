@@ -1,4 +1,4 @@
-import { addDays, addMonths, currentMonth, daysUntil, endOfMonth, startOfMonth, todayStr } from '@/lib/finance';
+import { addDays, addMonths, currentMonth, daysBetween, daysUntil, endOfMonth, entryTime, startOfMonth, todayStr } from '@/lib/finance';
 
 /**
  * حسابات التواريخ اتكسرت قبل كده بسبب الخلط بين UTC والتوقيت المحلي، والباجات
@@ -15,6 +15,19 @@ import { addDays, addMonths, currentMonth, daysUntil, endOfMonth, startOfMonth, 
 const pad = (n: number) => String(n).padStart(2, '0');
 
 describe(`حسابات التواريخ بتوقيت ${process.env.TZ || '(توقيت الجهاز)'}`, () => {
+  it('daysBetween: فرق الأيام في نفس الشهر وعبر الشهور والسنين', () => {
+    expect(daysBetween('2026-11-10', '2026-11-12')).toBe(2);
+    expect(daysBetween('2026-10-31', '2026-11-01')).toBe(1);
+    expect(daysBetween('2026-12-31', '2027-01-01')).toBe(1);
+    expect(daysBetween('2026-11-12', '2026-11-12')).toBe(0);
+  });
+
+  it('daysBetween: فبراير الكبيسة والعادية، والاتجاه السالب', () => {
+    expect(daysBetween('2028-02-01', '2028-03-01')).toBe(29);
+    expect(daysBetween('2026-02-01', '2026-03-01')).toBe(28);
+    expect(daysBetween('2026-11-12', '2026-11-10')).toBe(-2);
+  });
+
   it('endOfMonth بيرجع آخر يوم حقيقي في الشهر مش اللي قبله', () => {
     expect(endOfMonth('2026-01-15')).toBe('2026-01-31');
     expect(endOfMonth('2026-04-10')).toBe('2026-04-30');
@@ -179,5 +192,21 @@ describe('todayStr بياخد اليوم من ساعة الجهاز المحلي
     expect(startOfMonth(today) <= today).toBe(true);
     expect(today <= endOfMonth(today)).toBe(true);
     expect(endOfMonth(today).slice(0, 7)).toBe(currentMonth());
+  });
+});
+
+describe(`entryTime بتوقيت ${process.env.TZ || '(توقيت الجهاز)'}`, () => {
+  it('بعد نص الليل بالتوقيت المحلي بتتطابق مع اليوم المحلي مش يوم UTC', () => {
+    const iso = new Date(2026, 10, 12, 0, 30).toISOString(); // 12:30 ص محلي
+    expect(entryTime('2026-11-12', iso)).toBe('12:30 ص');
+    const utcDate = iso.slice(0, 10);
+    // في القاهرة (UTC+2) يوم UTC هو 11 — لازم ميتطابقش؛ في UTC نفسه هما واحد
+    if (utcDate !== '2026-11-12') expect(entryTime(utcDate, iso)).toBe('');
+  });
+
+  it('قبل نص الليل بدقيقة بتتطابق مع اليوم المحلي', () => {
+    const iso = new Date(2026, 10, 12, 23, 59).toISOString();
+    expect(entryTime('2026-11-12', iso)).toBe('11:59 م');
+    expect(entryTime('2026-11-13', iso)).toBe('');
   });
 });

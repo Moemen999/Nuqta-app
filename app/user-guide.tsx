@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { PERIOD_PRESET_WORDS as P, PREVIOUS_PERIOD_LABEL } from '@/lib/periodPresets';
+import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -33,7 +33,10 @@ const SECTIONS: Section[] = [
       `اختار فترة (${P.thisMonth}، ${P.last7}، ${P.lastMonth}، ${P.last6Months}، أو ${P.custom}) وشوف مصاريفك فيها.`,
       'فلتر الفئات: دوس على فئة أو أكتر عشان تشوف مصاريفها بس. دوس تاني عشان تشيلها.',
       'رسم الأعمدة بيمشي مع اختيارك: الفترة القصيرة بالأيام، وبعدها بالأسابيع والشهور وكل 3 شهور والسنين. ولو اخترت أكتر من فئة، كل عمود بيتقسم بألوانهم. العمود اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش.',
-      `"${PREVIOUS_PERIOD_LABEL}" بتتحسب لوحدها على نفس عدد الأيام اللي قبل فترتك.`,
+      `"${SAME_DAYS_LABEL}": في "${P.thisMonth}" بنقارن من أول الشهر لحد النهارده بنفس الأيام من الشهر اللي فات.`,
+      `"${PREVIOUS_MONTH_LABEL}": "${P.lastMonth}" بيتقارن بالشهر اللي قبله كله.`,
+      `"${PREVIOUS_PERIOD_LABEL}": في باقي الفترات بنقارن فترتك لحد النهارده بنفس عدد الأيام اللي قبلها على طول.`,
+      'العمليات اللي تاريخها لسه ما جاش مش داخلة في النسبة.',
       'كشف حساب الأشخاص: بيجمع كل تعاملاتك مع كل شخص. دوس على أي اسم تشوف كشف تفصيلي زي كشف البنك.',
     ],
   },
@@ -118,7 +121,7 @@ const SECTIONS: Section[] = [
     icon: '📄',
     title: 'الأرشيف والتصدير',
     body: [
-      'من الإعدادات، بيوريك كل عملياتك (مش آخر 10 بس زي الرئيسية).',
+      'الأرشيف بيوريك كل عملياتك (مش آخر 10 بس زي الرئيسية). افتحه من الإعدادات، أو من «شوف كل العمليات» تحت آخر العمليات في الرئيسية.',
       'دوس على أي عملية عشان تعدّلها أو تمسحها، حتى لو قديمة ومش ظاهرة في الرئيسية.',
       'العملية المربوطة بدين (الدين نفسه أو دفعة أو زيادة): لو عدّلت مبلغها أو محفظتها أو تاريخها، الدين بيتعدّل معاها والمتبقي وعدد الأقساط بيتحسبوا من جديد. التعديل ده محتاج نت.',
       'العملية المربوطة بأي حاجة (دين، اشتراك، جمعية، دخل ثابت) نوعها ثابت. وتعديل عملية اشتراك أو جمعية أو دخل ثابت بيغيّر العملية دي بس، والمبلغ المعتاد زي ما هو.',

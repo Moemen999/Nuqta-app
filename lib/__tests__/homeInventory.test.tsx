@@ -219,3 +219,57 @@ describe('شاشة العملية من غير محفظة', () => {
     expect(screen.queryByTestId('tx_no_wallets')).toBeNull();
   });
 });
+
+describe('وقت العملية في الصف', () => {
+  const made = new Date(2026, 10, 12, 11, 34).toISOString(); // اتسجلت 12 نوفمبر 11:34 ص محلي
+
+  it('عملية بتاريخ قديم اتسجلت النهارده ← التاريخ لوحده من غير وقت', async () => {
+    setData({ transactions: [{ id: 'a', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-10', createdAt: made }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_a')).getByText('2026-11-10')).toBeTruthy();
+  });
+
+  it('عملية اتسجلت في نفس يومها ← التاريخ والوقت', async () => {
+    setData({ transactions: [{ id: 'b', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-12', createdAt: made }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_b')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+  });
+});
+
+describe('شوف كل العمليات', () => {
+  const makeTxs = (n: number) => Array.from({ length: n }, (_, i) => ({
+    id: `t${i}`, type: 'expense', amount: 10 + i, walletId: 'w1',
+    date: `2026-10-${String(1 + i).padStart(2, '0')}`, createdAt: `2026-10-${String(1 + i).padStart(2, '0')}T00:00:00Z`,
+  }));
+
+  it('11 عملية ← الصف ظاهر وبيعرض الإجمالي وبيفتح الأرشيف', async () => {
+    setData({ transactions: makeTxs(11) });
+    await mountHome();
+    const row = screen.getByTestId('home_see_all');
+    expect(within(row).getByText(/شوف كل العمليات/)).toBeTruthy();
+    expect(within(row).getByText('شوف كل العمليات (11)')).toBeTruthy();
+    expect(row.props.accessibilityRole).toBe('button');
+    expect(row.props.accessibilityLabel).toBe('شوف كل العمليات، 11 عملية');
+    fireEvent.press(row);
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: '/archive', params: { preset: 'all' } });
+  });
+
+  it('25 عملية ← الرقم الظاهر هو الإجمالي كله مش 10', async () => {
+    setData({ transactions: makeTxs(25) });
+    await mountHome();
+    const row = screen.getByTestId('home_see_all');
+    expect(within(row).getByText('شوف كل العمليات (25)')).toBeTruthy();
+    expect(row.props.accessibilityLabel).toBe('شوف كل العمليات، 25 عملية');
+  });
+
+  it('10 عمليات بالظبط ← مش ظاهر', async () => {
+    setData({ transactions: makeTxs(10) });
+    await mountHome();
+    expect(screen.queryByTestId('home_see_all')).toBeNull();
+  });
+
+  it('من غير عمليات ← مش ظاهر', async () => {
+    await mountHome();
+    expect(screen.queryByTestId('home_see_all')).toBeNull();
+  });
+});

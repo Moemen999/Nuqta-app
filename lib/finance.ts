@@ -40,9 +40,12 @@ function pad2(n: number) {
  * الساعة 1 بالليل بالقاهرة كانت بتتحفظ بتاريخ امبارح، وبانر "لسه ما سجلتش
  * مصاريف النهاردة" كان بيفضل ظاهر.
  */
-export function todayStr() {
-  const d = new Date();
+function localDateStr(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+export function todayStr() {
+  return localDateStr(new Date());
 }
 
 /**
@@ -70,6 +73,12 @@ export function daysUntil(dateStr: string) {
   const today = parseDateStr(todayStr());
   const target = parseDateStr(dateStr);
   return Math.round((target.getTime() - today.getTime()) / 86400000);
+}
+
+/** عدد الأيام من `from` لـ`to` (من غير الطرفين الاتنين: 10 → 12 = 2) — على UTC زي باقي الحسابات
+ *  المنادي لازم يتأكد من النصين بـ`isDateStr` الأول: القارئ بيرجع لـ1970-01-01 لو الشكل غلط بدل NaN */
+export function daysBetween(from: string, to: string) {
+  return Math.round((parseDateStr(to).getTime() - parseDateStr(from).getTime()) / 86400000);
 }
 
 export function addDays(dateStr: string, days: number) {
@@ -1536,6 +1545,20 @@ export function formatTime(iso?: string) {
   if (hours === 0) hours = 12;
   const mm = String(minutes).padStart(2, '0');
   return `${hours}:${mm} ${period}`;
+}
+
+/**
+ * وقت التسجيل بيظهر بس لو العملية اتسجلت في نفس اليوم اللي تاريخها بيقوله.
+ * `date` اليوم اللي المستخدم بيقول إن الفلوس اتحركت فيه، و`createdAt` وقت ما كتبها —
+ * عملية بتاريخ يومين فاتوا اتكتبت النهارده مش حصلت الساعة 11:40. المقارنة باليوم
+ * المحلي (زي `todayStr`) مش `slice(0, 10)` على الـISO: ده يوم UTC، وغلط حوالين نص الليل في مصر.
+ * من غير `createdAt` أو بقيمة مش مفهومة ← نص فاضي.
+ */
+export function entryTime(date: string, createdAt?: string): string {
+  if (!createdAt) return '';
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return '';
+  return localDateStr(d) === date ? formatTime(createdAt) : '';
 }
 
 export const DELETED_WALLET_LABEL = 'محفظة ممسوحة';

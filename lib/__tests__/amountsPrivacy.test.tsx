@@ -195,8 +195,6 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/AmountPreview.tsx': { count: 1, why: 'صدى الرقم اللي بيتكتب في الخانة دلوقتي' },
   'app/(tabs)/debts.tsx': { count: 1, why: 'تأكيد قبل مسح دفعة أو زيادة — الرقم هو اللي بيتمسح' },
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
-  'components/GamiyaView.tsx': { count: 2, why: 'تأكيد قبل خصم/استلام قسط الجمعية' },
-  'components/SubscriptionsView.tsx': { count: 1, why: 'تأكيد قبل خصم الاشتراك' },
   'app/(tabs)/index.tsx': { count: 1, why: 'قارئ الشاشة لصف كاش أول فتحة — مبلغ العملية، وهو ظاهر أصلاً زي الصف الحقيقي (العين للأرصدة بس)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
@@ -302,7 +300,7 @@ describe('جرد الإخفاء في كل الشاشات', () => {
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
       'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
-      'lib/autoCharge.ts': { count: 1, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل' },
+      'lib/autoCharge.ts': { count: 4, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل؛ وتأكيد دفع الاشتراك وشهر الجمعية (subscriptionPayConfirmBody / gamiyaMarkConfirmBody) — تأكيد قبل الخصم، الرقم هو تمن القرار، زي باقي التأكيدات فوق' },
     };
     const libFiles = fs.readdirSync(path.join(ROOT, 'lib')).filter(n => /\.tsx?$/.test(n));
     const found: Record<string, number> = {};

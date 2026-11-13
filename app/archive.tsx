@@ -9,13 +9,13 @@ import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, formatTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
@@ -46,7 +46,9 @@ export default function ArchiveScreen() {
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
-  const [preset, setPreset] = useState<Preset>('thisMonth');
+  // «شوف كل العمليات» من الرئيسية بتفتح على "الكل"؛ أي قيمة تانية أو من غير باراميتر ← الشهر ده زي الأول
+  const params = useLocalSearchParams<{ preset?: string }>();
+  const [preset, setPreset] = useState<Preset>(params.preset === 'all' ? 'all' : 'thisMonth');
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
@@ -88,7 +90,7 @@ export default function ArchiveScreen() {
       const rows = filtered.map(t => {
         return {
           Date: t.date,
-          Time: formatTime(t.createdAt) || '',
+          Time: entryTime(t.date, t.createdAt),
           Type: TYPE_LABELS[t.type]?.label || t.type,
           Wallet: walletHistoryName(wallets, t.walletId),
           ToWallet: t.type === 'withdraw' ? walletHistoryName(wallets, t.toWalletId) : '',
@@ -305,7 +307,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       </View>
       <View style={styles.txRight}>
         <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-        <Text style={styles.txDate}>{t.date}{t.createdAt ? ' · ' + formatTime(t.createdAt) : ''}</Text>
+        <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}
