@@ -11,7 +11,9 @@ import TransferMark from '@/components/TransferMark';
 import { LineIcon } from '@/components/LineIcon';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
+import { transferTransactionIds } from '@/lib/spending';
+import { monthSummary } from '@/lib/monthSummary';
+import MonthSummaryCard, { type MonthCardState } from '@/components/MonthSummaryCard';
 import { TransfersFailedNote } from '@/components/SpendStatus';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useDailyReminderHour } from '@/context/NotificationsContext';
@@ -55,7 +57,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -159,14 +161,32 @@ function HomeScreen() {
     .filter(b => b.level !== 'under');
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
-  // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
-  const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
+  // من غير السلفة وقسط الجمعية (خطوة 8). **نفس الدالة** اللي الرقم البطل في التقارير بيعدّي منها (`spendInRange` جوه
+  // `monthSummary`) — الكارت والبانر والتقارير رقم واحد
+  const today = todayStr();
+  const summary = useMemo(
+    () => monthSummary({ transactions, transfers, today, totalBudget: totalBudgetLimit }),
+    [transactions, transfers, today, totalBudgetLimit],
+  );
+  const totalMonthSpend = summary.spent;
   // الدرجة من `budgetLevel` (نص قرش) — نفس مصدر كارت الشهر، فالبانر والكارت مبيختلفوش
   const totalLevel = budgetLevel(totalMonthSpend, totalBudgetLimit);
   const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalLevel !== 'under';
   // «خلصت» = at أو over. مفتاح الـ✕ بيفضل near/over زي ما كان (✕ على «قربت» ميخبّيش «خلصت»)
   const totalBudgetDone = totalLevel === 'at' || totalLevel === 'over';
   const totalDismissKey = `total:${totalBudgetDone ? 'over' : 'near'}`;
+
+  /**
+   * كارت «صرفت الشهر ده». **مخفي** (بيكسب على أي حاجة تانية) لما الأرقام اللي فوق نفسها مش بتتعرض أو مش متأكدين منها:
+   * كاش بارد، مفيش نت وفاضي، مفيش محفظة. بعد كده: الخطأ ← مفيش رقم؛ لسه بنحمّل ← «بنحمّل…» (نفس شرط التقارير:
+   * `transfersStatus === 'loading'`)؛ غير كده الرقم — ولو الديون فشلت معاه سطر التقارير.
+   * **مش مربوط بـ`figuresPending`** عن قصد: بيتشال بس لما listener العمليات يرمي snapshot (DataContext)، ومجموعة
+   * عمليات فاضية ممكن متبعتش (CLAUDE.md «مشاكل معروفة») — الكارت كان هيفضل «بنحمّل» للأبد لحساب جديد.
+   */
+  const monthCardHidden = !!cold || offlineEmpty || noWalletsState.none || wallets.length === 0;
+  const monthCardState: MonthCardState = loadErrors.includes('transactions') ? { kind: 'error' }
+    : transfersStatus === 'loading' ? { kind: 'loading' }
+    : { kind: 'ready', summary, transfersFailed: transfersStatus === 'failed', budgetsFailed: loadErrors.includes('budgets') };
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
   const dueSubscriptions = subscriptions.filter(s => s.active !== false
@@ -238,6 +258,15 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
+        {/* كارت الشهر: أول حاجة في التمرير تحت الرصيد الثابت. testID مش `home_banner_` (البانرات كلها ليها ✕ — homeBannerOrder). دوسة ← التقارير
+            على «الشهر ده» من غير فلتر فئات؛ `at` بيتغيّر كل مرة عشان التقارير تطبّق الباراميتر من تاني */}
+        {!monthCardHidden && (
+          <MonthSummaryCard
+            testID="home_month_card"
+            state={monthCardState}
+            onPress={() => router.push({ pathname: '/(tabs)/reports', params: { preset: 'thisMonth', at: String(Date.now()) } })}
+          />
+        )}
         {/* الترتيب (قرار مؤمن 2026-10-28، رجوع عن 2026-09-29): الرصيد ثابت فوق، وبعده
             **كل** التنبيهات، وبعدين آخر العمليات. السبب: مؤمن بطّل ياخد باله من البانرات
             وهي تحت القايمة. جوه التنبيهات: اللي بيقول إن رقم ممكن يكون غلط الأول (مفيش
