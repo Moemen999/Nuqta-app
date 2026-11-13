@@ -279,7 +279,7 @@ function DebtsContent() {
           <Text style={[styles.progressText, overdue && { color: colors.dangerText }]} numberOfLines={2}>
             {/* «متأخر» أول السطر: هو الإشارة الوحيدة غير اللون، ومينفعش يتقص في الآخر (visual-identity-reviewer) */}
             {overdue ? 'متأخر — ' : ''}{debtPaidLabel(d, money)}
-            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
+            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate, today)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
           </Text>
         </TouchableOpacity>
 

@@ -1,6 +1,6 @@
 import type { Debt, DebtEntry } from '@/context/DataContext';
-import { debtRemaining, isDateStr, PIASTRE_EPS } from '@/lib/finance';
-import { MONTH_NAMES } from '@/lib/recurringIncome';
+import { dateText } from '@/lib/dateText';
+import { debtRemaining, isDateStr, PIASTRE_EPS, todayStr } from '@/lib/finance';
 
 /**
  * بند 12 (قرار مؤمن 2026-11-05): زيادة فتحت دين أقساط كان متسدد بتقدّم معاد القسط الجاي (`reopenedDueDate`) —
@@ -8,11 +8,9 @@ import { MONTH_NAMES } from '@/lib/recurringIncome';
  * فمسح الزيادة (من شاشة الدين أو بمسح عمليتها) بيرجّعه. قبل كده زوّد/امسح/زوّد كان بيقدّمه كل مرة.
  */
 
-/** "5 ديسمبر 2026" */
-export function dueDateLabel(iso: string): string {
-  if (!isDateStr(iso)) return iso;
-  const [y, m, d] = iso.split('-').map(Number);
-  return `${d} ${MONTH_NAMES[m - 1]} ${y}`;
+/** «5 ديسمبر»، أو «5 ديسمبر 2027» لو السنة مش سنة `today` (افتراضيًا النهاردة) — `dateText` نفسها */
+export function dueDateLabel(iso: string, today: string = todayStr()): string {
+  return dateText(iso, today);
 }
 
 export const DUE_MOVED_TITLE = 'معاد القسط الجاي اتغيّر';

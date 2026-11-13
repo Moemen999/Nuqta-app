@@ -288,7 +288,7 @@ export default function ReportsScreen() {
       )}
 
       <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-      <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to)}</Text>
+      <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
       {spendLoading ? (
         <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
       ) : timelineEmpty ? (

@@ -1,3 +1,4 @@
+import { dateText } from '@/lib/dateText';
 import { addDays, endOfMonth, GROUPED_SLICE_ID, periodExpenseTotal, startOfMonth } from '@/lib/finance';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
 
@@ -57,14 +58,20 @@ const earlier = (a: string, b: string) => (a < b ? a : b);
 const dayMonth = (d: string) => `${day(d)}/${month(d)}`;
 const monthName = (d: string) => MONTH_NAMES[month(d) - 1];
 
-/** "1 نوفمبر 2026" */
+/** "1 نوفمبر 2026" — لقارئ الشاشة، دايمًا بالسنة */
 export function spokenDate(d: string): string {
   return `${day(d)} ${monthName(d)} ${year(d)}`;
 }
 
 /** "من 1 نوفمبر 2026 لحد 30 نوفمبر 2026" — السطر اللي تحت عنوان الرسم، واليوم الواحد من غير "من/لحد" */
-export function rangeText(from: string, to: string): string {
-  return from === to ? spokenDate(from) : `من ${spokenDate(from)} لحد ${spokenDate(to)}`;
+export function rangeText(from: string, to: string, today?: string): string {
+  if (today === undefined) return from === to ? spokenDate(from) : `من ${spokenDate(from)} لحد ${spokenDate(to)}`;
+  // المعروض على الشاشة (قرار ب3): السنة بتتشال لما الطرفين في سنة `today`، ولو أي طرف في سنة تانية بتفضل على الاتنين
+  // عشان الفترة متتلخبطش. (`today` غير صالح = السنة على الاتنين). قارئ الشاشة بيفضل بالتاريخ كامل (`spoken`)
+  const yearOf = (d: string) => d.slice(0, 4);
+  const bothThisYear = yearOf(from) === yearOf(today) && yearOf(to) === yearOf(today);
+  const at = bothThisYear ? today : '';
+  return from === to ? dateText(from, at) : `من ${dateText(from, at)} لحد ${dateText(to, at)}`;
 }
 
 function dailySpans(from: string, days: number): Span[] {

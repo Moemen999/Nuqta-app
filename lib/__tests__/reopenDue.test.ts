@@ -47,25 +47,41 @@ describe('dueDateAfterIncreaseRemoval', () => {
 });
 
 describe('النصوص', () => {
-  it('"5 ديسمبر 2026"، والرسالة، وسطر الرجوع', () => {
-    expect(dueDateLabel('2026-12-05')).toBe('5 ديسمبر 2026');
-    expect(reopenedDueMessage('2026-12-15')).toBe('الزيادة فتحت الدين تاني، فالمعاد الجاي بقى 15 ديسمبر 2026.');
-    expect(dueRestoreLine('2026-03-15')).toBe('معاد القسط الجاي هيرجع 15 مارس 2026.');
+  // الساعة متثبّتة: النص بيعتمد على سنة النهاردة (قرار ب3 — السنة بتتشال لو هي السنة دي)
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date(2026, 10, 13, 12, 0, 0)); });
+  afterEach(() => jest.useRealTimers());
+
+  it('نفس السنة من غير سنة: «5 ديسمبر»، والرسالة، وسطر الرجوع', () => {
+    expect(dueDateLabel('2026-12-05')).toBe('5 ديسمبر');
+    expect(reopenedDueMessage('2026-12-15')).toBe('الزيادة فتحت الدين تاني، فالمعاد الجاي بقى 15 ديسمبر.');
+    expect(dueRestoreLine('2026-03-15')).toBe('معاد القسط الجاي هيرجع 15 مارس.');
+  });
+  it('سنة تانية: السنة بتفضل', () => {
+    expect(dueDateLabel('2027-01-05')).toBe('5 يناير 2027');
+    expect(dueDateLabel('2025-09-15')).toBe('15 سبتمبر 2025');
+    expect(reopenedDueMessage('2027-02-15')).toBe('الزيادة فتحت الدين تاني، فالمعاد الجاي بقى 15 فبراير 2027.');
+  });
+  it('«today» بارامتر صريح بيغلب الساعة (سطر الديون: معاد 15 سبتمبر والنهاردة 13 نوفمبر 2026)', () => {
+    expect(dueDateLabel('2026-09-15', '2026-11-13')).toBe('15 سبتمبر');
+    expect(dueDateLabel('2026-09-15', '2027-01-02')).toBe('15 سبتمبر 2026');
   });
 });
 
 describe('تأكيد المسح بيقول إن المعاد هيرجع — من الشاشة ومن العملية', () => {
+  beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date(2026, 10, 13, 12, 0, 0)); });
+  afterEach(() => jest.useRealTimers());
+
   it('شاشة الدين: debtEntryDeletePlan + الرسالة', () => {
     const d = reopened();
     const plan = debtEntryDeletePlan(d, 'increase', 'i1')!;
     expect(plan.dueRestore).toBe('2026-03-15');
-    expect(debtEntryDeleteMessage(d, 'increase', plan, 'كاش', n => String(n)).body).toContain('معاد القسط الجاي هيرجع 15 مارس 2026.');
+    expect(debtEntryDeleteMessage(d, 'increase', plan, 'كاش', n => String(n)).body).toContain('معاد القسط الجاي هيرجع 15 مارس.');
   });
 
   it('مسح العملية: transactionDeleteDebtPlan + debtLinkWarning', () => {
     const d = reopened();
     expect(transactionDeleteDebtPlan(d, 'ti1')!.dueRestore).toBe('2026-03-15');
-    expect(debtLinkWarning(d, 'ti1')).toContain('معاد القسط الجاي هيرجع 15 مارس 2026.');
+    expect(debtLinkWarning(d, 'ti1')).toContain('معاد القسط الجاي هيرجع 15 مارس.');
   });
 
   it('دفعة ← مفيش سطر معاد', () => {
