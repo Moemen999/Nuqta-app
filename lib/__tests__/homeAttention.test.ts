@@ -7,6 +7,8 @@ import { currentMonth, todayStr } from '@/lib/finance';
  * البناء الصافي لعناصر «محتاجة انتباهك» — الشروط والنصوص والمفاتيح نفس اللي البانرات كانت بتستخدمها
  * (`app/(tabs)/index.tsx` قبل 2026-11-13). التوقعات هنا منقولة من اختبارات البانرات القديمة
  * (`homeBudgetBanner`, `homeBannerDismiss`, `homeBannerOrder`) مش متكتبة من الكود الجديد.
+ * **الوجهات:** الاشتراك والجمعية بيروحوا لوجهتهم القديمة (`/(tabs)/debts`). صف الرصيد (`/settings-screens/wallets`)
+ * وصف الميزانية (`/(tabs)/planning`) وجهتهم **جديدة** بقرار مؤمن 2026-11-13 — البانرات القديمة ماكانتش بتتداس.
  */
 
 const day = (offset: number) => {

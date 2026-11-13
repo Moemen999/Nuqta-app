@@ -36,7 +36,7 @@ export type AttentionItem = {
   /** الاسم اللي في `dismissLabel(type, name)` — الإيميل و«لسه ما سجلتش» من غير اسم */
   dismissName?: string;
   tone: 'danger' | 'warn' | 'plain';
-  /** وجهة الدوسة. من غيرها (الإيميل، لسه ما سجلتش) الصف مبيفتحش حاجة */
+  /** وجهة الدوسة: الاشتراك والجمعية ← الديون (وجهتهم القديمة)، والرصيد ← المحافظ والميزانية ← التخطيط (جديدتين بقرار مؤمن 2026-11-13، البانرات القديمة ماكانتش بتتداس). من غيرها (الإيميل، لسه ما سجلتش) الصف مبيفتحش حاجة */
   route?: AttentionRoute;
   /** مرتّب في القايمة — الأقل الأول */
   rank: number;
@@ -71,6 +71,7 @@ export type AttentionInput = {
   money: AmountFormatter;
 };
 
+/** `budget` و`low` وجهتين **جديدتين** (قرار مؤمن 2026-11-13)؛ `debts` هي الوجهة القديمة للاشتراك والجمعية */
 export const ATTENTION_ROUTE = {
   budget: '/(tabs)/planning',
   low: '/settings-screens/wallets',
