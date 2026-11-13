@@ -1,5 +1,5 @@
 import { GROUPED_SLICE_ID, periodExpenseTotal } from '@/lib/finance';
-import { MAX_COLUMNS, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
+import { barFillStyle, MAX_COLUMNS, PARTIAL_BAR_OPACITY, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
 
 const e = (date: string, amount: number, categoryId?: string) => ({ date, amount, categoryId });
 const run = (from: string, to: string, today = '2026-11-08', rows: ReturnType<typeof e>[] = []) =>
@@ -42,6 +42,35 @@ describe('الوحدة بتتغير مع طول الفترة', () => {
       const prev = new Date(buckets[i - 1].to + 'T00:00:00Z').getTime();
       expect(new Date(buckets[i].from + 'T00:00:00Z').getTime() - prev).toBe(86400000);
     }
+  });
+});
+
+describe('شكل العمود الناقص', () => {
+  it('الناقص متملي بلون العمود الحقيقي وأخف وبإطار — مش شفاف فاضي بيتقري صفر', () => {
+    const f = barFillStyle({ partial: true }, false, '#123456');
+    expect(f.backgroundColor).toBe('#123456');
+    expect(f.opacity).toBe(PARTIAL_BAR_OPACITY);
+    expect(f.opacity).toBeLessThan(1);
+    expect(f.borderWidth).toBeGreaterThan(0);
+    expect(f.borderColor).toBe('#123456');
+  });
+
+  it('الكامل ملو كامل من غير إطار وشفافية', () => {
+    expect(barFillStyle({ partial: false }, false, '#123456')).toEqual({ backgroundColor: '#123456', opacity: 1, borderWidth: 0 });
+  });
+
+  it('مع فلتر الفئات الملو شفاف والألوان في الأجزاء، والناقص أخف برضه', () => {
+    expect(barFillStyle({ partial: true }, true, '#123456').backgroundColor).toBe('transparent');
+    expect(barFillStyle({ partial: true }, true, '#123456').opacity).toBeLessThan(1);
+  });
+
+  it('العمود الناقص ارتفاعه (share) وفلوسه حقيقيين، ومجموع الأعمدة = الرقم البطل', () => {
+    const rows = [e('2026-11-01', 400), e('2026-11-09', 1655)];
+    const t = spendTimeline(rows, { from: '2026-11-01', to: '2026-11-30' }, '2026-11-10');
+    const partial = t.buckets.find(b => b.partial)!;
+    expect(partial.amount).toBe(1655);
+    expect(partial.share).toBeGreaterThan(0);
+    expect(t.buckets.reduce((s, b) => s + b.amount, 0)).toBe(periodExpenseTotal(rows));
   });
 });
 

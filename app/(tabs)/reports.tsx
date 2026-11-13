@@ -8,7 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
-import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
+import { barFillStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -289,9 +289,9 @@ export default function ReportsScreen() {
                 <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                   <View style={[
                     styles.trendFill,
-                    { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%`, backgroundColor: stacked ? 'transparent' : columnColor },
-                    b.partial && { backgroundColor: 'transparent', borderWidth: 2, borderColor: columnColor },
-                    // العمود الناقص إطار، فلازم يبان حتى لو صغير
+                    { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%` },
+                    barFillStyle(b, stacked, columnColor),
+                    // العمود الناقص ملو بارتفاعه الحقيقي بس أخف وبإطار (مش إطار فاضي بيتقري صفر) — لازم يبان حتى لو صغير
                     b.partial && b.amount > 0 && { minHeight: 6 },
                     // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
                     stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },

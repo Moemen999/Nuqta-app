@@ -220,3 +220,22 @@ export const TIMELINE_TITLE: Record<TimelineUnit, string> = {
 export function sixMonthsStart(today: string): string {
   return monthStart(monthIndex(startOfMonth(today)) - 5);
 }
+
+/** شفافية العمود الناقص: نفس ارتفاعه ولونه الحقيقي بس أخف، فيتقري "لسه ما خلصش" مش "صفر" */
+export const PARTIAL_BAR_OPACITY = 0.55;
+
+/**
+ * شكل ملو العمود. الناقص بيتملي لارتفاعه الحقيقي (كان إطار فاضي فبيتقري صفر وتحته مبلغ)، بس أخف وبإطار بنفس
+ * اللون. من غير ما الارتفاع يتغيّر — الأرقام وارتفاع `share` من `spendTimeline` زي ما هي.
+ * `stacked`: الملو شفاف والألوان في الأجزاء جواه، فالشفافية بتخفّفها كلها مع بعض.
+ */
+export function barFillStyle(
+  b: { partial: boolean },
+  stacked: boolean,
+  columnColor: string,
+): { backgroundColor: string; opacity: number; borderWidth: number; borderColor?: string } {
+  const backgroundColor = stacked ? 'transparent' : columnColor;
+  return b.partial
+    ? { backgroundColor, opacity: PARTIAL_BAR_OPACITY, borderWidth: 2, borderColor: columnColor }
+    : { backgroundColor, opacity: 1, borderWidth: 0 };
+}
