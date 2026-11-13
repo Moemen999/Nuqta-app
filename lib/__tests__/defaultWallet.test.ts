@@ -32,6 +32,19 @@ describe('lastUsedWalletId', () => {
       tx('C', 'zzz-not-a-date'), tx('D', 12345 as unknown as string),
     ], ids)).toBe('A');
   });
+  // محفظة جاية من إعداد متخزّن (دخل ثابت/اشتراك/جمعية) مش من اختيار في فورم ← مبتحسبش، حتى لو اتأكدت بإيد المستخدم (مش autoRecorded)
+  it.each([
+    ['دخل ثابت اتأكد («نزل»)', { incomeId: 'i1', type: 'income' }],
+    ['دفع اشتراك يدوي', { subscriptionId: 's1' }],
+    ['قسط جمعية', { gamiyaId: 'g1' }],
+    ['استلام جمعية', { gamiyaId: 'g1', type: 'income' }],
+  ])('أحدث عملية %s على B وأقدم مصروف يدوي على A ← A', (_n, extra) => {
+    expect(lastUsedWalletId([tx('A', '2026-11-01T10:00:00.000Z'), tx('B', '2026-11-02T10:00:00.000Z', extra as Partial<Tx>)], ids)).toBe('A');
+  });
+  it('سداد دين (أحدث) ← بيتحسب، والإيراد العادي كمان', () => {
+    // سداد/زيادة/إنشاء دين عمليات عادية من غير أي من حقول الإعداد المتخزّن
+    expect(lastUsedWalletId([tx('A', '2026-11-01T10:00:00.000Z'), tx('B', '2026-11-02T10:00:00.000Z', { note: 'قرض لـ أحمد' } as Partial<Tx>)], ids)).toBe('B');
+  });
   it('الإيراد بيتحسب زي المصروف', () => {
     expect(lastUsedWalletId([tx('A', '2026-11-01T10:00:00.000Z'), tx('B', '2026-11-02T10:00:00.000Z', { type: 'income' })], ids)).toBe('B');
   });
@@ -103,6 +116,12 @@ describe('debtOwnWalletId', () => {
   });
   it('الزيادات بتتحسب (walletId اختياري ومتجاهل لو ناقص)', () => {
     expect(debtOwnWalletId({ ...base, payments: [{ date: '2026-11-01', walletId: 'A' }], increases: [{ date: '2026-11-09', walletId: 'D' }, { date: '2026-11-10' }] }, ids)).toBe('D');
+  });
+  it('دفعة من غير تاريخ ← بتتخطى (مبتكسبش للأبد)', () => {
+    const noDate = { walletId: 'D' } as unknown as { date: string; walletId: string };
+    expect(debtOwnWalletId({ ...base, payments: [noDate, { date: '2026-11-01', walletId: 'A' }, { date: '2026-11-05', walletId: 'B' }] }, ids)).toBe('B');
+    expect(debtOwnWalletId({ ...base, payments: [{ date: '2026-11-05', walletId: 'B' }], increases: [noDate] }, ids)).toBe('B');
+    expect(debtOwnWalletId({ ...base, payments: [noDate, { date: '', walletId: 'A' } as never] }, ids)).toBeUndefined();
   });
   it('كل المحافظ اللي على الدين مؤرشفة ← undefined', () => {
     expect(debtOwnWalletId({ ...base, initialWalletId: 'Z', payments: [{ date: '2026-11-01', walletId: 'Y' }] }, ids)).toBeUndefined();

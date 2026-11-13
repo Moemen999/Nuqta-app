@@ -24,6 +24,9 @@ type TxLike = {
   createdAt?: string;
   autoRecorded?: boolean;
   isSettlement?: boolean;
+  incomeId?: string;
+  subscriptionId?: string;
+  gamiyaId?: string;
 };
 
 type DebtLike = {
@@ -49,9 +52,13 @@ function stampOf(t: TxLike, nowMs?: number): number | null {
   return ms;
 }
 
-/** عملية المستخدم نفسه: مش تلقائية ومش تسوية */
+/**
+ * اختيار محفظة اتعمل في فورم بس بيتحسب "آخر استخدام": مش التلقائي ولا التسوية، ولا أي عملية
+ * محفظتها جاية من إعداد متخزّن (دخل ثابت/اشتراك/جمعية — `incomeId`/`subscriptionId`/`gamiyaId`)
+ * حتى لو المستخدم هو اللي أكّدها. سداد وزيادة وإنشاء الدين والعمليات العادية بتتحسب.
+ */
 function isUserTx(t: TxLike) {
-  return !t.autoRecorded && !t.isSettlement;
+  return !t.autoRecorded && !t.isSettlement && !t.incomeId && !t.subscriptionId && !t.gamiyaId;
 }
 
 /** أحدث عنصر بالـcreatedAt، والتعادل بالأكبر معرّفًا (ثابت مهما كان ترتيب المصفوفة) */
@@ -112,6 +119,8 @@ export function debtOwnWalletId(debt: DebtLike, activeIds: ReadonlyArray<string>
   let best: string | undefined;
   let bestDate = '';
   for (const e of entries) {
+    // من غير تاريخ صالح مفيش ترتيب نعتمد عليه — المقارنة بـundefined كانت بتخلّيه يكسب للأبد
+    if (typeof e.date !== 'string' || e.date === '') continue;
     if (e.walletId === undefined || !active.has(e.walletId)) continue;
     // `>=` عشان التعادل ياخد الأحدث ترتيبًا
     if (best === undefined || e.date >= bestDate) { best = e.walletId; bestDate = e.date; }
