@@ -12,7 +12,7 @@ import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } fr
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
-import { defaultWalletId } from '@/lib/defaultWallet';
+import { activeWalletIds, debtOwnWalletId, defaultWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
 import { isCreditPurchase, CREDIT_PURCHASE_HINT } from '@/lib/spending';
 import { dateText } from '@/lib/dateText';
@@ -58,7 +58,7 @@ export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — ر
 export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, addDebtPayment } = useData();
+  const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
   const { busy, run: runBusy } = useBusy();
@@ -84,7 +84,17 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   // الفورم هنا كامل من أول ما يتفتح (المبلغ متعبّي بالمقترح) فممكن الحفظ من غير أي إدخال، يعني من غير أي `freeze`.
   // فأول محفظة ظهرت فعلاً = اللي المستخدم شافها = بتتثبّت. لو أول رسمة كانت من غير محفظة (المحافظ لسه ما وصلتش)
   // بنستنى أول واحدة تظهر. وعمره ما بيغيّر اختيار المستخدم (`freeze` من غير أثر بعد التثبيت)
-  useEffect(() => { if (walletId !== undefined) freeze(); }, [walletId, freeze]);
+  // **بس** لما الداتا اللي الافتراضي بيتبني عليها وصلت: لو العمليات لسه ما وصلتش (فتحة باردة بطيئة) والدين مالوش
+  // محفظة نفسه، فأول محفظة "أول واحدة شغّالة" هتتثبّت وهي مش "آخر محفظة اتستخدمت" اللي كانت هتتحسب بعد لحظة.
+  // الإشارة: `figuresPending` (أول snapshot للعمليات وصل) — مش `linkSourcesReady`: دي بتستنى الخمس listeners
+  // (اشتراكات وجمعيات ودخل كمان) فبتفضل false لو واحد منهم فشل، وكمان `delivered` مبيتملاش لمجموعة فاضية ممكن متبعتش
+  // snapshot خالص (حساب من غير عمليات). وفي الحالتين دول الافتراضي بيفضل يتبع البيانات لحد أول إدخال أو دوسة حفظ
+  // (`handleSave` بيثبّت) — يعني مفيش حفظ بمحفظة المستخدم ما شافهاش. محفظة الدين نفسه مبنية على الدين مش العمليات فبتتثبّت على طول
+  const ownWallet = useMemo(() => debtOwnWalletId(debt, activeWalletIds(wallets)), [debt, wallets]);
+  const transactionsPending = !!figuresPending?.includes('transactions');
+  useEffect(() => {
+    if (walletId !== undefined && (!transactionsPending || walletId === ownWallet)) freeze();
+  }, [walletId, ownWallet, transactionsPending, freeze]);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   // الفئة لسداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05)؛ باقي الديون تحويل والفئة مكانتش هتتعدّ
   const creditPurchase = isCreditPurchase(debt);
@@ -121,6 +131,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   async function handleSave() {
     // مقرّب للقرش ورقم حقيقي (`toMoneyAmount`): "1e999" وInfinity و0.004 بيترفضوا هنا
     // برسالتهم، وفحص الزيادة عن المتبقي على نفس المبلغ اللي هيتسجل
+    // دوسة الحفظ إدخال: اللي ظاهر دلوقتي هو اللي هيتسجل حتى لو التأكيد (زيادة عن المتبقي) فضل مفتوح وبيانات جت وراه
+    freeze();
     const amt = toMoneyAmount(Number(amount));
     if (amt === null || !walletId) { setError('دخّل مبلغ ومحفظة صحيحين'); return; }
     const check = overpayCheck(amt, remaining);

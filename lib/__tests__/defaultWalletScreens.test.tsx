@@ -761,3 +761,56 @@ describe('بنود ناقصة في المراجعة', () => {
     expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }));
   });
 });
+
+describe('سداد دين — العمليات لسه ما وصلتش وقت الفتح (ملاحظة silent-failure-hunter الجولة 2)', () => {
+  const chipsChecked = () => ['ألف', 'باء', 'جيم'].filter(checked);
+  const credit = () => debtOf({ direction: 'i_owe', isInstallment: true, installmentCount: 4, installmentAmount: 250 });
+
+  it('العمليات لسه ← أول محفظة شغّالة، وبعدين تيجي قبل أي إدخال ← تتحوّل لآخر محفظة وبعدها تتثبّت', async () => {
+    seed({ transactions: [], figuresPending: ['transactions'] });
+    const d = credit();
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    expect(chipsChecked()).toEqual(['ألف']);
+    await dataChanges(r, ui, { transactions: [T('C', at(3))], figuresPending: [] });
+    expect(chipsChecked()).toEqual(['جيم']);
+    await dataChanges(r, ui, { transactions: [T('C', at(3)), T('B', at(9))] });
+    expect(chipsChecked()).toEqual(['جيم']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'C', expect.any(String), undefined);
+  });
+
+  it('دوسة الحفظ والعمليات لسه ← بيتحفظ اللي ظاهر (مفيش إدخال غيرها)', async () => {
+    seed({ transactions: [], figuresPending: ['transactions'] });
+    const d = credit();
+    await render(wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />));
+    expect(chipsChecked()).toEqual(['ألف']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'A', expect.any(String), undefined);
+  });
+
+  it('تأكيد زيادة عن المتبقي مفتوح والعمليات بتوصل ← الشيب ما بيتغيّرش والمحفظة المتحفظة هي هي', async () => {
+    seed({ transactions: [], figuresPending: ['transactions'] });
+    const d = debtOf({ direction: 'i_owe' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    await press(screen.getByTestId('debt_payment_amount')); // مش إدخال
+    await type(screen.getByTestId('debt_payment_amount'), '5000');
+    await press(screen.getByTestId('debt_payment_save'));
+    await dataChanges(r, ui, { transactions: [T('C', at(3))], figuresPending: [] });
+    expect(chipsChecked()).toEqual(['ألف']);
+    await press(screen.getByText('أيوة، سجّل'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 5000, 'A', expect.any(String), undefined);
+  });
+
+  it('محفظة الدين نفسه بتتثبّت على طول حتى والعمليات لسه', async () => {
+    seed({ transactions: [], figuresPending: ['transactions'] });
+    let d = debtOf({ initialWalletId: 'B', isInstallment: true, installmentCount: 4, installmentAmount: 250 });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    expect(chipsChecked()).toEqual(['باء']);
+    d = debtOf({ initialWalletId: 'C', isInstallment: true, installmentCount: 4, installmentAmount: 250 });
+    await dataChanges(r, ui, {});
+    expect(chipsChecked()).toEqual(['باء']);
+  });
+});
