@@ -57,7 +57,9 @@ describe('الشاشات بتستخدم الدوال المختبَرة', () => 
     expect(s).toContain('const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas])');
     expect(s).toContain('monthSummary({ transactions, transfers, today, totalBudget: totalBudgetLimit })');
     expect(s).not.toContain('monthSpendTotal(');
-    expect(s).toContain('monthSpend(transactions, c.id, nowMonth, transfers)');
+    // مصروف الفئة لتنبيه الميزانية اتنقل مع باقي شروط التنبيهات لـ`lib/homeAttention.ts` (2026-11-13) — نفس الدالة ونفس التحويلات
+    expect(s).toContain('transfers, spendKnown');
+    expect(src('lib/homeAttention.ts')).toContain('monthSpend(i.transactions, c.id, i.nowMonth, i.transfers)');
     expect(src('lib/monthSummary.ts')).toContain('spendInRange(transactions, transfers, range)');
   });
 

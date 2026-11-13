@@ -62,10 +62,10 @@ describe('العين مقفولة', () => {
   });
   it('قارئ الشاشة: البانر بيقول "مبلغ مخفي"، وصف العملية بيقول الرقم (a11y-architect)', async () => {
     await mount(true);
-    // الـlabel على نص البانر (Text) مش على الـView
-    const banner = within(screen.getByTestId('home_banner_low_w1')).getByText(/قرب يخلص/);
-    expect(banner.props.accessibilityLabel).toContain('مبلغ مخفي');
-    expect(banner.props.accessibilityLabel).not.toMatch(/4,679/);
+    // عنصر واحد (رصيد قرب يخلص) ← السطر نفسه (`home_attention_line`): الـlabel على الزرار اللي بيتداس (2026-11-13، كان على نص البانر)
+    const label = within(screen.getByTestId('home_attention_line')).getAllByLabelText(/قرب يخلص/)[0].props.accessibilityLabel;
+    expect(label).toContain('مبلغ مخفي');
+    expect(label).not.toMatch(/4,679/);
     expect(txRow().getByText(/4,321/).props.accessibilityLabel ?? '').not.toContain('مبلغ مخفي');
   });
 });

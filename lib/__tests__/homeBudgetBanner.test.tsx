@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React from 'react';
-import { act, render, screen } from '@testing-library/react-native';
+import { act, render, screen, within } from '@testing-library/react-native';
 import HomeTab from '@/app/(tabs)/index';
 import { HIDE_AMOUNTS_KEY, PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -37,29 +37,46 @@ async function mount(transactions: unknown[], budgets: Record<string, number>) {
   jest.useRealTimers();
 }
 
-describe('بانر الميزانية الإجمالية', () => {
-  it('799 من 1000 ← مفيش بانر، و800 ← «قربت تخلص»', async () => {
-    await mount([exp('a', 799)], { total_budget: 1000 });
+/**
+ * بانر الميزانية الإجمالية اتشال (قرار مؤمن 2026-11-13): كارت الشهر (`home_month_card`) بيقول قربت/خلصت/عدّت من نفس `budgetLevel`.
+ * كانت هنا 4 اختبارات على نص البانر («الميزانية الإجمالية قربت/خلصت») بنفس الأرقام الحدّية — اتحوّلت لنص الكارت (نفس الدرجات)،
+ * وبتأكد إن مفيش بانر ولا سطر «محتاجة انتباهك» ظهر بداله.
+ */
+describe('الميزانية الإجمالية: الكارت بس، من غير بانر', () => {
+  const noBanner = () => {
     expect(screen.queryByTestId('home_banner_budget_total')).toBeNull();
+    expect(screen.queryByTestId('home_attention_line')).toBeNull();
+    expect(screen.queryByText(/الميزانية الإجمالية/)).toBeNull();
+  };
+  const card = () => screen.getByTestId('home_month_card');
+
+  it('799 من 1000 ← مفيش بانر ولا درجة في الكارت', async () => {
+    await mount([exp('a', 799)], { total_budget: 1000 });
+    noBanner();
+    expect(within(card()).queryByText(/قربت تخلص|الميزانية خلصت|عدّيت الميزانية/)).toBeNull();
   });
-  it('800 من 1000 ← قربت تخلص', async () => {
+  it('800 من 1000 ← الكارت «قربت تخلص»، ومفيش بانر', async () => {
     await mount([exp('a', 800)], { total_budget: 1000 });
-    expect(screen.getByText(/الميزانية الإجمالية قربت تخلص/)).toBeTruthy();
+    noBanner();
+    expect(within(card()).getByText(/قربت تخلص/)).toBeTruthy();
   });
-  it('999.996 من 1000 ← خلصت (مش قربت) — الفرق نص قرش', async () => {
+  it('999.996 من 1000 ← الكارت «الميزانية خلصت» (مش قربت) — الفرق نص قرش', async () => {
     await mount([exp('a', 999.996)], { total_budget: 1000 });
-    expect(screen.getByText(/الميزانية الإجمالية خلصت/)).toBeTruthy();
-    expect(screen.queryByText(/الميزانية الإجمالية قربت تخلص/)).toBeNull();
+    noBanner();
+    expect(within(card()).getByText('الميزانية خلصت')).toBeTruthy();
+    expect(within(card()).queryByText(/قربت تخلص/)).toBeNull();
   });
-  it('1000 بالظبط ← خلصت، و1000.01 ← خلصت', async () => {
+  it('1000 بالظبط ← «الميزانية خلصت»، و1000.01 ← «عدّيت الميزانية»', async () => {
     await mount([exp('a', 1000)], { total_budget: 1000 });
-    expect(screen.getByText(/الميزانية الإجمالية خلصت/)).toBeTruthy();
+    noBanner();
+    expect(within(card()).getByText('الميزانية خلصت')).toBeTruthy();
     await mount([exp('a', 1000.01)], { total_budget: 1000 });
-    expect(screen.getByText(/الميزانية الإجمالية خلصت/)).toBeTruthy();
+    noBanner();
+    expect(within(card()).getByText(/عدّيت الميزانية/)).toBeTruthy();
   });
 });
 
-describe('بانر ميزانية الفئة', () => {
+describe('ميزانية الفئة (بقت عنصر «محتاجة انتباهك» — واحد بس ← نصه في السطر نفسه)', () => {
   it('نفس الدرجات: 999.996 ← خلصت، 900 ← قربت', async () => {
     await mount([exp('a', 999.996, 'c1')], { c1: 1000 });
     expect(screen.getByText(/ميزانية أكل خلصت/)).toBeTruthy();

@@ -62,43 +62,55 @@ async function mount() {
 }
 const advance = async (ms: number) => { await act(async () => { jest.advanceTimersByTime(ms); }); };
 const shown = (id: string) => screen.queryByTestId(id) !== null;
+/**
+ * 2026-11-13: رصيد قرب يخلص / ميزانية / اشتراك / جمعية / لسه ما سجلتش اتلمّوا في سطر + شيت (`AttentionSheet`) بدل بانرات.
+ * الصف جوه الشيت (`attention_row_*`) والـ✕ `attention_dismiss_*` — بنفس نوع ومفتاح الـ✕ القديم (متأكد منه في التخزين تحت).
+ * الشيت بيفضل مفتوح طول ما فيه عنصر، فبنفتحه مرة.
+ */
+const openSheet = async () => { await act(async () => { fireEvent.press(screen.getByTestId('home_attention_line')); }); };
+const row = (id: string) => shown(`attention_row_${id}`);
+const noTxShown = () => screen.queryAllByText('لسه ما سجلتش مصاريف النهاردة').length > 0;
 
 describe('الـ✕', () => {
   it('بيخبّي البانر ده بس — المحفظة التانية فاضلة', async () => {
     await mount();
-    expect(shown('home_banner_low_w1') && shown('home_banner_low_w2')).toBe(true);
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
-    expect(shown('home_banner_low_w1')).toBe(false);
-    expect(shown('home_banner_low_w2')).toBe(true);
+    await openSheet();
+    expect(row('low_w1') && row('low_w2')).toBe(true);
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
+    expect(row('low_w1')).toBe(false);
+    expect(row('low_w2')).toBe(true);
   });
 
   it('بيرجع لوحده بعد المدة بالظبط (الافتراضي يوم للروتيني) — مش قبلها', async () => {
     await mount();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    await openSheet();
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
     await advance(24 * H - 1000);
-    expect(shown('home_banner_low_w1')).toBe(false);
+    expect(row('low_w1')).toBe(false);
     await advance(1000);
-    expect(shown('home_banner_low_w1')).toBe(true);
+    expect(row('low_w1')).toBe(true);
   });
 
   it('المدة اللي المستخدم اختارها هي اللي بتتطبق (ساعة)', async () => {
     await act(async () => { setBannerInterval('lowBalance', '1h'); });
     await mount();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    await openSheet();
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
     await advance(H - 1000);
-    expect(shown('home_banner_low_w1')).toBe(false);
+    expect(row('low_w1')).toBe(false);
     await advance(1000);
-    expect(shown('home_banner_low_w1')).toBe(true);
+    expect(row('low_w1')).toBe(true);
   });
 
   it('الحالة خلصت ← البانر مبيرجعش بعد المدة', async () => {
     const r = await mount();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    await openSheet();
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
     // الرصيد اتظبط (فوق حد التنبيه)
     setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 500 }] });
     await advance(25 * H);
     await r.rerender(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
-    expect(shown('home_banner_low_w1')).toBe(false);
+    expect(row('low_w1')).toBe(false);
   });
 
   it('"مفيش نت" (تحذير) ليه ✕ وبيرجع بعد ساعة (الافتراضي) لو النت لسه مش موجود', async () => {
@@ -115,7 +127,9 @@ describe('الحفظ على الجهاز', () => {
   it('الـ✕ والمدة بيتكتبوا في التخزين', async () => {
     await act(async () => { setBannerInterval('lowBalance', '7d'); });
     await mount();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    await openSheet();
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
+    // المفتاح القديم بالظبط (`lowBalance:<wid>`) — ✕ اتعمل قبل التغيير لسه ساري
     expect(JSON.parse((await AsyncStorage.getItem(DISMISS_KEY))!)).toHaveProperty(['lowBalance:w1']);
     expect(JSON.parse((await AsyncStorage.getItem(INTERVALS_KEY))!)).toEqual({ lowBalance: '7d' });
   });
@@ -124,21 +138,24 @@ describe('الحفظ على الجهاز', () => {
     await AsyncStorage.setItem(DISMISS_KEY, JSON.stringify({ 'lowBalance:w1': Date.now() - 3 * 24 * H }));
     await AsyncStorage.setItem(INTERVALS_KEY, JSON.stringify({ lowBalance: '7d' }));
     await mount();
-    expect(shown('home_banner_low_w1')).toBe(false);
-    expect(shown('home_banner_low_w2')).toBe(true);
+    await openSheet();
+    expect(row('low_w1')).toBe(false);
+    expect(row('low_w2')).toBe(true);
   });
 
   it('فتحة جديدة والمدة خلصت (قفل من 8 أيام بمدة أسبوع) ← ظاهر', async () => {
     await AsyncStorage.setItem(DISMISS_KEY, JSON.stringify({ 'lowBalance:w1': Date.now() - 8 * 24 * H }));
     await AsyncStorage.setItem(INTERVALS_KEY, JSON.stringify({ lowBalance: '7d' }));
     await mount();
-    expect(shown('home_banner_low_w1')).toBe(true);
+    await openSheet();
+    expect(row('low_w1')).toBe(true);
   });
 
   it('التخزين بايظ ← البانر بيظهر (الأأمن)', async () => {
     await AsyncStorage.setItem(DISMISS_KEY, '{bad json');
     await mount();
-    expect(shown('home_banner_low_w1')).toBe(true);
+    await openSheet();
+    expect(row('low_w1')).toBe(true);
   });
 });
 
@@ -149,15 +166,15 @@ describe('"لسه ما سجلتش النهاردة" بساعة التذكير (�
     jest.setSystemTime(new Date(n.getFullYear(), n.getMonth(), n.getDate(), 19, 59, 0));
     noTx();
     await mount();
-    expect(shown('home_banner_no_tx_today')).toBe(false);
+    expect(noTxShown()).toBe(false);
     await advance(60_000);
-    expect(shown('home_banner_no_tx_today')).toBe(true);
+    expect(noTxShown()).toBe(true);
   });
   it('فيه عملية النهاردة ← مش ظاهر حتى بعد الساعة', async () => {
     setData({ wallets: [{ id: 'w1', name: 'كاش', openingBalance: 9000, lowAlert: 0 }],
       transactions: [{ id: 't', type: 'expense', amount: 5, walletId: 'w1', date: day(at9pm()) }] });
     await mount();
-    expect(shown('home_banner_no_tx_today')).toBe(false);
+    expect(noTxShown()).toBe(false);
   });
 });
 
@@ -188,7 +205,8 @@ describe('الـ✕ مش جوه زرار تاني', () => {
         months: [{ id: 'm2', monthIndex: 2, dueDate: iso, isPayoutMonth: false, amount: 500, status: 'pending' }] }],
     });
     await mount();
-    for (const id of ['home_banner_dismiss_sub_s1', 'home_banner_dismiss_gamiya_m2']) {
+    await openSheet();
+    for (const id of ['attention_dismiss_sub_s1', 'attention_dismiss_gamiya_m2']) {
       let p = screen.getByTestId(id).parent;
       const pressableAncestors: string[] = [];
       while (p) {
@@ -204,8 +222,9 @@ describe('الـ✕ مش جوه زرار تاني', () => {
 describe('اسم الـ✕ وإعلانه', () => {
   it('محفظتين ← اسمين مختلفين فيهم اسم المحفظة', async () => {
     await mount();
-    const a = screen.getByTestId('home_banner_dismiss_low_balance_w1').props.accessibilityLabel;
-    const b = screen.getByTestId('home_banner_dismiss_low_balance_w2').props.accessibilityLabel;
+    await openSheet();
+    const a = screen.getByTestId('attention_dismiss_low_w1').props.accessibilityLabel;
+    const b = screen.getByTestId('attention_dismiss_low_w2').props.accessibilityLabel;
     expect(a).not.toBe(b);
     expect(a).toContain('كاش');
     expect(b).toContain('البنك');
@@ -214,7 +233,8 @@ describe('اسم الـ✕ وإعلانه', () => {
     const { AccessibilityInfo } = jest.requireActual('react-native');
     const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
     await mount();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_low_balance_w1')); });
+    await openSheet();
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_low_w1')); });
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('اتقفل التنبيه'));
     spy.mockRestore();
   });
@@ -244,15 +264,15 @@ describe('"لسه ما سجلتش" قبل ما الإعداد يتقري', () =>
     noTx();
     await render(wrapWith({ ...base, loading: true, dailyHour: 20 }));
     await advance(3000);
-    expect(shown('home_banner_no_tx_today')).toBe(false);
+    expect(noTxShown()).toBe(false);
   });
   it('اتقري واختار 10 م ← مش ظاهر الساعة 9؛ واختار 8 م ← ظاهر', async () => {
     noTx();
     const r = await render(wrapWith({ ...base, loading: false, dailyHour: 22 }));
     await advance(3000);
-    expect(shown('home_banner_no_tx_today')).toBe(false);
+    expect(noTxShown()).toBe(false);
     await r.rerender(wrapWith({ ...base, loading: false, dailyHour: 20 }));
-    expect(shown('home_banner_no_tx_today')).toBe(true);
+    expect(noTxShown()).toBe(true);
   });
 });
 
@@ -264,9 +284,9 @@ it('الساعة اترجعت لورا والمؤقّت اشتغل بدري ← 
   await mount(); // الساعة بقت 19:59:03، والمؤقّت على 20:00
   jest.setSystemTime(new Date(n.getFullYear(), n.getMonth(), n.getDate(), 19, 58, 0));
   await advance(57_000); // المؤقّت بيشتغل والساعة 19:58:57 — لسه 7
-  expect(shown('home_banner_no_tx_today')).toBe(false);
+  expect(noTxShown()).toBe(false);
   await advance(64_000); // 20:00:01
-  expect(shown('home_banner_no_tx_today')).toBe(true);
+  expect(noTxShown()).toBe(true);
 });
 
 /** silent-failure-hunter: انقطاع جديد بعد ما الأول خلص بيظهر حتى جوه المدة */
@@ -304,11 +324,14 @@ it('ميزانية: ✕ على "قربت تخلص" ← الصرف عدّى ال�
     categories: [{ id: 'c1', name: 'أكل' }], budgets: { c1: 100 }, transactions: txs });
   data([tx('a', 85)]);
   const r = await mount();
-  await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_c1')); });
-  expect(shown('home_banner_budget_c1')).toBe(false);
+  // عنصر واحد بس ← السطر نفسه بنصه وبـ✕ بتاعه (من غير شيت)
+  const budgetShown = () => screen.queryAllByText(/ميزانية أكل/).length > 0;
+  expect(budgetShown()).toBe(true);
+  await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_budget_c1')); });
+  expect(budgetShown()).toBe(false);
   data([tx('a', 85), tx('b', 30)]);
   await r.rerender(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
-  expect(shown('home_banner_budget_c1')).toBe(true);
+  expect(budgetShown()).toBe(true);
 });
 
 /** silent-failure-hunter (BLOCKER، الجولة التانية): المسح بالنوع كان مبيلمسش مفتاح "loadError:<أسامي>" */
