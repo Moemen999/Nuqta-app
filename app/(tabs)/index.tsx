@@ -1,3 +1,4 @@
+import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
@@ -215,10 +216,9 @@ function HomeScreen() {
           </View>
           {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
               وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
-          <View style={styles.balanceValueRow}>
+          <HeroAmount style={styles.balanceValueRow}>
             <Money value={shownTotal} currency={false} fit style={styles.balanceValue} />
-            <Text style={styles.currency}>ج.م</Text>
-          </View>
+          </HeroAmount>
           <View style={styles.walletsRow}>
             {cold
               ? cold.wallets.map(w => (
@@ -444,9 +444,8 @@ function makeStyles(c: ThemeColors) {
     eyeBtn: { padding: 4 },
     balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
-    balanceValueRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 8, marginTop: 4 },
+    balanceValueRow: { marginTop: 4 },
     balanceValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
-    currency: { fontSize: typeScale.body, color: c.textSecondary, fontWeight: '400' },
     // المحافظ من غير خلفية لكل واحدة — النقطة الملوّنة والمسافة بيفصلوا
     walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.xxl, rowGap: space.sm, marginTop: space.xxl },
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },

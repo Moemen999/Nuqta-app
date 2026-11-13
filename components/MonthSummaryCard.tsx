@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { HeroAmount } from '@/components/HeroAmount';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -100,7 +101,9 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
 
     body = (
       <>
-        <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{cur(spent)}</Text>
+        <HeroAmount unitTestID="home_month_unit" style={styles.valueRow}>
+          <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{money(spent)}</Text>
+        </HeroAmount>
         {budgetBlock}
         {transfersFailed && <TransfersFailedNote testID="home_month_transfers_failed" />}
       </>
@@ -125,7 +128,8 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md },
     title: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
-    value: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', marginTop: space.xxs, fontVariant: ['tabular-nums'] },
+    value: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
+    valueRow: { marginTop: space.xxs },
     loading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },

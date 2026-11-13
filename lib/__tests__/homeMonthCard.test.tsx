@@ -100,22 +100,28 @@ describe('الكارت = الرقم البطل في التقارير (نفس ا�
     FIXTURE();
     await mountHome();
     homeText = cardText();
-    expect(homeText).toBe('380.6 ج.م'); // 100.1 + 200.2 + 0.3 + 40 + 15 + 25
+    expect(homeText).toBe('380.6'); // 100.1 + 200.2 + 0.3 + 40 + 15 + 25
+    // الوحدة نص لوحده جنب الرقم، مش جوه نصه (صغيرة وباهتة زي «إجمالي رصيدك»)
+    expect(flat(within(card()).getByTestId('home_month_unit').props.children)).toBe('ج.م');
   });
 
   it('التقارير على نفس البيانات: الرقم البطل نفس نص الكارت بالحرف', async () => {
     FIXTURE();
     await render(ui(<ReportsTab />));
     // الرقم البطل: الـMoney الوحيد اللي بـ«ج.م» جوه البطاقة
-    const reportsText = flat(within(screen.getByTestId('reports_hero')).getAllByText(/ج.م$/)[0].props.children);
+    const hero = within(screen.getByTestId('reports_hero'));
+    const reportsText = flat(hero.getAllByText(/^[0-9,.]+$/)[0].props.children);
+    expect(flat(hero.getByTestId('reports_hero_unit').props.children)).toBe('ج.م');
     expect(homeText).toBeDefined();
     expect(reportsText).toBe(homeText);
+    // قارئ الشاشة: الرقم والوحدة جملة واحدة
+    expect(screen.getByLabelText('380.6 ج.م')).toBeTruthy();
   });
 
   it('الكارت من غير ميزانية ولا مقارنة بيعرض نفس الرقم برضه لما فيه تاريخ قبل الشهر (مقارنة بس، مش بيغيّر الرقم)', async () => {
     FIXTURE();
     await mountHome();
-    expect(cardText()).toBe('380.6 ج.م');
+    expect(cardText()).toBe('380.6');
     expect(flat(screen.getByTestId('home_month_previous').props.children)).toBe('الشهر اللي فات لحد يوم 13: 77 ج.م');
   });
 });
@@ -132,7 +138,7 @@ describe('حالات الكارت', () => {
   it('الديون فشلت ← الرقم + سطر التقارير', async () => {
     setData({ transfersStatus: 'failed', transactions: [exp('a', 123, '2026-11-02')] });
     await mountHome();
-    expect(cardText()).toBe('123 ج.م');
+    expect(cardText()).toBe('123');
     expect(within(card()).getByTestId('home_month_transfers_failed').props.children).toBe(TRANSFERS_FAILED_NOTE);
     expect(card().props.accessibilityLabel).toContain(TRANSFERS_FAILED_NOTE);
   });
@@ -180,14 +186,14 @@ describe('حالات الكارت', () => {
 
   it('نفس الحالة بعد المهلة (حساب جديد من غير عمليات، الـlistener مرماش) ← «0 ج.م» مش «بنحمّل» للأبد', async () => {
     await mountPending(true);
-    expect(cardText()).toBe('0 ج.م');
+    expect(cardText()).toBe('0');
     expect(flat(screen.getByTestId('home_month_left').props.children)).toBe('فاضل 8,000 ج.م');
   });
 
   it('العمليات وصلت (figuresPending فاضي) ← الرقم على طول', async () => {
     setData({ figuresPending: [], transactions: [exp('a', 123, '2026-11-02')] });
     await mountHome();
-    expect(cardText()).toBe('123 ج.م');
+    expect(cardText()).toBe('123');
   });
 
   it('العمليات اتحرمت وهي لسه pending ← الخطأ بيكسب على «بنحمّل»', async () => {
@@ -199,7 +205,7 @@ describe('حالات الكارت', () => {
   it('الميزانية اتحرمت ← الرقم بس: مفيش ميزانية ولا مقارنة', async () => {
     setData({ loadErrors: ['budgets'], budgets: {}, transactions: [exp('o', 50, '2026-10-02'), exp('a', 123, '2026-11-02')] });
     await mountHome();
-    expect(cardText()).toBe('123 ج.م');
+    expect(cardText()).toBe('123');
     expect(screen.queryByTestId('home_month_previous')).toBeNull();
     expect(screen.queryByTestId('home_month_budget_line')).toBeNull();
     expect(screen.queryByTestId('home_month_left')).toBeNull();
@@ -214,7 +220,7 @@ describe('حالات الكارت', () => {
 
   it('صفر مصروف ← «0 ج.م»', async () => {
     await mountHome();
-    expect(cardText()).toBe('0 ج.م');
+    expect(cardText()).toBe('0');
   });
 
   it('مفيش ولا «أكتر/أقل» ولا نسبة على الكارت', async () => {
@@ -287,7 +293,8 @@ describe('الخصوصية والوصولية والتنقل', () => {
     setData({ budgets: { total_budget: 8000 }, transactions: [exp('a', 5650, '2026-11-02')] });
     await render(ui(<HomeTab />));
     await waitFor(() => expect(within(card()).getByTestId('home_month_value')).toBeTruthy());
-    expect(cardText()).toBe(`${MONEY_MASK} ج.م`);
+    expect(cardText()).toBe(MONEY_MASK);
+    expect(flat(within(card()).getByTestId('home_month_unit').props.children)).toBe('ج.م');
     expect(flat(within(card()).getByTestId('home_month_of').props.children)).toBe(`من ${MONEY_MASK} ج.م`);
     expect(within(card()).queryByText(/5,650|8,000|2,350/)).toBeNull();
     const label = card().props.accessibilityLabel as string;

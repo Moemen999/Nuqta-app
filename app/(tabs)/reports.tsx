@@ -1,6 +1,8 @@
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
+import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
+import { moneyText } from '@/lib/money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
@@ -34,7 +36,7 @@ export default function ReportsScreen() {
   const spendLoading = transfersStatus === 'loading';
   // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
-  const { money } = usePrivacy();
+  const { money, amountsHidden } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [selectedCats, setCatFilter] = useState<string[]>([]);
@@ -227,7 +229,7 @@ export default function ReportsScreen() {
       {/* دراسة الشكل خطوة 5: رقم بطل واحد (مصروف الفترة) والمقارنة سطر صغير تحته — كانوا كارتين بنفس الوزن */}
       <View testID="reports_hero" style={styles.heroCard}>
         <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
+        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
           {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
@@ -391,7 +393,8 @@ function makeStyles(c: ThemeColors) {
     heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
-    heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    heroRow: { marginTop: space.xxs },
+    heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
     changeValue: { fontSize: typeScale.body, fontWeight: '700' },
     metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
