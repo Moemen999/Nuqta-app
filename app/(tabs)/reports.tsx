@@ -396,7 +396,7 @@ function makeStyles(c: ThemeColors) {
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     heroRow: { marginTop: space.xxs },
-    heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    heroValue: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
     changeValue: { fontSize: typeScale.body, fontWeight: '700' },
     metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },

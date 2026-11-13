@@ -445,7 +445,7 @@ function makeStyles(c: ThemeColors) {
     balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
     balanceValueRow: { marginTop: 4 },
-    balanceValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    balanceValue: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     // المحافظ من غير خلفية لكل واحدة — النقطة الملوّنة والمسافة بيفصلوا
     walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.xxl, rowGap: space.sm, marginTop: space.xxl },
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },

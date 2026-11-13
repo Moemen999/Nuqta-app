@@ -48,7 +48,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
       testID={testID ? `${testID}_toggle` : undefined}
       accessibilityRole="button" accessibilityState={{ expanded: open }}
       accessibilityLabel={a11yLabel ?? label}>
-      <Text style={styles.title}>{label}</Text>
+      <Text style={[styles.title, action && styles.titleShrink]}>{label}</Text>
       {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
       <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
     </TouchableOpacity>
@@ -57,7 +57,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
   return (
     <View style={framed ? styles.framed : styles.plain} testID={testID}>
       {action ? (
-        <View style={[styles.headRow, open && styles.headOpen]}>
+        <View style={[styles.headRow, !framed && open && styles.headOpen]}>
           {toggle}
           <TouchableOpacity style={[styles.head, styles.headAlone]} onPress={action.onPress} testID={action.testID}
             accessibilityRole="button" accessibilityLabel={action.a11yLabel ?? action.label}>
@@ -80,6 +80,7 @@ function makeStyles(c: ThemeColors) {
     headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
     headGrow: { flex: 1 },
     title: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700', textAlign: 'right' },
+    titleShrink: { flexShrink: 1 },
     chevron: { color: c.textMuted, fontSize: 12 },
   });
 }

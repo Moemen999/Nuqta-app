@@ -26,6 +26,6 @@ export function HeroAmount({ children, style, label, unitTestID }: { children: R
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: 8 },
-    unit: { fontSize: typeScale.body, color: c.textSecondary, fontWeight: '400' },
+    unit: { flexShrink: 0, fontSize: typeScale.body, color: c.textSecondary, fontWeight: '400' },
   });
 }

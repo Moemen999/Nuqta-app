@@ -128,7 +128,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md },
     title: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
-    value: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
+    value: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
     valueRow: { marginTop: space.xxs },
     loading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
