@@ -13,6 +13,7 @@ import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions, type TxChange } from '@/lib/archiving';
 import { transferTransactionIds } from '@/lib/spending';
+import { dateText } from '@/lib/dateText';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { quietSelectionStyle, selectionA11y, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { MIN_TOUCH, radius, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
@@ -429,7 +430,7 @@ export default function AddTransactionModal() {
 
       <Text style={styles.label}>التاريخ</Text>
       <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
-        <Text style={styles.dateBtnText}>{date}</Text>
+        <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
       </TouchableOpacity>
 
       <Text style={styles.label}>ملاحظة</Text>

@@ -25,6 +25,7 @@ import { transactionsPhrase } from '@/lib/archiving';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, entryTime, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
+import { dayText } from '@/lib/dateText';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
@@ -411,7 +412,7 @@ function HomeScreen() {
             // عقدة واحدة لقارئ الشاشة زي الصف الحقيقي، وأولها "قديم"، ومن غير button (مبيتفتحش — a11y-architect).
             // المبلغ ظاهر زي الصف الحقيقي (العين للأرصدة بس)
             <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
-              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${t.date}`}>
+              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${dayText(t.date, todayStr())}`}>
               <View style={styles.txMid}>
                 <Text style={styles.txTitle}>{title}</Text>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
@@ -420,7 +421,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
               </View>
             </View>
           );
@@ -446,7 +447,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
                 {transfers.has(t.id) && <TransferMark />}

@@ -9,6 +9,7 @@ import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
@@ -179,10 +180,10 @@ export default function ArchiveScreen() {
       {preset === 'custom' && (
         <View style={styles.dateRow}>
           <TouchableOpacity accessibilityRole="button" testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
-            <Text style={styles.dateBtnText}>من: {customFrom}</Text>
+            <Text style={styles.dateBtnText}>من: {dateText(customFrom, todayStr())}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {dateText(customTo, todayStr())}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -307,7 +308,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       </View>
       <View style={styles.txRight}>
         <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-        <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+        <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}

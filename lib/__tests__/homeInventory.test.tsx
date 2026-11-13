@@ -86,6 +86,11 @@ beforeEach(() => {
   Object.values(mockRouter).forEach(f => f.mockClear());
 });
 
+/** يثبّت «النهاردة» (Date بس) عشان نص التاريخ ميتغيّرش بتغيّر يوم الجهاز — باقي التايمرز حقيقية */
+const pinToday = (y: number, m: number, d: number) => jest.useFakeTimers({
+  now: new Date(y, m, d, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback', 'hrtime', 'performance'],
+});
+
 const mountTabs = () => render(<ThemeProvider><TabLayout /></ThemeProvider>);
 const mountHome = () => render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
 
@@ -222,17 +227,47 @@ describe('شاشة العملية من غير محفظة', () => {
 
 describe('وقت العملية في الصف', () => {
   const made = new Date(2026, 10, 12, 11, 34).toISOString(); // اتسجلت 12 نوفمبر 11:34 ص محلي
+  beforeEach(() => pinToday(2026, 10, 13)); // النهاردة 13 نوفمبر
+  afterEach(() => jest.useRealTimers());
 
   it('عملية بتاريخ قديم اتسجلت النهارده ← التاريخ لوحده من غير وقت', async () => {
     setData({ transactions: [{ id: 'a', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-10', createdAt: made }] });
     await mountHome();
-    expect(within(screen.getByTestId('home_tx_a')).getByText('2026-11-10')).toBeTruthy();
+    expect(within(screen.getByTestId('home_tx_a')).getByText('10 نوفمبر')).toBeTruthy();
   });
 
   it('عملية اتسجلت في نفس يومها ← التاريخ والوقت', async () => {
     setData({ transactions: [{ id: 'b', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-12', createdAt: made }] });
     await mountHome();
-    expect(within(screen.getByTestId('home_tx_b')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+    expect(within(screen.getByTestId('home_tx_b')).getByText('امبارح · 11:34 ص')).toBeTruthy();
+  });
+});
+
+describe('تاريخ الصف: النهاردة وامبارح', () => {
+  beforeEach(() => pinToday(2026, 10, 13));
+  afterEach(() => jest.useRealTimers());
+
+  it('صف بتاريخ النهاردة ← «النهاردة»', async () => {
+    setData({ transactions: [{ id: 't1', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-13' }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_t1')).getByText('النهاردة')).toBeTruthy();
+  });
+
+  it('صف بتاريخ امبارح ← «امبارح»', async () => {
+    setData({ transactions: [{ id: 't2', type: 'expense', amount: 10, walletId: 'w1', date: '2026-11-12' }] });
+    await mountHome();
+    expect(within(screen.getByTestId('home_tx_t2')).getByText('امبارح')).toBeTruthy();
+  });
+});
+
+describe('زرار التاريخ في مودال العملية', () => {
+  beforeEach(() => pinToday(2026, 10, 12));
+  afterEach(() => jest.useRealTimers());
+
+  it('عملية جديدة ← «12 نوفمبر» مش 2026-11-12', async () => {
+    await render(<ThemeProvider><AddTransactionModal /></ThemeProvider>);
+    expect(screen.getByText('12 نوفمبر')).toBeTruthy();
+    expect(screen.queryByText('2026-11-12')).toBeNull();
   });
 });
 

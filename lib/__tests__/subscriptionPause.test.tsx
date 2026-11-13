@@ -1,3 +1,4 @@
+import { dateText } from '@/lib/dateText';
 import { IOS_DISMISS_FALLBACK_MS } from '@/components/ActionSheet';
 import React from 'react';
 import { Alert } from 'react-native';
@@ -116,7 +117,7 @@ describe('شاشة الاشتراكات', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_resume_s2')); });
     const [title, body] = alertSpy.mock.calls[0];
     expect(title).toBe('ترجّع الاشتراك ده؟');
-    expect(body).toContain(subscriptionResumeDate(sub({ nextDueDate: addMonths(today, -2) }), today));
+    expect(body).toContain(dateText(subscriptionResumeDate(sub({ nextDueDate: addMonths(today, -2) }), today), today));
     expect(body).toContain('المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية');
     await pressAlertButton('رجّعه');
     expect(mockData.setSubscriptionActive).toHaveBeenCalledWith('s2', true);

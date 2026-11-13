@@ -1,6 +1,7 @@
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { debtsPhrase } from '@/lib/archiving';
 import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
+import { dayText } from '@/lib/dateText';
 import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
@@ -304,7 +305,7 @@ function DebtsContent() {
                       {label} <Money value={t.amount} sign={sign} />{wLabel ? ' · ' + wLabel : ''}{cLabel ? ' · ' + cLabel : ''}
                     </Text>
                     <View style={styles.paymentMeta}>
-                      <Text style={styles.paymentDate}>{t.date}</Text>
+                      <Text style={styles.paymentDate}>{dayText(t.date, today)}</Text>
                       {t.kind !== 'initial' && (
                         <TouchableOpacity
                           testID={`debt_entry_delete_${t.id}`}
@@ -314,7 +315,7 @@ function DebtsContent() {
                           onPress={() => confirmDeleteEntry(d, t.kind, t.id)}
                           accessibilityRole="button"
                           // بالتاريخ عشان السطور متتشابهش في الودن، والمبلغ بس لو مش مخفي
-                          accessibilityLabel={`امسح ${t.kind === 'payment' ? 'الدفعة' : 'الزيادة'} بتاعة ${t.date}${amountsHidden ? '' : `، ${money(t.amount)} ج.م`}`}
+                          accessibilityLabel={`امسح ${t.kind === 'payment' ? 'الدفعة' : 'الزيادة'} بتاعة ${dayText(t.date, today)}${amountsHidden ? '' : `، ${money(t.amount)} ج.م`}`}
                           accessibilityState={{ busy: entryBusy, disabled: busyKey !== null }}>
                           {entryBusy
                             ? <ActivityIndicator size="small" color={colors.danger} />

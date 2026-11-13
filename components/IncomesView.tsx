@@ -5,6 +5,7 @@ import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/Dat
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
+import { dateText } from '@/lib/dateText';
 import { todayStr, walletHistoryName } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import {
@@ -136,7 +137,7 @@ export default function IncomesView() {
         : `هيتسجل أول ما النت يبقى متاح`;
     }
     const up = incomeUpcomingPeriod(inc, today);
-    return up ? `الجاي: ${incomeDueDate(inc, up)}` : '';
+    return up ? `الجاي: ${dateText(incomeDueDate(inc, up), today)}` : '';
   }
 
   return (
@@ -361,7 +362,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   </View>
                   {income && scheduleChanges && !pendingOnScheduleChange && (
                     <Text style={styles.hint}>
-                      الجدول الجديد هيبدأ من {incomeRescheduleStart(income, todayStr())} — اللي اتسجل قبل كده مش هيتكرر.
+                      الجدول الجديد هيبدأ من {dateText(incomeRescheduleStart(income, todayStr()), todayStr())} — اللي اتسجل قبل كده مش هيتكرر.
                     </Text>
                   )}
                   {frequency === 'monthly' ? (

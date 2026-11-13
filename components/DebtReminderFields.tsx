@@ -1,5 +1,7 @@
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { dateText } from '@/lib/dateText';
+import { todayStr } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
@@ -37,7 +39,7 @@ export default function DebtReminderFields({
       <Text style={styles.label}>معاد الدين (اختياري)</Text>
       <View style={styles.row}>
         <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-          <Text style={styles.dateBtnText}>{dueDate || 'من غير معاد'}</Text>
+          <Text style={styles.dateBtnText}>{dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}</Text>
         </TouchableOpacity>
         {!!dueDate && (
           <TouchableOpacity accessibilityRole="button"

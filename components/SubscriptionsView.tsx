@@ -9,6 +9,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
 import FoldedSection from '@/components/FoldedSection';
 import { splitDone } from '@/lib/doneSections';
+import { dateText } from '@/lib/dateText';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
@@ -91,7 +92,7 @@ export default function SubscriptionsView() {
   }
   function confirmResume(s: Subscription) {
     const next = subscriptionResumeDate(s, todayStr());
-    confirm('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${next}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
+    confirm('ترجّع الاشتراك ده؟', `هيرجع من معاده الجاي: ${dateText(next, todayStr())}. المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية.`, [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'رجّعه', onPress: () => runResume(`resume_${s.id}`, async () => {
@@ -188,7 +189,7 @@ export default function SubscriptionsView() {
         </Text>
         <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
           {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
-            : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${s.nextDueDate})`}
+            : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${dateText(s.nextDueDate, todayStr())})`}
         </Text>
         <View style={styles.actionsRow}>
           {isStopped ? (
@@ -376,7 +377,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 
           <Text style={styles.label}>أول موعد استحقاق</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{nextDueDate}</Text>
+            <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
@@ -559,7 +560,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
 
           <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{nextDueDate}</Text>
+            <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>

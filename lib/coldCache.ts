@@ -1,4 +1,5 @@
 import type { Category, Transaction, Wallet } from '@/context/DataContext';
+import { dayText } from '@/lib/dateText';
 import { walletBalance } from '@/lib/finance';
 
 /**
@@ -110,11 +111,12 @@ function pad2(n: number) { return String(n).padStart(2, '0'); }
 
 /**
  * علامة "قديم" (قرار مؤمن): الأرقام دي عمرها ما تتعرض من غير ما يبان إنها مش حية وإمتى اتشافت.
- * التاريخ بنفس شكل تاريخ العمليات في الرئيسية (`YYYY-MM-DD · 8:15 م`).
+ * التاريخ بنفس شكل تاريخ العمليات في الرئيسية (`امبارح · 8:15 م`) — اليوم والنهاردة بالتوقيت المحلي.
  */
-export function coldFiguresText(savedAt: number, formatTime: (iso: string) => string): string {
+export function coldFiguresText(savedAt: number, formatTime: (iso: string) => string, now: Date = new Date()): string {
   const d = new Date(savedAt);
-  const day = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const localDay = (x: Date) => `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+  const day = dayText(localDay(d), localDay(now));
   // arabic-copy-reviewer: جملتين بنقطة، و"مش هتقدر" مش "متقدرش"، ومن غير "تقدر تسجّل جديد" (من غير محافظ
   // حقيقية المودال مفيهوش محفظة — الجملة كانت هتبقى كدب)
   return `دي آخر أرقام اتشافت (${day} · ${formatTime(d.toISOString())}). مفيش نت دلوقتي، وأول ما يرجع هنحدّثها. لحد وقتها مش هتقدر تفتح العمليات دي أو تعدّلها.`;

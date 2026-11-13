@@ -5,7 +5,8 @@ import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/
 import { useData, type Debt } from '@/context/DataContext';
 import { debtHasPendingEntry, isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
+import { dateText, dayText } from '@/lib/dateText';
+import { todayStr, debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -25,7 +26,7 @@ type Row = {
 function debtLabelOf(d: Debt) {
   const side = d.direction === 'owed_to_me' ? 'ليا' : 'عليا';
   const when = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
-  return d.note?.trim() ? `${side} · ${d.note.trim()}` : `${side} · ${when}`;
+  return d.note?.trim() ? `${side} · ${d.note.trim()}` : `${side} · ${dateText(when, todayStr())}`;
 }
 
 export default function PersonLedgerScreen() {
@@ -145,7 +146,7 @@ export default function PersonLedgerScreen() {
                 <Text style={styles.listLabel}>{r.label}</Text>
                 {/* التاريخ لوحده: الملاحظة الطويلة كانت بتقصّه من آخر السطر */}
                 <Text style={styles.listSub} numberOfLines={1}>{r.debtLabel}</Text>
-                <Text style={styles.listSub}>{r.date}</Text>
+                <Text style={styles.listSub}>{dayText(r.date, todayStr())}</Text>
               </View>
               <View style={styles.listSide}>
                 {/* العلامة صريحة للاتنين ("−" مش من fmt): مع قناع الخصوصية السالب كان بيبان "••••" من غير علامة */}

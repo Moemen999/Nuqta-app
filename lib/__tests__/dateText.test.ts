@@ -49,3 +49,18 @@ describe('dayText', () => {
     expect(dayText('2027-01-01', today)).toBe('1 يناير 2027');
   });
 });
+
+describe('coldFiguresText (بانر الأرقام القديمة)', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { coldFiguresText } = require('@/lib/coldCache');
+  const fmt = () => '11:34 ص';
+  const now = new Date(2026, 10, 13, 9, 0);
+  it('امبارح بالتوقيت المحلي', () => {
+    expect(coldFiguresText(new Date(2026, 10, 12, 23, 34).getTime(), fmt, now)).toContain('(امبارح · 11:34 ص)');
+  });
+  it('النهاردة وتاريخ أقدم', () => {
+    expect(coldFiguresText(new Date(2026, 10, 13, 0, 5).getTime(), fmt, now)).toContain('(النهاردة · 11:34 ص)');
+    expect(coldFiguresText(new Date(2026, 10, 9, 8, 0).getTime(), fmt, now)).toContain('(9 نوفمبر · 11:34 ص)');
+    expect(coldFiguresText(new Date(2025, 10, 9, 8, 0).getTime(), fmt, now)).toContain('(9 نوفمبر 2025 · 11:34 ص)');
+  });
+});

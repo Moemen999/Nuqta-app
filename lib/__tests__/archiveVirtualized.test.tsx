@@ -56,7 +56,14 @@ it('الصف memo: علامة "لسه بترفع" بتظهر وتختفي مع p
   expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
 });
 
+/** يثبّت «النهاردة» (Date بس) عشان نص التاريخ ميتغيّرش بتغيّر يوم الجهاز — باقي التايمرز حقيقية */
+const pinToday = (y: number, m: number, d: number) => jest.useFakeTimers({
+  now: new Date(y, m, d, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback', 'hrtime', 'performance'],
+});
+
 describe('وقت العملية في صف الأرشيف', () => {
+  beforeEach(() => pinToday(2026, 10, 13)); // النهاردة 13 نوفمبر
+  afterEach(() => jest.useRealTimers());
   const made = new Date(2026, 10, 12, 11, 34).toISOString();
   const tx = (id: string, date: string) => ({ id, type: 'expense', amount: 5, date, walletId: 'w', createdAt: made });
 
@@ -65,8 +72,8 @@ describe('وقت العملية في صف الأرشيف', () => {
     mockData.transactions = [tx('back', '2026-11-10'), tx('same', '2026-11-12')];
     await render(ui());
     fireEvent.press(screen.getByTestId('archive_preset_all'));
-    expect(within(screen.getByTestId('archive_tx_back')).getByText('2026-11-10')).toBeTruthy();
-    expect(within(screen.getByTestId('archive_tx_same')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+    expect(within(screen.getByTestId('archive_tx_back')).getByText('10 نوفمبر')).toBeTruthy();
+    expect(within(screen.getByTestId('archive_tx_same')).getByText('امبارح · 11:34 ص')).toBeTruthy();
   });
 });
 

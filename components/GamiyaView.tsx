@@ -6,6 +6,7 @@ import { AMOUNT_CHANGED_ALERT, GAMIYA_PAYOUT_WALLET_MISSING_ALERT, PAY_OUTCOME_A
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { dateText } from '@/lib/dateText';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
@@ -123,7 +124,7 @@ export default function GamiyaView() {
           {nextPending && (
             <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
               {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
-              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {dateText(nextPending.dueDate, todayStr())} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>
@@ -133,7 +134,7 @@ export default function GamiyaView() {
             {g.months.map(m => (
               <View key={m.id} style={styles.monthRow}>
                 <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
-                  شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
+                  شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
                   <TouchableOpacity accessibilityRole="button"
@@ -288,7 +289,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           <Text style={styles.label}>تاريخ أول قسط</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{startDate}</Text>
+            <Text style={styles.dateBtnText}>{dateText(startDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>

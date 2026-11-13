@@ -95,11 +95,14 @@ it('الديون لسه ما وصلتش ← لا حفظ ولا مسح (دفعة 
 });
 
 it('اسم الصف لقارئ الشاشة فيه المبلغ والتاريخ', async () => {
+  jest.useFakeTimers({ now: new Date(2026, 10, 13, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'hrtime', 'performance'] });
   seed([{ id: 'b6', reasons: ['type'], amount: 40, walletId: 'w1', date: '2026-09-01' }]);
   await render(ui());
   const label = screen.getByTestId('archive_broken_b6').props.accessibilityLabel as string;
-  expect(label).toContain('2026-09-01');
+  expect(label).toContain('1 سبتمبر');
+  expect(label).not.toContain('2026-09-01');
   expect(label).toContain('40');
+  jest.useRealTimers();
 });
 
 it('الديون ما وصلتش لأن الـlistener وقع ← رسالة + "جرّب تاني" (مش "استنى" للأبد)', async () => {

@@ -6,6 +6,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
+import { dateText } from '@/lib/dateText';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
 import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
@@ -204,10 +205,10 @@ export default function ReportsScreen() {
       {preset === 'custom' && (
         <View style={styles.dateRow}>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
-            <Text style={styles.dateBtnText}>من: {customFrom}</Text>
+            <Text style={styles.dateBtnText}>من: {dateText(customFrom, today)}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {dateText(customTo, today)}</Text>
           </TouchableOpacity>
         </View>
       )}

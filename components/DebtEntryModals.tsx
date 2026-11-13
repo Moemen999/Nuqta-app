@@ -13,6 +13,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
 import { isCreditPurchase, CREDIT_PURCHASE_HINT } from '@/lib/spending';
+import { dateText } from '@/lib/dateText';
 import { DUE_MOVED_TITLE } from '@/lib/reopenDue';
 import {
   categoryLabel, debtRemaining, INSTALLMENT_VALUE_TOO_SMALL, installmentProgressLabel, planInstallments, storableCount, suggestedInstallmentPayment, toMoneyAmount,
@@ -188,7 +189,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
           <Text style={styles.label}>التاريخ</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{date}</Text>
+            <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
@@ -372,7 +373,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
           <Text style={styles.label}>التاريخ</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{date}</Text>
+            <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
 
@@ -543,7 +544,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
 
           <Text style={styles.label}>التاريخ</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{date}</Text>
+            <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
           <View style={styles.row}>
