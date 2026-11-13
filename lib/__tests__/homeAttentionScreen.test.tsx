@@ -484,3 +484,95 @@ describe('إعلان قارئ الشاشة: عنصر واحد مقابل أكت�
     spy.mockRestore();
   });
 });
+
+/** الـ✕ بمفتاح «قربت/خلصت» ومفتاح المحفظة: اللي اتقفل مش بيخبّي حالة تانية */
+describe('✕ والحالة اللي بتتغيّر', () => {
+  const budgetData = (spend: number) => ({
+    categories: [CAT], budgets: { c1: 100 }, transactions: [exp('t1', spend, TODAY, 'c1')],
+  });
+
+  it('قربت اتقفلت ← الإنفاق وصل 100 (خلصت) ← الصف بيرجع، والمفتاح القديم متخزّن؛ وخلصت اتقفلت ثم عدّت (120) فاضلة مقفولة', async () => {
+    setData(budgetData(85));
+    const r = await mount();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85/100)')).toBeTruthy();
+    await press('attention_dismiss_budget_c1');
+    expect(shown('home_attention_line')).toBe(false);
+    expect(Object.keys(await stored())).toEqual(['budget:c1:near']);
+    setData(budgetData(100));
+    await r.rerender(ui());
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (100/100)')).toBeTruthy();
+    await press('attention_dismiss_budget_c1');
+    expect(shown('home_attention_line')).toBe(false);
+    setData(budgetData(120));
+    await r.rerender(ui());
+    expect(shown('home_attention_line')).toBe(false);
+  });
+
+  it('قربت اتقفلت ← الإنفاق عدّى الحد (120) ← الصف بيرجع', async () => {
+    setData(budgetData(85));
+    const r = await mount();
+    await press('attention_dismiss_budget_c1');
+    expect(shown('home_attention_line')).toBe(false);
+    setData(budgetData(120));
+    await r.rerender(ui());
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (120/100)')).toBeTruthy();
+  });
+
+  it('العكس: خلصت (120/100) اتقفلت ← الإنفاق نزل لـ85 (قربت) ← الصف بيظهر بمفتاح «near» الجديد', async () => {
+    setData(budgetData(120));
+    const r = await mount();
+    await press('attention_dismiss_budget_c1');
+    expect(shown('home_attention_line')).toBe(false);
+    expect(Object.keys(await stored())).toEqual(['budget:c1:over']);
+    setData(budgetData(85));
+    await r.rerender(ui());
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85/100)')).toBeTruthy();
+  });
+
+  it('رصيد w1 اتقفل ← محفظة تانية w2 نزلت تحت حدها ← صف w2 بيظهر وw1 فاضل مخفي (على الشاشة)', async () => {
+    const W2 = { id: 'w2', name: 'بنك', openingBalance: 1000, lowAlert: 500 };
+    const w2spend = { id: 't2', type: 'expense', amount: 600, walletId: 'w2', date: TODAY, createdAt: `${TODAY}T09:00:00Z` };
+    setData({ wallets: [LOW, W2], transactions: [exp('t1', 85)] });
+    const r = await mount();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('رصيد كاش قرب يخلص (15 ج.م)')).toBeTruthy();
+    await press('attention_dismiss_low_w1');
+    expect(shown('home_attention_line')).toBe(false);
+    setData({ wallets: [LOW, W2], transactions: [exp('t1', 85), w2spend] });
+    await r.rerender(ui());
+    expect(within(screen.getByTestId('home_attention_line')).getByText('رصيد بنك قرب يخلص (400 ج.م)')).toBeTruthy();
+    expect(screen.queryAllByText(/رصيد كاش قرب يخلص/)).toHaveLength(0);
+    expect(Object.keys(await stored())).toEqual(['lowBalance:w1']);
+    // ولما يبقى فيه عنصر تاني والشيت يتفتح: w1 المقفول برضه مش فيه
+    setData({ wallets: [LOW, W2], transactions: [exp('t1', 85), w2spend], subscriptions: [SUB] });
+    await r.rerender(ui());
+    await openSheet();
+    expect(shown('attention_row_low_w2')).toBe(true);
+    expect(shown('attention_row_low_w1')).toBe(false);
+  });
+});
+
+describe('الشيت مفتوح والعدد بينزل بالـ✕: 3 ← 2 ← 1 ← 0', () => {
+  it('العنوان بيتحدّث كل خطوة، والشيت مفتوح عند 1، ويتقفل عند 0', async () => {
+    mockUser.emailVerified = false;
+    setData({ wallets: [LOW], transactions: [exp('t1', 85)], subscriptions: [SUB] });
+    await mount();
+    await openSheet();
+    const title = (t: string) => within(screen.getByTestId('attention_sheet')).getByText(t);
+    expect(title('عندك 3 حاجات محتاجة انتباهك')).toBeTruthy();
+
+    await press('attention_dismiss_verify_email');
+    expect(title('عندك حاجتين محتاجين انتباهك')).toBeTruthy();
+    expect(shown('attention_sheet')).toBe(true);
+
+    await press('attention_dismiss_sub_s1');
+    expect(title('عندك حاجة محتاجة انتباهك')).toBeTruthy();
+    expect(shown('attention_sheet')).toBe(true);
+    expect(shown('attention_row_low_w1')).toBe(true);
+    // الشيت مفتوح فالسطر الفردي مبيتعرضش ورا الشيت
+    expect(shown('home_attention_line')).toBe(false);
+
+    await press('attention_dismiss_low_w1');
+    expect(shown('attention_sheet')).toBe(false);
+    expect(shown('home_attention_line')).toBe(false);
+  });
+});
