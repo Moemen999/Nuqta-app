@@ -1,5 +1,5 @@
 import { Money } from '@/components/Money';
-import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
+import { budgetLevel } from '@/lib/budgetForecast';
 import { speakable } from '@/lib/money';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
@@ -155,12 +155,18 @@ function HomeScreen() {
   const budgetAlerts = activeCategories
     .filter(c => spendKnown && budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
-    .filter(b => b.spend / b.limit >= BUDGET_NEAR_RATIO);
+    .map(b => ({ ...b, level: budgetLevel(b.spend, b.limit) }))
+    .filter(b => b.level !== 'under');
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
   // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
   const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
-  const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
+  // الدرجة من `budgetLevel` (نص قرش) — نفس مصدر كارت الشهر، فالبانر والكارت مبيختلفوش
+  const totalLevel = budgetLevel(totalMonthSpend, totalBudgetLimit);
+  const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalLevel !== 'under';
+  // «خلصت» = at أو over. مفتاح الـ✕ بيفضل near/over زي ما كان (✕ على «قربت» ميخبّيش «خلصت»)
+  const totalBudgetDone = totalLevel === 'at' || totalLevel === 'over';
+  const totalDismissKey = `total:${totalBudgetDone ? 'over' : 'near'}`;
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
   const dueSubscriptions = subscriptions.filter(s => s.active !== false
@@ -338,28 +344,28 @@ function HomeScreen() {
           </View>
         ))}
         {/* المفتاح بالدرجة (silent-failure-hunter): ✕ على "قربت تخلص" ميخبّيش "خلصت" */}
-        {totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`) && (
+        {totalBudgetAlert && !hidden('budget', totalDismissKey) && (
           <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
+              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalBudgetDone ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
+              الميزانية الإجمالية {totalBudgetDone ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
             </Text>
-            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
+            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', totalDismissKey)} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
-        {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)).map(b => (
+        {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.level === 'near' ? 'near' : 'over'}`)).map(b => (
           <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
             <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
+              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.level === 'near' ? 'قربت تخلص' : 'خلصت'} (${money(b.spend)} من ${money(b.limit)})`)}>
+              ميزانية {b.cat.name} {b.level === 'near' ? 'قربت تخلص' : 'خلصت'} ({money(b.spend)}/{money(b.limit)})
             </Text>
-            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
+            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.level === 'near' ? 'near' : 'over'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         ))}
         {/* الديون/الجمعية فشلوا: البانرات بتظهر (قرار مؤمن: الرقم بيظهر بتحذير) وتحتها إن الرقم ممكن يكون زيادة (money-reviewer + silent-failure-hunter) */}
         {/* بعد ✕: السطر بيمشي مع البانرات الظاهرة بس، مش يفضل لوحده (silent-failure-hunter جولة 2) */}
-        {transfersStatus === 'failed' && ((totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`))
-          || budgetAlerts.some(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`))) && (
+        {transfersStatus === 'failed' && ((totalBudgetAlert && !hidden('budget', totalDismissKey))
+          || budgetAlerts.some(b => !hidden('budget', `${b.cat.id}:${b.level === 'near' ? 'near' : 'over'}`))) && (
           <TransfersFailedNote testID="home_budget_transfers_failed" style={{ marginTop: 6 }} />
         )}
         {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}

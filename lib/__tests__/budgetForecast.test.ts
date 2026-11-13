@@ -1,4 +1,4 @@
-import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
+import { budgetForecastText, budgetLevel, budgetRunOutDay } from '@/lib/budgetForecast';
 
 /** مصروف موزّع على 3 عمليات عادية */
 const three = (total: number) => [total / 2, total / 4, total / 4].map(amount => ({ amount }));
@@ -71,4 +71,34 @@ describe('budgetRunOutDay', () => {
 
 it('النص باسم الشهر', () => {
   expect(budgetForecastText(20, '2026-11-10')).toBe('لو كمّلت بنفس المعدل، الميزانية هتخلص يوم 20 نوفمبر');
+});
+
+describe('budgetLevel: درجة واحدة للبانر والكارت', () => {
+  it('تحت 80% ← under', () => {
+    expect(budgetLevel(790, 1000)).toBe('under');
+    expect(budgetLevel(0, 1000)).toBe('under');
+  });
+  it('من 80% ← near', () => {
+    expect(budgetLevel(800, 1000)).toBe('near');
+    expect(budgetLevel(999.4, 1000)).toBe('near');
+  });
+  it('الميزانية بالظبط ← at', () => {
+    expect(budgetLevel(1000, 1000)).toBe('at');
+  });
+  it('فرق أقل من نص قرش ← at (مش near ولا over)', () => {
+    expect(budgetLevel(1000 - 0.004, 1000)).toBe('at');
+    expect(budgetLevel(1000 + 0.004, 1000)).toBe('at');
+  });
+  it('قرش فوق ← over، وقرش تحت ← near', () => {
+    expect(budgetLevel(1000.01, 1000)).toBe('over');
+    expect(budgetLevel(999.99, 1000)).toBe('near');
+  });
+  it('كسور الجمع: 0.1 + 0.2 من 0.3 ← at مش over', () => {
+    expect(budgetLevel(0.1 + 0.2, 0.3)).toBe('at');
+  });
+  it('limit صفر أو رقم بايظ ← under (مفيش ميزانية)، مش over ولا كراش', () => {
+    expect(budgetLevel(50, 0)).toBe('under');
+    expect(budgetLevel(NaN, 100)).toBe('under');
+    expect(budgetLevel(50, NaN)).toBe('under');
+  });
 });

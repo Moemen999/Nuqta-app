@@ -1,4 +1,4 @@
-import { endOfMonth } from '@/lib/finance';
+import { endOfMonth, snapPiastre } from '@/lib/finance';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
 
 /**
@@ -15,7 +15,24 @@ import { MONTH_NAMES } from '@/lib/recurringIncome';
  */
 export const BUDGET_NEAR_RATIO = 0.8;
 export const FORECAST_MIN_DAY = 7;
+
 export const FORECAST_MIN_TX = 3;
+
+export type BudgetLevel = 'under' | 'near' | 'at' | 'over';
+
+/**
+ * درجة الميزانية: **مصدر واحد** للبانر وكارت الشهر في الرئيسية، فمينفعش يختلفوا.
+ * الفرق بيتقاس بنص قرش (`snapPiastre`) زي أي رصيد: 999.996 من 1000 = «خلصت» مش «قربت» (المقارنة الخام `spent >= limit`
+ * كانت بتقول «قربت» والرقم اللي على الشاشة 1,000.00). `limit` لازم يكون أكبر من صفر (الصفر = مفيش ميزانية، والشاشة هي
+ * اللي بتفحص ده) — غير كده 'under' عن قصد، مش 'over' من قسمة على صفر.
+ */
+export function budgetLevel(spent: number, limit: number): BudgetLevel {
+  if (!Number.isFinite(spent) || !Number.isFinite(limit) || limit <= 0) return 'under';
+  const d = snapPiastre(spent - limit);
+  if (d > 0) return 'over';
+  if (d === 0) return 'at';
+  return spent / limit >= BUDGET_NEAR_RATIO ? 'near' : 'under';
+}
 
 type Row = { amount: number; autoRecorded?: boolean };
 
