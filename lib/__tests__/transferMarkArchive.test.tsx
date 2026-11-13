@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react-native';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { NoticeProvider } from '@/components/NoticeProvider';
+import { todayStr } from '@/lib/finance';
 
 /** قرار مؤمن 2026-11-06: علامة «تحويل — مش محسوب» على عمليات السلفة/الجمعية في الأرشيف */
 
@@ -16,7 +17,7 @@ const wrap = (ui: React.ReactElement) => <ThemeProvider><NoticeProvider><Privacy
 
 it('الأرشيف: عملية سلفة عليها العلامة، وبتظهر لما الديون توصل بعد العمليات (الصف memo)', async () => {
   const ArchiveScreen = require('@/app/archive').default;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   Object.assign(mockData, {
     brokenTransactions: [], pendingTxIds: new Set(), serverReachable: true, gamiyas: [], transfersStatus: 'ready', debts: [],
     transactions: [

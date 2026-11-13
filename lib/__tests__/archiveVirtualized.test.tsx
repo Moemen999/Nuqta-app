@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react-native
 import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { todayStr } from '@/lib/finance';
 
 /**
  * بند C (مراجعة المشروع 2026-11-05): الأرشيف بـ`FlatList` — "الكل" على آلاف العمليات مبيركّبش كل الصفوف مرة واحدة
@@ -15,7 +16,7 @@ jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/Dat
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => mockParams }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayStr();
 function seed(n: number) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {

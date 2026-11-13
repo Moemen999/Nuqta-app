@@ -5,6 +5,7 @@ import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { TRANSFERS_NOTE } from '@/lib/spending';
+import { todayStr } from '@/lib/finance';
 
 /**
  * خطوة 8 على الشاشات: السلفة والجمعية برّه المصروف والدخل.
@@ -19,7 +20,7 @@ jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/Dat
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({}) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayStr();
 const tx = (id: string, type: string, amount: number) => ({ id, type, amount, date: today, walletId: 'w' });
 
 beforeEach(() => {

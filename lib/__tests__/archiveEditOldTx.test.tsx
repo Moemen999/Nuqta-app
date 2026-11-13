@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { todayStr } from '@/lib/finance';
 
 /**
  * بند 14: العملية اللي نزلت تحت أحدث 10 كانت مالهاش تعديل ولا مسح — الرئيسية
@@ -19,7 +20,7 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 
 const src = (p: string) => readFileSync(`${__dirname}/../../${p}`, 'utf8');
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayStr();
 // 12 عملية: "old_0" هي الأقدم، يعني تحت أحدث 10 في الرئيسية
 const txs = Array.from({ length: 12 }, (_, i) => ({
   id: `old_${i}`, type: 'expense', amount: 10 + i, date: today, walletId: 'w',
