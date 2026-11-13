@@ -8,7 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
-import { barFillStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
+import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -290,15 +290,18 @@ export default function ReportsScreen() {
                   <View style={[
                     styles.trendFill,
                     { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%` },
-                    barFillStyle(b, stacked, columnColor),
+                    barFrameStyle(b, columnColor),
                     // العمود الناقص ملو بارتفاعه الحقيقي بس أخف وبإطار (مش إطار فاضي بيتقري صفر) — لازم يبان حتى لو صغير
                     b.partial && b.amount > 0 && { minHeight: 6 },
                     // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
                     stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },
                   ]}>
-                    {stacked && b.segments.map(s => (
-                      <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
-                    ))}
+                    {/* الملو جوه الإطار: الشفافية عليه هو بس، فالإطار بيفضل بلون العمود كامل */}
+                    <View style={[styles.trendInner, barFillStyle(b, stacked, columnColor)]}>
+                      {stacked && b.segments.map(s => (
+                        <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
+                      ))}
+                    </View>
                   </View>
                 </View>
                 <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
@@ -324,7 +327,7 @@ export default function ReportsScreen() {
               ))}
             </View>
           )}
-          {timelineHasPartial && <Text style={styles.hintText}>العمود اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
+          {timelineHasPartial && <Text style={styles.hintText}>العمود الأفتح اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
         </>
       )}
 
@@ -400,9 +403,10 @@ function makeStyles(c: ThemeColors) {
     // العمود بيطلع من تحت
     trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
     // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
-    // العمود الناقص إطار من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل".
+    // العمود الناقص: إطار بلون العمود كامل + ملو أخف جواه (الشفافية على الملو بس، مش على الإطار)، عشان قصره ميتقريش "صرفت أقل" ولا صفر.
     // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
-    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden', flexDirection: 'column-reverse', gap: 2 },
+    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden' },
+    trendInner: { flex: 1, flexDirection: 'column-reverse', gap: 2 },
     trendSegment: { minHeight: 2 },
     // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
     trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },

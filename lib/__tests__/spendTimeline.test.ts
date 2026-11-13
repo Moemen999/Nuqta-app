@@ -1,5 +1,6 @@
 import { GROUPED_SLICE_ID, periodExpenseTotal } from '@/lib/finance';
-import { barFillStyle, MAX_COLUMNS, PARTIAL_BAR_OPACITY, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
+import { DARK, LIGHT } from '@/context/ThemeContext';
+import { barFillStyle, barFrameStyle, MAX_COLUMNS, PARTIAL_BAR_OPACITY, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
 
 const e = (date: string, amount: number, categoryId?: string) => ({ date, amount, categoryId });
 const run = (from: string, to: string, today = '2026-11-08', rows: ReturnType<typeof e>[] = []) =>
@@ -46,22 +47,51 @@ describe('الوحدة بتتغير مع طول الفترة', () => {
 });
 
 describe('شكل العمود الناقص', () => {
-  it('الناقص متملي بلون العمود الحقيقي وأخف وبإطار — مش شفاف فاضي بيتقري صفر', () => {
-    const f = barFillStyle({ partial: true }, false, '#123456');
-    expect(f.backgroundColor).toBe('#123456');
-    expect(f.opacity).toBe(PARTIAL_BAR_OPACITY);
-    expect(f.opacity).toBeLessThan(1);
-    expect(f.borderWidth).toBeGreaterThan(0);
-    expect(f.borderColor).toBe('#123456');
+  // WCAG 2.x: تركيب اللون بشفافية فوق المسار، وبعدين النسبة بين الملو المركّب والمسار
+  const rgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const lum = (c: number[]) => {
+    const [r, g, b] = c.map(v => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: number[], b: number[]) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const dimmedOverTrack = (fill: string, track: string, alpha: number) => {
+    const f = rgb(fill), t = rgb(track);
+    return contrast(f.map((v, i) => v * alpha + t[i] * (1 - alpha)), t);
+  };
+
+  it.each([['الفاتح', LIGHT], ['الغامق', DARK]] as const)(
+    'ملو العمود الناقص (accentText بشفافيته) يفضل ≥3:1 على المسار surface2 في الثيم %s — ولسه أخف من الكامل',
+    (_n, theme) => {
+      expect(dimmedOverTrack(theme.accentText, theme.surface2, PARTIAL_BAR_OPACITY)).toBeGreaterThanOrEqual(3);
+      expect(PARTIAL_BAR_OPACITY).toBeLessThanOrEqual(0.85);
+      // ألوان فئات الباليتة مش متغطية هنا: بعضها ~3.4 حتى بملو كامل فمفيش شفافية تنفع لكلها
+    },
+  );
+
+  it('الإطار بلون العمود كامل ومن غير شفافية، والملو الأخف جواه بنفس اللون', () => {
+    const frame = barFrameStyle({ partial: true }, '#123456');
+    expect(frame.borderColor).toBe('#123456');
+    expect(frame.borderWidth).toBeGreaterThanOrEqual(2);
+    expect(frame).not.toHaveProperty('opacity');
+    const fill = barFillStyle({ partial: true }, false, '#123456');
+    expect(fill.backgroundColor).toBe('#123456');
+    expect(fill.opacity).toBeLessThan(1);
+    expect(fill.opacity).toBeGreaterThan(0.5);
   });
 
-  it('الكامل ملو كامل من غير إطار وشفافية', () => {
-    expect(barFillStyle({ partial: false }, false, '#123456')).toEqual({ backgroundColor: '#123456', opacity: 1, borderWidth: 0 });
+  it('الكامل من غير إطار وبملو كامل', () => {
+    expect(barFrameStyle({ partial: false }, '#123456')).toEqual({ borderWidth: 0 });
+    expect(barFillStyle({ partial: false }, false, '#123456')).toEqual({ backgroundColor: '#123456', opacity: 1 });
   });
 
-  it('مع فلتر الفئات الملو شفاف والألوان في الأجزاء، والناقص أخف برضه', () => {
-    expect(barFillStyle({ partial: true }, true, '#123456').backgroundColor).toBe('transparent');
-    expect(barFillStyle({ partial: true }, true, '#123456').opacity).toBeLessThan(1);
+  it('مع فلتر الفئات الملو شفاف (الألوان في الأجزاء) والشفافية على الملو مش على الإطار', () => {
+    const fill = barFillStyle({ partial: true }, true, '#123456');
+    expect(fill.backgroundColor).toBe('transparent');
+    expect(fill.opacity).toBe(PARTIAL_BAR_OPACITY);
+    expect(barFrameStyle({ partial: true }, '#123456')).toEqual({ borderWidth: 2, borderColor: '#123456' });
   });
 
   it('العمود الناقص ارتفاعه (share) وفلوسه حقيقيين، ومجموع الأعمدة = الرقم البطل', () => {
