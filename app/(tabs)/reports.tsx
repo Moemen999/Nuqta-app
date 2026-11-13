@@ -193,7 +193,8 @@ export default function ReportsScreen() {
   }, [debts, range]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
@@ -358,12 +359,14 @@ export default function ReportsScreen() {
         onClose={() => setPickerFor(null)}
       />
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+    scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
