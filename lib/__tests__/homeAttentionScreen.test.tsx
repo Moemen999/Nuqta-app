@@ -421,3 +421,34 @@ describe('جرد المصدر', () => {
     expect(home).toContain('<PendingSummary />');
   });
 });
+
+/** شرح الدوسة لقارئ الشاشة: وجهة واحدة = جملة واحدة، في السطر الفردي وفي صفوف الشيت */
+describe('accessibilityHint للصفوف اللي بتتداس', () => {
+  it('السطر الفردي (رصيد) ← «بيفتح المحافظ»', async () => {
+    setData({ wallets: [LOW], transactions: [exp('t1', 85)] });
+    await mount();
+    const btn = within(screen.getByTestId('home_attention_line')).getAllByLabelText('رصيد كاش قرب يخلص (15 ج.م)')[0];
+    expect(btn.props.accessibilityHint).toBe('بيفتح المحافظ');
+  });
+
+  it('صفوف الشيت: ميزانية ← التخطيط، رصيد ← المحافظ، اشتراك ← الديون، والإيميل من غير شرح', async () => {
+    fourRoutine();
+    await mount();
+    await openSheet();
+    const hintOf = (row: string) => {
+      const r = within(screen.getByTestId(`attention_row_${row}`));
+      return r.getAllByRole('button').find(b => b.props.accessibilityLabel && !/^اقفل/.test(b.props.accessibilityLabel))?.props.accessibilityHint;
+    };
+    expect(hintOf('budget_c1')).toBe('بيفتح الميزانية');
+    expect(hintOf('low_w1')).toBe('بيفتح المحافظ');
+    expect(hintOf('sub_s1')).toBe('بيفتح الديون والاشتراكات والجمعية');
+    expect(within(screen.getByTestId('attention_row_verify_email')).queryAllByRole('button').some(b => b.props.accessibilityHint === 'بيفتح الديون والاشتراكات والجمعية')).toBe(false);
+  });
+
+  it('جمعية ← نفس شرح الديون', async () => {
+    setData({ gamiyas: [GAM] });
+    await mount();
+    const btn = within(screen.getByTestId('home_attention_line')).getAllByRole('button').find(b => /جمعية/.test(b.props.accessibilityLabel ?? ''));
+    expect(btn?.props.accessibilityHint).toBe('بيفتح الديون والاشتراكات والجمعية');
+  });
+});

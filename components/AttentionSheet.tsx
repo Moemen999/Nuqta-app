@@ -1,7 +1,7 @@
 import DismissButton from '@/components/DismissButton';
 import { TransfersFailedNote } from '@/components/SpendStatus';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { ATTENTION_LINE_HINT, attentionSummaryPhrase } from '@/lib/attentionSummary';
+import { ATTENTION_LINE_HINT, ATTENTION_ROUTE_HINT, attentionSummaryPhrase } from '@/lib/attentionSummary';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { visibleAttention, type AttentionItem } from '@/lib/homeAttention';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
@@ -88,7 +88,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
             {/* الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش */}
             {single.route ? (
               <TouchableOpacity style={styles.flex} onPress={() => go(single.route!)} accessibilityRole="button"
-                accessibilityLabel={single.label}>
+                accessibilityLabel={single.label} accessibilityHint={ATTENTION_ROUTE_HINT[single.route]}>
                 <Text style={[styles.lineText, { color: toneColor(single.tone) }]}>{single.text}</Text>
               </TouchableOpacity>
             ) : (
@@ -123,7 +123,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
                   <View style={styles.rowMain}>
                     {it.route ? (
                       <TouchableOpacity style={styles.flex} onPress={() => go(it.route!)} accessibilityRole="button"
-                        accessibilityLabel={it.label}>
+                        accessibilityLabel={it.label} accessibilityHint={ATTENTION_ROUTE_HINT[it.route]}>
                         <Text style={[styles.rowText, { color: toneColor(it.tone) }]}>{it.text}</Text>
                       </TouchableOpacity>
                     ) : (

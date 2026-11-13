@@ -16,3 +16,10 @@ export function attentionSummaryPhrase(n: number): string | null {
 
 /** شرح السطر لقارئ الشاشة */
 export const ATTENTION_LINE_HINT = 'بيفتح الحاجات اللي محتاجة انتباهك';
+
+/** شرح الصف اللي بيتداس لقارئ الشاشة: بيروح فين (وجهة واحدة = جملة واحدة) */
+export const ATTENTION_ROUTE_HINT = {
+  '/settings-screens/wallets': 'بيفتح المحافظ',
+  '/(tabs)/planning': 'بيفتح الميزانية',
+  '/(tabs)/debts': 'بيفتح الديون والاشتراكات والجمعية',
+} as const;
