@@ -102,8 +102,9 @@ it('اسم الصف لقارئ الشاشة فيه المبلغ والتاريخ
   expect(label).toContain('1 سبتمبر');
   expect(label).not.toContain('2026-09-01');
   expect(label).toContain('40');
-  jest.useRealTimers();
 });
+
+afterEach(() => jest.useRealTimers());
 
 it('الديون ما وصلتش لأن الـlistener وقع ← رسالة + "جرّب تاني" (مش "استنى" للأبد)', async () => {
   seed([{ id: 'b7', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }], { linkSourcesReady: false, loadErrors: ['debts'] });
