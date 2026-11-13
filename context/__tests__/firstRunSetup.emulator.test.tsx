@@ -1,10 +1,10 @@
 import { db } from '@/firebaseConfig';
-import { SETUP_FEATURE_CUTOFF, SKIP_SETUP } from '@/lib/firstRunSetup';
+import { CATEGORY_OPTIONS, SETUP_FEATURE_CUTOFF, SKIP_SETUP } from '@/lib/firstRunSetup';
 import { walletBalance } from '@/lib/finance';
 import { clearFirestore, settle, signInTestUser, writeLegacyDoc } from '@/test-utils/emulator';
 import { setMockCreationTime, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
-import { disableNetwork, doc, enableNetwork, getDoc, runTransaction, setDoc } from 'firebase/firestore';
+import { collection, disableNetwork, doc, enableNetwork, getDoc, getDocs, runTransaction, setDoc } from 'firebase/firestore';
 
 /**
  * runTransaction ملفوفة عشان نقدر نخليها تفشل. `disableNetwork` مش بيقطع
@@ -33,6 +33,12 @@ jest.mock('@/context/AuthContext', () => ({
 
 let harness: Awaited<ReturnType<typeof renderDataProvider>>;
 let uid: string;
+
+/** المستندات المخزّنة فعلاً (مش الـstate) — اسم ← الحقول الخام */
+async function storedCategories() {
+  const snap = await getDocs(collection(db, 'users', uid, 'categories'));
+  return Object.fromEntries(snap.docs.map(d => [d.data().name as string, d.data()]));
+}
 
 beforeEach(async () => {
   await clearFirestore();
@@ -70,6 +76,27 @@ describe('حساب جديد', () => {
     expect(walletBalance(api.transactions, card.id, card.openingBalance)).toBe(-2000.46);
     expect(api.wallets.find(w => w.name === 'كاش')!.openingBalance).toBe(1500);
     expect((await getDoc(doc(db, 'users', uid))).data()?.seeded).toBe(true);
+    // المخزّن بالظبط: الفئات من القايمة بأيقونتها، والمحافظ زي ما هي
+    expect(await storedCategories()).toEqual({ 'أكل': { name: 'أكل', icon: '🍔' }, 'فواتير': { name: 'فواتير', icon: '🧾' } });
+    const storedWallets = (await getDocs(collection(db, 'users', uid, 'wallets'))).docs.map(d => d.data());
+    expect(storedWallets).toHaveLength(2);
+    expect(storedWallets).toEqual(expect.arrayContaining([
+      { name: 'كاش', openingBalance: 1500, lowAlert: 0 }, { name: 'كارت ائتمان', openingBalance: -2000.46, lowAlert: 0 },
+    ]));
+  });
+
+  it('كل فئات القايمة بأيقونتها، «أخرى» والمكتوبة من غير حقل icon خالص', async () => {
+    harness = await renderDataProvider();
+    await harness.waitForData(api => api.setupStatus === 'needed');
+    expect(await harness.api().completeSetup({ wallets: choice.wallets, categories: [...CATEGORY_OPTIONS, 'قهوة'] })).toBe('done');
+    await harness.waitForData(api => api.categories.length === 9);
+    const stored = await storedCategories();
+    expect(stored).toEqual({
+      'أكل': { name: 'أكل', icon: '🍔' }, 'مواصلات': { name: 'مواصلات', icon: '🚗' }, 'سوبرماركت': { name: 'سوبرماركت', icon: '🛒' },
+      'فواتير': { name: 'فواتير', icon: '🧾' }, 'صحة': { name: 'صحة', icon: '💊' }, 'ترفيه': { name: 'ترفيه', icon: '🎮' },
+      'لبس': { name: 'لبس', icon: '👕' }, 'أخرى': { name: 'أخرى' }, 'قهوة': { name: 'قهوة' },
+    });
+    expect('icon' in stored['أخرى']).toBe(false);
   });
 
   it('"تخطي" بيدي محفظة كاش وفئات أساسية بنفس الطريق', async () => {
@@ -79,6 +106,11 @@ describe('حساب جديد', () => {
     await harness.waitForData(api => api.wallets.length === 1);
     expect(harness.api().wallets[0].name).toBe('كاش');
     expect(harness.api().categories.map(c => c.name).sort()).toEqual([...SKIP_SETUP.categories].sort());
+    expect(await storedCategories()).toEqual({
+      'أكل': { name: 'أكل', icon: '🍔' }, 'مواصلات': { name: 'مواصلات', icon: '🚗' }, 'سوبرماركت': { name: 'سوبرماركت', icon: '🛒' },
+      'فواتير': { name: 'فواتير', icon: '🧾' }, 'أخرى': { name: 'أخرى' },
+    });
+    expect((await getDoc(doc(db, 'users', uid))).data()?.seeded).toBe(true);
   });
 
   it('مفيش حساب يطلع بصفر محافظ ساكت: اختيار من غير محفظة بيترفض وما بيكتبش حاجة', async () => {
@@ -99,6 +131,9 @@ describe('حساب جديد', () => {
     await harness.waitForData(api => api.wallets.length >= 2);
     await settle(1000);
     expect(harness.api().wallets).toHaveLength(2);
+    // واحد بس كتب: مفيش فئة مكررة ولا أيقونة ناقصة
+    expect((await getDocs(collection(db, 'users', uid, 'categories'))).size).toBe(2);
+    expect(await storedCategories()).toEqual({ 'أكل': { name: 'أكل', icon: '🍔' }, 'فواتير': { name: 'فواتير', icon: '🧾' } });
   });
 });
 

@@ -35,16 +35,39 @@ export const WALLET_OPTIONS = [
   { key: 'credit', name: 'كارت ائتمان' },
 ] as const;
 
-export const CATEGORY_OPTIONS = ['أكل', 'مواصلات', 'سوبرماركت', 'فواتير', 'صحة', 'ترفيه', 'لبس', 'أخرى'] as const;
+/**
+ * الفئات اللي بتتعرض للاختيار — **مكان واحد** (الاسم ← الأيقونة ← مختارة من الأول)،
+ * وكل القوايم اللي تحت مشتقة منه عشان ما يحصلش اختلاف بينهم. الأيقونة إيموجي
+ * بتتخزّن على الفئة نفسها (قرار مؤمن 2026-11-07) ولازم تكون من `CATEGORY_ICONS`.
+ * «أخرى» من غير أيقونة عن قصد — بتفضل الافتراضية (🏷️). الفئة اللي المستخدم يكتب
+ * اسمها بنفسه مالهاش أيقونة.
+ */
+const SETUP_CATEGORIES: readonly { name: string; icon?: string; preselected: boolean }[] = [
+  { name: 'أكل', icon: '🍔', preselected: true },
+  { name: 'مواصلات', icon: '🚗', preselected: true },
+  { name: 'سوبرماركت', icon: '🛒', preselected: true },
+  { name: 'فواتير', icon: '🧾', preselected: true },
+  { name: 'صحة', icon: '💊', preselected: false },
+  { name: 'ترفيه', icon: '🎮', preselected: false },
+  { name: 'لبس', icon: '👕', preselected: false },
+  { name: 'أخرى', preselected: true },
+];
+
+export const CATEGORY_OPTIONS: readonly string[] = SETUP_CATEGORIES.map(c => c.name);
+
+/** أيقونة فئة التجهيز بالاسم، أو undefined («أخرى»، أو فئة مكتوبة بإيد المستخدم) */
+export function setupCategoryIcon(name: string): string | undefined {
+  return SETUP_CATEGORIES.find(c => c.name === name.trim())?.icon;
+}
 
 /** اللي مختار من الأول — أكتر حاجة الناس بتبدأ بيها */
 export const PRESELECTED_WALLETS = ['cash'] as const;
-export const PRESELECTED_CATEGORIES = ['أكل', 'مواصلات', 'سوبرماركت', 'فواتير', 'أخرى'] as const;
+export const PRESELECTED_CATEGORIES: readonly string[] = SETUP_CATEGORIES.filter(c => c.preselected).map(c => c.name);
 
 /** "تخطي": أقل حاجة معقولة تخلّي التطبيق يشتغل على طول */
 export const SKIP_SETUP: SetupChoice = {
   wallets: [{ name: 'كاش', openingBalance: 0 }],
-  categories: ['أكل', 'مواصلات', 'سوبرماركت', 'فواتير', 'أخرى'],
+  categories: [...PRESELECTED_CATEGORIES],
 };
 
 export const SETUP_NAME_MAX = 40;

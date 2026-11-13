@@ -63,15 +63,19 @@ describe('كتابة الأيقونة', () => {
 });
 
 describe('التوافق مع الفئات القديمة', () => {
-  it('الفئات الافتراضية بتيجي من غير أيقونة', async () => {
-    harness.api().categories.forEach(c => {
+  it('الفئات اللي مالهاش أيقونة (القديمة، والمكتوبة، و«أخرى») بتيجي من غير حقل icon وبتعرض الافتراضية', async () => {
+    // حساب الاختبار اتجهّز بـ`completeSetup`: «أكل» من فئات التجهيز فليها 🍔 (firstRunSetup.emulator.test)؛ الباقي مالوش
+    const plain = harness.api().categories.filter(c => c.name !== 'أكل');
+    expect(plain.length).toBeGreaterThan(0);
+    plain.forEach(c => {
       expect(c.icon).toBeUndefined();
       expect(categoryIcon(c)).toBe(DEFAULT_CATEGORY_ICON);
     });
+    expect(harness.api().categories.find(c => c.name === 'أكل')!.icon).toBe('🍔');
   });
 
   it('**وتعديل فئة قديمة لسه بيعدّي** — القاعدة اختيارية مش مطلوبة', async () => {
-    const cat = harness.api().categories[0];
+    const cat = harness.api().categories.find(c => c.name !== 'أكل')!; // «أكل» بقى بأيقونة من التجهيز
     expect(cat.icon).toBeUndefined();
 
     await harness.api().updateCategory(cat.id, { name: 'اسم جديد' });

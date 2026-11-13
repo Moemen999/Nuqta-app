@@ -1,10 +1,10 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { parseWalletAmountInput } from '@/lib/finance';
+import { categoryLabel, parseWalletAmountInput } from '@/lib/finance';
 import {
   CATEGORY_OPTIONS, PRESELECTED_CATEGORIES, PRESELECTED_WALLETS, SETUP_FAIL_MESSAGE, SETUP_NAME_MAX, SETUP_OTHER_MESSAGE, SKIP_SETUP,
-  normalizeAmountInput,
+  normalizeAmountInput, setupCategoryIcon,
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
@@ -254,7 +254,7 @@ export default function FirstRunSetup() {
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-                    <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{c}</Text>
+                    <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c, icon: setupCategoryIcon(c) })}</Text>
                   </TouchableOpacity>
                 );
               })}
