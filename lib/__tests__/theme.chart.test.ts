@@ -13,6 +13,24 @@ import { validate, type PaletteCheck } from '@/test-utils/validatePalette';
 
 type Mode = 'light' | 'dark';
 
+/** CIE76 ΔE في Lab (D65) — أصغر مسافة بين أي لونين في الباليتة */
+function lab(hex: string): number[] {
+  const lin = [1, 3, 5].map(i => { const c = parseInt(hex.slice(i, i + 2), 16) / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+  const x = (0.4124 * lin[0] + 0.3576 * lin[1] + 0.1805 * lin[2]) / 0.95047;
+  const y = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2];
+  const z = (0.0193 * lin[0] + 0.1192 * lin[1] + 0.9505 * lin[2]) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+function minPairDeltaE(p: string[]): number {
+  let min = Infinity;
+  for (let i = 0; i < p.length; i++) for (let j = i + 1; j < p.length; j++) {
+    const a = lab(p[i]), b = lab(p[j]);
+    min = Math.min(min, Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]));
+  }
+  return min;
+}
+
 /** كل خلفية بتتعرض عليها ألوان الرسوم فعلاً — شرايح التقارير والنقط */
 const SURFACES: Record<Mode, { colors: ThemeColors; surfaces: string[] }> = {
   light: { colors: LIGHT, surfaces: [LIGHT.bg, LIGHT.surface, LIGHT.surface2] },
@@ -52,8 +70,12 @@ describe.each(['light', 'dark'] as Mode[])('باليتة الرسوم — الو
     expect(notPassing(report(mode, surface))).toEqual([]);
   });
 
-  it('فيها 8 ألوان', () => {
-    expect(colors.chartPalette).toHaveLength(8);
+  it('فيها 12 لون', () => {
+    expect(colors.chartPalette).toHaveLength(12);
+  });
+
+  it('أي لونين (مش الجيران بس) بينهم CIE76 ΔE ≥ 15 — الباليتة الأكبر مخلّتش لونين يشبهوا بعض', () => {
+    expect(minPairDeltaE(colors.chartPalette)).toBeGreaterThanOrEqual(15);
   });
 
   it('مفيش لون مكرر', () => {

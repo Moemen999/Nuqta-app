@@ -1,4 +1,4 @@
-import { LIGHT } from '@/context/ThemeContext';
+import { DARK, LIGHT } from '@/context/ThemeContext';
 import { assignChartColors } from '@/lib/finance';
 
 const palette = LIGHT.chartPalette;
@@ -46,8 +46,20 @@ describe('assignChartColors', () => {
     list.forEach(it => expect(afterAdd.get(it.id)).toBe(before.get(it.id)));
   });
 
-  it('أكتر من حجم الباليتة (8): التكرار حتمي بس مفيش عنصر من غير لون', () => {
-    const list = items(12);
+  it.each([['الفاتح', LIGHT], ['الغامق', DARK]] as const)(
+    'الباليتة الحقيقية (%s، 12 لون): لغاية 12 عنصر كل واحد بلون مختلف حتى لو كلهم بنفس الاسم',
+    (_n, theme) => {
+      expect(theme.chartPalette).toHaveLength(12);
+      for (let n = 1; n <= 12; n++) {
+        const list = items(n, () => 'نفس الاسم بالظبط');
+        const map = assignChartColors(list, theme.chartPalette);
+        expect(new Set(list.map(it => map.get(it.id))).size).toBe(n);
+      }
+    },
+  );
+
+  it('أكتر من حجم الباليتة (12): التكرار حتمي بس مفيش عنصر من غير لون', () => {
+    const list = items(14);
     const map = assignChartColors(list, palette);
     list.forEach(it => expect(map.get(it.id)).toBeDefined());
   });
