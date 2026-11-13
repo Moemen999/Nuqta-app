@@ -70,6 +70,9 @@ export type ThemeColors = {
    * فبيتقروا رمادي، والتفريق عند عمى الألوان 4.2 (الحد 8)، وحتى بعين
    * سليمة تمامًا أقرب لونين كان بينهم 10.3 (الحد 15) — يعني حد شايف كويس
    * مكانش يعرف يفرّق بينهم.
+   *
+   * 12 لون (كانت 8، 2026-11-13): الأربعة الزيادة متقاسين بنفس الفاحص والخلفيات، وطولها بيغيّر `hash % size` في
+   * `assignChartColors` — يعني لون كل فئة/محفظة اتغيّر مرة واحدة مع الإصدار ده (مقبول).
    */
   chartPalette: string[];
 };
@@ -89,7 +92,9 @@ export const DARK: ThemeColors = {
   selectedBg: '#3B321D', selectedBorder: '#C9A961',
   selectedSuccessBg: '#16332A', selectedSuccessBorder: '#4E9E7A',
   selectedDangerBg: '#3A1E1A', selectedDangerBorder: '#CC6055',
-  chartPalette: ['#3987E5', '#D95926', '#199E70', '#C98500', '#D55181', '#008300', '#9085E9', '#E66767'],
+  chartPalette: ['#3987E5', '#D95926', '#199E70', '#C98500', '#D55181', '#008300', '#9085E9', '#E66767',
+    // 9–12 (2026-11-13): فيروزي، زيتوني، ماجنتا، بني — الباليتة كبرت من 8 لـ12 عشان مستخدم بـ10 فئات كان لازم يشوف لونين متكررين
+    '#139CB6', '#8A943F', '#B545AE', '#BF7946'],
 };
 
 export const LIGHT: ThemeColors = {
@@ -106,7 +111,8 @@ export const LIGHT: ThemeColors = {
   selectedBg: '#D9C07A', selectedBorder: '#7D6320',
   selectedSuccessBg: '#B2D9C5', selectedSuccessBorder: '#2F654B',
   selectedDangerBg: '#F2C9C3', selectedDangerBorder: '#A8453B',
-  chartPalette: ['#2A78D6', '#C4501F', '#0F8F62', '#A87200', '#CC5A83', '#008300', '#4A3AA7', '#C2332F'],
+  chartPalette: ['#2A78D6', '#C4501F', '#0F8F62', '#A87200', '#CC5A83', '#008300', '#4A3AA7', '#C2332F',
+    '#0A8AAE', '#536304', '#C655BF', '#853E19'],
 };
 
 /** اختيار المستخدم: ثيم ثابت، أو "زي الموبايل" (دراسة الشكل خطوة 6، قرار مؤمن 2026-11-06) */

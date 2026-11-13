@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react-native
 import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { todayStr } from '@/lib/finance';
 
 /**
  * بند C (مراجعة المشروع 2026-11-05): الأرشيف بـ`FlatList` — "الكل" على آلاف العمليات مبيركّبش كل الصفوف مرة واحدة
@@ -15,7 +16,7 @@ jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/Dat
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => mockParams }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayStr();
 function seed(n: number) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
@@ -55,7 +56,14 @@ it('الصف memo: علامة "لسه بترفع" بتظهر وتختفي مع p
   expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
 });
 
+/** يثبّت «النهاردة» (Date بس) عشان نص التاريخ ميتغيّرش بتغيّر يوم الجهاز — باقي التايمرز حقيقية */
+const pinToday = (y: number, m: number, d: number) => jest.useFakeTimers({
+  now: new Date(y, m, d, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback', 'hrtime', 'performance'],
+});
+
 describe('وقت العملية في صف الأرشيف', () => {
+  beforeEach(() => pinToday(2026, 10, 13)); // النهاردة 13 نوفمبر
+  afterEach(() => jest.useRealTimers());
   const made = new Date(2026, 10, 12, 11, 34).toISOString();
   const tx = (id: string, date: string) => ({ id, type: 'expense', amount: 5, date, walletId: 'w', createdAt: made });
 
@@ -64,8 +72,22 @@ describe('وقت العملية في صف الأرشيف', () => {
     mockData.transactions = [tx('back', '2026-11-10'), tx('same', '2026-11-12')];
     await render(ui());
     fireEvent.press(screen.getByTestId('archive_preset_all'));
-    expect(within(screen.getByTestId('archive_tx_back')).getByText('2026-11-10')).toBeTruthy();
-    expect(within(screen.getByTestId('archive_tx_same')).getByText('2026-11-12 · 11:34 ص')).toBeTruthy();
+    expect(within(screen.getByTestId('archive_tx_back')).getByText('10 نوفمبر')).toBeTruthy();
+    expect(within(screen.getByTestId('archive_tx_same')).getByText('امبارح · 11:34 ص')).toBeTruthy();
+  });
+});
+
+describe('تغيّر اليوم والشاشة مفتوحة', () => {
+  afterEach(() => jest.useRealTimers());
+  it('صف بتاريخ النهاردة بيبقى «امبارح» لما الشاشة تتعمل render في اليوم اللي بعده', async () => {
+    pinToday(2026, 10, 13);
+    seed(0);
+    mockData.transactions = [{ id: 'x', type: 'expense', amount: 5, date: '2026-11-13', walletId: 'w' }];
+    const view = await render(ui());
+    expect(within(screen.getByTestId('archive_tx_x')).getByText('النهاردة')).toBeTruthy();
+    jest.setSystemTime(new Date(2026, 10, 14, 0, 5));
+    await view.rerender(ui());
+    expect(within(screen.getByTestId('archive_tx_x')).getByText('امبارح')).toBeTruthy();
   });
 });
 

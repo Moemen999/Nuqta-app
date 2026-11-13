@@ -55,8 +55,8 @@ function setData(over: Record<string, unknown>) {
 async function mount() {
   jest.useFakeTimers();
   // "لسه ما سجلتش" بيظهر بعد ساعة التذكير بس (الافتراضي 8 م) — نفس اليوم، الساعة 9 م
-  const now = new Date();
-  jest.setSystemTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 21, 0, 0));
+  // يوم ثابت (13 نوفمبر 2026) عشان نص التاريخ («امبارح» / «31 أكتوبر») ميتغيّرش بتغيّر يوم الجهاز
+  jest.setSystemTime(new Date(2026, 10, 13, 21, 0, 0));
   await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   // "مفيش نت" بيستنى 2.5 ثانية عشان ميلمعش وإحنا بنحمّل
   await act(async () => { jest.advanceTimersByTime(3000); });
@@ -91,7 +91,7 @@ it('coldSnapshot موجود ← البانر، الإجمالي من الكاش�
   expect(screen.getByTestId('home_cold_tx_c1').props.onPress).toBeUndefined();
   // قارئ الشاشة: الإجمالي بيقول "قديم"، والصف عقدة واحدة أولها "قديم" (a11y-architect)
   expect(screen.getByText('إجمالي رصيدك (قديم)')).toBeTruthy();
-  expect(screen.getByTestId('home_cold_tx_c2').props.accessibilityLabel).toMatch(/^قديم: دين، كاش، 300 جنيه، 2026-10-31$/);
+  expect(screen.getByTestId('home_cold_tx_c2').props.accessibilityLabel).toMatch(/^قديم: دين، كاش، 300 جنيه، 31 أكتوبر$/);
 });
 
 it('صف الكاش: نفس يوم createdAt ← التاريخ والوقت، وتاريخ قبله بيومين ← التاريخ لوحده', async () => {
@@ -105,8 +105,8 @@ it('صف الكاش: نفس يوم createdAt ← التاريخ والوقت، �
   };
   setData({ wallets: [], transactions: [], serverReachable: false, figuresFromServer: false, coldSnapshot: withTimes });
   await mount();
-  expect(within(screen.getByTestId('home_cold_tx_d1')).getByText('2026-11-01 · 11:34 ص')).toBeTruthy();
-  const alone = within(screen.getByTestId('home_cold_tx_d2')).getByText('2026-10-30');
+  expect(within(screen.getByTestId('home_cold_tx_d1')).getByText('1 نوفمبر · 11:34 ص')).toBeTruthy();
+  const alone = within(screen.getByTestId('home_cold_tx_d2')).getByText('30 أكتوبر');
   expect(alone).toBeTruthy();
   expect(alone.props.children).not.toContain(' · ');
 });

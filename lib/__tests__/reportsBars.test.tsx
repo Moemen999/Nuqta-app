@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import ReportsTab from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { todayStr } from '@/lib/finance';
 
 /**
  * رسم التقارير بأعمدة أفقية (فرع `feat/report-bars`، مستني مؤمن): عمود لكل شريحة بنفس اسمها ونسبتها، والقارئ بيسمع
@@ -10,10 +11,11 @@ import { ThemeProvider } from '@/context/ThemeContext';
  */
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useFocusEffect: (cb: () => void) => require('react').useEffect(cb, [cb]) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const today = new Date().toISOString().slice(0, 10);
+// اليوم المحلي زي الشاشة (todayStr) — toISOString بيدّي يوم UTC، ومن 12 بالليل لـ5 الفجر UTC بتوقيت نيويورك بيبقى بكرة
+const today = todayStr();
 beforeEach(() => {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {

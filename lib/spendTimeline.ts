@@ -220,3 +220,41 @@ export const TIMELINE_TITLE: Record<TimelineUnit, string> = {
 export function sixMonthsStart(today: string): string {
   return monthStart(monthIndex(startOfMonth(today)) - 5);
 }
+
+/**
+ * شفافية ملو العمود الناقص (مش الإطار): نفس ارتفاعه ولونه الحقيقي بس أخف، فيتقري "لسه ما خلصش" مش "صفر".
+ * 0.8 مش أقل: لون العمود accentText فوق مسار surface2 لازم يفضل ≥3:1 (حد الرسوم) في الثيمين — الفاتح 3.24 والغامق 4.92
+ * (متحسبة في lib/__tests__/spendTimeline.test.ts من ألوان الثيم الحقيقية؛ 0.75 بيطلّع 2.97 في الفاتح).
+ * ألوان فئات الباليتة في الأجزاء المتراصّة مش مغطّاة بالحد ده — بعضها ~3.4 حتى بملو كامل.
+ */
+export const PARTIAL_BAR_OPACITY = 0.8;
+
+/** سُمك إطار العمود الناقص */
+export const PARTIAL_BAR_BORDER = 2;
+
+/**
+ * إطار العمود: بلون العمود كامل من غير شفافية (الشفافية على الملو اللي جواه بس، وإلا الإطار يخفت ومبقاش يبان).
+ * الكامل من غير إطار.
+ */
+export function barFrameStyle(
+  b: { partial: boolean },
+  columnColor: string,
+): { borderWidth: number; borderColor?: string } {
+  return b.partial ? { borderWidth: PARTIAL_BAR_BORDER, borderColor: columnColor } : { borderWidth: 0 };
+}
+
+/**
+ * ملو العمود (View جوه الإطار). الناقص بيتملي لارتفاعه الحقيقي (كان إطار فاضي فبيتقري صفر وتحته مبلغ) بس أخف.
+ * الارتفاع مبيتغيّرش — الأرقام وارتفاع `share` من `spendTimeline` زي ما هي.
+ * `stacked`: الملو شفاف والألوان في الأجزاء اللي جواه، فالشفافية بتخفّفها كلها مع بعض.
+ */
+export function barFillStyle(
+  b: { partial: boolean },
+  stacked: boolean,
+  columnColor: string,
+): { backgroundColor: string; opacity: number } {
+  return {
+    backgroundColor: stacked ? 'transparent' : columnColor,
+    opacity: b.partial ? PARTIAL_BAR_OPACITY : 1,
+  };
+}

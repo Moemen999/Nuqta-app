@@ -5,7 +5,8 @@ import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/
 import { useData, type Debt } from '@/context/DataContext';
 import { debtHasPendingEntry, isDebtSettled } from '@/lib/doneSections';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
+import { dateText, dayText } from '@/lib/dateText';
+import { todayStr, debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -21,11 +22,22 @@ type Row = {
   debtLabel: string;
 };
 
+/** يوم الجهاز المحلي لـ timestamp (ISO) — `slice(0, 10)` كان بيدّي يوم UTC، وده بيفرق عن اليوم اللي المستخدم عايشه قرب منتصف الليل. عرض بس */
+function localDayOf(iso?: string): string {
+  if (!iso) return '';
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return '';
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`;
+}
+
 /** وصف قصير يفرّق الدين عن باقي ديون نفس الشخص */
 function debtLabelOf(d: Debt) {
   const side = d.direction === 'owed_to_me' ? 'ليا' : 'عليا';
-  const when = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
-  return d.note?.trim() ? `${side} · ${d.note.trim()}` : `${side} · ${when}`;
+  if (d.note?.trim()) return `${side} · ${d.note.trim()}`;
+  const when = d.date || localDayOf(d.createdAt);
+  // من غير تاريخ خالص ← من غير فاصل متدلّي («ليا · »)
+  return when ? `${side} · ${dateText(when, todayStr())}` : side;
 }
 
 export default function PersonLedgerScreen() {
@@ -145,7 +157,7 @@ export default function PersonLedgerScreen() {
                 <Text style={styles.listLabel}>{r.label}</Text>
                 {/* التاريخ لوحده: الملاحظة الطويلة كانت بتقصّه من آخر السطر */}
                 <Text style={styles.listSub} numberOfLines={1}>{r.debtLabel}</Text>
-                <Text style={styles.listSub}>{r.date}</Text>
+                <Text style={styles.listSub}>{dayText(r.date, todayStr())}</Text>
               </View>
               <View style={styles.listSide}>
                 {/* العلامة صريحة للاتنين ("−" مش من fmt): مع قناع الخصوصية السالب كان بيبان "••••" من غير علامة */}

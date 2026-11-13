@@ -8,14 +8,15 @@ import { ThemeProvider } from '@/context/ThemeContext';
 import { todayStr } from '@/lib/finance';
 
 /**
- * ترتيب بانرات الرئيسية — **قرار مؤمن 2026-10-28، رجوع عن 2026-09-29**:
- * - **كل** البانرات **قبل** "آخر العمليات" (مؤمن بطّل ياخد باله منها وهي تحت القايمة).
- * - جوّاهم: اللي بيقول إن رقم ممكن يكون غلط (مفيش نت، "ما سجلناش") الأول، وبعدين
- *   الباقي (تأكيد الإيميل، "لسه ما سجلتش"، الجمعية، الاشتراك، الرصيد، الميزانيات).
- *   و"مقدرناش نجيب بياناتك" (listener اترفض) أعلى كمان: فوق الـStack كله.
+ * ترتيب بانرات الرئيسية — **قرار مؤمن 2026-11-13، بيعدّل 2026-10-28** (اللي كان: "كل البانرات فوق، كل واحد بـ✕"):
+ * - بانر لوحده بس لـ(1) "الأرقام ممكن تكون غلط" (مفيش نت، كاش قديم، الأرقام قديمة، مسح ما خلصش، عملية/محفظة بايظة،
+ *   "ما سجلناش"، "مقدرناش نجيب بياناتك") و(2) سطر "مستنيين ردك". كلهم **قبل** "آخر العمليات".
+ * - الباقي (تأكيد الإيميل، "لسه ما سجلتش"، رصيد قرب يخلص، ميزانية فئة، اشتراك وجمعية جايين) **سطر واحد**
+ *   `home_attention_line` بعد سطر "مستنيين ردك" وقبل "آخر العمليات" — وجرد كل واحد منهم في homeAttentionScreen.test.tsx.
+ *   بانر الميزانية الإجمالية اتشال (كارت الشهر).
  * - آخر العمليات لسه 10 صفوف.
  * - ولا واحد منهم في عدّاد "مستنيين ردك".
- * - كل بانر ليه ✕ (جرد من الكود نفسه تحت).
+ * - كل بانر ليه ✕ ما عدا اللي قرار مؤمن إنه من غير (جرد من الكود نفسه تحت).
  */
 
 jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
@@ -116,8 +117,11 @@ describe('بانرات "الرقم ممكن يكون غلط" فوق آخر ال�
   });
 });
 
-describe('الباقي كمان فوق آخر العمليات (رجوع عن 2026-09-29)', () => {
-  it('تأكيد الإيميل، "لسه ما سجلتش"، والجمعية الجاية ← قبل "آخر العمليات" وقبل أول عملية', async () => {
+describe('الباقي: سطر واحد فوق آخر العمليات (2026-11-13، بدل بانر لكل واحد)', () => {
+  const OLD_ROUTINE_IDS = ['home_banner_verify_email', 'home_banner_no_tx_today', 'home_banner_gamiya_m2',
+    'home_banner_low_w1', 'home_banner_budget_c1', 'home_banner_sub_s1', 'home_banner_budget_total'];
+
+  it('تأكيد الإيميل، "لسه ما سجلتش"، والجمعية الجاية ← سطر واحد قبل "آخر العمليات" وقبل أول عملية، ومفيش بانراتهم القديمة', async () => {
     mockVerified = false;
     const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
     setData({
@@ -129,9 +133,9 @@ describe('الباقي كمان فوق آخر العمليات (رجوع عن 20
     await mount();
     const title = pos('home_recent_title');
     expect(pos('home_tx_t1')).toBeGreaterThan(title);
-    for (const id of ['home_banner_verify_email', 'home_banner_no_tx_today', 'home_banner_gamiya_m2']) {
-      expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
-    }
+    expect(pos('home_attention_line')).toBeLessThan(title);
+    expect(screen.getByText('عندك 3 حاجات محتاجة انتباهك')).toBeTruthy();
+    for (const id of OLD_ROUTINE_IDS) expect({ id, shown: order().includes(id) }).toEqual({ id, shown: false });
   });
 
   it('بند B: عملية بايظة ومحفظة رصيد بدايتها مش مقروء ← بانرين قبل "آخر العمليات"، بالعدد', async () => {
@@ -148,7 +152,7 @@ describe('الباقي كمان فوق آخر العمليات (رجوع عن 20
     expect(screen.getByText('رصيد البداية بتاع محفظة "كاش" مش مقروء، فاتحسب بصفر. اكتبه تاني من المحافظ.')).toBeTruthy();
   });
 
-  it('رصيد قرب يخلص + ميزانية + اشتراك جاي ← كلهم قبل "آخر العمليات"', async () => {
+  it('رصيد قرب يخلص + ميزانية + اشتراك جاي ← سطر واحد قبل "آخر العمليات"، ومفيش بانراتهم القديمة', async () => {
     const soon = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10);
     setData({
       wallets: [{ id: 'w1', name: 'كاش', openingBalance: 100, lowAlert: 500 }],
@@ -158,10 +162,9 @@ describe('الباقي كمان فوق آخر العمليات (رجوع عن 20
       subscriptions: [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true, nextDueDate: soon, reminderDaysBefore: 3 }],
     });
     await mount();
-    const title = pos('home_recent_title');
-    for (const id of ['home_banner_low_w1', 'home_banner_budget_c1', 'home_banner_sub_s1']) {
-      expect({ id, before: pos(id) < title }).toEqual({ id, before: true });
-    }
+    expect(pos('home_attention_line')).toBeLessThan(pos('home_recent_title'));
+    expect(screen.getByText('عندك 3 حاجات محتاجة انتباهك')).toBeTruthy();
+    for (const id of OLD_ROUTINE_IDS) expect({ id, shown: order().includes(id) }).toEqual({ id, shown: false });
   });
 });
 
@@ -175,14 +178,17 @@ describe('جرد بانرات الرئيسية في الكود', () => {
   const titleAt = src.indexOf('testID="home_recent_title"');
   const banners = [...src.matchAll(/testID=\{?[`"]home_banner_(?!dismiss_)([a-z_]+)/gi)].map(m => ({ id: m[1].replace(/_$/, ''), at: m.index! }));
 
-  it('فيه بانرات أصلاً (الجرد مش فاضي)', () => {
+  // قبل 2026-11-13 كان هنا كمان: budget, budget_total, gamiya, low, no_tx_today, sub, verify_email — بقوا في `AttentionSheet`
+  // (جرد كل واحد فيهم في homeAttentionScreen.test.tsx)، فمينفعش يرجعوا بانرات في index.tsx
+  it('فيه بانرات أصلاً (الجرد مش فاضي) — class A بس', () => {
     expect(banners.map(b => b.id).sort()).toEqual(
-      ['broken_tx', 'broken_wallet', 'budget', 'budget_total', 'cold', 'delete_pending', 'gamiya', 'low', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+      ['broken_tx', 'broken_wallet', 'cold', 'delete_pending', 'offline', 'stale'].sort());
   });
   it('كلهم مكتوبين قبل "آخر العمليات"', () => {
-    // بانر الإيميل كومبوننت لوحده تحت في الملف — المهم مكان استخدامه في الشاشة
-    const at = (b: { id: string; at: number }) => (b.id === 'verify_email' ? src.indexOf('<EmailVerificationBanner />') : b.at);
-    for (const b of banners) expect({ id: b.id, before: at(b) > -1 && at(b) < titleAt }).toEqual({ id: b.id, before: true });
+    for (const b of banners) expect({ id: b.id, before: b.at > -1 && b.at < titleAt }).toEqual({ id: b.id, before: true });
+    expect(src.indexOf('<AttentionSheet')).toBeGreaterThan(-1);
+    expect(src.indexOf('<AttentionSheet')).toBeLessThan(titleAt);
+    expect(src.indexOf('<PendingSummary />')).toBeLessThan(src.indexOf('<AttentionSheet'));
   });
   // **استثناء واحد: `cold`** (كاش أول فتحة): أرقام قديمة على الشاشة، و✕ كان هيسيبها من غير علامة "قديم" (قرار مؤمن
   // على الكاش). **قرار مؤمن 2026-11-03: من غير ✕** — استثناء مقصود من "كل بانر ليه ✕" (2026-10-28)
@@ -191,8 +197,11 @@ describe('جرد بانرات الرئيسية في الكود', () => {
   // ناقص، فمن غير ✕ زي `cold`
   it('كل بانر ليه ✕', () => {
     const dismissIds = new Set([...src.matchAll(/home_banner_dismiss_([a-z_]+)/g)].map(m => m[1].replace(/_$/, '')));
-    expect([...dismissIds].sort()).toEqual(
-      ['budget', 'budget_total', 'gamiya', 'low_balance', 'no_tx_today', 'offline', 'stale', 'sub', 'verify_email'].sort());
+    expect([...dismissIds].sort()).toEqual(['offline', 'stale']);
+    // وكل عنصر اتنقل لـ`AttentionSheet` ليه ✕ هناك: صف الشيت والسطر الواحد بيعدّوا على نفس `dismissBtn` (testID `attention_dismiss_<id>`)
+    const sheet = fs.readFileSync(path.join(__dirname, '..', '..', 'components', 'AttentionSheet.tsx'), 'utf8');
+    expect((sheet.match(/attention_dismiss_\${/g) ?? []).length).toBe(2);
+    expect((sheet.match(/dismissBtn\(/g) ?? []).length).toBeGreaterThanOrEqual(2); // السطر + الصف
   });
   it('آخر العمليات لسه 10', () => {
     expect(src).toMatch(/\.slice\(0, 10\);/);

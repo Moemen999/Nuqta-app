@@ -5,6 +5,7 @@ import ArchiveScreen from '@/app/archive';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { TRANSFERS_NOTE } from '@/lib/spending';
+import { todayStr } from '@/lib/finance';
 
 /**
  * خطوة 8 على الشاشات: السلفة والجمعية برّه المصروف والدخل.
@@ -19,7 +20,7 @@ jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/Dat
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({}) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 
-const today = new Date().toISOString().slice(0, 10);
+const today = todayStr();
 const tx = (id: string, type: string, amount: number) => ({ id, type, amount, date: today, walletId: 'w' });
 
 beforeEach(() => {
@@ -50,7 +51,19 @@ it('الأرشيف: مفيش سلفة ولا جمعية ← مفيش سطر', as
 describe('الشاشات بتستخدم الدوال المختبَرة', () => {
   const src = (f: string) => readFileSync(f, 'utf8');
 
-  it.each(['app/(tabs)/index.tsx', 'components/BudgetView.tsx'])('%s: إجمالي الشهر ومصروف الفئة من غير التحويلات', (f) => {
+  // الرئيسية: إجمالي الشهر من `monthSummary` (← `spendInRange` نفس دالة الرقم البطل في التقارير) مش `monthSpendTotal`
+  it('app/(tabs)/index.tsx: إجمالي الشهر من monthSummary ومصروف الفئة من غير التحويلات', () => {
+    const s = src('app/(tabs)/index.tsx');
+    expect(s).toContain('const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas])');
+    expect(s).toContain('monthSummary({ transactions, transfers, today, totalBudget: totalBudgetLimit })');
+    expect(s).not.toContain('monthSpendTotal(');
+    // مصروف الفئة لتنبيه الميزانية اتنقل مع باقي شروط التنبيهات لـ`lib/homeAttention.ts` (2026-11-13) — نفس الدالة ونفس التحويلات
+    expect(s).toContain('transfers, spendKnown');
+    expect(src('lib/homeAttention.ts')).toContain('monthSpend(i.transactions, c.id, i.nowMonth, i.transfers)');
+    expect(src('lib/monthSummary.ts')).toContain('spendInRange(transactions, transfers, range)');
+  });
+
+  it.each(['components/BudgetView.tsx'])('%s: إجمالي الشهر ومصروف الفئة من غير التحويلات', (f) => {
     const s = src(f);
     expect(s).toMatch(/const transfers = useMemo\(\(\) => transferTransactionIds\(debts, gamiyas\), \[debts, gamiyas\]\)/);
     expect(s).toContain('monthSpendTotal(transactions, nowMonth, transfers)');
@@ -59,8 +72,9 @@ describe('الشاشات بتستخدم الدوال المختبَرة', () => 
     expect(s).not.toMatch(/filter\(t => t\.type === 'expense' && t\.date\.slice\(0, 7\) === nowMonth\)\.reduce/);
   });
 
-  it('التقارير: الفترة والفترة اللي قبلها من spendingExpenses', () => {
+  it('التقارير: الفترة والفترة اللي قبلها من spendingExpenses، والرقم البطل من spendInRange', () => {
     const s = src('app/(tabs)/reports.tsx');
+    expect(s).toContain('spendInRange(transactions, transfers, range, visibleIds)');
     expect((s.match(/spendingExpenses\(/g) || []).length).toBe(2);
     expect(s).not.toMatch(/filter\(t => t\.type === 'expense'/);
   });

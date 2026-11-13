@@ -9,6 +9,7 @@ import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
 import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
@@ -179,10 +180,10 @@ export default function ArchiveScreen() {
       {preset === 'custom' && (
         <View style={styles.dateRow}>
           <TouchableOpacity accessibilityRole="button" testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
-            <Text style={styles.dateBtnText}>من: {customFrom}</Text>
+            <Text style={styles.dateBtnText}>من: {dateText(customFrom, todayStr())}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {dateText(customTo, todayStr())}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -238,6 +239,8 @@ export default function ArchiveScreen() {
   );
   // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،
   // زرار التصدير) كان بيعيد رسم كل الصفوف المتركّبة. `extraData` عشان علامة "بترفع" والتحويلات يتحدّثوا
+  // `today` من الشاشة (مش جوّه الصف المتمَمّو): لو اليوم اتغيّر والشاشة اتعمللها render، «النهاردة/امبارح» بتتحدّث
+  const today = todayStr();
   const renderTx = useCallback(({ item: t }: { item: (typeof filtered)[number] }) => (
     <TxRow
       t={t}
@@ -245,12 +248,13 @@ export default function ArchiveScreen() {
       walletLabel={transactionWalletLabel(t, wallets)}
       pending={pendingTxIds.has(t.id)}
       transfer={transfers.has(t.id)}
+      today={today}
       styles={styles}
       colors={colors}
     />
-  ), [categories, wallets, pendingTxIds, transfers, styles, colors]);
+  ), [categories, wallets, pendingTxIds, transfers, today, styles, colors]);
   // الصفوف memo: أي تغيير في "بترفع" أو التحويلات (الديون وصلت) لازم يوصلها
-  const rowsExtra = useMemo(() => ({ pendingTxIds, transfers }), [pendingTxIds, transfers]);
+  const rowsExtra = useMemo(() => ({ pendingTxIds, transfers, today }), [pendingTxIds, transfers, today]);
 
   return (
     <View style={styles.container}>
@@ -288,8 +292,8 @@ type Styles = ReturnType<typeof makeStyles>;
 type Tx = ReturnType<typeof useData>['transactions'][number];
 
 /** صف عملية في الأرشيف — نفس الشكل والمودال اللي قبل `FlatList` بالظبط */
-const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer, styles, colors }: {
-  t: Tx; catLabel: string; walletLabel: string; pending: boolean; transfer: boolean; styles: Styles; colors: ThemeColors;
+const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer, today, styles, colors }: {
+  t: Tx; catLabel: string; walletLabel: string; pending: boolean; transfer: boolean; today: string; styles: Styles; colors: ThemeColors;
 }) {
   const T = TYPE_LABELS[t.type];
   return (
@@ -307,7 +311,7 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       </View>
       <View style={styles.txRight}>
         <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
-        <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+        <Text style={styles.txDate}>{[dayText(t.date, today), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
         {pending && <PendingSyncMark />}
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}

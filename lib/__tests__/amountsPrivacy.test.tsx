@@ -330,11 +330,15 @@ describe('قارئ الشاشة والمبالغ مخفية', () => {
     expect(home).not.toMatch(/<Text[^>]*>\s*<Money/);
   });
 
-  it('كل بانر فيه money( في الرئيسية ليه accessibilityLabel بـspeakable', () => {
-    const home = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'index.tsx'), 'utf8');
-    const bannerTexts = home.match(/<Text style=\{\[styles\.bannerText[\s\S]*?<\/Text>/g) ?? [];
-    const withMoney = bannerTexts.filter(t => /\bmoney\(/.test(t));
-    expect(withMoney.length).toBeGreaterThan(0);
-    for (const t of withMoney) expect(t).toMatch(/accessibilityLabel=\{speakable\(/);
+  // اتنقل 2026-11-13: نصوص الرصيد/الميزانية/الاشتراك/الجمعية بقت بتتبني في `lib/homeAttention.ts` (كانت بانرات جوه الرئيسية).
+  // نفس القاعدة: كل عنصر فيه money( ليه label بـspeakable (القناع بيتقري «مبلغ مخفي»)
+  it('كل عنصر تنبيه فيه money( في lib/homeAttention.ts ليه label بـspeakable', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'lib', 'homeAttention.ts'), 'utf8');
+    const body = src.split('export function buildAttentionItems')[1];
+    // كل push فيه مبلغ (ميزانية، رصيد، اشتراك، جمعية) — والباقي (الإيميل، لسه ما سجلتش) من غير مبالغ
+    const pushes = body.match(/items\.push\(\{[\s\S]*?\n\s*\}\);/g) ?? [];
+    const withMoney = pushes.filter(p => /\b(label|text)\b/.test(p) && /money\(|bal\b|text,/.test(p) && !/verify_email|no_tx_today/.test(p));
+    expect(withMoney).toHaveLength(4);
+    for (const p of withMoney) expect(p).toMatch(/label: speakable\(/);
   });
 });

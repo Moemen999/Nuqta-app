@@ -6,14 +6,17 @@ import { AMOUNT_CHANGED_ALERT, GAMIYA_PAYOUT_WALLET_MISSING_ALERT, PAY_OUTCOME_A
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { dateText } from '@/lib/dateText';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
+import { defaultWalletId } from '@/lib/defaultWallet';
+import { useWalletDefault } from '@/lib/useWalletDefault';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { gamiyaMarkConfirmBody, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
@@ -123,7 +126,7 @@ export default function GamiyaView() {
           {nextPending && (
             <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
               {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
-              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {nextPending.dueDate} (<Money value={nextPending.amount} />)
+              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {dateText(nextPending.dueDate, todayStr())} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>
@@ -133,7 +136,7 @@ export default function GamiyaView() {
             {g.months.map(m => (
               <View key={m.id} style={styles.monthRow}>
                 <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
-                  شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {m.dueDate} · <Money value={m.amount} />
+                  شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
                   <TouchableOpacity accessibilityRole="button"
@@ -198,7 +201,7 @@ export default function GamiyaView() {
 function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, addGamiya } = useData();
+  const { wallets, transactions, addGamiya } = useData();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
@@ -206,7 +209,13 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   const [totalMonths, setTotalMonths] = useState('12');
   const [payoutMonthIndex, setPayoutMonthIndex] = useState('1');
   const [payoutAmount, setPayoutAmount] = useState('');
-  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  // المحفظة: آخر محفظة اتستخدمت، بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت. والمودال ده متركّب طول
+  // الوقت (`visible` بس بيتغيّر) فكل فتحة بتبدأ من الأول — مبنفضلش على اختيار الفتحة اللي فاتت،
+  // اللي ممكن تكون اتأرشفت في الفاصل (ب4)
+  const { walletId, pickWallet, freeze, reopen } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, nowMs: Date.now() }), [wallets, transactions]),
+  );
+  useEffect(() => { if (visible) reopen(); }, [visible, reopen]);
   const [startDate, setStartDate] = useState(todayStr());
   const [reminderDays, setReminderDays] = useState('3');
   const [chargeMode, setChargeMode] = useState<ChargeMode>('confirm');
@@ -214,6 +223,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
   const [error, setError] = useState('');
 
   function reset() {
+    reopen();
     setName(''); setMonthlyAmount(''); setTotalMonths('12'); setPayoutMonthIndex('1');
     setPayoutAmount(''); setStartDate(todayStr()); setReminderDays('3'); setError(''); setChargeMode('confirm');
   }
@@ -257,29 +267,29 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <Text style={styles.sheetTitle}>جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
             placeholder="مثلاً: جمعية الشغل" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>القسط الشهري</Text>
-          <TextInput style={styles.bigInput} value={monthlyAmount} onChangeText={setMonthlyAmount}
+          <TextInput style={styles.bigInput} value={monthlyAmount} onChangeText={v => { freeze(); setMonthlyAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           <Text style={styles.label}>عدد الشهور الكلي</Text>
-          <TextInput style={styles.input} value={totalMonths} onChangeText={setTotalMonths}
+          <TextInput style={styles.input} value={totalMonths} onChangeText={v => { freeze(); setTotalMonths(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>هتستلم في الشهر رقم كام؟ (من 1 لـ {totalMonths || '؟'})</Text>
-          <TextInput style={styles.input} value={payoutMonthIndex} onChangeText={setPayoutMonthIndex}
+          <TextInput style={styles.input} value={payoutMonthIndex} onChangeText={v => { freeze(); setPayoutMonthIndex(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>مبلغ الاستلام</Text>
-          <TextInput style={styles.input} value={payoutAmount} onChangeText={setPayoutAmount}
+          <TextInput style={styles.input} value={payoutAmount} onChangeText={v => { freeze(); setPayoutAmount(v); }}
             placeholder="عادة = القسط × عدد الأعضاء" keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -288,18 +298,18 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           <Text style={styles.label}>تاريخ أول قسط</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
-            <Text style={styles.dateBtnText}>{startDate}</Text>
+            <Text style={styles.dateBtnText}>{dateText(startDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+          <TextInput style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
-          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
+          <ChargeModePicker value={chargeMode} onChange={m => { freeze(); setChargeMode(m); }} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
 
-          <CalendarPickerModal visible={showPicker} value={startDate} onSelect={setStartDate} onClose={() => setShowPicker(false)} />
+          <CalendarPickerModal visible={showPicker} value={startDate} onSelect={d => { freeze(); setStartDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
         <View style={styles.footer}>

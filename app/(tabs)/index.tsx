@@ -1,6 +1,7 @@
 import { Money } from '@/components/Money';
-import { BUDGET_NEAR_RATIO } from '@/lib/budgetForecast';
-import { speakable } from '@/lib/money';
+import AttentionSheet from '@/components/AttentionSheet';
+import { buildAttentionItems } from '@/lib/homeAttention';
+import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
@@ -9,10 +10,11 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
 import { LineIcon } from '@/components/LineIcon';
-import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { monthSpendTotal, transferTransactionIds } from '@/lib/spending';
-import { TransfersFailedNote } from '@/components/SpendStatus';
+import { transferTransactionIds } from '@/lib/spending';
+import { monthSummary } from '@/lib/monthSummary';
+import { requestReports } from '@/lib/reportsRequest';
+import MonthSummaryCard, { type MonthCardState } from '@/components/MonthSummaryCard';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
 import { useDailyReminderHour } from '@/context/NotificationsContext';
 import DismissButton from '@/components/DismissButton';
@@ -22,13 +24,13 @@ import { useCurrentHour } from '@/lib/useCurrentHour';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { transactionsPhrase } from '@/lib/archiving';
-import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, daysUntil, entryTime, formatTime, monthSpend, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, entryTime, formatTime, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
-import { useBusy } from '@/lib/useBusy';
+import { dayText } from '@/lib/dateText';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { AccessibilityInfo, AppState, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
@@ -54,7 +56,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -146,29 +148,41 @@ function HomeScreen() {
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
-  const lowWallets = activeWallets.filter(w => (balances.get(w.id) || 0) < (w.lowAlert || 0));
   // السلفة والجمعية مش مصروف (خطوة 8) — لا في الفئة ولا في الإجمالي
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   // بند 11: وهي بتحمّل السلفة بتتعدّ مصروف — بانر "قربت تخلص" مبيولّعش عليها. لو الديون فشلت، بانر "مقدرناش نجيب بياناتك" ظاهر
   const spendKnown = transfersStatus !== 'loading';
-  const budgetAlerts = activeCategories
-    .filter(c => spendKnown && budgets[c.id] > 0)
-    .map(c => ({ cat: c, spend: monthSpend(transactions, c.id, nowMonth, transfers), limit: budgets[c.id] }))
-    .filter(b => b.spend / b.limit >= BUDGET_NEAR_RATIO);
 
   const totalBudgetLimit = budgets[TOTAL_BUDGET_KEY] || 0;
-  // من غير السلفة وقسط الجمعية (خطوة 8)، وبالدالة المختبَرة بدل reduce هنا
-  const totalMonthSpend = monthSpendTotal(transactions, nowMonth, transfers);
-  const totalBudgetAlert = spendKnown && totalBudgetLimit > 0 && totalMonthSpend / totalBudgetLimit >= BUDGET_NEAR_RATIO;
-
-  // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)
-  const dueSubscriptions = subscriptions.filter(s => s.active !== false
-    && daysUntil(s.nextDueDate) > 0 && daysUntil(s.nextDueDate) <= s.reminderDaysBefore);
-  const dueGamiyaMonths = gamiyas.flatMap(g =>
-    g.months
-      .filter(m => m.status === 'pending' && daysUntil(m.dueDate) > 0 && daysUntil(m.dueDate) <= g.reminderDaysBefore)
-      .map(m => ({ gamiya: g, month: m }))
+  // من غير السلفة وقسط الجمعية (خطوة 8). **نفس الدالة** اللي الرقم البطل في التقارير بيعدّي منها (`spendInRange` جوه
+  // `monthSummary`) — الكارت والبانر والتقارير رقم واحد
+  const today = todayStr();
+  const summary = useMemo(
+    () => monthSummary({ transactions, transfers, today, totalBudget: totalBudgetLimit }),
+    [transactions, transfers, today, totalBudgetLimit],
   );
+  /**
+   * كارت «صرفت الشهر ده». **مخفي** (بيكسب على أي حاجة تانية) لما الأرقام اللي فوق نفسها مش بتتعرض أو مش متأكدين منها:
+   * كاش بارد، مفيش نت وفاضي، مفيش محفظة. بعد كده: الخطأ ← مفيش رقم؛ لسه بنحمّل ← «بنحمّل…» (نفس شرط التقارير:
+   * `transfersStatus === 'loading'`)؛ غير كده الرقم — ولو الديون فشلت معاه سطر التقارير.
+   * **العمليات لسه ما وصلتش** (`figuresPending` فيها 'transactions') ← «بنحمّل…» برضه، **بس لحد مهلة التحميل**
+   * (`loadWindowPassed`، نفس اللي بتحكم «مفيش نت»): `figuresPending` بيتشال بس لما listener العمليات يرمي snapshot،
+   * ومجموعة فاضية ممكن متبعتش (DataContext ~785-790، CLAUDE.md «مشاكل معروفة») — من غير المهلة حساب جديد كان هيفضل
+   * «بنحمّل» للأبد. من غيره «0 ج.م» / «فاضل 8,000» كانت ادّعاء مظبوط الشكل إن مفيش مصروف. المهلة بعد كده: الرقم زي ما هو.
+   */
+  const monthCardHidden = !!cold || offlineEmpty || noWalletsState.none || wallets.length === 0;
+  const monthCardState: MonthCardState = loadErrors.includes('transactions') ? { kind: 'error' }
+    : transfersStatus === 'loading' || (!loadWindowPassed && !!figuresPending?.includes('transactions')) ? { kind: 'loading' }
+    : { kind: 'ready', summary, transfersFailed: transfersStatus === 'failed', budgetsFailed: loadErrors.includes('budgets') };
+
+  // «حاجات محتاجة انتباهك» (2026-11-13): الإيميل، لسه ما سجلتش، رصيد قرب يخلص، ميزانية فئة، اشتراك وقسط جمعية جايين —
+  // الشروط نفسها بتتحسب في `lib/homeAttention.ts` والسطر والشيت في `components/AttentionSheet.tsx`
+  const emailVerification = useEmailVerification();
+  const attentionItems = buildAttentionItems({
+    activeWallets, balances, activeCategories, transactions, budgets, transfers, spendKnown, nowMonth,
+    subscriptions, gamiyas, hasTodayTx, offlineEmpty, noWallets, cold: !!cold, dailyHour, nowHour,
+    unverifiedEmail: emailVerification.unverifiedEmail, money,
+  });
 
   const recent = [...transactions]
     .sort((a, b) => {
@@ -231,13 +245,22 @@ function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
-        {/* الترتيب (قرار مؤمن 2026-10-28، رجوع عن 2026-09-29): الرصيد ثابت فوق، وبعده
-            **كل** التنبيهات، وبعدين آخر العمليات. السبب: مؤمن بطّل ياخد باله من البانرات
-            وهي تحت القايمة. جوه التنبيهات: اللي بيقول إن رقم ممكن يكون غلط الأول (مفيش
-            نت، "الأرقام ممكن تكون قديمة"، "ما سجلناش"، "مفيش ولا محفظة")، وبعده سطر
-            "مستنيين ردك"، وبعده الباقي. "مقدرناش نجيب بياناتك" فوق الـStack كله. كل بانر
-            ليه ✕ وبيرجع بعد المدة اللي المستخدم اختارها (lib/bannerDismiss.ts).
-            متثبّت في homeBannerOrder.test.tsx */}
+        {/* كارت الشهر: أول حاجة في التمرير تحت الرصيد الثابت. testID مش `home_banner_` (البانرات كلها ليها ✕ — homeBannerOrder). دوسة ← التقارير
+            على «الشهر ده» من غير فلتر فئات: طلب لمرة واحدة (`lib/reportsRequest.ts`) + فتح التاب من غير باراميترز */}
+        {!monthCardHidden && (
+          <MonthSummaryCard
+            testID="home_month_card"
+            state={monthCardState}
+            onPress={() => { requestReports({ preset: 'thisMonth', clearFilter: true }); router.push('/(tabs)/reports'); }}
+          />
+        )}
+        {/* الترتيب (قرار مؤمن 2026-11-13، بيعدّل 2026-10-28): الرصيد ثابت فوق، وبعده كارت الشهر، وبعده نوعين بس بيبانوا
+            كبانرات لوحدهم: (1) "الأرقام ممكن تكون غلط" بالترتيب (مسح الحساب ما خلصش، كاش قديم، مفيش نت، "الأرقام ممكن تكون
+            قديمة"، عمليات/محافظ بايظة، "مفيش ولا محفظة"، "ما سجلناش") — بالـ✕ اللي كان لكل واحد (أو من غيره)، و"مقدرناش
+            نجيب بياناتك" فوق الـStack كله؛ (2) سطر "مستنيين ردك". وبعدهم **سطر واحد** "عندك N حاجات محتاجة انتباهك" بيفتح شيت
+            (`AttentionSheet`): الإيميل، لسه ما سجلتش، رصيد قرب يخلص، ميزانية فئة، اشتراك وقسط جمعية جايين — كل واحد بـ✕ بنفس مفتاحه
+            القديم. بانر الميزانية الإجمالية اتشال (كارت الشهر بيقول قربت/خلصت/عدّت). وبعد كده آخر العمليات.
+            متثبّت في homeBannerOrder.test.tsx و homeAttentionScreen.test.tsx */}
         {/* مسح الحساب بدأ ومخلصش ← بانر خطر **من غير ✕** (بحث rnd-researcher + قرار مؤمن 2026-11-03): حساب نص-ممسوح والتسجيل
             التلقائي واقف — لو اتقفل بـ✕ المستخدم كان هيعيش ببيانات ناقصة من غير ما يعرف. المخرج الوحيد: يكمّل المسح (أو يخرج) */}
         {deletionPending && (
@@ -318,79 +341,10 @@ function HomeScreen() {
         <IncomeAutoNotices />
         <ChargeAutoNotices />
         <PendingSummary />
-        {/* باقي التنبيهات (2026-10-28): فوق آخر العمليات كمان — مش تحتها */}
-        <EmailVerificationBanner />
-        {/* بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي) */}
-        {!hasTodayTx && !offlineEmpty && !noWallets && !cold && dailyHour !== null && nowHour >= dailyHour && !hidden('noTxToday') && (
-          <View testID="home_banner_no_tx_today" style={[styles.banner, styles.bannerRow]}>
-            <Text style={[styles.bannerText, styles.bannerFlex]}>لسه ما سجلتش مصاريف النهاردة</Text>
-            <DismissButton testID="home_banner_dismiss_no_tx_today" onPress={() => dismiss('noTxToday')} hint={DISMISS_HINT} label={dismissLabel('noTxToday')} announce={DISMISSED_ANNOUNCEMENT} />
-          </View>
-        )}
-        {lowWallets.filter(w => !hidden('lowBalance', w.id)).map(w => (
-          <View key={w.id} testID={`home_banner_low_${w.id}`} style={[styles.banner, styles.bannerRow, styles.bannerDanger]}>
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.dangerText }]}
-              accessibilityLabel={speakable(`رصيد ${w.name} قرب يخلص (${money(balances.get(w.id) || 0)} ج.م)`)}>
-              رصيد {w.name} قرب يخلص ({money(balances.get(w.id) || 0)} ج.م)
-            </Text>
-            <DismissButton testID={`home_banner_dismiss_low_balance_${w.id}`} onPress={() => dismiss('lowBalance', w.id)} hint={DISMISS_HINT} label={dismissLabel('lowBalance', w.name)} announce={DISMISSED_ANNOUNCEMENT} />
-          </View>
-        ))}
-        {/* المفتاح بالدرجة (silent-failure-hunter): ✕ على "قربت تخلص" ميخبّيش "خلصت" */}
-        {totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`) && (
-          <View testID="home_banner_budget_total" style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`الميزانية الإجمالية ${totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} (${money(totalMonthSpend)} من ${money(totalBudgetLimit)})`)}>
-              الميزانية الإجمالية {totalMonthSpend >= totalBudgetLimit ? 'خلصت' : 'قربت تخلص'} ({money(totalMonthSpend)}/{money(totalBudgetLimit)})
-            </Text>
-            <DismissButton testID="home_banner_dismiss_budget_total" onPress={() => dismiss('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', 'الإجمالية')} announce={DISMISSED_ANNOUNCEMENT} />
-          </View>
-        )}
-        {budgetAlerts.filter(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)).map(b => (
-          <View key={b.cat.id} testID={`home_banner_budget_${b.cat.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}
-              accessibilityLabel={speakable(`ميزانية ${b.cat.name} ${b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} (${money(b.spend)} من ${money(b.limit)})`)}>
-              ميزانية {b.cat.name} {b.spend >= b.limit ? 'خلصت' : 'قربت تخلص'} ({money(b.spend)}/{money(b.limit)})
-            </Text>
-            <DismissButton testID={`home_banner_dismiss_budget_${b.cat.id}`} onPress={() => dismiss('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`)} hint={DISMISS_HINT} label={dismissLabel('budget', b.cat.name)} announce={DISMISSED_ANNOUNCEMENT} />
-          </View>
-        ))}
-        {/* الديون/الجمعية فشلوا: البانرات بتظهر (قرار مؤمن: الرقم بيظهر بتحذير) وتحتها إن الرقم ممكن يكون زيادة (money-reviewer + silent-failure-hunter) */}
-        {/* بعد ✕: السطر بيمشي مع البانرات الظاهرة بس، مش يفضل لوحده (silent-failure-hunter جولة 2) */}
-        {transfersStatus === 'failed' && ((totalBudgetAlert && !hidden('budget', `total:${totalMonthSpend >= totalBudgetLimit ? 'over' : 'near'}`))
-          || budgetAlerts.some(b => !hidden('budget', `${b.cat.id}:${b.spend >= b.limit ? 'over' : 'near'}`))) && (
-          <TransfersFailedNote testID="home_budget_transfers_failed" style={{ marginTop: 6 }} />
-        )}
-        {/* المفتاح بالمعاد: الدورة الجاية بانر جديد حتى لو اللي قبله اتقفل */}
-        {dueSubscriptions.filter(s => !hidden('subscriptionDue', `${s.id}@${s.nextDueDate}`)).map(s => {
-          const d = daysUntil(s.nextDueDate);
-          return (
-            // الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش (a11y-architect)
-            <View key={s.id} testID={`home_banner_sub_${s.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
-              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
-              <Text style={[styles.bannerText, { color: colors.accentText }]}
-                accessibilityLabel={speakable(`اشتراك ${s.name} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(s.amount)} ج.م)`)}>
-                اشتراك {s.name} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(s.amount)} ج.م)
-              </Text>
-              </TouchableOpacity>
-              <DismissButton testID={`home_banner_dismiss_sub_${s.id}`} onPress={() => dismiss('subscriptionDue', `${s.id}@${s.nextDueDate}`)} hint={DISMISS_HINT} label={dismissLabel('subscriptionDue', s.name)} announce={DISMISSED_ANNOUNCEMENT} />
-            </View>
-          );
-        })}
-        {dueGamiyaMonths.filter(({ month }) => !hidden('gamiyaDue', month.id)).map(({ gamiya, month }) => {
-          const d = daysUntil(month.dueDate);
-          return (
-            <View key={month.id} testID={`home_banner_gamiya_${month.id}`} style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
-              <TouchableOpacity style={styles.bannerFlex} onPress={() => router.push('/(tabs)/debts')} accessibilityRole="button">
-              <Text style={[styles.bannerText, { color: colors.accentText }]}
-                accessibilityLabel={speakable(`جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} (${money(month.amount)} ج.م)`)}>
-                جمعية {gamiya.name} — {month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} {d <= 0 ? 'مستحق دلوقتي' : `بعد ${d} يوم`} ({money(month.amount)} ج.م)
-              </Text>
-              </TouchableOpacity>
-              <DismissButton testID={`home_banner_dismiss_gamiya_${month.id}`} onPress={() => dismiss('gamiyaDue', month.id)} hint={DISMISS_HINT} label={dismissLabel('gamiyaDue', gamiya.name)} announce={DISMISSED_ANNOUNCEMENT} />
-            </View>
-          );
-        })}
+        {/* باقي التنبيهات الروتينية (قرار مؤمن 2026-11-13، بدل 2026-10-28): سطر واحد بيفتح شيت — الإيميل، لسه ما سجلتش، رصيد قرب
+            يخلص، ميزانية فئة، اشتراك وقسط جمعية جايين (`AttentionSheet`). فوق آخر العمليات زي ما كانوا */}
+        <AttentionSheet items={attentionItems} email={emailVerification} loadWindowPassed={loadWindowPassed}
+          transfersFailed={transfersStatus === 'failed'} />
         <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
         {recent.length === 0 && !(cold && cold.recent.length > 0) && (
           <Text style={styles.emptyState}>
@@ -411,7 +365,7 @@ function HomeScreen() {
             // عقدة واحدة لقارئ الشاشة زي الصف الحقيقي، وأولها "قديم"، ومن غير button (مبيتفتحش — a11y-architect).
             // المبلغ ظاهر زي الصف الحقيقي (العين للأرصدة بس)
             <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
-              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${t.date}`}>
+              accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${dayText(t.date, todayStr())}`}>
               <View style={styles.txMid}>
                 <Text style={styles.txTitle}>{title}</Text>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
@@ -420,7 +374,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
               </View>
             </View>
           );
@@ -446,7 +400,7 @@ function HomeScreen() {
                 <AmountsUnmaskedScope>
                   <Money value={t.amount} sign={T.sign} currency={false} style={[styles.txAmount, { color: transactionAmountColor(t.type, colors) }]} />
                 </AmountsUnmaskedScope>
-                <Text style={styles.txDate}>{[t.date, entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
+                <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
                 {transfers.has(t.id) && <TransferMark />}
@@ -472,89 +426,7 @@ function HomeScreen() {
   );
 }
 
-/**
- * بيظهر بس للمستخدم اللي داخل بإيميل وباسورد وإيميله لسه مش مأكّد. مستخدمين جوجل
- * إيميلهم مأكّد تلقائيًا فمبيشوفوش البانر خالص.
- * فايربيز بتخزّن حالة التأكيد في الكاش ومبتحدّثهاش لوحدها لما المستخدم يدوس اللينك
- * في إيميله، عشان كده بنعمل reload أول ما الشاشة تفتح وكل ما يرجع للتطبيق —
- * وده اللي بيخلي البانر يختفي بعد التأكيد من غير ما يخرج ويدخل تاني.
- */
-/**
- * رسالة التأكيد **بتوصل** — بس بتقع في الـSpam (اتأكد 2026-09-28 بحساب جديد).
- * المستخدم اللي مش لاقيها في الوارد هيفتكر التطبيق بايظ، فالسطر ده ظاهر على طول
- * مع البانر. نفس صياغة رابط "نسيت الباسورد؟" (`resetSentBody`).
- */
-export const VERIFY_SPAM_HINT = 'رسالة التأكيد لو ملقتهاش في الوارد، بصّ في الـSpam.';
-
-function EmailVerificationBanner() {
-  const { colors } = useTheme();
-  const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { user, resendVerificationEmail } = useAuth();
-  const { busy, run: runResend } = useBusy();
-  const [verified, setVerified] = useState(true);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
-  const { hidden, dismiss } = useBannerDismiss();
-
-  const usesPassword = !!user?.providerData?.some(p => p.providerId === 'password');
-
-  const refresh = useCallback(async () => {
-    if (!user) return;
-    try {
-      await user.reload();
-    } catch {
-      // لو مفيش نت، بنسيب الحالة اللي عندنا زي ما هي
-    }
-    setVerified(!!user.emailVerified);
-  }, [user]);
-
-  useEffect(() => {
-    refresh();
-    const sub = AppState.addEventListener('change', state => {
-      if (state === 'active') refresh();
-    });
-    return () => sub.remove();
-  }, [refresh]);
-
-  if (!user || !usesPassword || verified || hidden('verifyEmail')) return null;
-
-  function handleResend() {
-    setError('');
-    runResend(async () => {
-      try {
-        await resendVerificationEmail();
-        setSent(true);
-      } catch (err) {
-        // رسالة المستخدم فاضلة زي ما هي — التسجيل ده للتشخيص بس
-        console.error('[auth] resendVerificationEmail failed:', err);
-        setError('مقدرناش نبعت الرسالة دلوقتي، جرب كمان شوية');
-      }
-    });
-  }
-
-  return (
-    <View testID="home_banner_verify_email" style={[styles.banner, styles.bannerWarn]}>
-      <View style={styles.bannerRow}>
-        <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
-          إيميلك ({user.email}) لسه مش مأكّد — أكّده عشان تأمّن حسابك
-        </Text>
-        <DismissButton testID="home_banner_dismiss_verify_email" onPress={() => dismiss('verifyEmail')} hint={DISMISS_HINT} label={dismissLabel('verifyEmail')} announce={DISMISSED_ANNOUNCEMENT} />
-      </View>
-      {sent && !error ? (
-        <Text style={styles.bannerText}>بعتنالك رسالة تأكيد جديدة، شوف إيميلك</Text>
-      ) : (
-        <TouchableOpacity accessibilityRole="button" onPress={handleResend} disabled={busy} style={styles.bannerAction}>
-          <Text style={[styles.bannerActionText, busy && { opacity: 0.6 }]}>
-            {busy ? '...' : 'أعد إرسال رسالة التأكيد'}
-          </Text>
-        </TouchableOpacity>
-      )}
-      {/* بعد "بعتنالك رسالة جديدة" مش قبلها — النصيحة على آخر رسالة اتقال إنها اتبعتت */}
-      <Text testID="verify_spam_hint" style={styles.bannerText}>{VERIFY_SPAM_HINT}</Text>
-      {!!error && <Text style={[styles.bannerText, { color: colors.dangerText }]}>{error}</Text>}
-    </View>
-  );
-}
+export { VERIFY_SPAM_HINT };
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({

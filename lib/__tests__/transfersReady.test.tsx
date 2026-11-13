@@ -16,7 +16,7 @@ import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, TRANSFERS_SLOW, transfersStat
  * الرقم بيظهر ومعاه سطر إنه ممكن يكون فيه سلف. بانر "الميزانية قربت تخلص" مبيولّعش وهو بيحمّل.
  */
 
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({}) }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => ({}), useFocusEffect: (cb: () => void) => require('react').useEffect(cb, [cb]) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -156,18 +156,22 @@ describe('الرئيسية', () => {
     jest.useRealTimers();
   }
 
-  it('بيحمّل ← بانرات الميزانية (الفئة والإجمالي) مبتولّعش على السلفة', async () => {
+  // 2026-11-13: بانر الميزانية الإجمالية اتشال (كارت الشهر)، وميزانية الفئة بقت عنصر «محتاجة انتباهك» —
+  // نفس القاعدة: بيحمّل ← مفيش (السلفة بتتعدّ مصروف)، فشل ← بيظهر. عنصر واحد ← نصه في السطر نفسه
+  it('بيحمّل ← تنبيه ميزانية الفئة مبيولّعش على السلفة (ولا فيه سطر ولا بانر إجمالي)', async () => {
     setData('loading');
     await mount();
     expect(screen.queryByTestId('home_banner_budget_total')).toBeNull();
-    expect(screen.queryByTestId('home_banner_budget_c1')).toBeNull();
+    expect(screen.queryByTestId('home_attention_line')).toBeNull();
+    expect(screen.queryByText(/ميزانية خروجات/)).toBeNull();
   });
 
-  it('فشل ← البانرات بتظهر (وبانر "مقدرناش نجيب بياناتك" بيقول السبب)', async () => {
+  it('فشل ← تنبيه ميزانية الفئة بيظهر (وبانر "مقدرناش نجيب بياناتك" بيقول السبب)، ومفيش بانر إجمالي', async () => {
     setData('failed');
     await mount();
-    expect(screen.getByTestId('home_banner_budget_total')).toBeTruthy();
-    expect(screen.getByTestId('home_banner_budget_c1')).toBeTruthy();
+    expect(screen.queryByTestId('home_banner_budget_total')).toBeNull();
+    expect(screen.getByTestId('home_attention_line')).toBeTruthy();
+    expect(screen.getByText(/ميزانية خروجات خلصت/)).toBeTruthy();
   });
 });
 
@@ -191,15 +195,15 @@ describe('تصليحات جولة 1', () => {
     expect(screen.getByTestId('home_budget_transfers_failed').props.children).toBe(TRANSFERS_FAILED_NOTE);
   });
 
-  it('الرئيسية: البانرات اتقفلت بـ✕ ← السطر بيمشي معاها (جولة 2)', async () => {
+  it('الرئيسية: تنبيه الميزانية اتقفل بـ✕ ← السطر بيمشي معاه (جولة 2)', async () => {
     setData('failed');
     jest.useFakeTimers();
     await render(wrap(<HomeTab />));
     await act(async () => { jest.advanceTimersByTime(3000); });
     // المؤقتات وهمية لحد الآخر: ✕ بيجدول رجوع البانر بعد المدة، ومؤقت حقيقي كان بيسيب jest مفتوح
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_total')); });
+    // كان ✕ على الإجمالي (والسطر يفضل) وبعدين ✕ على الفئة (والسطر يروح) — الإجمالي اتشال، فالفئة بس
     expect(screen.getByTestId('home_budget_transfers_failed')).toBeTruthy();
-    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_budget_c1')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('attention_dismiss_budget_c1')); });
     expect(screen.queryByTestId('home_budget_transfers_failed')).toBeNull();
     jest.clearAllTimers();
     jest.useRealTimers();

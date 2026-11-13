@@ -15,7 +15,8 @@ import {
   BROKEN_MARK, BROKEN_REASON_LABEL, BROKEN_SECTION_TITLE, FIX_BLOCK_TEXT, FIX_DATE_MISSING, FIX_DELETE, FIX_DELETE_CONFIRM_TITLE,
   FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
 } from '@/lib/brokenDocs';
-import { TYPE_LABELS, categoryLabelById } from '@/lib/finance';
+import { dateText, dayText } from '@/lib/dateText';
+import { TYPE_LABELS, categoryLabelById, todayStr } from '@/lib/finance';
 import type { BrokenTransaction } from '@/lib/fromDoc';
 import { storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
 import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
@@ -42,7 +43,7 @@ export function BrokenTransactionsSection() {
         ].filter(Boolean) as string[];
         const reasons = t.reasons.map(r => BROKEN_REASON_LABEL[r]).join('، ');
         // الاسم بيغطي اللي جوه، فلازم يقول كل اللي بيفرّق صف عن صف: المبلغ (من قناع الخصوصية) والتاريخ (a11y-architect)
-        const spoken = ['بيانات ناقصة', ...parts, reasons, t.date, t.amount !== undefined ? money(t.amount) : undefined].filter(Boolean).join('. ');
+        const spoken = ['بيانات ناقصة', ...parts, reasons, dayText(t.date ?? '', todayStr()), t.amount !== undefined ? money(t.amount) : undefined].filter(Boolean).join('. ');
         return (
           <TouchableOpacity key={t.id} testID={`archive_broken_${t.id}`} accessibilityRole="button"
             accessibilityLabel={spoken} accessibilityHint={FIX_TITLE} style={styles.row} onPress={() => setOpen(t)}>
@@ -51,7 +52,7 @@ export function BrokenTransactionsSection() {
               {t.amount !== undefined ? <Money value={t.amount} style={styles.rowAmount} /> : <Text style={styles.rowAmount}>—</Text>}
             </View>
             <Text style={styles.rowMark}>{BROKEN_MARK} — {reasons}</Text>
-            {t.date ? <Text style={styles.rowDate}>{t.date}</Text> : null}
+            {t.date ? <Text style={styles.rowDate}>{dayText(t.date, todayStr())}</Text> : null}
           </TouchableOpacity>
         );
       })}
@@ -141,9 +142,9 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
                     placeholder="0" placeholderTextColor={colors.textSecondary} accessibilityLabel="المبلغ" />
                   <Text style={styles.label} accessible={false}>التاريخ</Text>
                   <TouchableOpacity testID="broken_fix_date" accessibilityRole="button"
-                    accessibilityLabel={date ? `التاريخ ${date}` : FIX_DATE_MISSING} accessibilityHint="بيفتح التقويم"
+                    accessibilityLabel={date ? `التاريخ ${dateText(date, todayStr())}` : FIX_DATE_MISSING} accessibilityHint="بيفتح التقويم"
                     style={styles.input} onPress={() => setPicker(true)}>
-                    <Text style={[styles.inputText, !date && { color: colors.textSecondary }]}>{date || FIX_DATE_MISSING}</Text>
+                    <Text style={[styles.inputText, !date && { color: colors.textSecondary }]}>{date ? dateText(date, todayStr()) : FIX_DATE_MISSING}</Text>
                   </TouchableOpacity>
                 </>
               )}

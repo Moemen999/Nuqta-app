@@ -64,7 +64,7 @@ beforeEach(() => {
   });
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
-afterEach(() => alertSpy.mockRestore());
+afterEach(() => { alertSpy.mockRestore(); jest.useRealTimers(); });
 
 const wrap = () => <ThemeProvider><NoticeProvider><PrivacyProvider><SubscriptionsView /></PrivacyProvider></NoticeProvider></ThemeProvider>;
 async function pressAlertButton(text: string) {
@@ -111,12 +111,15 @@ describe('شاشة الاشتراكات', () => {
   });
 
   it('"رجّعه" ← التأكيد بيقول المعاد الجاي وإن اللي فات مش هيتسجل', async () => {
+    // النهاردة مثبّتة 13 نوفمبر 2026؛ واقف من 1 سبتمبر ← أول معاد بعد النهاردة 1 ديسمبر (نفس السنة ← من غير سنة)
+    jest.useFakeTimers({ now: new Date(2026, 10, 13, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'hrtime', 'performance'] });
+    mockData.subscriptions = [sub({ id: 's2', name: 'سبوتيفاي', active: false, nextDueDate: '2026-09-01' })];
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByTestId('subscriptions_stopped_toggle')); });
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_resume_s2')); });
     const [title, body] = alertSpy.mock.calls[0];
     expect(title).toBe('ترجّع الاشتراك ده؟');
-    expect(body).toContain(subscriptionResumeDate(sub({ nextDueDate: addMonths(today, -2) }), today));
+    expect(body).toContain('هيرجع من معاده الجاي: 1 ديسمبر.');
     expect(body).toContain('المرات اللي فاتت مش هتتسجل، إلا اللي مستنية ردك في الرئيسية');
     await pressAlertButton('رجّعه');
     expect(mockData.setSubscriptionActive).toHaveBeenCalledWith('s2', true);

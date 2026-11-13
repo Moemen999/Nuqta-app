@@ -6,16 +6,18 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
+import { dateText } from '@/lib/dateText';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
-import { rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
+import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
-import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { takeReportsRequest } from '@/lib/reportsRequest';
+import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
-import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -38,6 +40,15 @@ export default function ReportsScreen() {
   const [selectedCats, setCatFilter] = useState<string[]>([]);
   // فئة اتمسحت والشاشة مفتوحة تخرج من الفلتر: الرقم كان هيعدّها والشرايح لأ، فالعمود يبقى من غير جزء يوضّحه
   const catFilter = useMemo(() => selectedCats.filter(id => categories.some(c => c.id === id)), [selectedCats, categories]);
+  // كارت «صرفت الشهر ده» في الرئيسية بيسجّل طلب واحد (`lib/reportsRequest.ts`) وبيفتح التاب من غير باراميترز: لما التاب
+  // ياخد الفوكس (وعند أول فتح) بناخد الطلب مرة واحدة ← «الشهر ده» والفلتر يتمسح. من غير طلب (زيارة عادية، أو تركيب
+  // تاني) مفيش أي تغيير في اللي المستخدم اختاره
+  useFocusEffect(useCallback(() => {
+    const req = takeReportsRequest();
+    if (!req) return;
+    setPreset(req.preset);
+    if (req.clearFilter) setCatFilter([]);
+  }, []));
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
@@ -56,7 +67,7 @@ export default function ReportsScreen() {
       const to = customFrom <= customTo ? customTo : customFrom;
       return { from, to };
     }
-    return { from: startOfMonth(today), to: endOfMonth(today) };
+    return thisMonthRange(today);
   }, [preset, customFrom, customTo, today]);
 
   const filtered = useMemo(
@@ -83,9 +94,10 @@ export default function ReportsScreen() {
     [periodExpenses, categories, categoryColors, colors.textSecondary, visibleIds]
   );
 
+  // الرقم البطل من الدالة المشتركة مع كارت الرئيسية (`spendInRange`) — نفس الصفوف ونفس ترتيب الجمع
   const periodExpense = useMemo(
-    () => periodExpenseTotal(periodExpenses, visibleIds),
-    [periodExpenses, visibleIds]
+    () => spendInRange(transactions, transfers, range, visibleIds),
+    [transactions, transfers, range, visibleIds]
   );
 
   // الشرايح الزيادة بتتلمّ في شريحة واحدة بلون محايد برّه باليتة الفئات.
@@ -193,7 +205,8 @@ export default function ReportsScreen() {
   }, [debts, range]);
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
@@ -203,10 +216,10 @@ export default function ReportsScreen() {
       {preset === 'custom' && (
         <View style={styles.dateRow}>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
-            <Text style={styles.dateBtnText}>من: {customFrom}</Text>
+            <Text style={styles.dateBtnText}>من: {dateText(customFrom, today)}</Text>
           </TouchableOpacity>
           <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
-            <Text style={styles.dateBtnText}>لحد: {customTo}</Text>
+            <Text style={styles.dateBtnText}>لحد: {dateText(customTo, today)}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -288,16 +301,19 @@ export default function ReportsScreen() {
                 <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                   <View style={[
                     styles.trendFill,
-                    { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%`, backgroundColor: stacked ? 'transparent' : columnColor },
-                    b.partial && { backgroundColor: 'transparent', borderWidth: 2, borderColor: columnColor },
-                    // العمود الناقص إطار، فلازم يبان حتى لو صغير
+                    { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%` },
+                    barFrameStyle(b, columnColor),
+                    // العمود الناقص ملو بارتفاعه الحقيقي بس أخف وبإطار (مش إطار فاضي بيتقري صفر) — لازم يبان حتى لو صغير
                     b.partial && b.amount > 0 && { minHeight: 6 },
                     // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
                     stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },
                   ]}>
-                    {stacked && b.segments.map(s => (
-                      <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
-                    ))}
+                    {/* الملو جوه الإطار: الشفافية عليه هو بس، فالإطار بيفضل بلون العمود كامل */}
+                    <View style={[styles.trendInner, barFillStyle(b, stacked, columnColor)]}>
+                      {stacked && b.segments.map(s => (
+                        <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
+                      ))}
+                    </View>
                   </View>
                 </View>
                 <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
@@ -323,7 +339,7 @@ export default function ReportsScreen() {
               ))}
             </View>
           )}
-          {timelineHasPartial && <Text style={styles.hintText}>العمود اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
+          {timelineHasPartial && <Text style={styles.hintText}>العمود الأفتح اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
         </>
       )}
 
@@ -358,12 +374,14 @@ export default function ReportsScreen() {
         onClose={() => setPickerFor(null)}
       />
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
+    scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
@@ -397,9 +415,10 @@ function makeStyles(c: ThemeColors) {
     // العمود بيطلع من تحت
     trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
     // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
-    // العمود الناقص إطار من غير ملو (مش شفافية — كانت بتخفّي الإطار معاها)، عشان قصره ميتقريش "صرفت أقل".
+    // العمود الناقص: إطار بلون العمود كامل + ملو أخف جواه (الشفافية على الملو بس، مش على الإطار)، عشان قصره ميتقريش "صرفت أقل" ولا صفر.
     // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
-    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden', flexDirection: 'column-reverse', gap: 2 },
+    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden' },
+    trendInner: { flex: 1, flexDirection: 'column-reverse', gap: 2 },
     trendSegment: { minHeight: 2 },
     // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
     trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },

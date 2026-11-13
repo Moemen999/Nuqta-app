@@ -1,5 +1,6 @@
 import { GROUPED_SLICE_ID, periodExpenseTotal } from '@/lib/finance';
-import { MAX_COLUMNS, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
+import { DARK, LIGHT } from '@/context/ThemeContext';
+import { barFillStyle, barFrameStyle, MAX_COLUMNS, PARTIAL_BAR_OPACITY, rangeText, sixMonthsStart, spendTimeline } from '@/lib/spendTimeline';
 
 const e = (date: string, amount: number, categoryId?: string) => ({ date, amount, categoryId });
 const run = (from: string, to: string, today = '2026-11-08', rows: ReturnType<typeof e>[] = []) =>
@@ -42,6 +43,64 @@ describe('الوحدة بتتغير مع طول الفترة', () => {
       const prev = new Date(buckets[i - 1].to + 'T00:00:00Z').getTime();
       expect(new Date(buckets[i].from + 'T00:00:00Z').getTime() - prev).toBe(86400000);
     }
+  });
+});
+
+describe('شكل العمود الناقص', () => {
+  // WCAG 2.x: تركيب اللون بشفافية فوق المسار، وبعدين النسبة بين الملو المركّب والمسار
+  const rgb = (h: string) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const lum = (c: number[]) => {
+    const [r, g, b] = c.map(v => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrast = (a: number[], b: number[]) => {
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const dimmedOverTrack = (fill: string, track: string, alpha: number) => {
+    const f = rgb(fill), t = rgb(track);
+    return contrast(f.map((v, i) => v * alpha + t[i] * (1 - alpha)), t);
+  };
+
+  it.each([['الفاتح', LIGHT], ['الغامق', DARK]] as const)(
+    'ملو العمود الناقص (accentText بشفافيته) يفضل ≥3:1 على المسار surface2 في الثيم %s — ولسه أخف من الكامل',
+    (_n, theme) => {
+      expect(dimmedOverTrack(theme.accentText, theme.surface2, PARTIAL_BAR_OPACITY)).toBeGreaterThanOrEqual(3);
+      expect(PARTIAL_BAR_OPACITY).toBeLessThanOrEqual(0.85);
+      // ألوان فئات الباليتة مش متغطية هنا: بعضها ~3.4 حتى بملو كامل فمفيش شفافية تنفع لكلها
+    },
+  );
+
+  it('الإطار بلون العمود كامل ومن غير شفافية، والملو الأخف جواه بنفس اللون', () => {
+    const frame = barFrameStyle({ partial: true }, '#123456');
+    expect(frame.borderColor).toBe('#123456');
+    expect(frame.borderWidth).toBeGreaterThanOrEqual(2);
+    expect(frame).not.toHaveProperty('opacity');
+    const fill = barFillStyle({ partial: true }, false, '#123456');
+    expect(fill.backgroundColor).toBe('#123456');
+    expect(fill.opacity).toBeLessThan(1);
+    expect(fill.opacity).toBeGreaterThan(0.5);
+  });
+
+  it('الكامل من غير إطار وبملو كامل', () => {
+    expect(barFrameStyle({ partial: false }, '#123456')).toEqual({ borderWidth: 0 });
+    expect(barFillStyle({ partial: false }, false, '#123456')).toEqual({ backgroundColor: '#123456', opacity: 1 });
+  });
+
+  it('مع فلتر الفئات الملو شفاف (الألوان في الأجزاء) والشفافية على الملو مش على الإطار', () => {
+    const fill = barFillStyle({ partial: true }, true, '#123456');
+    expect(fill.backgroundColor).toBe('transparent');
+    expect(fill.opacity).toBe(PARTIAL_BAR_OPACITY);
+    expect(barFrameStyle({ partial: true }, '#123456')).toEqual({ borderWidth: 2, borderColor: '#123456' });
+  });
+
+  it('العمود الناقص ارتفاعه (share) وفلوسه حقيقيين، ومجموع الأعمدة = الرقم البطل', () => {
+    const rows = [e('2026-11-01', 400), e('2026-11-09', 1655)];
+    const t = spendTimeline(rows, { from: '2026-11-01', to: '2026-11-30' }, '2026-11-10');
+    const partial = t.buckets.find(b => b.partial)!;
+    expect(partial.amount).toBe(1655);
+    expect(partial.share).toBeGreaterThan(0);
+    expect(t.buckets.reduce((s, b) => s + b.amount, 0)).toBe(periodExpenseTotal(rows));
   });
 });
 

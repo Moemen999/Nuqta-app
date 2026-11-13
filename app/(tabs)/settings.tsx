@@ -193,9 +193,10 @@ export default function SettingsScreen() {
       lockEnabled, preference, user?.email, pendingWrites, deletionPending]);
 
   return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
     <ScrollView
-      style={styles.container}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      style={styles.scrollArea}
+      contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>الإعدادات</Text>
 
@@ -233,13 +234,16 @@ export default function SettingsScreen() {
           onPress: () => setTheme(k),
         }))} />
     </ScrollView>
+    </View>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: space.xxl, paddingBottom: space.huge * 2 },
+    scrollArea: { flex: 1 },
+    // 16 فوق زي ما كان (insets.top + 16) — الـinset بقى على الحاوية برّه
+    content: { padding: space.xxl, paddingTop: 16, paddingBottom: space.huge * 2 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
     section: { marginTop: space.huge },
     // عناوين الأقسام أصغر وأهدى (دراسة الشكل) — الصفوف هي المهمة

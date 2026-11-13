@@ -1,6 +1,6 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
 import { monthSpend } from '@/lib/finance';
-import { cashTotals, isCreditPurchase, monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { cashTotals, isCreditPurchase, monthSpendTotal, spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 
 /**
  * السلفة والجمعية مش مصروف ولا دخل (خطوة 8). بتتعرف من المعرّفات المتخزّنة
@@ -102,5 +102,48 @@ describe('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك �
     expect(isCreditPurchase(credit)).toBe(true);
     expect(isCreditPurchase(borrow)).toBe(false);
     expect(isCreditPurchase({ direction: 'owed_to_me' } as Debt)).toBe(false);
+  });
+});
+
+describe('spendInRange / thisMonthRange: رقم واحد للتقارير والرئيسية', () => {
+  const row = (id: string, type: string, amount: number, date: string, categoryId?: string) => ({ id, type, amount, date, categoryId });
+  const none = new Set<string>();
+
+  it('thisMonthRange: أول وآخر يوم في شهر اليوم (فبراير كبيس وغير كبيس)', () => {
+    expect(thisMonthRange('2026-11-13')).toEqual({ from: '2026-11-01', to: '2026-11-30' });
+    expect(thisMonthRange('2028-02-10')).toEqual({ from: '2028-02-01', to: '2028-02-29' });
+    expect(thisMonthRange('2026-02-28')).toEqual({ from: '2026-02-01', to: '2026-02-28' });
+  });
+
+  it('المصروف اللي جوه الفترة بس، من غير الدخل والسحب والتحويلات', () => {
+    const tx = [
+      row('a', 'expense', 100, '2026-11-01'), row('b', 'expense', 50, '2026-11-30'),
+      row('c', 'expense', 999, '2026-10-31'), row('d', 'expense', 999, '2026-12-01'),
+      row('e', 'income', 777, '2026-11-05'), row('f', 'withdraw', 555, '2026-11-05'),
+      row('loan', 'expense', 2000, '2026-11-06'),
+    ];
+    expect(spendInRange(tx, new Set(['loan']), thisMonthRange('2026-11-13'))).toBe(150);
+  });
+
+  it('عملية بتاريخ جاي في نفس الشهر محسوبة (زي الرقم البطل في التقارير)', () => {
+    expect(spendInRange([row('x', 'expense', 40, '2026-11-25')], none, thisMonthRange('2026-11-13'))).toBe(40);
+  });
+
+  it('فلتر الفئات: نفس دلالة periodExpenseTotal (من غير فئة بيتشال لما فيه فلتر)', () => {
+    const tx = [row('a', 'expense', 10, '2026-11-02', 'c1'), row('b', 'expense', 20, '2026-11-03', 'c2'), row('c', 'expense', 40, '2026-11-04')];
+    const r = thisMonthRange('2026-11-13');
+    expect(spendInRange(tx, none, r)).toBe(70);
+    expect(spendInRange(tx, none, r, ['c1'])).toBe(10);
+  });
+
+  it('ترتيب الجمع هو ترتيب العمليات: 100.10 + 200.20 + 0.3 زي reduce المباشر', () => {
+    const tx = [row('a', 'expense', 100.1, '2026-11-02'), row('b', 'expense', 200.2, '2026-11-03'), row('c', 'expense', 0.3, '2026-11-04')];
+    expect(spendInRange(tx, none, thisMonthRange('2026-11-13'))).toBe(100.1 + 200.2 + 0.3);
+  });
+
+  it('نفس رقم monthSpendTotal للشهر على عمليات صالحة', () => {
+    const tx = [row('a', 'expense', 100, '2026-11-02'), row('b', 'expense', 5, '2026-10-02'), row('loan', 'expense', 2000, '2026-11-06')];
+    const t = new Set(['loan']);
+    expect(spendInRange(tx, t, thisMonthRange('2026-11-13'))).toBe(monthSpendTotal(tx, '2026-11', t));
   });
 });

@@ -71,3 +71,28 @@ describe('snapPiastre و debtExcess بنفس العتبة', () => {
     expect(debtExcess(debt('a', 'owed_to_me', 550, [550.01]))).toBeCloseTo(0.01, 6);
   });
 });
+
+describe('وصف الدين في الكشف: اليوم المحلي مش يوم UTC', () => {
+  afterEach(() => jest.useRealTimers());
+  const noDate = (createdAt?: string) => ({ ...debt('a', 'owed_to_me', 100, []), date: undefined, createdAt }) as unknown as Debt;
+  const pin = () => jest.useFakeTimers({ now: new Date(2026, 10, 13, 12, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame', 'hrtime', 'performance'] });
+
+  it('من غير date، الساعة 11:30 بالليل محليًا ← يوم محلي (حتى لو UTC بقى اليوم اللي بعده)', async () => {
+    pin();
+    await show([noDate(new Date(2026, 10, 12, 23, 30).toISOString())]);
+    expect(screen.getByText('ليا · 12 نوفمبر')).toBeTruthy();
+  });
+
+  it('من غير date، الساعة 12:30 بعد نص الليل محليًا ← يوم محلي (حتى لو UTC لسه اليوم اللي قبله)', async () => {
+    pin();
+    await show([noDate(new Date(2026, 10, 13, 0, 30).toISOString())]);
+    expect(screen.getByText('ليا · 13 نوفمبر')).toBeTruthy();
+  });
+
+  it('من غير date ولا createdAt ← من غير فاصل متدلّي', async () => {
+    pin();
+    await show([noDate(undefined)]);
+    expect(screen.getByText('ليا')).toBeTruthy();
+    expect(screen.queryByText(/ليا ·s*$/)).toBeNull();
+  });
+});
