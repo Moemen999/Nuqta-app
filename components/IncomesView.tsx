@@ -5,6 +5,8 @@ import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/Dat
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
+import { defaultWalletId } from '@/lib/defaultWallet';
+import { useWalletDefault } from '@/lib/useWalletDefault';
 import { dateText } from '@/lib/dateText';
 import { todayStr, walletHistoryName } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
@@ -246,14 +248,21 @@ const STEPS = ['الاسم والمبلغ', 'بينزل فين وامتى', 'ت�
 function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, addIncome, updateIncome } = useData();
+  const { wallets, transactions, addIncome, updateIncome } = useData();
   const { amountsHidden } = usePrivacy();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(income?.name ?? '');
   // التعديل وهو مخبّي: الخانة فاضية بقناع، والفاضي معناه "زي ما هو"
   const [amount, setAmount] = useState(income && !amountsHidden ? String(income.amount) : '');
-  const [walletId, setWalletId] = useState(income?.walletId ?? selectableOptions(wallets)[0]?.id ?? '');
+  // إضافة: آخر محفظة اتستخدمت، بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت (ب4). تعديل: محفظة الدخل نفسه،
+  // من غير أي أثر للافتراضي. مفيش محفظة شغّالة ← '' زي الأول، والخطوة بترفض (`validateIncomeDraft`)
+  const { walletId: pickedWallet, pickWallet, freeze } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, nowMs: Date.now() }), [wallets, transactions]),
+    !income,
+    income?.walletId,
+  );
+  const walletId = pickedWallet ?? '';
   const [frequency, setFrequency] = useState<IncomeFrequency>(income?.frequency ?? 'monthly');
   const [day, setDay] = useState(String(income?.dayOfMonth ?? 1));
   const [weekday, setWeekday] = useState(income?.weekday ?? 4);
@@ -294,6 +303,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
   }
 
   function next() {
+    freeze();
     const e = stepError(step);
     if (e) { setError(e); return; }
     setError('');
@@ -328,10 +338,10 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
               {step === 0 && (
                 <>
                   <Text style={styles.label}>اسمه</Text>
-                  <TextInput maxLength={NAME_MAX_LENGTH} testID="income_name" style={styles.input} value={name} onChangeText={setName}
+                  <TextInput maxLength={NAME_MAX_LENGTH} testID="income_name" style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
                     placeholder="المرتب" placeholderTextColor={colors.textMuted} textAlign="right" autoFocus={!income} />
                   <Text style={styles.label}>المبلغ المعتاد</Text>
-                  <TextInput testID="income_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
+                  <TextInput testID="income_amount" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
                     keyboardType="numeric" textAlign="right" placeholderTextColor={colors.textMuted}
                     placeholder={income && amountsHidden ? '•••• (زي ما هو)' : '0'} />
                   <Text style={styles.hint}>لو شهر نزل مختلف، هتعدّل الشهر ده بس من غير ما الرقم ده يتغيّر.</Text>
@@ -343,7 +353,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   <Text style={styles.label}>بينزل في محفظة</Text>
                   <View style={styles.chipRow}>
                     {selectableOptions(wallets, walletId).map(w => (
-                      <TouchableOpacity key={w.id} onPress={() => setWalletId(w.id)}
+                      <TouchableOpacity key={w.id} onPress={() => pickWallet(w.id)}
                         {...selectionA11y(walletId === w.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                         <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
@@ -353,7 +363,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   <Text style={styles.label}>كل قد إيه</Text>
                   <View style={styles.row}>
                     {(['monthly', 'weekly'] as const).map(f => (
-                      <TouchableOpacity key={f} onPress={() => setFrequency(f)}
+                      <TouchableOpacity key={f} onPress={() => { freeze(); setFrequency(f); }}
                         {...selectionA11y(frequency === f, 'radio')}
                         style={[styles.typeBtn, selectionStyle(colors, frequency === f)]}>
                         <Text style={{ color: colors.text, fontSize: 12.5 }}>{f === 'monthly' ? 'كل شهر' : 'كل أسبوع'}</Text>
@@ -368,7 +378,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   {frequency === 'monthly' ? (
                     <>
                       <Text style={styles.label}>يوم كام في الشهر؟</Text>
-                      <TextInput testID="income_day" style={styles.input} value={day} onChangeText={setDay}
+                      <TextInput testID="income_day" style={styles.input} value={day} onChangeText={v => { freeze(); setDay(v); }}
                         keyboardType="number-pad" textAlign="right" maxLength={2} />
                       {Number(day) >= 29 && Number(day) <= 31 && (
                         <Text style={styles.hint}>الشهور اللي أقصر بتاخد آخر يوم فيها.</Text>
@@ -379,7 +389,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <Text style={styles.label}>أنهي يوم؟</Text>
                       <View style={styles.chipRow}>
                         {WEEKDAY_NAMES.map((n, i) => (
-                          <TouchableOpacity key={n} onPress={() => setWeekday(i)}
+                          <TouchableOpacity key={n} onPress={() => { freeze(); setWeekday(i); }}
                             {...selectionA11y(weekday === i, 'radio')}
                             style={[styles.chip, selectionStyle(colors, weekday === i)]}>
                             <Text style={{ color: colors.text, fontSize: 13 }}>{n}</Text>
@@ -394,7 +404,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
               {step === 2 && (
                 <>
                   {(['confirm', 'auto'] as const).map(m => (
-                    <TouchableOpacity key={m} testID={`income_mode_${m}`} onPress={() => setMode(m)}
+                    <TouchableOpacity key={m} testID={`income_mode_${m}`} onPress={() => { freeze(); setMode(m); }}
                       {...selectionA11y(mode === m, 'radio')}
                       style={[styles.modeCard, selectionStyle(colors, mode === m)]}>
                       <Text style={styles.modeTitle}>{INCOME_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
@@ -416,7 +426,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
 
             <View style={styles.footer}>
               <TouchableOpacity testID="income_setup_back" accessibilityRole="button" style={styles.cancelBtn}
-                onPress={() => { setError(''); if (step === 0) onClose(); else setStep(step - 1); }}>
+                onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }}>
                 <Text style={{ color: colors.textSecondary }}>{step === 0 ? 'إلغاء' : 'رجوع'}</Text>
               </TouchableOpacity>
               <TouchableOpacity testID="income_setup_next" accessibilityRole="button" style={styles.saveBtn} onPress={next}>

@@ -15,6 +15,8 @@ import { selectableOptions, type TxChange } from '@/lib/archiving';
 import { transferTransactionIds } from '@/lib/spending';
 import { dateText } from '@/lib/dateText';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
+import { activeWalletIds, defaultWalletId, lastTransferToWalletId } from '@/lib/defaultWallet';
+import { useWalletDefault } from '@/lib/useWalletDefault';
 import { quietSelectionStyle, selectionA11y, selectionTextColor, type SelectionTone } from '@/lib/selection';
 import { MIN_TOUCH, radius, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -64,8 +66,20 @@ export default function AddTransactionModal() {
 
   const [type, setType] = useState<'expense' | 'income' | 'withdraw'>('expense');
   const [amount, setAmount] = useState('');
-  const [walletId, setWalletId] = useState<string | undefined>(undefined);
-  const [toWalletId, setToWalletId] = useState<string | undefined>(undefined);
+  // عملية جديدة: "من" بيبدأ على آخر محفظة اتسجل عليها، و"إلى" على وجهة آخر تحويل (عمرها
+  // ما تساوي "من"). بيتبعوا البيانات لحد أول إدخال، وبعدها بيتثبتوا (`lib/useWalletDefault.ts`)،
+  // فمحفظة وصلت متأخرة مبتغيّرش اللي المستخدم شافه. التعديل: محفظة السجل نفسه
+  const fromDefault = useMemo(() => defaultWalletId({ wallets, transactions, nowMs: Date.now() }), [wallets, transactions]);
+  const fromW = useWalletDefault(fromDefault, !id);
+  const walletId = fromW.walletId;
+  const toDefault = useMemo(
+    () => lastTransferToWalletId(transactions, activeWalletIds(wallets), walletId, Date.now()),
+    [wallets, transactions, walletId],
+  );
+  const toW = useWalletDefault(toDefault, !id);
+  const toWalletId = toW.walletId;
+  // أي إدخال بيثبّت المحفظتين على اللي كانوا ظاهرين
+  const touch = () => { fromW.freeze(); toW.freeze(); };
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayStr());
@@ -79,26 +93,24 @@ export default function AddTransactionModal() {
   // بتسأل الفرق يروح فين — ولو مفيش محفظة مؤرشفة متأثرة بتعدّي من غير ما تبان
   const settle = useArchivedSettlement();
 
+  const categoryInit = useRef(false);
   useEffect(() => {
     if (existing && !loaded && linkSourcesReady) {
       setFrozenLink(liveLinkKind);
       opened.current = { amount: existing.amount, walletId: existing.walletId, type: existing.type };
       setType(existing.type);
       setAmount(String(existing.amount));
-      setWalletId(existing.walletId);
-      setToWalletId(existing.toWalletId);
+      fromW.pickWallet(existing.walletId);
+      toW.pickWallet(existing.toWalletId);
       setCategoryId(existing.categoryId);
       setNote(existing.note || '');
       setDate(existing.date);
       setLoaded(true);
-    } else if (!id && walletId === undefined && wallets.length > 0) {
-      // عملية جديدة مبتبدأش على محفظة أو فئة مؤرشفة — دي اتأرشفت عشان
-      // تختفي من الاختيارات، وتيجي مختارة افتراضيًا بيلغي معنى الأرشفة
-      const active = wallets.filter(w => !w.archived);
-      const activeCats = categories.filter(c => !c.archived);
-      setWalletId(active[0]?.id);
-      setToWalletId(active[1]?.id ?? active[0]?.id);
-      setCategoryId(activeCats[0]?.id);
+    } else if (!id && !categoryInit.current && wallets.length > 0) {
+      // عملية جديدة مبتبدأش على فئة مؤرشفة — دي اتأرشفت عشان تختفي من الاختيارات،
+      // وتيجي مختارة افتراضيًا بيلغي معنى الأرشفة (والمحفظة بتتحدد فوق من `useWalletDefault`)
+      categoryInit.current = true;
+      setCategoryId(categories.filter(c => !c.archived)[0]?.id);
     }
   }, [existing, wallets, categories, linkSourcesReady]);
 
@@ -365,7 +377,7 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => setType(t.key)}
+          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { touch(); setType(t.key); }}
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ checked: type === t.key, disabled: typeLocked && type !== t.key }}
             style={[styles.typeBtn, quietSelectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
@@ -385,7 +397,7 @@ export default function AddTransactionModal() {
       {/* "+" بيودّي على كتابة الرقم على طول (2026-09-29): الكيبورد بيفتح لوحده في عملية
           جديدة. مش في التعديل (جه يبص الأول)، ولا من غير محفظة (الكيبورد كان هيغطي
           "ضيف محفظة" عشان رقم مش هيتحفظ). زرار الحفظ في فوتر لاصق فوق الكيبورد */}
-      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={setAmount}
+      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={v => { touch(); setAmount(v); }}
         autoFocus={!id && !noActiveWallets}
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
       <AmountPreview amount={amount} projections={projections} />
@@ -393,7 +405,7 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => fromW.pickWallet(w.id)}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
@@ -405,7 +417,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => setToWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { fromW.freeze(); toW.pickWallet(w.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -419,7 +431,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => setCategoryId(c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { touch(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
@@ -434,13 +446,13 @@ export default function AddTransactionModal() {
       </TouchableOpacity>
 
       <Text style={styles.label}>ملاحظة</Text>
-      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
+      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { touch(); setNote(v); }}
         placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
       <CalendarPickerModal
         visible={showDatePicker}
         value={date}
-        onSelect={setDate}
+        onSelect={d => { touch(); setDate(d); }}
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>

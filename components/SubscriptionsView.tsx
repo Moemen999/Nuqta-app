@@ -11,6 +11,8 @@ import FoldedSection from '@/components/FoldedSection';
 import { splitDone } from '@/lib/doneSections';
 import { dateText } from '@/lib/dateText';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
+import { defaultWalletId } from '@/lib/defaultWallet';
+import { useWalletDefault } from '@/lib/useWalletDefault';
 import { legacyNote, parseEntryNumber, subscriptionEntryProblem } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
@@ -18,7 +20,7 @@ import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
@@ -270,12 +272,18 @@ export default function SubscriptionsView() {
 function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, addSubscription } = useData();
+  const { wallets, categories, transactions, addSubscription } = useData();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
-  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  // المحفظة: آخر محفظة اتستخدمت، بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت. والمودال ده متركّب طول
+  // الوقت (`visible` بس بيتغيّر) فكل فتحة بتبدأ من الأول — مبنفضلش على اختيار الفتحة اللي فاتت،
+  // اللي ممكن تكون اتأرشفت في الفاصل (ب4)
+  const { walletId, pickWallet, freeze, reopen } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, nowMs: Date.now() }), [wallets, transactions]),
+  );
+  useEffect(() => { if (visible) reopen(); }, [visible, reopen]);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [frequency, setFrequency] = useState<'monthly' | 'yearly' | 'custom'>('monthly');
   const [customDays, setCustomDays] = useState('30');
@@ -286,6 +294,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   const [error, setError] = useState('');
 
   function reset() {
+    reopen();
     setName(''); setAmount(''); setFrequency('monthly'); setCustomDays('30');
     setNextDueDate(todayStr()); setReminderDays('3'); setError(''); setCategoryId(undefined); setChargeMode('confirm');
   }
@@ -327,17 +336,17 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.sheetTitle}>اشتراك جديد</Text>
 
           <Text style={styles.label}>الاسم</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
+          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
             placeholder="مثلاً: نتفليكس" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -347,7 +356,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
               </TouchableOpacity>
@@ -356,13 +365,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => { freeze(); setFrequency('monthly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => { freeze(); setFrequency('yearly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
+            <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => { freeze(); setFrequency('custom'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
               <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
@@ -370,7 +379,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           {frequency === 'custom' && (
             <>
               <Text style={styles.label}>{CUSTOM_DAYS_FIELD}</Text>
-              <TextInput style={styles.input} value={customDays} onChangeText={setCustomDays}
+              <TextInput style={styles.input} value={customDays} onChangeText={v => { freeze(); setCustomDays(v); }}
                 keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
           )}
@@ -381,14 +390,14 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+          <TextInput style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
-          <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
+          <ChargeModePicker value={chargeMode} onChange={m => { freeze(); setChargeMode(m); }} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
           {!!error && <Text style={styles.error}>{error}</Text>}
 
 
-          <CalendarPickerModal visible={showPicker} value={nextDueDate} onSelect={setNextDueDate} onClose={() => setShowPicker(false)} />
+          <CalendarPickerModal visible={showPicker} value={nextDueDate} onSelect={d => { freeze(); setNextDueDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
         <View style={styles.footer}>

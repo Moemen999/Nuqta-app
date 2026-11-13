@@ -23,7 +23,7 @@ export function useWalletDefault(defaultId: string | undefined, enabled = true, 
   const shown = useRef(walletId);
   shown.current = walletId;
 
-  const pickWallet = useCallback((id: string) => setFrozen({ id }), []);
+  const pickWallet = useCallback((id: string | undefined) => setFrozen({ id }), []);
   const freeze = useCallback(() => setFrozen(f => f ?? { id: shown.current }), []);
   const reopen = useCallback(() => setFrozen(null), []);
 

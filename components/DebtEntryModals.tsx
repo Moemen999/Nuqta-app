@@ -12,6 +12,8 @@ import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } fr
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
+import { defaultWalletId } from '@/lib/defaultWallet';
+import { useWalletDefault } from '@/lib/useWalletDefault';
 import { isCreditPurchase, CREDIT_PURCHASE_HINT } from '@/lib/spending';
 import { dateText } from '@/lib/dateText';
 import { DUE_MOVED_TITLE } from '@/lib/reopenDue';
@@ -75,7 +77,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const progressLabel = installmentProgressLabel(debt);
 
   const [amount, setAmount] = useState(String(suggested > 0 ? suggested : ''));
-  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  // البداية: محفظة الدين نفسه (أو آخر محفظة اتستخدمت لو الدين مالوش) — بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت (`lib/useWalletDefault.ts`)
+  const { walletId, pickWallet, freeze } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, debt, nowMs: Date.now() }), [wallets, transactions, debt]),
+  );
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   // الفئة لسداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05)؛ باقي الديون تحويل والفئة مكانتش هتتعدّ
   const creditPurchase = isCreditPurchase(debt);
@@ -159,14 +164,14 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           {!!progressLabel && <Text style={styles.installmentText}>{progressLabel}</Text>}
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
           <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'المحفظة اللي هتستلم فيها' : 'المحفظة اللي هتدفع منها'}</Text>
           <View style={styles.chipRow}>
-            {selectableOptions(wallets).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+            {selectableOptions(wallets, walletId).map(w => (
+              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
               </TouchableOpacity>
@@ -178,7 +183,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
               <Text style={styles.label}>الفئة (اختياري)</Text>
               <View style={styles.chipRow}>
                 {selectableOptions(categories).map(c => (
-                  <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+                  <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                     <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
                   </TouchableOpacity>
@@ -194,7 +199,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
+          <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -221,7 +226,10 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
   const [amount, setAmount] = useState('');
   const [linkedToWallet, setLinkedToWallet] = useState(true);
-  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  // البداية: محفظة الدين نفسه (أو آخر محفظة اتستخدمت لو الدين مالوش) — بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت (`lib/useWalletDefault.ts`)
+  const { walletId, pickWallet, freeze } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, debt, nowMs: Date.now() }), [wallets, transactions, debt]),
+  );
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
@@ -242,7 +250,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
   const leftoverMode = picked && picked.key === choiceKey ? picked.mode : null;
   const setLeftoverMode = (mode: LeftoverMode | null) => setPicked(mode ? { mode, key: choiceKey } : null);
   // الخطأ القديم ("اختار الأول") مبيفضلش بعد ما المبلغ يتغيّر والسؤال يمشي
-  const changeAmount = (v: string) => { setAmount(v); setLeftoverMode(null); setError(''); };
+  const changeAmount = (v: string) => { freeze(); setAmount(v); setLeftoverMode(null); setError(''); };
 
   // الزيادة بالأجل مش بتلمس محفظة خالص، فمفيش رصيد نعرضه — ولا صفر ولا شرطة
   const projections = useMemo(() => projectBalances({
@@ -314,11 +322,11 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => setLinkedToWallet(true)}
+            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => setLinkedToWallet(false)}
+            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل)</Text>
             </TouchableOpacity>
@@ -345,7 +353,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
                 return (
                   <TouchableOpacity key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
                     {...selectionA11y(selected, 'radio')}
-                    onPress={() => { setLeftoverMode(mode); setError(e => (e === LEFTOVER_REQUIRED ? '' : e)); }}
+                    onPress={() => { freeze(); setLeftoverMode(mode); setError(e => (e === LEFTOVER_REQUIRED ? '' : e)); }}
                     style={[styles.leftoverOption, selectionStyle(colors, selected)]}>
                     <Text style={[styles.leftoverTitle, { color: selected ? colors.text : colors.textSecondary }]}>
                       {mode === 'absorb' ? 'يتضاف على آخر قسط' : 'قسط منفصل في الآخر'}
@@ -361,8 +369,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
             <>
               <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
-                {selectableOptions(wallets).map(w => (
-                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+                {selectableOptions(wallets, walletId).map(w => (
+                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
                   </TouchableOpacity>
@@ -377,7 +385,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           </TouchableOpacity>
 
 
-          <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
+          <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
         {/* فوق الأزرار مش آخر الـScrollView (جولة 1): "اختار الأول" كانت بتقع تحت الشاشة والحفظ "مبيعملش حاجة" */}
@@ -409,7 +417,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
 export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefill?: DebtPrefill }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { addDebt, wallets } = useData();
+  const { addDebt, wallets, transactions } = useData();
   const { busy, run: runBusy } = useBusy();
   const picker = useDeviceContacts();
 
@@ -422,12 +430,23 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const [installmentCount, setInstallmentCount] = useState('');
   const [note, setNote] = useState('');
   const [linkedToWallet, setLinkedToWallet] = useState(true);
-  const [walletId, setWalletId] = useState(selectableOptions(wallets)[0]?.id);
+  // البداية: آخر محفظة اتستخدمت — بتتبع البيانات لحد أول إدخال وبعدها بتتثبّت (`lib/useWalletDefault.ts`)
+  const { walletId, pickWallet, freeze } = useWalletDefault(
+    useMemo(() => defaultWalletId({ wallets, transactions, nowMs: Date.now() }), [wallets, transactions]),
+  );
   const [date, setDate] = useState(todayStr());
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [reminderDaysBefore, setReminderDaysBefore] = useState<number | null>(null);
+
+  // الدين المربوط بمحفظة بيولّد عملية فعلية (قرض ← مصروف، استلاف ← إيراد): نفس سطر الرصيد بتاع الدفعة والزيادة،
+  // وبيسمّي المحفظة اللي هتتسجل عليها. بالأجل مبيلمسش محفظة فمفيش رصيد نعرضه
+  const projections = useMemo(() => projectBalances({
+    transactions, wallets, amount: toMoneyAmount(Number(totalAmount)) ?? 0,
+    walletId: linkedToWallet ? walletId : undefined,
+    type: direction === 'owed_to_me' ? 'expense' : 'income',
+  }), [transactions, wallets, totalAmount, walletId, linkedToWallet, direction]);
 
   async function handleSave() {
     // "1e999" كان بيعدّي من فحص الصفر لوحده ويتسجل دين Infinity (`toMoneyAmount`)
@@ -477,11 +496,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <Text style={styles.sheetTitle}>دين جديد</Text>
 
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => setDirection('owed_to_me')}
+            <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'owed_to_me', 'success')]}>
               <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: 13 }}>ليا (أنا قرضته)</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(direction === 'i_owe', 'radio')} onPress={() => setDirection('i_owe')}
+            <TouchableOpacity {...selectionA11y(direction === 'i_owe', 'radio')} onPress={() => { freeze(); setDirection('i_owe'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'i_owe', 'danger')]}>
               <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: 13 }}>عليا (هو قرضني)</Text>
             </TouchableOpacity>
@@ -489,11 +508,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
 
           <Text style={styles.label}>الدين ده مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => setLinkedToWallet(true)}
+            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة، فلوس حقيقية</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => setLinkedToWallet(false)}
+            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل مثلاً)</Text>
             </TouchableOpacity>
@@ -521,19 +540,20 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={setTotalAmount}
+          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={v => { freeze(); setTotalAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
+          {linkedToWallet && <AmountPreview amount={totalAmount} projections={projections} />}
 
           {linkedToWallet && (
             <>
               <Text style={styles.label}>{direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
-                {selectableOptions(wallets).map(w => (
-                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+                {selectableOptions(wallets, walletId).map(w => (
+                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
                   </TouchableOpacity>
@@ -548,11 +568,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           </TouchableOpacity>
 
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(!isInstallment, 'radio')} onPress={() => setIsInstallment(false)}
+            <TouchableOpacity {...selectionA11y(!isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !isInstallment)]}>
               <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>مبلغ واحد</Text>
             </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(isInstallment, 'radio')} onPress={() => setIsInstallment(true)}
+            <TouchableOpacity {...selectionA11y(isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(true); }}
               style={[styles.typeBtn, selectionStyle(colors, isInstallment)]}>
               <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>أقساط</Text>
             </TouchableOpacity>
@@ -561,7 +581,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           {isInstallment && (
             <>
               <Text style={styles.label}>عدد الأقساط</Text>
-              <TextInput style={styles.input} value={installmentCount} onChangeText={setInstallmentCount}
+              <TextInput style={styles.input} value={installmentCount} onChangeText={v => { freeze(); setInstallmentCount(v); }}
                 placeholder="مثلاً: 6" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
             </>
           )}
@@ -569,17 +589,17 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <DebtReminderFields
             dueDate={dueDate}
             reminderDaysBefore={reminderDaysBefore}
-            onChangeDueDate={setDueDate}
-            onChangeReminder={setReminderDaysBefore}
+            onChangeDueDate={v => { freeze(); setDueDate(v); }}
+            onChangeReminder={v => { freeze(); setReminderDaysBefore(v); }}
           />
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
+          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { freeze(); setNote(v); }}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           {!!error && <Text style={styles.error}>{error}</Text>}
 
-          <CalendarPickerModal visible={showPicker} value={date} onSelect={setDate} onClose={() => setShowPicker(false)} />
+          <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
         <View style={styles.footer}>
@@ -597,6 +617,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           contacts={picker.contacts}
           onClose={picker.close}
           onPick={ct => {
+            freeze();
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
             setPersonContactId(ct.id);
