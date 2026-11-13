@@ -77,6 +77,20 @@ describe('وقت العملية في صف الأرشيف', () => {
   });
 });
 
+describe('تغيّر اليوم والشاشة مفتوحة', () => {
+  afterEach(() => jest.useRealTimers());
+  it('صف بتاريخ النهاردة بيبقى «امبارح» لما الشاشة تتعمل render في اليوم اللي بعده', async () => {
+    pinToday(2026, 10, 13);
+    seed(0);
+    mockData.transactions = [{ id: 'x', type: 'expense', amount: 5, date: '2026-11-13', walletId: 'w' }];
+    const view = await render(ui());
+    expect(within(screen.getByTestId('archive_tx_x')).getByText('النهاردة')).toBeTruthy();
+    jest.setSystemTime(new Date(2026, 10, 14, 0, 5));
+    await view.rerender(ui());
+    expect(within(screen.getByTestId('archive_tx_x')).getByText('امبارح')).toBeTruthy();
+  });
+});
+
 describe('الفتح على فلتر من باراميتر (شوف كل العمليات من الرئيسية)', () => {
   afterEach(() => { mockParams = {}; });
 
