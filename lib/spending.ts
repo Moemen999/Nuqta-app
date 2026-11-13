@@ -1,4 +1,5 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
+import { endOfMonth, periodExpenseTotal, startOfMonth } from '@/lib/finance';
 
 /**
  * **السلفة والجمعية مش مصروف** (قرار مؤمن 2026-09-29، خطوة 8).
@@ -79,6 +80,22 @@ type Tx = { id: string; type: string; amount: number; date: string };
 /** المصروف الحقيقي: `expense` ومش سلفة ولا قسط جمعية */
 export function spendingExpenses<T extends Tx>(tx: T[], transfers: Set<string>): T[] {
   return tx.filter(t => t.type === 'expense' && !transfers.has(t.id));
+}
+
+/**
+ * **الرقم الواحد** لمصروف فترة: الرقم البطل في التقارير وكارت الشهر في الرئيسية بيعدّوا من هنا بالظبط — نفس
+ * الصفوف ونفس ترتيب الجمع، فالاتنين مينفعش يختلفوا ولا بقرش. `visibleIds` = فلتر الفئات في التقارير
+ * (`undefined` = من غير فلتر).
+ */
+export function spendInRange<T extends Tx & { categoryId?: string }>(
+  tx: T[], transfers: Set<string>, range: { from: string; to: string }, visibleIds?: string[],
+): number {
+  return periodExpenseTotal(spendingExpenses(tx.filter(t => t.date >= range.from && t.date <= range.to), transfers), visibleIds);
+}
+
+/** «الشهر ده» كفترة: أول يوم في شهر `today` لآخر يوم فيه (مش لحد النهارده) */
+export function thisMonthRange(today: string): { from: string; to: string } {
+  return { from: startOfMonth(today), to: endOfMonth(today) };
 }
 
 /**

@@ -12,7 +12,7 @@ import { barRows } from '@/lib/barRows';
 import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
-import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
+import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router } from 'expo-router';
@@ -57,7 +57,7 @@ export default function ReportsScreen() {
       const to = customFrom <= customTo ? customTo : customFrom;
       return { from, to };
     }
-    return { from: startOfMonth(today), to: endOfMonth(today) };
+    return thisMonthRange(today);
   }, [preset, customFrom, customTo, today]);
 
   const filtered = useMemo(
@@ -84,9 +84,10 @@ export default function ReportsScreen() {
     [periodExpenses, categories, categoryColors, colors.textSecondary, visibleIds]
   );
 
+  // الرقم البطل من الدالة المشتركة مع كارت الرئيسية (`spendInRange`) — نفس الصفوف ونفس ترتيب الجمع
   const periodExpense = useMemo(
-    () => periodExpenseTotal(periodExpenses, visibleIds),
-    [periodExpenses, visibleIds]
+    () => spendInRange(transactions, transfers, range, visibleIds),
+    [transactions, transfers, range, visibleIds]
   );
 
   // الشرايح الزيادة بتتلمّ في شريحة واحدة بلون محايد برّه باليتة الفئات.
