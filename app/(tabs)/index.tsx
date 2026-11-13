@@ -57,7 +57,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending } = useData();
   const { walletColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -180,12 +180,14 @@ function HomeScreen() {
    * كارت «صرفت الشهر ده». **مخفي** (بيكسب على أي حاجة تانية) لما الأرقام اللي فوق نفسها مش بتتعرض أو مش متأكدين منها:
    * كاش بارد، مفيش نت وفاضي، مفيش محفظة. بعد كده: الخطأ ← مفيش رقم؛ لسه بنحمّل ← «بنحمّل…» (نفس شرط التقارير:
    * `transfersStatus === 'loading'`)؛ غير كده الرقم — ولو الديون فشلت معاه سطر التقارير.
-   * **مش مربوط بـ`figuresPending`** عن قصد: بيتشال بس لما listener العمليات يرمي snapshot (DataContext)، ومجموعة
-   * عمليات فاضية ممكن متبعتش (CLAUDE.md «مشاكل معروفة») — الكارت كان هيفضل «بنحمّل» للأبد لحساب جديد.
+   * **العمليات لسه ما وصلتش** (`figuresPending` فيها 'transactions') ← «بنحمّل…» برضه، **بس لحد مهلة التحميل**
+   * (`loadWindowPassed`، نفس اللي بتحكم «مفيش نت»): `figuresPending` بيتشال بس لما listener العمليات يرمي snapshot،
+   * ومجموعة فاضية ممكن متبعتش (DataContext ~785-790، CLAUDE.md «مشاكل معروفة») — من غير المهلة حساب جديد كان هيفضل
+   * «بنحمّل» للأبد. من غيره «0 ج.م» / «فاضل 8,000» كانت ادّعاء مظبوط الشكل إن مفيش مصروف. المهلة بعد كده: الرقم زي ما هو.
    */
   const monthCardHidden = !!cold || offlineEmpty || noWalletsState.none || wallets.length === 0;
   const monthCardState: MonthCardState = loadErrors.includes('transactions') ? { kind: 'error' }
-    : transfersStatus === 'loading' ? { kind: 'loading' }
+    : transfersStatus === 'loading' || (!loadWindowPassed && !!figuresPending?.includes('transactions')) ? { kind: 'loading' }
     : { kind: 'ready', summary, transfersFailed: transfersStatus === 'failed', budgetsFailed: loadErrors.includes('budgets') };
 
   // البانر للي **لسه جاي** بس: اللي معاده جه ليه كارت "اتخصم؟" تحت (أو اتسجل لوحده)

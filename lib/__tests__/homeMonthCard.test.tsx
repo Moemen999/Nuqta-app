@@ -156,10 +156,37 @@ describe('حالات الكارت', () => {
     expect(within(card()).getByText('مقدرناش نجيب عملياتك')).toBeTruthy();
   });
 
-  it('listener العمليات لسه ما رماش حاجة (figuresPending) وحساب من غير عمليات ← «0 ج.م» مش «بنحمّل» للأبد', async () => {
-    setData({ figuresPending: ['transactions'], transactions: [] });
+  // مهلة التحميل (2.5 ثانية) هي `loadWindowPassed` في الرئيسية — مش بنضيف مؤقت تاني
+  const mountPending = async (windowPassed: boolean) => {
+    setData({ figuresPending: ['transactions'], transactions: [], budgets: { total_budget: 8000 } });
     await mountHome();
+    if (windowPassed) await act(async () => { await new Promise(res => setTimeout(res, 2600)); });
+  };
+
+  it('العمليات لسه ما وصلتش والمهلة ما عدّتش (ومعاها ميزانية) ← مفيش ولا رقم ولا «فاضل» ولا شريط، والتسمية «بنحمّل»', async () => {
+    await mountPending(false);
+    expect(within(card()).queryByText(/d/)).toBeNull();
+    expect(within(card()).queryByText(/فاضل/)).toBeNull();
+    expect(screen.queryByTestId('home_month_left')).toBeNull();
+    expect(card().props.accessibilityLabel).toBe('صرفت الشهر ده: بنحمّل');
+  });
+
+  it('نفس الحالة بعد المهلة (حساب جديد من غير عمليات، الـlistener مرماش) ← «0 ج.م» مش «بنحمّل» للأبد', async () => {
+    await mountPending(true);
     expect(cardText()).toBe('0 ج.م');
+    expect(flat(screen.getByTestId('home_month_left').props.children)).toBe('فاضل 8,000 ج.م');
+  });
+
+  it('العمليات وصلت (figuresPending فاضي) ← الرقم على طول', async () => {
+    setData({ figuresPending: [], transactions: [exp('a', 123, '2026-11-02')] });
+    await mountHome();
+    expect(cardText()).toBe('123 ج.م');
+  });
+
+  it('العمليات اتحرمت وهي لسه pending ← الخطأ بيكسب على «بنحمّل»', async () => {
+    setData({ figuresPending: ['transactions'], loadErrors: ['transactions'] });
+    await mountHome();
+    expect(within(card()).getByText('مقدرناش نجيب عملياتك')).toBeTruthy();
   });
 
   it('الميزانية اتحرمت ← الرقم بس: مفيش ميزانية ولا مقارنة', async () => {
