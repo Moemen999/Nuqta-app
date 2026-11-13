@@ -25,7 +25,7 @@ import {
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
@@ -81,6 +81,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { walletId, pickWallet, freeze } = useWalletDefault(
     useMemo(() => defaultWalletId({ wallets, transactions, debt, nowMs: Date.now() }), [wallets, transactions, debt]),
   );
+  // الفورم هنا كامل من أول ما يتفتح (المبلغ متعبّي بالمقترح) فممكن الحفظ من غير أي إدخال، يعني من غير أي `freeze`.
+  // فأول محفظة ظهرت فعلاً = اللي المستخدم شافها = بتتثبّت. لو أول رسمة كانت من غير محفظة (المحافظ لسه ما وصلتش)
+  // بنستنى أول واحدة تظهر. وعمره ما بيغيّر اختيار المستخدم (`freeze` من غير أثر بعد التثبيت)
+  useEffect(() => { if (walletId !== undefined) freeze(); }, [walletId, freeze]);
   const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   // الفئة لسداد الشرا بالأجل بس — هو اللي بيفضل مصروف (قرار مؤمن 2026-11-05)؛ باقي الديون تحويل والفئة مكانتش هتتعدّ
   const creditPurchase = isCreditPurchase(debt);

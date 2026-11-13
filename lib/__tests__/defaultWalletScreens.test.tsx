@@ -647,3 +647,117 @@ describe('دخل ثابت', () => {
     expect(checked('باء')).toBe(false);
   });
 });
+
+/* ───────────── مراجعة money-reviewer + silent-failure-hunter: تثبيت الدفعة، وبنود ناقصة ───────────── */
+
+describe('سداد دين من غير أي إدخال (المبلغ متعبّي بالمقترح)', () => {
+  const instDebt = (over: Record<string, unknown> = {}) => debtOf({
+    isInstallment: true, installmentCount: 4, installmentAmount: 250, totalAmount: 1000, ...over,
+  });
+  const chipsChecked = () => ['ألف', 'باء', 'جيم'].filter(checked);
+
+  it('الدين على باء، وبعدين البيانات اتغيّرت وبقى الافتراضي المحسوب جيم ← الحفظ من غير إدخال بيروح باء، وهو الشيب المختار', async () => {
+    seed({ transactions: [] });
+    let d = instDebt({ initialWalletId: 'B' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    expect(chipsChecked()).toEqual(['باء']);
+    d = instDebt({ initialWalletId: 'C' });
+    await dataChanges(r, ui, { transactions: [T('A', at(9))] });
+    expect(chipsChecked()).toEqual(['باء']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'B', expect.any(String), undefined);
+  });
+
+  it('شرا بالأجل: آخر محفظة ألف وبعدين بقت جيم ← الحفظ من غير إدخال بيروح ألف', async () => {
+    seed({ transactions: [T('A', at(1))] });
+    const d = instDebt({ direction: 'i_owe' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    await dataChanges(r, ui, { transactions: [T('A', at(1)), T('C', at(8))] });
+    expect(chipsChecked()).toEqual(['ألف']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'A', expect.any(String), undefined);
+  });
+
+  it('أول رسمة من غير محافظ ← المحفظة بتظهر لما توصل، وبعدها بتتثبّت', async () => {
+    seed({ wallets: [], transactions: [] });
+    const d = instDebt({ direction: 'i_owe' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    expect(chipsChecked()).toEqual([]);
+    await dataChanges(r, ui, { wallets: [A, B, C], transactions: [T('B', at(2))] });
+    expect(chipsChecked()).toEqual(['باء']);
+    await dataChanges(r, ui, { transactions: [T('B', at(2)), T('C', at(9))] });
+    expect(chipsChecked()).toEqual(['باء']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'B', expect.any(String), undefined);
+  });
+
+  it('المستخدم اختار محفظة وبعدين البيانات اتغيّرت ← فاضل على اختياره', async () => {
+    seed({ transactions: [T('A', at(1))] });
+    const d = instDebt({ direction: 'i_owe' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    await press(screen.getByRole('radio', { name: 'جيم' }));
+    await dataChanges(r, ui, { transactions: [T('A', at(1)), T('B', at(8))] });
+    expect(chipsChecked()).toEqual(['جيم']);
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'C', expect.any(String), undefined);
+  });
+
+  it('مسار تأكيد الزيادة: البيانات بتتغيّر والتأكيد مفتوح ← بيتحفظ نفس محفظة الشيب', async () => {
+    seed({ transactions: [T('A', at(1))] });
+    const d = debtOf({ direction: 'i_owe' });
+    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const r = await render(ui());
+    await type(screen.getByTestId('debt_payment_amount'), '5000'); // أكتر من المتبقي ← تأكيد
+    await press(screen.getByTestId('debt_payment_save'));
+    expect(mockData.addDebtPayment).not.toHaveBeenCalled();
+    await dataChanges(r, ui, { transactions: [T('A', at(1)), T('C', at(8))] });
+    expect(chipsChecked()).toEqual(['ألف']);
+    await press(screen.getByText('أيوة، سجّل'));
+    expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 5000, 'A', expect.any(String), undefined);
+  });
+});
+
+describe('بنود ناقصة في المراجعة', () => {
+  const ui = () => wrap(<AddTransactionModal />);
+
+  it('تحويل و"إلى" متثبّتة، واختار "من" = "إلى" ← الحفظ بيترفض بنفس الرسالة ومفيش كتابة', async () => {
+    seed({ transactions: [T('B', at(2)), T('A', at(1), { type: 'withdraw', toWalletId: 'C' })] });
+    await render(ui());
+    await press(screen.getByTestId('tx_type_withdraw'));
+    await type(screen.getByTestId('tx_amount_input'), '30'); // بيثبّت "إلى" = جيم
+    await press(screen.getAllByRole('radio', { name: 'جيم' })[0]); // شيب "من"
+    await press(screen.getByTestId('tx_save_button'));
+    expect(screen.getByText('اختار محفظة وجهة مختلفة')).toBeTruthy();
+    expect(mockData.addTransaction).not.toHaveBeenCalled();
+  });
+
+  it('الافتراضي اتقلب قبل أي إدخال في إضافة عملية ← الشيب المختار هو اللي بيتحفظ', async () => {
+    seed({ transactions: [T('A', at(1)), T('B', at(2))] });
+    const r = await render(ui());
+    expect(checked('باء')).toBe(true);
+    await dataChanges(r, ui, { transactions: [T('A', at(1)), T('B', at(2)), T('C', at(3))] });
+    expect(checked('جيم')).toBe(true);
+    expect(checked('باء')).toBe(false);
+    await press(screen.getByTestId('tx_amount_input')); // ضغط من غير كتابة مش إدخال
+    await type(screen.getByTestId('tx_amount_input'), '12');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'C' }));
+  });
+
+  // بيوثّق السلوك الحالي مش بيزكّيه: محفظة اتأرشفت والفورم مفتوح ← الشيب لسه ظاهر ومختار والحفظ بيبعتها.
+  // ده بند مفتوح لوحده (متتبّع)، ولو اتقرر سلوك تاني الاختبار ده هو اللي يتغيّر
+  it('[سلوك حالي موثّق — بند مفتوح منفصل] محفظة مختارة اتأرشفت والفورم مفتوح ← الشيب ظاهر ومختار والحفظ بيستقبلها', async () => {
+    seed({ transactions: [T('A', at(1)), T('B', at(2))] });
+    const r = await render(ui());
+    await type(screen.getByTestId('tx_amount_input'), '9');
+    await dataChanges(r, ui, { wallets: [A, W('B', 'باء', true), C] });
+    expect(shown('باء')).toBe(true);
+    expect(checked('باء')).toBe(true);
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }));
+  });
+});
