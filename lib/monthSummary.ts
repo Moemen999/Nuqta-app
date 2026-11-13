@@ -1,4 +1,4 @@
-import { endOfMonth, snapPiastre, startOfMonth } from '@/lib/finance';
+import { endOfMonth, isDateStr, snapPiastre, startOfMonth } from '@/lib/finance';
 import { budgetLevel, type BudgetLevel } from '@/lib/budgetForecast';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { spendInRange, thisMonthRange } from '@/lib/spending';
@@ -11,7 +11,7 @@ import { spendInRange, thisMonthRange } from '@/lib/spending';
  * - `budget`: ميزانية الشهر الإجمالية لو متحطة (أكبر من صفر)، والدرجة من `budgetLevel` — نفس مصدر البانر.
  *   `remaining` سالب لما الميزانية اتعدّت (الشاشة بتعرضه بالقيمة المطلقة بصيغة «عدّيت»).
  * - `previous`: الشهر اللي فات **لحد نفس اليوم** (`comparisonWindows` — نفس نافذة التقارير)، أو `null` لو ده أول شهر
- *   في الاستخدام (مفيش ولا عملية من أي نوع قبل أول الشهر: «صفر» هناك مش معناه «مصرفتش» بل «مفيش تاريخ») أو التاريخ بايظ.
+ *   في الاستخدام (مفيش ولا عملية **بتاريخ صالح** من أي نوع قبل أول الشهر — تاريخ فاضي/بايظ مش دليل (`'' < '2026-11-01'`): «صفر» هناك مش معناه «مصرفتش» بل «مفيش تاريخ») أو التاريخ بايظ.
  *   لو الشهر اللي فات صرفه صفر **وفيه تاريخ أقدم** ← `total: 0` مش `null`.
  * - `wholeMonth`: النافذة هي الشهر اللي فات كله (النهارده آخر يوم في شهر أطول منه مثلاً) — الجملة بتقول «كله» مش «لحد يوم».
  */
@@ -38,7 +38,7 @@ export function monthSummary({ transactions, transfers, today, totalBudget }: {
   let previous: MonthSummary['previous'] = null;
   const windows = comparisonWindows(range, today, 'thisMonth');
   const monthStart = startOfMonth(today);
-  if (windows && transactions.some(t => t.date < monthStart)) {
+  if (windows && transactions.some(t => isDateStr(t.date) && t.date < monthStart)) {
     const { to } = windows.previous;
     previous = {
       total: spendInRange(transactions, transfers, windows.previous),

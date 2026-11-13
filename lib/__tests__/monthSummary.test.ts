@@ -65,6 +65,10 @@ describe('monthSummary: previous', () => {
     expect(run([exp('n1', 100, '2026-11-02')], '2026-11-13').previous).toBeNull();
     expect(run([], '2026-11-13').previous).toBeNull();
   });
+  it('سجل بتاريخ فاضي أو بايظ مش بيثبت إن فيه تاريخ ← previous null', () => {
+    expect(run([exp('n1', 100, '2026-11-02'), exp('bad', 5, '')], '2026-11-13').previous).toBeNull();
+    expect(run([exp('n1', 100, '2026-11-02'), exp('bad', 5, 'garbage')], '2026-11-13').previous).toBeNull();
+  });
   it('السلفة مش داخلة في الشهر اللي فات', () => {
     const tx = [exp('loan', 3000, '2026-10-05'), exp('o1', 10, '2026-10-06')];
     expect(run(tx, '2026-11-13', 0, new Set(['loan'])).previous?.total).toBe(10);
