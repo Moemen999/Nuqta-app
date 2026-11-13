@@ -38,6 +38,8 @@ beforeEach(async () => {
 async function mount(hidden: boolean) {
   await AsyncStorage.setItem(HIDE_AMOUNTS_KEY, hidden ? '1' : '0');
   jest.useFakeTimers();
+  // الساعة متثبتة الضهر: بعد ساعة التذكير (8 م) بيظهر «لسه ما سجلتش» كعنصر تاني فالسطر بيبقى العام — الاختبار ده عن بانر الرصيد لوحده
+  jest.setSystemTime(new Date(2026, 10, 13, 12, 0, 0));
   await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   await act(async () => { jest.advanceTimersByTime(3000); });
   jest.useRealTimers();

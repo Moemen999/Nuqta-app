@@ -27,6 +27,10 @@ jest.mock('@/context/DataContext', () => ({
   }),
 }));
 
+// الساعة متثبتة الضهر: بعد ساعة التذكير (8 م) بيظهر «لسه ما سجلتش» (مفيش عمليات النهاردة) وكان بيكسر «مفيش سطر» بالليل
+beforeEach(() => { jest.useFakeTimers(); jest.setSystemTime(new Date(2026, 10, 13, 12, 0, 0)); });
+afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); });
+
 async function mount() {
   await render(<ThemeProvider><PrivacyProvider><HomeTab /></PrivacyProvider></ThemeProvider>);
   await act(async () => {});
