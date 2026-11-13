@@ -231,7 +231,7 @@ export function subscriptionPayConfirmBody(s: SubscriptionLike, walletName: stri
   if (!Number.isFinite(s.amount)) {
     return nameOk(s.name) ? `${what} — نسجّل خصم الاشتراك ده؟` : 'نسجّل خصم الاشتراك ده؟';
   }
-  const base = `${what} بتاع ${dueDateLabel(key)} — نسجّل خصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
+  const base = `${what} بتاع ${dueDateLabel(key, today)} — نسجّل خصم ${fmt(s.amount)} ج.م من ${walletName}؟`;
   // العملية دايمًا بتاريخ النهارده، فأي فترة معادها مش النهارده (متأخرة أو بدري) بتتقال
   return key !== today ? `${base} هيتسجل بتاريخ النهاردة.` : base;
 }
@@ -252,8 +252,8 @@ export function gamiyaMarkConfirmBody(
     return named ? `${g} — ${generic}` : generic;
   }
   const base = m.isPayout
-    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}؟`
-    : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate)}) — نسجّل خصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
+    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate, today)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}؟`
+    : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate, today)}) — نسجّل خصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
   return m.dueDate === today ? base : `${base} هيتسجل بتاريخ المعاد مش النهاردة.`;
 }
 

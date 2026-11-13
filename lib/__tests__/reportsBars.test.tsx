@@ -65,6 +65,7 @@ describe('رسم الفترة (بيتغير مع الفترة والفئات)', 
   it('فئة واحدة: العمود بمبلغها بس ومن غير تقسيم ولا مفتاح', async () => {
     await renderScreen();
     await fireEvent.press(screen.getByTestId('reports_preset_last7'));
+    await fireEvent.press(screen.getByTestId('reports_filter_toggle')); // الفلتر مطوي افتراضيًا
     await fireEvent.press(screen.getAllByText(/مواصلات/)[0]);
     expect(screen.getByText('مصروفك يوم بيوم (الفئات المختارة)')).toBeTruthy();
     expect(screen.queryByTestId('reports_trend_legend', { includeHiddenElements: true })).toBeNull();
@@ -75,6 +76,7 @@ describe('رسم الفترة (بيتغير مع الفترة والفئات)', 
   it('فئتين: العمود متقسم بيهم، والمفتاح ظاهر', async () => {
     await renderScreen();
     await fireEvent.press(screen.getByTestId('reports_preset_last7'));
+    await fireEvent.press(screen.getByTestId('reports_filter_toggle')); // الفلتر مطوي افتراضيًا
     await fireEvent.press(screen.getAllByText(/أكل/)[0]);
     await fireEvent.press(screen.getAllByText(/مواصلات/)[0]);
     expect(screen.getByTestId('reports_trend_legend', { includeHiddenElements: true })).toBeTruthy();

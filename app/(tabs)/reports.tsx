@@ -1,6 +1,8 @@
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
+import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
+import { moneyText } from '@/lib/money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
@@ -13,12 +15,14 @@ import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, 
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { takeReportsRequest } from '@/lib/reportsRequest';
+import FoldedSection from '@/components/FoldedSection';
+import { FILTER_CLEARED_ANNOUNCEMENT, selectedCategoriesPhrase } from '@/lib/archiving';
 import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -34,7 +38,7 @@ export default function ReportsScreen() {
   const spendLoading = transfersStatus === 'loading';
   // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
-  const { money } = usePrivacy();
+  const { money, amountsHidden } = usePrivacy();
   const { categoryColors } = useChartColors();
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [selectedCats, setCatFilter] = useState<string[]>([]);
@@ -227,7 +231,7 @@ export default function ReportsScreen() {
       {/* دراسة الشكل خطوة 5: رقم بطل واحد (مصروف الفترة) والمقارنة سطر صغير تحته — كانوا كارتين بنفس الوزن */}
       <View testID="reports_hero" style={styles.heroCard}>
         <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <Money value={periodExpense} fit style={styles.heroValue} />}
+        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
           {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
@@ -240,22 +244,22 @@ export default function ReportsScreen() {
       {transfersStatus === 'failed' && <TransfersFailedNote testID="reports_transfers_failed" />}
 
       <Text style={styles.sectionTitle}>توزيع المصاريف حسب الفئة</Text>
+      {/* الفلتر مطوي افتراضيًا: السطر بيقول كام فئة مختارة، و«مسح الفلتر» جنبه من غير ما تفتح — الاختيار عمره ما يستخبّى ساكت */}
+      <FoldedSection testID="reports_filter" title="فلتر الفئات" count={catFilter.length} showCount={false} alwaysShow
+        status={catFilter.length > 0 ? selectedCategoriesPhrase(catFilter.length) : undefined}
+        action={catFilter.length > 0 ? { label: 'مسح الفلتر', onPress: () => { setCatFilter([]); AccessibilityInfo.announceForAccessibility(FILTER_CLEARED_ANNOUNCEMENT); }, testID: 'reports_filter_clear' } : undefined}>
       <View style={styles.chipRow}>
         {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
           return (
-            <TouchableOpacity {...selectionA11y(active)} key={c.id} onPress={() => toggleCat(c.id)}
+            <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
               <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
             </TouchableOpacity>
           );
         })}
-        {catFilter.length > 0 && (
-          <TouchableOpacity accessibilityRole="button" onPress={() => setCatFilter([])} style={[styles.chip, { borderColor: colors.borderStrong }]}>
-            <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>مسح الفلتر</Text>
-          </TouchableOpacity>
-        )}
       </View>
+      </FoldedSection>
 
       {spendLoading ? (
         <SpendLoading testID="reports_bars_loading" style={styles.emptyState} />
@@ -286,7 +290,7 @@ export default function ReportsScreen() {
       )}
 
       <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-      <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to)}</Text>
+      <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
       {spendLoading ? (
         <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
       ) : timelineEmpty ? (
@@ -391,7 +395,8 @@ function makeStyles(c: ThemeColors) {
     heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
-    heroValue: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    heroRow: { marginTop: space.xxs },
+    heroValue: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
     changeValue: { fontSize: typeScale.body, fontWeight: '700' },
     metricLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },

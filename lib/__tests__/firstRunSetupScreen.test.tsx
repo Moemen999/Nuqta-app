@@ -162,3 +162,27 @@ describe('SETUP_FEATURE_CUTOFF', () => {
     expect(createdBeforeSetupFeature(undefined)).toBe(false);
   });
 });
+
+describe('الأيقونة على اختيارات الفئات', () => {
+  it('الشريحة بتعرض الإيموجي بنفس categoryLabel، واسمها لقارئ الشاشة الاسم بس، وللفئة المكتوبة 🏷️', async () => {
+    await mount();
+    await press('setup_start');
+    await press('setup_next');
+    expect(screen.getByText('✓ 🍔 أكل')).toBeTruthy();
+    expect(screen.getByText('🎮 ترفيه')).toBeTruthy();
+    expect(screen.getByText('✓ 🏷️ أخرى')).toBeTruthy();
+    expect(screen.getByTestId('setup_cat_0').props.accessibilityLabel).toBe('أكل');
+    await act(async () => { fireEvent.changeText(screen.getByTestId('setup_custom_cat_input'), 'قهوة'); });
+    await press('setup_custom_cat_add');
+    expect(screen.getByTestId('setup_cat_8').props.accessibilityLabel).toBe('قهوة');
+  });
+
+  it('الاختيار بيتبعت لـcompleteSetup بالأسماء بس (الأيقونة بتتحط في الحفظ)', async () => {
+    mockCompleteSetup.mockResolvedValue('done');
+    await mount();
+    await press('setup_start');
+    await press('setup_next');
+    await press('setup_finish');
+    expect(mockCompleteSetup.mock.calls[0][0].categories).toEqual(['أكل', 'مواصلات', 'سوبرماركت', 'فواتير', 'أخرى']);
+  });
+});

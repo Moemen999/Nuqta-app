@@ -41,7 +41,7 @@ import {
   subscriptionTxId, type ChargeClosed, type ChargeMode,
 } from '@/lib/autoCharge';
 import {
-  SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, createdBeforeSetupFeature, setupDoneKey, setupFingerprint, validateSetupChoice,
+  SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, createdBeforeSetupFeature, setupCategoryIcon, setupDoneKey, setupFingerprint, validateSetupChoice,
   type SetupChoice, type SetupOutcome, type SetupStatus,
 } from '@/lib/firstRunSetup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -2652,7 +2652,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         choice.wallets.forEach(w => t.set(doc(collection(db, 'users', uid, 'wallets')), {
           name: w.name.trim(), openingBalance: roundMoney(w.openingBalance), lowAlert: 0,
         }));
-        choice.categories.forEach(name => t.set(doc(collection(db, 'users', uid, 'categories')), { name: name.trim() }));
+        choice.categories.forEach(name => {
+          // الأيقونة (إيموجي) على الفئة نفسها بنفس حقل `icon` اللي `updateCategory` بيكتبه؛ «أخرى» والمكتوبة بإيد المستخدم من غيرها
+          const icon = setupCategoryIcon(name);
+          t.set(doc(collection(db, 'users', uid, 'categories')), icon ? { name: name.trim(), icon } : { name: name.trim() });
+        });
         t.set(userRef, { seeded: true, setupChoice: fingerprint, setupCompletedAt: new Date().toISOString() }, { merge: true });
         return 'done' as const;
     }));

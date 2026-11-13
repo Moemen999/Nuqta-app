@@ -17,7 +17,7 @@ import { AccessibilityInfo, ActivityIndicator, BackHandler, KeyboardAvoidingView
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
- * مسح الحساب (خط النهاية — `reports/2026-11-03-account-delete-export.md`، **على فرع مستني مؤمن**):
+ * مسح الحساب (خط النهاية — `reports/2026-11-03-account-delete-export.md`، **على `main` من دمج `d70a52c`**):
  * 1. الشاشة بتقول بالظبط إيه اللي هيتمسح (والرأي اللي اتبعت معاهم — قرار مؤمن 2026-11-03)، وزرار "صدّر كل بياناتك الأول".
  * 2. تأكيد مكتوب + إعادة دخول (باسورد أو جوجل) — **قبل** أي مسح.
  * 3. `deleteAllMyData` (من السيرفر، لفّات لحد ما يفضى) ← تنضيف الجهاز ← `deleteSignInAccount`.

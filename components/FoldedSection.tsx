@@ -13,8 +13,13 @@ import { Text } from '@/components/AppText';
  * ليه شكل، والكروت بتنزل تحته بإطارها هي (visual-identity-reviewer: كارت جوه صندوق كان
  * بيعمل إطار جوه إطار وبيقص الزوايا). `a11yLabel` للي قارئ الشاشة بيقوله: العدد
  * بالمعدود، والاتجاه لما قسمين بنفس الاسم في شاشة واحدة ("ديون اتسددت" تحت ليا وتحت عليا)
+ *
+ * تلات إضافات اختيارية (فلتر فئات التقارير)، ومن غيرها الشكل والسلوك زي ما كانوا بالظبط:
+ * `alwaysShow` = القسم يظهر حتى لو `count` صفر (الفلتر مطوي وفيه اختيار أو من غيره)،
+ * `status` = كلمة على السطر بعد العنوان («— فئتين مختارتين») عشان اللي جوّه المطوي مبيستخباش،
+ * `action` = زرار جنب السطر نفسه من غير ما تفتح القسم («مسح الفلتر»).
  */
-export default function FoldedSection({ title, count, children, testID, framed = false, a11yLabel, defaultOpen = false, showCount = true }: {
+export default function FoldedSection({ title, count, children, testID, framed = false, a11yLabel, defaultOpen = false, showCount = true, alwaysShow = false, status, action }: {
   title: string;
   count: number;
   children: ReactNode;
@@ -26,24 +31,40 @@ export default function FoldedSection({ title, count, children, testID, framed =
   defaultOpen?: boolean;
   /** «(العدد)» بعد العنوان — يتقفل لما العنوان نفسه فيه عدد بمعنى تاني («صنّف فئاتك — 3 لسه») */
   showCount?: boolean;
+  alwaysShow?: boolean;
+  status?: string;
+  action?: { label: string; onPress: () => void; testID?: string; a11yLabel?: string };
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [open, setOpen] = useState(defaultOpen);
-  if (count === 0) return null;
-  const label = showCount ? `${title} (${count})` : title;
+  if (count === 0 && !alwaysShow) return null;
+  const base = showCount ? `${title} (${count})` : title;
+  const label = status ? `${base} — ${status}` : base;
+
+  const toggle = (
+    <TouchableOpacity style={[styles.head, !framed && styles.headAlone, !framed && open && !action && styles.headOpen, action && styles.headGrow]}
+      onPress={() => setOpen(o => !o)}
+      testID={testID ? `${testID}_toggle` : undefined}
+      accessibilityRole="button" accessibilityState={{ expanded: open }}
+      accessibilityLabel={a11yLabel ?? label}>
+      <Text style={[styles.title, action && styles.titleShrink]}>{label}</Text>
+      {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
+      <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={framed ? styles.framed : styles.plain} testID={testID}>
-      <TouchableOpacity style={[styles.head, !framed && styles.headAlone, !framed && open && styles.headOpen]}
-        onPress={() => setOpen(o => !o)}
-        testID={testID ? `${testID}_toggle` : undefined}
-        accessibilityRole="button" accessibilityState={{ expanded: open }}
-        accessibilityLabel={a11yLabel ?? label}>
-        <Text style={styles.title}>{label}</Text>
-        {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
-        <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
-      </TouchableOpacity>
+      {action ? (
+        <View style={[styles.headRow, !framed && open && styles.headOpen]}>
+          {toggle}
+          <TouchableOpacity style={[styles.head, styles.headAlone]} onPress={action.onPress} testID={action.testID}
+            accessibilityRole="button" accessibilityLabel={action.a11yLabel ?? action.label}>
+            <Text style={styles.title}>{action.label}</Text>
+          </TouchableOpacity>
+        </View>
+      ) : toggle}
       {open && children}
     </View>
   );
@@ -56,7 +77,10 @@ function makeStyles(c: ThemeColors) {
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.surface2, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: MIN_TOUCH },
     headAlone: { borderRadius: 12, borderWidth: 1, borderColor: c.border },
     headOpen: { marginBottom: space.md },
+    headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
+    headGrow: { flex: 1 },
     title: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700', textAlign: 'right' },
+    titleShrink: { flexShrink: 1 },
     chevron: { color: c.textMuted, fontSize: 12 },
   });
 }
