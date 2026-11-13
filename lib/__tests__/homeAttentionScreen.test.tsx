@@ -452,3 +452,35 @@ describe('accessibilityHint للصفوف اللي بتتداس', () => {
     expect(btn?.props.accessibilityHint).toBe('بيفتح الديون والاشتراكات والجمعية');
   });
 });
+
+/** الإعلان لقارئ الشاشة لازم يطابق اللي ظاهر: عنصر واحد بيتعرض هو نفسه ← بـlabel بتاعه، غير كده الجملة العامة */
+describe('إعلان قارئ الشاشة: عنصر واحد مقابل أكتر', () => {
+  const spyAnnounce = () => {
+    const { AccessibilityInfo } = jest.requireActual('react-native');
+    return jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+  };
+  // إعلانات تانية في الشاشة (✕ وغيره) مش موضوعنا — بنعدّ إعلانات التنبيهات بس
+  const said = (spy: jest.SpyInstance) => spy.mock.calls.map(c => String(c[0])).filter(t => /محتاجين انتباهك|محتاجة انتباهك|قرب يخلص|ميزانية|اشتراك|جمعية/.test(t));
+
+  it('عنصر واحد (رصيد) بيظهر ← الإعلان بنصه هو (label) مش «عندك حاجة محتاجة انتباهك»', async () => {
+    const spy = spyAnnounce();
+    setData();
+    const r = await mount();
+    spy.mockClear(); // أول فتحة مش موضوعنا (متغطية فوق)
+    setData({ wallets: [LOW], transactions: [exp('t1', 85)] });
+    await r.rerender(ui());
+    expect(said(spy)).toEqual(['رصيد كاش قرب يخلص (15 ج.م)']);
+    spy.mockRestore();
+  });
+
+  it('عنصرين ← الجملة العامة، ومش label العنصر', async () => {
+    const spy = spyAnnounce();
+    setData({ wallets: [LOW], transactions: [exp('t1', 85)] });
+    const r = await mount();
+    spy.mockClear();
+    setData({ wallets: [LOW], transactions: [exp('t1', 85)], subscriptions: [SUB] });
+    await r.rerender(ui());
+    expect(said(spy)).toEqual(['عندك حاجتين محتاجين انتباهك']);
+    spy.mockRestore();
+  });
+});

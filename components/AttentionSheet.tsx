@@ -56,9 +56,11 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
   // قبل المهلة بنحدّث العدد من غير إعلان، فاللي كان موجود من أول الفتح مبيتقالش
   const lastCount = useRef(0);
   useEffect(() => {
-    if (loadWindowPassed && count > lastCount.current && phrase) AccessibilityInfo.announceForAccessibility(phrase);
+    // عنصر واحد بيتعرض هو نفسه ← الإعلان بـlabel بتاعه (اللي قارئ الشاشة بيقراه على السطر)، مش الجملة العامة اللي مش ظاهرة
+    const announcement = single ? single.label : phrase;
+    if (loadWindowPassed && count > lastCount.current && announcement) AccessibilityInfo.announceForAccessibility(announcement);
     lastCount.current = count;
-  }, [count, loadWindowPassed, phrase]);
+  }, [count, loadWindowPassed, phrase, single?.label]);
 
   if (!phrase) return null;
 
