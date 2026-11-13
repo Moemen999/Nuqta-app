@@ -22,11 +22,22 @@ type Row = {
   debtLabel: string;
 };
 
+/** يوم الجهاز المحلي لـ timestamp (ISO) — `slice(0, 10)` كان بيدّي يوم UTC، وده بيفرق عن اليوم اللي المستخدم عايشه قرب منتصف الليل. عرض بس */
+function localDayOf(iso?: string): string {
+  if (!iso) return '';
+  const t = new Date(iso);
+  if (isNaN(t.getTime())) return '';
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  return `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`;
+}
+
 /** وصف قصير يفرّق الدين عن باقي ديون نفس الشخص */
 function debtLabelOf(d: Debt) {
   const side = d.direction === 'owed_to_me' ? 'ليا' : 'عليا';
-  const when = d.date || (d.createdAt ? d.createdAt.slice(0, 10) : '');
-  return d.note?.trim() ? `${side} · ${d.note.trim()}` : `${side} · ${dateText(when, todayStr())}`;
+  if (d.note?.trim()) return `${side} · ${d.note.trim()}`;
+  const when = d.date || localDayOf(d.createdAt);
+  // من غير تاريخ خالص ← من غير فاصل متدلّي («ليا · »)
+  return when ? `${side} · ${dateText(when, todayStr())}` : side;
 }
 
 export default function PersonLedgerScreen() {
