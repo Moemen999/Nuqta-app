@@ -1,9 +1,10 @@
 import React from 'react';
+import { AccessibilityInfo } from 'react-native';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import ReportsTab from '@/app/(tabs)/reports';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { selectedCategoriesPhrase } from '@/lib/archiving';
+import { FILTER_CLEARED_ANNOUNCEMENT, selectedCategoriesPhrase } from '@/lib/archiving';
 import { todayStr } from '@/lib/finance';
 import { requestReports } from '@/lib/reportsRequest';
 
@@ -80,6 +81,18 @@ describe('الاختيار مبيستخباش', () => {
     expect(screen.getByTestId('reports_bar_c2')).toBeTruthy();
   });
 
+  it('«مسح الفلتر» بيقول لقارئ الشاشة إن الفلتر اتمسح (الزرار بيختفي)', async () => {
+    const spy = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    spy.mockClear(); // الـmock ممكن يكون عالمي ومعاه نداءات من اختبارات قبله
+    await render(ui());
+    await press('reports_filter_toggle');
+    await press('reports_filter_chip_c1');
+    await press('reports_filter_toggle');
+    await press('reports_filter_clear');
+    expect(spy.mock.calls).toEqual([[FILTER_CLEARED_ANNOUNCEMENT]]);
+    spy.mockRestore();
+  });
+
   it('فتح وقفل القسم مبيغيّرش الاختيار', async () => {
     await render(ui());
     await press('reports_filter_toggle');
@@ -96,6 +109,8 @@ describe('الاختيار مبيستخباش', () => {
     expect(selectedCategoriesPhrase(1)).toBe('فئة واحدة مختارة');
     expect(selectedCategoriesPhrase(2)).toBe('فئتين مختارتين');
     expect(selectedCategoriesPhrase(3)).toBe('3 فئات مختارة');
+    expect(selectedCategoriesPhrase(10)).toBe('10 فئات مختارة');
+    expect(selectedCategoriesPhrase(11)).toBe('11 فئة مختارة');
   });
 });
 

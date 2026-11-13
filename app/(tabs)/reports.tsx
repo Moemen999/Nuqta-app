@@ -16,13 +16,13 @@ import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
 import { takeReportsRequest } from '@/lib/reportsRequest';
 import FoldedSection from '@/components/FoldedSection';
-import { selectedCategoriesPhrase } from '@/lib/archiving';
+import { FILTER_CLEARED_ANNOUNCEMENT, selectedCategoriesPhrase } from '@/lib/archiving';
 import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -247,7 +247,7 @@ export default function ReportsScreen() {
       {/* الفلتر مطوي افتراضيًا: السطر بيقول كام فئة مختارة، و«مسح الفلتر» جنبه من غير ما تفتح — الاختيار عمره ما يستخبّى ساكت */}
       <FoldedSection testID="reports_filter" title="فلتر الفئات" count={catFilter.length} showCount={false} alwaysShow
         status={catFilter.length > 0 ? selectedCategoriesPhrase(catFilter.length) : undefined}
-        action={catFilter.length > 0 ? { label: 'مسح الفلتر', onPress: () => setCatFilter([]), testID: 'reports_filter_clear' } : undefined}>
+        action={catFilter.length > 0 ? { label: 'مسح الفلتر', onPress: () => { setCatFilter([]); AccessibilityInfo.announceForAccessibility(FILTER_CLEARED_ANNOUNCEMENT); }, testID: 'reports_filter_clear' } : undefined}>
       <View style={styles.chipRow}>
         {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
