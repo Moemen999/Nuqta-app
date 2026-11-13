@@ -4,6 +4,7 @@ import path from 'path';
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { requestReports, takeReportsRequest } from '@/lib/reportsRequest';
 import HomeTab from '@/app/(tabs)/index';
 import ReportsTab from '@/app/(tabs)/reports';
 import { HIDE_AMOUNTS_KEY, PrivacyProvider } from '@/context/PrivacyContext';
@@ -16,13 +17,18 @@ import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING } from '@/lib/spending';
  * كارت «صرفت الشهر ده» في الرئيسية. أهم اختبار هنا: **الكارت والرقم البطل في التقارير نفس النص** على نفس البيانات —
  * الشاشتين الحقيقيتين، مش دالة قصاد نفسها.
  */
-jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useLocalSearchParams: () => mockParams }));
+// useFocusEffect متقلّد: بيشغّل الـcallback في كل render يتغيّر فيه `mockFocusKey` (يعني «التاب اخد الفوكس») وأول ما يتركّب.
+// ده مش فوكس حقيقي من React Navigation — توصيل الفوكس الفعلي على الجهاز مش متأكد منه
+let mockFocusKey = 0;
+jest.mock('expo-router', () => ({
+  router: { push: jest.fn() },
+  useFocusEffect: (cb: () => void) => require('react').useEffect(cb, [cb, mockFocusKey]),
+}));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'u1', email: 'a@b.c', emailVerified: true, providerData: [{ providerId: 'password' }], reload: async () => {} } }),
 }));
 const mockData: Record<string, unknown> = {};
-let mockParams: Record<string, string> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
 jest.mock('@/components/IncomeHomeCards', () => ({ __esModule: true, usePendingIncomes: () => [], default: () => null, IncomeAutoNotices: () => null }));
 jest.mock('@/components/ChargeHomeCards', () => ({ __esModule: true, usePendingCharges: () => [], default: () => null, ChargeAutoNotices: () => null }));
@@ -43,7 +49,8 @@ function setData(over: Record<string, unknown> = {}) {
 beforeEach(async () => {
   await AsyncStorage.clear();
   await AsyncStorage.setItem(HIDE_AMOUNTS_KEY, '0');
-  mockParams = {};
+  mockFocusKey = 0;
+  takeReportsRequest();
   (router.push as jest.Mock).mockClear();
   // الساعة بس متثبّتة (13 نوفمبر 2026) — المؤقتات حقيقية
   jest.useFakeTimers({ now: new Date(2026, 10, 13, 12, 0, 0), doNotFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setImmediate', 'clearImmediate', 'nextTick', 'queueMicrotask'] });
@@ -299,17 +306,16 @@ describe('الخصوصية والوصولية والتنقل', () => {
     expect(card().props.accessibilityRole).toBe('button');
     expect(card().props.accessibilityHint).toBe('بيفتح التقارير');
     await fireEvent.press(card());
-    expect(router.push).toHaveBeenCalledWith({ pathname: '/(tabs)/reports', params: { preset: 'thisMonth', at: expect.any(String) } });
+    expect(router.push).toHaveBeenCalledWith('/(tabs)/reports');
+    expect(takeReportsRequest()).toEqual({ preset: 'thisMonth', clearFilter: true });
   });
 
-  it('الدوسة: كل مرة `at` جديد (بيتقاس بالوقت)', async () => {
+  it('الدوسة: الطلب بيتسجّل ثم التنقل للتاب من غير أي باراميترز', async () => {
     await mountHome();
     await fireEvent.press(card());
-    jest.setSystemTime(new Date(2026, 10, 13, 12, 0, 5));
-    await fireEvent.press(card());
-    const ats = (router.push as jest.Mock).mock.calls.map(c => c[0].params.at);
-    expect(ats).toHaveLength(2);
-    expect(ats[0]).not.toBe(ats[1]);
+    expect(router.push).toHaveBeenCalledTimes(1);
+    expect((router.push as jest.Mock).mock.calls[0]).toEqual(['/(tabs)/reports']);
+    expect(takeReportsRequest()).toEqual({ preset: 'thisMonth', clearFilter: true });
   });
 
   it('الكارت مش بانر: testID مش home_banner_*، وفوق «آخر العمليات» تحت الرصيد', () => {
@@ -324,39 +330,67 @@ describe('الخصوصية والوصولية والتنقل', () => {
   });
 });
 
-describe('التقارير: باراميتر الكارت', () => {
+describe('التقارير: الطلب المعلّق من الكارت (فوكس متقلّد — الفوكس الحقيقي مش متأكد منه برّه الجهاز)', () => {
   const press = (id: string) => fireEvent.press(screen.getByTestId(id));
   const selected = (id: string) => screen.getByTestId(id).props.accessibilityState?.checked ?? screen.getByTestId(id).props.accessibilityState?.selected;
-
-  it('`at` جديد ← «الشهر ده» والفلتر يتمسح؛ والزيارة العادية والـrerender بنفس `at` ملهمش أثر', async () => {
-    setData({ categories: [{ id: 'c1', name: 'أكل' }, { id: 'c2', name: 'مواصلات' }], transactions: [exp('a', 10, '2026-11-02', { categoryId: 'c1' }), exp('b', 20, '2026-11-03', { categoryId: 'c2' })] });
-    const r = await render(ui(<ReportsTab />));
-    // زيارة عادية من غير باراميترز: الافتراضي
-    expect(selected('reports_preset_thisMonth')).toBe(true);
+  const refocus = (r: { rerender: (e: React.ReactElement) => unknown }) => { mockFocusKey++; return r.rerender(ui(<ReportsTab />)); };
+  const twoCats = () => setData({ categories: [{ id: 'c1', name: 'أكل' }, { id: 'c2', name: 'مواصلات' }], transactions: [exp('a', 10, '2026-11-02', { categoryId: 'c1' }), exp('b', 20, '2026-11-03', { categoryId: 'c2' })] });
+  const userPicks = async () => {
     await press('reports_preset_last7');
     await fireEvent.press(screen.getAllByText(/أكل/)[0]);
     expect(screen.getByText('مسح الفلتر')).toBeTruthy();
-    expect(selected('reports_preset_last7')).toBe(true);
+  };
 
-    // rerender عادي من غير تغيير باراميترز ← مفيش تطبيق
-    await r.rerender(ui(<ReportsTab />));
-    expect(selected('reports_preset_last7')).toBe(true);
-    expect(screen.getByText('مسح الفلتر')).toBeTruthy();
-
-    // دوسة على الكارت ← باراميترز جديدة
-    mockParams = { preset: 'thisMonth', at: '1000' };
-    await r.rerender(ui(<ReportsTab />));
+  it('طلب معلّق + فوكس ← «الشهر ده» والفلتر يتمسح والطلب يتاخد مرة', async () => {
+    twoCats();
+    const r = await render(ui(<ReportsTab />));
+    await userPicks();
+    requestReports({ preset: 'thisMonth', clearFilter: true });
+    await refocus(r);
     expect(selected('reports_preset_thisMonth')).toBe(true);
     expect(screen.queryByText('مسح الفلتر')).toBeNull();
+    expect(takeReportsRequest()).toBeNull();
+  });
 
-    // المستخدم غيّر تاني، ورجع للتاب من غير دوسة جديدة (نفس `at`) ← فضل على اختياره
-    await press('reports_preset_last7');
-    await r.rerender(ui(<ReportsTab />));
+  it('فوكس تاني من غير طلب ← اختيار المستخدم بعد كده متلمسش', async () => {
+    twoCats();
+    const r = await render(ui(<ReportsTab />));
+    requestReports({ preset: 'thisMonth', clearFilter: true });
+    await refocus(r);
+    await userPicks();
+    await refocus(r);
+    await refocus(r);
     expect(selected('reports_preset_last7')).toBe(true);
+    expect(screen.getByText('مسح الفلتر')).toBeTruthy();
+  });
 
-    // دوسة تانية ← `at` جديد ← بيتطبق تاني
-    mockParams = { preset: 'thisMonth', at: '2000' };
-    await r.rerender(ui(<ReportsTab />));
+  it('زيارة عادية من غير طلب ← الافتراضي ومفيش تغيير', async () => {
+    twoCats();
+    await render(ui(<ReportsTab />));
     expect(selected('reports_preset_thisMonth')).toBe(true);
+    expect(screen.queryByText('مسح الفلتر')).toBeNull();
+  });
+
+  it('التقارير اتشالت واتركّبت تاني من غير طلب ← مفيش تطبيق قديم', async () => {
+    twoCats();
+    const first = await render(ui(<ReportsTab />));
+    requestReports({ preset: 'thisMonth', clearFilter: true });
+    await refocus(first);
+    // key جديد = الشاشة تتشال وتتركّب تاني (unmount + render تاني في نفس الاختبار بيبوّظ شجرة RNTL)
+    await first.rerender(ui(<ReportsTab key="remounted" />));
+    expect(selected('reports_preset_thisMonth')).toBe(true);
+    await userPicks();
+    mockFocusKey++;
+    await first.rerender(ui(<ReportsTab key="remounted" />));
+    expect(selected('reports_preset_last7')).toBe(true);
+    expect(screen.getByText('مسح الفلتر')).toBeTruthy();
+  });
+
+  it('طلب معلّق قبل أول فتح للتاب ← بيتطبّق عند التركيب', async () => {
+    twoCats();
+    requestReports({ preset: 'thisMonth', clearFilter: true });
+    await render(ui(<ReportsTab />));
+    expect(selected('reports_preset_thisMonth')).toBe(true);
+    expect(takeReportsRequest()).toBeNull();
   });
 });

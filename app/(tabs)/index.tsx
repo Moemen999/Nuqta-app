@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { transferTransactionIds } from '@/lib/spending';
 import { monthSummary } from '@/lib/monthSummary';
+import { requestReports } from '@/lib/reportsRequest';
 import MonthSummaryCard, { type MonthCardState } from '@/components/MonthSummaryCard';
 import { TransfersFailedNote } from '@/components/SpendStatus';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
@@ -261,12 +262,12 @@ function HomeScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {/* كارت الشهر: أول حاجة في التمرير تحت الرصيد الثابت. testID مش `home_banner_` (البانرات كلها ليها ✕ — homeBannerOrder). دوسة ← التقارير
-            على «الشهر ده» من غير فلتر فئات؛ `at` بيتغيّر كل مرة عشان التقارير تطبّق الباراميتر من تاني */}
+            على «الشهر ده» من غير فلتر فئات: طلب لمرة واحدة (`lib/reportsRequest.ts`) + فتح التاب من غير باراميترز */}
         {!monthCardHidden && (
           <MonthSummaryCard
             testID="home_month_card"
             state={monthCardState}
-            onPress={() => router.push({ pathname: '/(tabs)/reports', params: { preset: 'thisMonth', at: String(Date.now()) } })}
+            onPress={() => { requestReports({ preset: 'thisMonth', clearFilter: true }); router.push('/(tabs)/reports'); }}
           />
         )}
         {/* الترتيب (قرار مؤمن 2026-10-28، رجوع عن 2026-09-29): الرصيد ثابت فوق، وبعده

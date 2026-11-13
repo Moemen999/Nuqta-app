@@ -12,11 +12,12 @@ import { barRows } from '@/lib/barRows';
 import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
 import { comparisonWindows } from '@/lib/periodCompare';
+import { takeReportsRequest } from '@/lib/reportsRequest';
 import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,13 +40,15 @@ export default function ReportsScreen() {
   const [selectedCats, setCatFilter] = useState<string[]>([]);
   // فئة اتمسحت والشاشة مفتوحة تخرج من الفلتر: الرقم كان هيعدّها والشرايح لأ، فالعمود يبقى من غير جزء يوضّحه
   const catFilter = useMemo(() => selectedCats.filter(id => categories.some(c => c.id === id)), [selectedCats, categories]);
-  // كارت «صرفت الشهر ده» في الرئيسية بيفتح هنا بـ`preset=thisMonth` و`at` (وقت الدوسة): كل دوسة `at` جديد ← الفترة «الشهر ده»
-  // والفلتر يتمسح، عشان الرقم هنا يبقى نفس رقم الكارت. الزيارة العادية للتاب من غير باراميترز ← مفيش أي تغيير،
-  // وفتح التاب تاني بنفس `at` مبيكرّرش الكلام (الـdeps متغيّرتش)
-  const params = useLocalSearchParams<{ preset?: string; at?: string }>();
-  useEffect(() => {
-    if (params.preset === 'thisMonth' && params.at) { setPreset('thisMonth'); setCatFilter([]); }
-  }, [params.preset, params.at]);
+  // كارت «صرفت الشهر ده» في الرئيسية بيسجّل طلب واحد (`lib/reportsRequest.ts`) وبيفتح التاب من غير باراميترز: لما التاب
+  // ياخد الفوكس (وعند أول فتح) بناخد الطلب مرة واحدة ← «الشهر ده» والفلتر يتمسح. من غير طلب (زيارة عادية، أو تركيب
+  // تاني) مفيش أي تغيير في اللي المستخدم اختاره
+  useFocusEffect(useCallback(() => {
+    const req = takeReportsRequest();
+    if (!req) return;
+    setPreset(req.preset);
+    if (req.clearFilter) setCatFilter([]);
+  }, []));
   const [customFrom, setCustomFrom] = useState(todayStr());
   const [customTo, setCustomTo] = useState(todayStr());
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
