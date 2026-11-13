@@ -1,3 +1,4 @@
+import { MONTH_NAMES } from '@/lib/dateText';
 import { addDays, endOfMonth, fmt } from '@/lib/finance';
 
 /**
@@ -41,10 +42,7 @@ export type RecurringIncome = {
 /** أقصى فترات بتتلحق مرة واحدة — اللي غاب سنين مايلاقيش 150 عملية مرة واحدة */
 export const INCOME_CATCHUP_MAX = 12;
 
-export const MONTH_NAMES = [
-  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
-  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
-];
+export { MONTH_NAMES };
 export const WEEKDAY_NAMES = ['الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');

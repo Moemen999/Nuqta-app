@@ -2,6 +2,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y } from '@/lib/selection';
 import { MIN_TOUCH, overlayCenteredStyle, radius } from '@/lib/tokens';
 // اسم اليوم كامل لقارئ الشاشة («الأربع، 11 نوفمبر 2026») — نفس قايمة الدخل الثابت، عشان الاتنين ميختلفوش
+import { MONTH_NAMES } from '@/lib/dateText';
 import { WEEKDAY_NAMES } from '@/lib/recurringIncome';
 import { useMemo, useState } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -10,7 +11,6 @@ import { Text } from '@/components/AppText';
 const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
 /** خانة الشهر — نفس طول الشكل القديم (عرض ~104 × 1/1.6)، ثابت عشان مفيش aspectRatio (شوف dayCell) */
 const MONTH_CELL_HEIGHT = 64;
-const MONTH_NAMES = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
 function daysInMonth(year: number, month: number) { return new Date(year, month + 1, 0).getDate(); }
 function firstWeekday(year: number, month: number) { return new Date(year, month, 1).getDay(); }
