@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Nuqta promo</title>
+<style>
+@font-face { font-family: 'Plex'; font-weight: 400; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-400-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: 'Plex'; font-weight: 500; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-500-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: 'Plex'; font-weight: 700; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-700-normal.woff2') format('woff2'); unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0898-08E1, U+08E3-08FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC; }
+@font-face { font-family: 'Plex'; font-weight: 400; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-latin-400-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-2199, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Plex'; font-weight: 500; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-latin-500-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-2199, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Plex'; font-weight: 700; src: url('node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-latin-700-normal.woff2') format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2190-2199, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+:root {
+  --bg: #0A0E14; --surface: #151B24; --surface2: #1C2530; --nav: #0E131A;
+  --border: #1C2530; --borderStrong: #28323F;
+  --text: #F0E6D2; --text2: #9CA8B8; --muted: #808D9D;
+  --accent: #C9A961; --onAccent: #0A0E14;
+  --expense: #D97878; --income: #7FA98F; --success: #4E9E7A;
+  --selBg: #3B321D; --selSucBg: #16332A; --selDangerBg: #3A1E1A; --selDangerBorder: #CC6055;
+  --lapis: #1F4E9C; --warnBorder: #5A4A20;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 540px; height: 960px; overflow: hidden; background: var(--bg); }
+body { font-family: 'Plex', 'Noto Color Emoji', sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
+.num { direction: ltr; unicode-bidi: isolate; display: inline-block; }
+.emo { font-family: 'Noto Color Emoji'; font-weight: 400; }
+
+#stage { position: absolute; inset: 0; overflow: hidden; }
+#bg { position: absolute; inset: -100px; }
+.glow { position: absolute; border-radius: 50%; filter: blur(70px); }
+#glowGold { width: 520px; height: 520px; background: radial-gradient(circle, rgba(201,169,97,0.30), rgba(201,169,97,0) 70%); }
+#glowLapis { width: 640px; height: 640px; background: radial-gradient(circle, rgba(31,78,156,0.42), rgba(31,78,156,0) 70%); }
+/* شريط زخرفي بخطوط القناع (دهبي/لازوردي) */
+#stripes { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; display: flex; }
+#stripes div { flex: 1; }
+
+.center { position: absolute; left: 0; right: 0; text-align: center; }
+#hook { top: 330px; }
+#hook .l1 { font-size: 44px; font-weight: 700; line-height: 1.35; }
+#hook .l2 { font-size: 52px; font-weight: 700; color: var(--accent); line-height: 1.35; }
+#bigDot { position: absolute; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 40px rgba(201,169,97,0.7); left: 257px; top: 560px; }
+
+#logo { top: 340px; }
+#logo .name { font-size: 112px; font-weight: 700; line-height: 1.2; letter-spacing: 0; }
+#logo .tag { font-size: 30px; font-weight: 500; color: var(--text2); margin-top: 10px; }
+#logo .tag b { color: var(--accent); font-weight: 700; }
+.mark { display: inline-block; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 30px rgba(201,169,97,0.75); vertical-align: middle; }
+
+.cap { position: absolute; left: 20px; right: 20px; top: 116px; text-align: center; }
+.cap .m { font-size: 33px; font-weight: 700; line-height: 1.35; }
+.cap .m em { font-style: normal; color: var(--accent); }
+.cap .s { font-size: 19px; font-weight: 500; color: var(--text2); margin-top: 8px; }
+
+/* ===== الموبايل ===== */
+#phone { position: absolute; left: 105px; top: 240px; width: 330px; height: 690px; border-radius: 46px; background: #04060A; border: 2px solid #2A3442; padding: 9px; box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,169,97,0.15); }
+#screen { position: relative; width: 312px; height: 672px; border-radius: 38px; overflow: hidden; background: var(--bg); }
+#statusbar { position: absolute; top: 0; left: 0; right: 0; height: 30px; direction: ltr; display: flex; align-items: center; justify-content: space-between; padding: 6px 22px 0; font-size: 11px; font-weight: 500; color: var(--text); z-index: 30; }
+#statusbar .ic { display: flex; gap: 5px; align-items: center; }
+#notch { position: absolute; top: 9px; left: 150px; width: 12px; height: 12px; border-radius: 50%; background: #000; z-index: 31; }
+.scr { position: absolute; top: 30px; left: 0; right: 0; bottom: 58px; padding: 6px 14px 0; overflow: hidden; }
+#tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 58px; background: var(--nav); border-top: 1px solid var(--border); display: flex; flex-direction: row; padding: 6px 4px 0; z-index: 20; }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 500; color: var(--muted); }
+.tab.on { color: var(--accent); }
+.tab svg { width: 20px; height: 20px; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; }
+.row { display: flex; flex-direction: row; align-items: center; }
+.between { justify-content: space-between; }
+.title { font-size: 19px; font-weight: 700; }
+.secTitle { font-size: 13px; font-weight: 700; color: var(--text); margin: 12px 2px 7px; }
+.muted { color: var(--text2); }
+
+/* الرئيسية */
+.balance { padding: 12px 14px 12px; background: linear-gradient(160deg, #1A222D 0%, #141A23 60%, #18202B 100%); border: 1px solid #2A3442; border-radius: 18px; position: relative; overflow: hidden; }
+.balance::after { content: ''; position: absolute; left: -40px; top: -40px; width: 140px; height: 140px; border-radius: 50%; background: radial-gradient(circle, rgba(201,169,97,0.18), rgba(201,169,97,0) 70%); }
+.blabel { font-size: 12px; color: var(--text2); font-weight: 500; }
+.hero { font-size: 38px; font-weight: 700; line-height: 1.15; margin-top: 2px; color: var(--text); }
+.chips { display: flex; flex-direction: row; gap: 6px; margin-top: 8px; }
+.wchip { flex: 1; background: rgba(10,14,20,0.55); border: 1px solid var(--borderStrong); border-radius: 12px; padding: 5px 7px; }
+.wchip .nm { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text2); }
+.wchip .v { font-size: 13px; font-weight: 700; margin-top: 1px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.month { margin-top: 10px; padding: 10px 13px; display: flex; align-items: center; justify-content: space-between; }
+.month .t { font-size: 12px; color: var(--text2); }
+.month .a { font-size: 19px; font-weight: 700; margin-top: 1px; }
+.chev { color: var(--muted); font-size: 18px; }
+.tx { display: flex; flex-direction: row; align-items: center; gap: 9px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 13px; margin-bottom: 6px; overflow: hidden; }
+.tx .ico { width: 32px; height: 32px; border-radius: 10px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 15px; flex: none; }
+.tx .mid { flex: 1; min-width: 0; }
+.tx .tt { font-size: 12.5px; font-weight: 700; }
+.tx .sb { font-size: 10px; color: var(--text2); margin-top: 1px; }
+.tx .end { text-align: left; }
+.tx .amt { font-size: 13px; font-weight: 700; }
+.tx .dt { font-size: 9.5px; color: var(--muted); margin-top: 1px; }
+.exp { color: var(--expense); } .inc { color: var(--income); }
+.automark { font-size: 9px; color: var(--muted); margin-top: 2px; }
+#fab { position: absolute; left: 16px; bottom: 72px; width: 50px; height: 50px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 22px rgba(201,169,97,0.35); z-index: 15; }
+.notice { display: flex; flex-direction: row; gap: 8px; align-items: flex-start; padding: 9px 11px; border-radius: 12px; background: var(--surface); border: 1px solid var(--borderStrong); font-size: 11px; color: var(--text2); line-height: 1.6; overflow: hidden; }
+
+/* المودال */
+#backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 40; }
+#sheet { position: absolute; left: 0; right: 0; bottom: 0; height: 478px; background: var(--surface); border-radius: 24px 24px 0 0; border-top: 1px solid var(--borderStrong); z-index: 41; padding: 10px 16px 0; }
+.handle { width: 40px; height: 4px; border-radius: 2px; background: var(--borderStrong); margin: 0 auto 10px; }
+.seg { display: flex; flex-direction: row; gap: 6px; margin-top: 10px; }
+.seg div { flex: 1; text-align: center; padding: 7px 0; border-radius: 11px; border: 1px solid var(--borderStrong); font-size: 12px; font-weight: 700; color: var(--text2); }
+.lbl { font-size: 11.5px; color: var(--text2); margin: 12px 2px 5px; font-weight: 500; }
+.input { height: 46px; border-radius: 12px; border: 1.5px solid var(--borderStrong); background: var(--bg); display: flex; align-items: center; padding: 0 12px; font-size: 22px; font-weight: 700; }
+.input .cur { font-size: 12px; color: var(--muted); font-weight: 500; margin-right: auto; }
+.caret { display: inline-block; width: 2px; height: 24px; background: var(--accent); vertical-align: middle; margin-right: 2px; }
+.pills { display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+.pill { padding: 6px 10px; border-radius: 20px; border: 1px solid var(--borderStrong); font-size: 11.5px; font-weight: 500; color: var(--text); background: var(--bg); }
+.pill.sel { background: var(--selBg); border-color: var(--accent); color: var(--text); }
+.preview { margin-top: 12px; padding: 8px 11px; border-radius: 11px; background: var(--bg); border: 1px solid var(--border); font-size: 11.5px; color: var(--text2); }
+.preview b { color: var(--text); }
+.sheetFoot { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 16px 16px; display: flex; flex-direction: row; gap: 8px; border-top: 1px solid var(--border); background: var(--surface); }
+.btn { flex: 1; text-align: center; padding: 11px 0; border-radius: 13px; font-size: 13.5px; font-weight: 700; }
+.btn.pri { background: var(--accent); color: var(--onAccent); flex: 2; }
+.btn.sec { border: 1px solid var(--borderStrong); color: var(--text2); }
+
+/* التقارير */
+.metric { padding: 12px 14px; margin-top: 10px; }
+.metric .t { font-size: 12px; color: var(--text2); }
+.metric .a { font-size: 28px; font-weight: 700; margin-top: 1px; }
+.metric .c { font-size: 10.5px; color: var(--income); margin-top: 2px; }
+.barRow { margin-bottom: 9px; }
+.barRow .top { display: flex; flex-direction: row; justify-content: space-between; font-size: 11.5px; margin-bottom: 4px; }
+.barRow .top .n { font-weight: 500; }
+.barRow .top .v { color: var(--text2); }
+.barRow .top .v b { color: var(--text); font-weight: 700; }
+.track { height: 10px; border-radius: 5px; background: var(--surface2); overflow: hidden; }
+.fill { height: 100%; border-radius: 5px; }
+.cols { display: flex; flex-direction: row; align-items: flex-end; gap: 12px; height: 92px; padding: 10px 14px 0; }
+.col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.col .bar { width: 100%; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, #D9BC78, #A88A45); }
+.col .lb { font-size: 9px; color: var(--muted); margin-top: 4px; }
+
+/* الالتزامات */
+.subtabs { display: flex; flex-direction: row; background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 3px; gap: 3px; margin-top: 2px; }
+.subtabs div { flex: 1; text-align: center; padding: 6px 0; border-radius: 10px; font-size: 11.5px; font-weight: 700; color: var(--text2); }
+.subtabs div.on { background: var(--selBg); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.hdr { display: flex; flex-direction: row; justify-content: space-between; align-items: center; margin-top: 10px; }
+.addBtn { background: var(--accent); color: var(--onAccent); font-size: 11px; font-weight: 700; padding: 6px 10px; border-radius: 10px; }
+.sum { display: flex; flex-direction: row; gap: 8px; margin-top: 10px; }
+.sum .card { flex: 1; padding: 9px 11px; }
+.sum .t { font-size: 10.5px; color: var(--text2); }
+.sum .a { font-size: 17px; font-weight: 700; margin-top: 1px; }
+.debt { padding: 11px 12px; margin-bottom: 8px; }
+.debt .nm { font-size: 14.5px; font-weight: 700; }
+.debt .big { font-size: 15px; font-weight: 700; }
+.debt .ln { font-size: 11px; color: var(--text2); margin-top: 3px; }
+.prog { height: 6px; background: var(--surface2); border-radius: 3px; margin-top: 7px; overflow: hidden; }
+.prog div { height: 100%; background: var(--accent); border-radius: 3px; }
+.payBtn { margin-top: 9px; text-align: center; padding: 7px 0; border-radius: 10px; background: var(--selBg); border: 1px solid var(--accent); font-size: 11.5px; font-weight: 700; }
+.gm { padding: 11px 12px; }
+.gm .nm { font-size: 14.5px; font-weight: 700; }
+.gm .nx { font-size: 11px; color: var(--accent); margin-top: 3px; font-weight: 500; }
+.mrow { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 7px 0; border-top: 1px solid var(--border); font-size: 11.5px; }
+.mrow.payout { font-weight: 700; }
+.mbtn { font-size: 10.5px; font-weight: 700; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--accent); background: var(--selBg); color: var(--text); }
+.done { font-size: 10.5px; color: var(--income); font-weight: 700; }
+.mode { display: flex; flex-direction: row; gap: 6px; margin-top: 9px; }
+.mode div { flex: 1; text-align: center; padding: 7px 4px; border-radius: 11px; border: 1px solid var(--borderStrong); font-size: 10.5px; font-weight: 700; color: var(--text2); background: var(--bg); }
+.mode div.on { background: var(--selBg); border-color: var(--accent); color: var(--text); }
+
+.actBtn { text-align: center; padding: 7px 0; border-radius: 10px; background: var(--accent); color: var(--onAccent); font-size: 11.5px; font-weight: 700; }
+.moreBtn { width: 38px; text-align: center; padding: 7px 0; border-radius: 10px; border: 1px solid var(--borderStrong); font-size: 12px; font-weight: 700; color: var(--text2); }
+#backdrop2 { position: absolute; inset: 0; background: rgba(0,0,0,0.55); z-index: 40; }
+#sheet2 { position: absolute; left: 0; right: 0; bottom: 0; height: 560px; background: var(--surface); border-radius: 24px 24px 0 0; border-top: 1px solid var(--borderStrong); z-index: 41; padding: 10px 16px 0; overflow: hidden; }
+#s2body { position: absolute; left: 16px; right: 16px; top: 50px; bottom: 66px; overflow: hidden; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px); }
+.input.sm { height: 38px; font-size: 13px; font-weight: 500; }
+.cm { border: 1.5px solid var(--borderStrong); border-radius: 12px; padding: 10px 12px; margin-top: 8px; }
+.cm.on { background: var(--selBg); border-color: var(--accent); }
+.cm .ct { font-size: 12.5px; font-weight: 700; }
+.cm .cb { font-size: 10.5px; color: var(--text2); margin-top: 3px; line-height: 1.55; }
+
+/* القفل */
+#s-lock { position: absolute; inset: 0; background: var(--bg); z-index: 35; display: flex; flex-direction: column; align-items: center; padding-top: 92px; }
+.lockIcon { width: 76px; height: 76px; border-radius: 50%; background: var(--surface); border: 1px solid var(--borderStrong); display: flex; align-items: center; justify-content: center; }
+.lockTitle { font-size: 20px; font-weight: 700; margin-top: 14px; }
+.pins { display: flex; flex-direction: row; gap: 16px; margin-top: 22px; direction: ltr; }
+.pin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--controlEdge, #6B7A8C); }
+.pin.f { background: var(--accent); border-color: var(--accent); }
+.keypad { display: grid; grid-template-columns: repeat(3, 66px); gap: 12px 20px; margin-top: 34px; direction: ltr; }
+.key { width: 66px; height: 66px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 500; }
+.key.empty { background: transparent; border: none; }
+.forgot { margin-top: 18px; font-size: 12px; color: var(--accent); font-weight: 500; }
+
+#touch { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; background: rgba(240,230,210,0.35); border: 2px solid rgba(240,230,210,0.75); z-index: 60; pointer-events: none; }
+
+#end { top: 330px; }
+#end .name { font-size: 120px; font-weight: 700; line-height: 1.2; }
+#end .tag { font-size: 28px; color: var(--text2); font-weight: 500; }
+#end .cta { display: inline-block; margin-top: 34px; background: var(--accent); color: var(--onAccent); font-size: 32px; font-weight: 700; padding: 14px 40px; border-radius: 22px; box-shadow: 0 12px 40px rgba(201,169,97,0.35); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg">
+    <div class="glow" id="glowLapis"></div>
+    <div class="glow" id="glowGold"></div>
+  </div>
+  <div id="stripes"></div>
+
+  <!-- 1. الهوك -->
+  <div id="hook" class="center">
+    <div class="l1" id="h1">فلوسك بتروح فين</div>
+    <div class="l2" id="h2">آخر الشهر؟</div>
+  </div>
+  <div id="bigDot"></div>
+
+  <!-- 2. اللوجو -->
+  <div id="logo" class="center">
+    <div class="name">نقطة<span class="mark" style="margin-right:10px;margin-bottom:-36px"></span></div>
+    <div class="tag">كل جنيه <b>في مكانه</b></div>
+  </div>
+
+  <!-- الكابشنز -->
+  <div class="cap" id="c1"><div class="m">كل محافظك في <em>شاشة واحدة</em></div></div>
+  <div class="cap" id="c2"><div class="m">سجّل مصروفك <em>في ثانية</em></div></div>
+  <div class="cap" id="c3"><div class="m">اعرف فلوسك <em>راحت فين</em></div></div>
+  <div class="cap" id="c4"><div class="m">الديون والجمعية <em>في مكان واحد</em></div></div>
+  <div class="cap" id="c5"><div class="m">الاشتراكات <em>بتتسجل لوحدها</em></div><div class="s">أو بيسألك الأول — انت اللي تختار</div></div>
+  <div class="cap" id="c6"><div class="m">فلوسك <em>ليك لوحدك</em></div><div class="s">قفل بكود محدش يعرفه غيرك</div></div>
+
+  <!-- الموبايل -->
+  <div id="phone"><div id="screen">
+    <div id="statusbar"><span class="num">9:41</span><span class="ic">
+      <svg width="14" height="10" viewBox="0 0 14 10"><rect x="0" y="7" width="2.4" height="3" fill="#F0E6D2"/><rect x="3.8" y="5" width="2.4" height="5" fill="#F0E6D2"/><rect x="7.6" y="2.5" width="2.4" height="7.5" fill="#F0E6D2"/><rect x="11.4" y="0" width="2.4" height="10" fill="#F0E6D2"/></svg>
+      <svg width="20" height="10" viewBox="0 0 20 10"><rect x="0.5" y="0.5" width="16" height="9" rx="2.2" fill="none" stroke="#F0E6D2"/><rect x="2" y="2" width="11" height="6" rx="1" fill="#F0E6D2"/><rect x="17.5" y="3" width="1.8" height="4" rx="0.8" fill="#F0E6D2"/></svg>
+    </span></div>
+    <div id="notch"></div>
+
+    <!-- الرئيسية -->
+    <div class="scr" id="s-home">
+      <div class="balance">
+        <div class="row between"><span class="blabel">إجمالي رصيدك</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA8B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="hero"><span class="num" id="heroNum">8,000</span></div>
+        <div class="chips">
+          <div class="wchip"><div class="nm"><span class="dot" style="background:#3987E5"></span>كاش</div><div class="v"><span class="num" id="wCash">3,500</span></div></div>
+          <div class="wchip"><div class="nm"><span class="dot" style="background:#D95926"></span>المحفظة</div><div class="v"><span class="num">1,500</span></div></div>
+          <div class="wchip"><div class="nm"><span class="dot" style="background:#199E70"></span>البنك</div><div class="v"><span class="num" id="wBank">3,000</span></div></div>
+        </div>
+      </div>
+      <div id="autoNoticeWrap" style="overflow:hidden;height:0">
+        <div class="notice" style="margin-top:10px"><span style="flex:1">✓ سجلنا لوحدنا: اشتراك "الجيم" (<span class="num">16</span> نوفمبر). لو الرقم مختلف عدّله من الأرشيف.</span><span style="color:var(--muted);font-size:13px">✕</span></div>
+      </div>
+      <div class="card month">
+        <div><div class="t">صرفت الشهر ده</div><div class="a"><span class="num" id="monthAmt">2,350</span> ج.م</div></div>
+        <span class="chev">‹</span>
+      </div>
+      <div class="secTitle">آخر العمليات</div>
+      <div id="txAutoWrap" style="overflow:hidden;height:0">
+        <div class="tx"><div class="ico emo">🧾</div><div class="mid"><div class="tt">الجيم</div><div class="sb">البنك · اشتراك</div><div class="automark"><span class="emo">⚙️</span> اتسجلت لوحدها</div></div><div class="end"><div class="amt exp"><span class="num">−400</span></div><div class="dt">النهاردة</div></div></div>
+      </div>
+      <div id="txNewWrap" style="overflow:hidden;height:0">
+        <div class="tx" id="txNew"><div class="ico emo">🍔</div><div class="mid"><div class="tt">أكل</div><div class="sb">كاش</div></div><div class="end"><div class="amt exp"><span class="num">−150</span></div><div class="dt">النهاردة · <span class="num">2:15</span> م</div></div></div>
+      </div>
+      <div class="tx"><div class="ico emo">🚗</div><div class="mid"><div class="tt">مواصلات</div><div class="sb">المحفظة</div></div><div class="end"><div class="amt exp"><span class="num">−60</span></div><div class="dt">النهاردة · <span class="num">9:30</span> ص</div></div></div>
+      <div class="tx"><div class="ico emo">💡</div><div class="mid"><div class="tt">فواتير</div><div class="sb">البنك</div></div><div class="end"><div class="amt exp"><span class="num">−450</span></div><div class="dt">امبارح · <span class="num">8:10</span> م</div></div></div>
+      <div class="tx"><div class="ico emo">💰</div><div class="mid"><div class="tt">إيراد</div><div class="sb">البنك · المرتب</div></div><div class="end"><div class="amt inc"><span class="num">+6,000</span></div><div class="dt"><span class="num">1</span> نوفمبر · <span class="num">10:00</span> ص</div></div></div>
+      <div class="tx"><div class="ico emo">🛒</div><div class="mid"><div class="tt">بقالة</div><div class="sb">كاش</div></div><div class="end"><div class="amt exp"><span class="num">−320</span></div><div class="dt"><span class="num">13</span> نوفمبر · <span class="num">6:40</span> م</div></div></div>
+    </div>
+
+    <!-- التقارير -->
+    <div class="scr" id="s-reports">
+      <div class="title" style="margin-top:4px">التقارير</div>
+      <div class="pills" style="margin-top:9px">
+        <div class="pill sel">الشهر ده</div><div class="pill">آخر 7 أيام</div><div class="pill">الشهر اللي فات</div>
+      </div>
+      <div class="card metric">
+        <div class="t">مصروفات الفترة</div>
+        <div class="a"><span class="num" id="repTotal">2,500</span> <span style="font-size:14px;color:var(--text2)">ج.م</span></div>
+      </div>
+      <div class="secTitle" style="margin-top:14px">توزيع المصاريف حسب الفئة</div>
+      <div id="bars"></div>
+      <div class="secTitle" style="margin-top:12px">مصروفك أسبوع بأسبوع</div>
+      <div class="card" style="padding-bottom:8px"><div class="cols" id="cols"></div></div>
+    </div>
+
+    <!-- الالتزامات: الديون -->
+    <div class="scr" id="s-debts">
+      <div class="subtabs"><div class="on">الديون</div><div>الاشتراكات</div><div>الجمعية</div></div>
+      <div class="hdr"><div class="title">الديون والأقساط</div><div class="addBtn">+ دين جديد</div></div>
+      <div class="sum">
+        <div class="card"><div class="t">ليا (متبقي)</div><div class="a inc"><span class="num">500</span> ج.م</div></div>
+        <div class="card"><div class="t">عليا (متبقي)</div><div class="a exp"><span class="num">1,200</span> ج.م</div></div>
+      </div>
+      <div class="secTitle">فلوس ليا</div>
+      <div class="card debt" id="debtAhmed">
+        <div class="row between"><div class="nm">أحمد</div><div class="big inc"><span class="num">500</span> ج.م</div></div>
+        <div class="prog"><div style="width:0%;background:var(--income)"></div></div>
+        <div class="ln">اتسدد <span class="num">0</span> من <span class="num">500</span> ج.م · معاده <span class="num">30</span> نوفمبر <span class="emo">🔔</span></div>
+      </div>
+      <div class="secTitle">فلوس عليا</div>
+      <div class="card debt" id="debtSara">
+        <div class="row between"><div class="nm">سارة</div><div class="big exp"><span class="num">1,200</span> ج.م</div></div>
+        <div class="prog"><div id="saraProg" style="width:40%;background:var(--expense)"></div></div>
+        <div class="ln">اتسدد <span class="num">800</span> من <span class="num">2,000</span> ج.م</div>
+              </div>
+    </div>
+
+    <!-- الالتزامات: الجمعية -->
+    <div class="scr" id="s-gamiya">
+      <div class="subtabs"><div>الديون</div><div>الاشتراكات</div><div class="on">الجمعية</div></div>
+      <div class="hdr"><div class="title">الجمعية</div><div class="addBtn">+ جمعية جديدة</div></div>
+      <div class="card gm" style="margin-top:10px">
+        <div class="row between"><div class="nm">جمعية الشغل</div><div class="muted" style="font-size:11px">البنك</div></div>
+        <div class="ln muted" style="font-size:11px;margin-top:3px"><span class="num">1,000</span> ج.م/شهر · شهر الاستلام: <span class="num">4</span> من <span class="num">6</span> (<span class="num">6,000</span> ج.م)</div>
+        <div class="prog"><div id="gmProg" style="width:33.3%"></div></div>
+        <div class="ln muted" style="font-size:10.5px;margin-top:4px" id="gmDone">اتسدد <span class="num">2</span> من <span class="num">6</span> شهر</div>
+        <div class="nx" id="gmNext"></div>
+        <div style="margin-top:8px">
+          <div class="mrow"><span><span style="color:var(--muted)">شهر <span class="num">1</span> · <span class="num">16</span> سبتمبر · <span class="num">1,000</span></span></span><span class="done">✓ خلص</span></div>
+          <div class="mrow"><span><span style="color:var(--muted)">شهر <span class="num">2</span> · <span class="num">16</span> أكتوبر · <span class="num">1,000</span></span></span><span class="done">✓ خلص</span></div>
+          <div class="mrow"><span><span id="m3lab">شهر <span class="num">3</span> · <span class="num">16</span> نوفمبر · <span class="num">1,000</span></span></span><span id="m3"><span class="mbtn" id="m3btn">اتخصم</span><span class="done" id="m3done" style="display:none">✓ خلص</span></span></div>
+          <div class="mrow payout"><span>شهر <span class="num">4</span> (استلام) · <span class="num">16</span> ديسمبر · <span class="num">6,000</span></span><span class="mbtn">استلمت</span></div>
+          <div class="mrow"><span>شهر <span class="num">5</span> · <span class="num">16</span> يناير · <span class="num">1,000</span></span><span class="mbtn">اتخصم</span></div>
+          <div class="mrow"><span>شهر <span class="num">6</span> · <span class="num">16</span> فبراير · <span class="num">1,000</span></span><span class="mbtn">اتخصم</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- الالتزامات: الاشتراكات -->
+    <div class="scr" id="s-subs">
+      <div class="subtabs"><div>الديون</div><div class="on">الاشتراكات</div><div>الجمعية</div></div>
+      <div class="hdr"><div class="title">الاشتراكات</div><div class="addBtn">+ اشتراك جديد</div></div>
+      <div class="card gm" id="subGym" style="margin-top:10px;border-color:var(--warnBorder)">
+        <div class="row between"><div class="nm">الجيم</div><div class="big" style="font-size:14px;font-weight:700"><span class="num">400</span> ج.م</div></div>
+        <div class="ln muted" style="font-size:11px;margin-top:3px">البنك · <span class="emo">🧾</span> اشتراكات · شهري</div>
+        <div class="ln" style="font-size:11px;margin-top:2px;color:var(--accent);font-weight:500">مستحق النهاردة</div>
+        <div class="row" style="gap:6px;margin-top:9px"><div class="actBtn" style="flex:1">اتخصم</div><div class="moreBtn" id="gymMore">⋯</div></div>
+      </div>
+      <div class="card gm" style="margin-top:8px">
+        <div class="row between"><div class="nm">النت</div><div class="big" style="font-size:14px;font-weight:700"><span class="num">300</span> ج.م</div></div>
+        <div class="ln muted" style="font-size:11px;margin-top:3px">كاش · <span class="emo">💡</span> فواتير · شهري</div>
+        <div class="ln muted" style="font-size:11px;margin-top:2px">مستحق بعد <span class="num">24</span> يوم (<span class="num">10</span> ديسمبر)</div>
+        <div class="row" style="gap:6px;margin-top:9px"><div class="actBtn" style="flex:1">اتخصم</div><div class="moreBtn">⋯</div></div>
+      </div>
+    </div>
+
+    <!-- الزرار العايم -->
+    <div id="fab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0A0E14" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+
+    <!-- التابات -->
+    <div id="tabbar">
+      <div class="tab" data-k="home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M3.5 10.5 12 4l8.5 6.5V20a1 1 0 0 1-1 1H15v-6h-6v6H4.5a1 1 0 0 1-1-1z"/></svg>الرئيسية</div>
+      <div class="tab" data-k="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><rect x="5.5" y="11" width="3" height="6.5" rx="1"/><rect x="10.5" y="6" width="3" height="11.5" rx="1"/><rect x="15.5" y="13" width="3" height="4.5" rx="1"/></svg>التقارير</div>
+      <div class="tab" data-k="planning"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>التخطيط</div>
+      <div class="tab" data-k="debts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="6.5" width="18" height="12.5" rx="2.5"/><path d="M16 12.75h2.5M3 10h18"/></svg>الالتزامات</div>
+      <div class="tab" data-k="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>الإعدادات</div>
+    </div>
+
+    <!-- المودال -->
+    <div id="backdrop"></div>
+    <div id="sheet">
+      <div class="handle"></div>
+      <div class="title" style="text-align:center;font-size:16px">عملية جديدة</div>
+      <div class="seg"><div style="background:var(--selDangerBg);border-color:var(--selDangerBorder);color:var(--text)">مصروف</div><div>إيراد</div><div>سحب</div></div>
+      <div class="lbl">المبلغ</div>
+      <div class="input" id="amtBox"><span class="num" id="amtTxt"></span><span class="caret" id="caret"></span><span class="cur">ج.م</span></div>
+      <div class="lbl">الفئة</div>
+      <div class="pills">
+        <div class="pill" id="catFood"><span class="emo">🍔</span> أكل</div>
+        <div class="pill"><span class="emo">🚗</span> مواصلات</div>
+        <div class="pill"><span class="emo">💡</span> فواتير</div>
+        <div class="pill"><span class="emo">🛒</span> بقالة</div>
+        <div class="pill"><span class="emo">🎁</span> هدايا</div>
+      </div>
+      <div class="lbl">المحفظة</div>
+      <div class="pills"><div class="pill sel">كاش</div><div class="pill">المحفظة</div><div class="pill">البنك</div></div>
+      <div class="preview row between" id="preview"><b>كاش</b><span>من <span class="num">3,500</span> إلى <span class="num" id="pvAfter">3,500</span></span></div>
+      <div class="sheetFoot"><div class="btn pri" id="saveBtn">حفظ</div><div class="btn sec">إلغاء</div></div>
+    </div>
+
+    <!-- شيت تعديل الاشتراك -->
+    <div id="backdrop2"></div>
+    <div id="sheet2">
+      <div class="handle"></div>
+      <div class="title" style="text-align:center;font-size:16px">تعديل اشتراك</div>
+      <div id="s2body"><div id="s2inner">
+        <div class="lbl">الاسم</div><div class="input sm">الجيم</div>
+        <div class="lbl">المبلغ</div><div class="input sm"><span class="num">400</span></div>
+        <div class="lbl">المحفظة</div><div class="pills"><div class="pill">كاش</div><div class="pill">المحفظة</div><div class="pill sel">البنك</div></div>
+        <div class="lbl">التكرار</div><div class="pills"><div class="pill sel">شهري</div><div class="pill">سنوي</div><div class="pill">كل كام يوم</div></div>
+        <div class="lbl">موعد الاستحقاق الجاي</div><div class="input sm"><span class="num">16</span>&nbsp;نوفمبر</div>
+        <div class="lbl">التذكير قبل الموعد بكام يوم؟</div><div class="input sm"><span class="num">2</span></div>
+        <div class="lbl">لما معاد الاشتراك ييجي</div>
+        <div class="cm" id="cmConfirm"><div class="ct">بيسألك الأول (مقترح)</div><div class="cb">هيظهرلك كارت في الرئيسية: "اتخصم؟" — تأكد أو تعدّل المبلغ. مفيش حاجة بتتسجل من غيرك.</div></div>
+        <div class="cm" id="cmAuto"><div class="ct">بيتسجل لوحده</div><div class="cb">أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من المعاد الجاي — اللي فات بيسألك.</div></div>
+        <div style="height:80px"></div>
+      </div></div>
+      <div class="sheetFoot"><div class="btn pri" id="save2">حفظ</div><div class="btn sec">إلغاء</div></div>
+    </div>
+
+    <!-- القفل -->
+    <div id="s-lock">
+      <div class="lockIcon"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#C9A961" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></div>
+      <div class="lockTitle">نقطة مقفولة</div>
+      <div class="pins"><div class="pin" id="p0"></div><div class="pin" id="p1"></div><div class="pin" id="p2"></div><div class="pin" id="p3"></div></div>
+      <div class="keypad" id="keypad"></div>
+      <div class="forgot">نسيت الكود؟</div>
+    </div>
+
+    <div id="touch"></div>
+  </div></div>
+
+  <!-- الختام -->
+  <div id="end" class="center">
+    <div class="name">نقطة<span class="mark" style="margin-right:10px;margin-bottom:-38px"></span></div>
+    <div class="tag">كل جنيه <b style="color:var(--accent)">في مكانه</b></div>
+    <div class="cta">جرّبه دلوقتي</div>
+  </div>
+</div>
+
+<script>
+// ===== أدوات الزمن =====
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const eio = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;   // easeInOutCubic
+const eout = x => 1 - Math.pow(1 - x, 3);
+const eback = x => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const lerp = (a, b, x) => a + (b - a) * x;
+const fmt = n => Math.round(n).toLocaleString('en-US');
+// ظهور واختفاء: داخل [a, a+fi] ← خارج [b-fo, b]
+function win(t, a, b, fi = 0.5, fo = 0.5) { return Math.min(eout(prog(t, a, a + fi)), 1 - eio(prog(t, b - fo, b))); }
+const $ = id => document.getElementById(id);
+function set(el, o, tr) { el.style.opacity = o; if (tr !== undefined) el.style.transform = tr; el.style.visibility = o <= 0.001 ? 'hidden' : 'visible'; }
+
+// شريط القناع
+const stripes = $('stripes');
+for (let i = 0; i < 18; i++) { const d = document.createElement('div'); d.style.background = i % 2 ? '#1F4E9C' : '#C9A961'; stripes.appendChild(d); }
+
+// أعمدة التقارير
+const CATS = [
+  { n: '🍔 أكل', v: 900, c: '#3987E5' },
+  { n: '🚗 مواصلات', v: 600, c: '#D95926' },
+  { n: '💡 فواتير', v: 500, c: '#199E70' },
+  { n: '🛒 بقالة', v: 300, c: '#C98500' },
+  { n: '🎁 هدايا', v: 200, c: '#D55181' },
+];
+const TOTAL = 2500;
+const barsEl = $('bars');
+CATS.forEach((c, i) => {
+  const [emo, ...rest] = c.n.split(' ');
+  barsEl.insertAdjacentHTML('beforeend', `<div class="barRow"><div class="top"><span class="n"><span class="emo">${emo}</span> ${rest.join(' ')}</span><span class="v"><b><span class="num">${fmt(c.v)}</span></b> ج.م · <span class="num">${Math.round(c.v / TOTAL * 100)}%</span></span></div><div class="track"><div class="fill" id="bf${i}" style="background:${c.c};width:0"></div></div></div>`);
+});
+const WEEKS = [{ l: 'أسبوع 1', v: 820 }, { l: 'أسبوع 2', v: 640 }, { l: 'أسبوع 3', v: 710 }, { l: 'أسبوع 4', v: 330 }];
+WEEKS.forEach((w, i) => $('cols').insertAdjacentHTML('beforeend', `<div class="col"><div class="bar" id="cb${i}" style="height:0"></div><div class="lb">${w.l.replace(/\d/, d => `<span class="num">${d}</span>`)}</div></div>`));
+
+// لوحة القفل
+['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k => $('keypad').insertAdjacentHTML('beforeend',
+  k === '' ? '<div class="key empty"></div>' : `<div class="key" data-k="${k}">${k === '⌫' ? '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#F0E6D2" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"><path d="M9 5h11a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H9l-6-7z"/><path d="m12 9 6 6M18 9l-6 6"/></svg>' : `<span class="num">${k}</span>`}</div>`));
+
+// ===== الجدول الزمني (ثواني) =====
+const T = {
+  hook: [0, 3.1], logo: [2.9, 6.2],
+  phoneIn: 5.9, phoneOut: 29.6,
+  home: [5.9, 10.2], add: [10.2, 14.6], rep: [14.6, 18.2], debts: [18.2, 20.6], gm: [20.6, 23.2], subs: [23.2, 25.6], auto: [25.6, 27.1], lock: [27.1, 29.8],
+  end: 29.6, DUR: 32.6,
+};
+// الدوسات: [وقت، x، y] بإحداثيات الشاشة (312×672)
+const TAPS = [
+  [10.55, 41, 589],      // +
+  [12.15, 52, 314],      // أكل  (يتظبط من مكان العنصر)
+  [13.25, 0, 0],         // حفظ
+  [21.55, 0, 0],         // اتخصم شهر 3
+  [24.75, 0, 0],         // بيتسجل لوحده
+  [23.7, 0, 0],          // ⋯
+  [25.05, 0, 0],         // حفظ
+];
+const PIN_TAPS = [27.9, 28.2, 28.5, 28.8]; // 2 4 6 8
+const PIN_KEYS = ['2', '4', '6', '8'];
+
+function posIn(el) { // مكان عنصر جوه الشاشة
+  const s = $('screen').getBoundingClientRect(), r = el.getBoundingClientRect();
+  return [r.left - s.left + r.width / 2, r.top - s.top + r.height / 2];
+}
+
+function tabOn(k) { document.querySelectorAll('.tab').forEach(el => el.classList.toggle('on', el.dataset.k === k)); }
+
+window.render = function (t) {
+  // خلفية
+  const gx = 270 + Math.sin(t * 0.35) * 60, gy = 300 + Math.cos(t * 0.28) * 80;
+  $('glowGold').style.left = (gx - 160) + 'px'; $('glowGold').style.top = (gy - 60) + 'px';
+  $('glowLapis').style.left = (380 - Math.sin(t * 0.22) * 90) + 'px'; $('glowLapis').style.top = (720 + Math.cos(t * 0.3) * 60) + 'px';
+  $('stripes').style.opacity = 0.55 * Math.max(win(t, 0, T.phoneIn + 0.2, 0.6, 0.5), win(t, T.end, T.DUR + 1, 0.8, 0.1));
+
+  // 1. الهوك
+  const h1 = eout(prog(t, 0.15, 0.85)), h2 = eout(prog(t, 0.75, 1.45)), hOut = 1 - eio(prog(t, 2.7, 3.15));
+  set($('h1'), h1 * hOut, `translateY(${(1 - h1) * 24}px)`);
+  set($('h2'), h2 * hOut, `translateY(${(1 - h2) * 24}px)`);
+  set($('hook'), 1);
+  // النقطة: تنزل وتنبض، وبعدين تطير مكان نقطة اللوجو
+  const dIn = eback(prog(t, 1.3, 1.9));
+  const pulse = 1 + 0.12 * Math.sin(t * 6) * (t < 2.9 ? 1 : 0);
+  let dx = 257, dy = 560, ds = dIn * pulse, dop = prog(t, 1.3, 1.5);
+  const fly = eio(prog(t, 2.8, 3.5));
+  dx = lerp(257, 127, fly); dy = lerp(560, 419, fly); ds = lerp(ds, 0.85, fly);
+  dop = dop * (1 - prog(t, 3.45, 3.6));
+  set($('bigDot'), dop, `translate(${dx - 257}px, ${dy - 560}px) scale(${ds})`);
+
+  // 2. اللوجو
+  const lIn = eout(prog(t, 3.0, 3.7)), lOut = 1 - eio(prog(t, 5.6, 6.2));
+  set($('logo'), lIn * lOut, `translateY(${(1 - lIn) * 20 - (1 - lOut) * 30}px) scale(${lerp(0.94, 1, lIn)})`);
+  $('logo').querySelector('.mark').style.opacity = prog(t, 3.4, 3.55);
+  const tg = eout(prog(t, 3.8, 4.5));
+  $('logo').querySelector('.tag').style.opacity = tg;
+  $('logo').querySelector('.tag').style.transform = `translateY(${(1 - tg) * 14}px)`;
+
+  // الموبايل
+  const pin = eout(prog(t, T.phoneIn, T.phoneIn + 0.9)), pout = eio(prog(t, T.phoneOut, T.phoneOut + 0.6));
+  set($('phone'), pin * (1 - pout), `translateY(${(1 - pin) * 260 + pout * 60}px) scale(${lerp(1, 0.92, pout)})`);
+
+  // الكابشنز
+  const caps = [['c1', 6.3, T.home[1] + 0.1], ['c2', T.add[0] + 0.1, T.add[1] + 0.1], ['c3', T.rep[0] + 0.1, T.rep[1] + 0.1], ['c4', T.debts[0] + 0.1, T.gm[1] + 0.1], ['c5', T.subs[0] + 0.1, T.auto[1] + 0.1], ['c6', T.lock[0] + 0.1, T.phoneOut + 0.2]];
+  caps.forEach(([id, a, b]) => { const o = win(t, a, b, 0.45, 0.35); set($(id), o, `translateY(${(1 - o) * 14}px)`); });
+
+  // ===== شاشات =====
+  const scr = { home: 0, reports: 0, debts: 0, gamiya: 0, subs: 0 };
+  // الرئيسية: لحد التقارير، وتاني في "سجلنا لوحدنا"
+  scr.home = Math.max(1 - eio(prog(t, T.rep[0], T.rep[0] + 0.35)), eio(prog(t, T.auto[0], T.auto[0] + 0.35)));
+  scr.reports = eio(prog(t, T.rep[0], T.rep[0] + 0.35)) * (1 - eio(prog(t, T.debts[0], T.debts[0] + 0.35)));
+  scr.debts = eio(prog(t, T.debts[0], T.debts[0] + 0.35)) * (1 - eio(prog(t, T.gm[0], T.gm[0] + 0.3)));
+  scr.gamiya = eio(prog(t, T.gm[0], T.gm[0] + 0.3)) * (1 - eio(prog(t, T.subs[0], T.subs[0] + 0.3)));
+  scr.subs = eio(prog(t, T.subs[0], T.subs[0] + 0.3)) * (1 - eio(prog(t, T.auto[0], T.auto[0] + 0.35)));
+  for (const k in scr) set($('s-' + k), scr[k], `translateX(${(1 - scr[k]) * -10}px)`);
+  const active = t < T.rep[0] + 0.17 ? 'home' : t < T.debts[0] + 0.17 ? 'reports' : t < T.auto[0] + 0.17 ? 'debts' : 'home';
+  tabOn(active);
+  set($('fab'), 1 - eio(prog(t, T.rep[0], T.rep[0] + 0.3)));
+
+  // عدّاد الرصيد
+  const cnt = eout(prog(t, 6.5, 8.6));
+  const spent = eio(prog(t, 13.6, 14.2));
+  const autoSpent = eio(prog(t, T.auto[0] + 0.5, T.auto[0] + 1.1));
+  $('heroNum').textContent = fmt(8000 * cnt - 150 * spent - 400 * autoSpent);
+  $('wCash').textContent = fmt(3500 * Math.min(1, cnt * 1.0) - 150 * spent);
+  $('wBank').textContent = fmt(3000 * cnt - 400 * autoSpent);
+  document.querySelectorAll('.wchip .v .num')[1].textContent = fmt(1500 * cnt);
+  $('monthAmt').textContent = fmt(2350 * cnt + 150 * spent + 400 * autoSpent);
+  // الرصيد بيلمع لما يتحدّث
+  const flash = Math.max(Math.sin(Math.PI * prog(t, 13.6, 14.4)), Math.sin(Math.PI * prog(t, T.auto[0] + 0.5, T.auto[0] + 1.3)));
+  $('heroNum').style.color = flash > 0.01 ? `rgb(${lerp(240, 201, flash)},${lerp(230, 169, flash)},${lerp(210, 97, flash)})` : '';
+  // العملية الجديدة
+  const nw = eout(prog(t, 13.7, 14.15));
+  $('txNewWrap').style.height = (nw * 57) + 'px'; $('txNew').style.opacity = nw;
+  const aw = eout(prog(t, T.auto[0] + 0.45, T.auto[0] + 0.9));
+  $('txAutoWrap').style.height = (aw * 70) + 'px'; $('txAutoWrap').style.opacity = aw;
+  const nt = eout(prog(t, T.auto[0] + 0.2, T.auto[0] + 0.6));
+  $('autoNoticeWrap').style.height = (nt * 66) + 'px'; $('autoNoticeWrap').style.opacity = nt;
+  // تمرير خفيف في الرئيسية وقت "سجلنا لوحدنا" عشان الرصيد والإشعار يبانوا
+  $('s-home').scrollTop = 0;
+
+  // المودال
+  const shIn = eout(prog(t, 10.7, 11.15)), shOut = eio(prog(t, 13.4, 13.75));
+  const sh = shIn * (1 - shOut);
+  set($('backdrop'), sh);
+  set($('sheet'), sh > 0.001 ? 1 : 0, `translateY(${(1 - sh) * 540}px)`);
+  const typed = '150';
+  const nTyped = Math.floor(clamp((t - 11.3) / 0.22, 0, 3));
+  $('amtTxt').textContent = typed.slice(0, nTyped);
+  $('caret').style.opacity = (t < 12.0 && Math.floor(t * 3) % 2 === 0) ? 1 : (t < 12.0 ? 0.25 : 0);
+  $('amtBox').style.borderColor = t < 12.0 ? '#C9A961' : '';
+  $('catFood').classList.toggle('sel', t > 12.2);
+  $('pvAfter').textContent = fmt(3500 - (nTyped ? Number(typed.slice(0, nTyped)) : 0));
+  $('saveBtn').style.transform = `scale(${1 - 0.05 * Math.sin(Math.PI * prog(t, 13.25, 13.45))})`;
+
+  // التقارير
+  const bp = prog(t, T.rep[0] + 0.4, T.rep[0] + 2.0);
+  CATS.forEach((c, i) => { $('bf' + i).style.width = (eout(clamp(bp * 1.5 - i * 0.12)) * c.v / 900 * 100) + '%'; });
+  $('repTotal').textContent = fmt(2500 * eout(prog(t, T.rep[0] + 0.3, T.rep[0] + 1.4)));
+  const cp = prog(t, T.rep[0] + 1.3, T.rep[0] + 2.6);
+  WEEKS.forEach((w, i) => { $('cb' + i).style.height = (eback(clamp(cp * 1.6 - i * 0.18)) * w.v / 820 * 70) + 'px'; });
+
+  // الديون
+  const dIn2 = eout(prog(t, T.debts[0] + 0.2, T.debts[0] + 0.7)), sIn = eout(prog(t, T.debts[0] + 0.45, T.debts[0] + 0.95));
+  set($('debtAhmed'), dIn2, `translateY(${(1 - dIn2) * 16}px)`);
+  set($('debtSara'), sIn, `translateY(${(1 - sIn) * 16}px)`);
+  $('saraProg').style.width = (40 * eout(prog(t, T.debts[0] + 0.7, T.debts[0] + 1.5))) + '%';
+  // الجمعية: دوسة "اتخصم" على شهر 3
+  const m3 = t > TAPS[3][0] + 0.15;
+  $('m3btn').style.display = m3 ? 'none' : ''; $('m3done').style.display = m3 ? '' : 'none';
+  $('gmNext').innerHTML = m3 ? 'شهر الاستلام الجاي: <span class="num">16</span> ديسمبر (<span class="num">6,000</span> ج.م)' : 'قرّب — القسط الجاي: <span class="num">16</span> نوفمبر (<span class="num">1,000</span> ج.م)';
+  $('gmNext').style.color = m3 ? 'var(--text2)' : 'var(--accent)';
+  $('gmDone').innerHTML = `اتسدد <span class="num">${m3 ? 3 : 2}</span> من <span class="num">6</span> شهر`;
+  $('gmProg').style.width = (m3 ? 50 : 33.3) + '%';
+  $('m3lab').style.color = m3 ? 'var(--muted)' : '';
+  // الاشتراكات
+  const auto = t > TAPS[4][0] + 0.12;
+  $('cmAuto').classList.toggle('on', auto); $('cmConfirm').classList.toggle('on', !auto);
+  const s2 = eout(prog(t, 23.85, 24.25)) * (1 - eio(prog(t, 25.2, 25.5)));
+  set($('backdrop2'), s2);
+  set($('sheet2'), s2 > 0.001 ? 1 : 0, `translateY(${(1 - s2) * 600}px)`);
+  $('s2inner').style.transform = `translateY(${-eio(prog(t, 24.15, 24.6)) * ($('s2inner').scrollHeight - $('s2body').clientHeight)}px)`;
+  $('save2').style.transform = `scale(${1 - 0.05 * Math.sin(Math.PI * prog(t, 25.05, 25.25))})`;
+
+  // القفل
+  const lk = eio(prog(t, T.lock[0], T.lock[0] + 0.4));
+  set($('s-lock'), lk, `scale(${lerp(1.04, 1, lk)})`);
+  const nPins = PIN_TAPS.filter(x => t > x + 0.05).length;
+  for (let i = 0; i < 4; i++) $('p' + i).classList.toggle('f', i < nPins);
+  document.querySelectorAll('.key').forEach(k => {
+    const idx = PIN_KEYS.indexOf(k.dataset.k);
+    const pr = idx >= 0 ? Math.sin(Math.PI * prog(t, PIN_TAPS[idx], PIN_TAPS[idx] + 0.25)) : 0;
+    k.style.background = pr > 0 ? `rgba(201,169,97,${0.15 + 0.5 * pr})` : '';
+  });
+  // بعد الكود: علامة فتح
+  const unlocked = prog(t, 29.0, 29.3);
+  $('s-lock').querySelector('.lockIcon').style.borderColor = unlocked > 0 ? `rgba(78,158,122,${unlocked})` : '';
+
+  // مؤشر الدوسة
+  let touch = 0, tx = 0, ty = 0, tsc = 1;
+  const taps = TAPS.map(a => a.slice());
+  if (t > 12) { const p = posIn($('catFood')); taps[1][1] = p[0]; taps[1][2] = p[1]; }
+  if (t > 13) { const p = posIn($('saveBtn')); taps[2][1] = p[0]; taps[2][2] = p[1]; }
+  if (t > 21) { const p = posIn($('m3')); taps[3][1] = p[0]; taps[3][2] = p[1]; }
+  if (t > 24.3) { const p = posIn($('cmAuto')); taps[4][1] = p[0]; taps[4][2] = p[1]; }
+  if (t > 23.3) { const p = posIn($('gymMore')); taps[5][1] = p[0]; taps[5][2] = p[1]; }
+  if (t > 24.8) { const p = posIn($('save2')); taps[6][1] = p[0]; taps[6][2] = p[1]; }
+  PIN_TAPS.forEach((pt, i) => { if (t > pt - 0.5 && t < pt + 0.5) { const k = document.querySelector(`.key[data-k="${PIN_KEYS[i]}"]`); const p = posIn(k); taps.push([pt, p[0], p[1]]); } });
+  for (const [tt, x, y] of taps) {
+    const p = prog(t, tt - 0.25, tt + 0.3);
+    if (p > 0 && p < 1) { touch = Math.sin(Math.PI * p); tx = x; ty = y; tsc = t < tt ? lerp(1.3, 1, prog(t, tt - 0.25, tt)) : lerp(1, 1.5, prog(t, tt, tt + 0.3)); }
+  }
+  $('touch').style.left = tx + 'px'; $('touch').style.top = ty + 'px';
+  set($('touch'), touch * 0.95, `scale(${tsc})`);
+
+  // الختام
+  const eIn = eout(prog(t, T.end + 0.3, T.end + 1.0));
+  set($('end'), eIn, `translateY(${(1 - eIn) * 20}px)`);
+  const cta = eback(prog(t, T.end + 1.0, T.end + 1.6));
+  const ctaEl = $('end').querySelector('.cta');
+  ctaEl.style.opacity = prog(t, T.end + 1.0, T.end + 1.3);
+  ctaEl.style.transform = `scale(${lerp(0.85, 1, cta) * (1 + 0.025 * Math.sin((t - T.end) * 4) * prog(t, T.end + 1.6, T.end + 2))})`;
+  const tg2 = eout(prog(t, T.end + 0.6, T.end + 1.2));
+  $('end').querySelector('.tag').style.opacity = tg2;
+  // فيد للأسود في آخر نص ثانية
+  $('stage').style.filter = `brightness(${1 - 0.0 * prog(t, T.DUR - 0.4, T.DUR)})`;
+};
+window.DURATION = T.DUR;
+</script>
+</body>
+</html>
