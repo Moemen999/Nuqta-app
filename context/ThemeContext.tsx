@@ -8,6 +8,8 @@ export type ThemeColors = {
   bg: string;
   surface: string;
   surface2: string;
+  /** هيكل التحميل (`Skeleton`): ~1.4–1.5:1 على surface (surface2 كان 1.2/1.12 — مش باين) */
+  skeleton: string;
   nav: string;
   border: string;
   borderStrong: string;
@@ -80,7 +82,7 @@ export type ThemeColors = {
 // إلهام قناع توت عنخ آمون: الدهبي (المعدن)، الأزرق العميق (اللازورد في الخطوط واللحية)،
 // والدرجات الدافية (العقيق الأحمر والفيروز) بدل الألوان المحايدة العادية
 export const DARK: ThemeColors = {
-  bg: '#0A0E14', surface: '#151B24', surface2: '#1C2530', nav: '#0E131A',
+  bg: '#0A0E14', surface: '#151B24', surface2: '#1C2530', skeleton: '#2C3846', nav: '#0E131A',
   border: '#1C2530', borderStrong: '#28323F',
   // textMuted كان 2.8–3.5:1 — تحت 4.5 (WCAG 1.4.3)؛ بقى ≥4.5 على كل الخلفيات (بند E، theme.contrast.test)
   text: '#F0E6D2', textSecondary: '#9CA8B8', textMuted: '#808D9D',
@@ -98,7 +100,7 @@ export const DARK: ThemeColors = {
 };
 
 export const LIGHT: ThemeColors = {
-  bg: '#F5EFE0', surface: '#FFFDF7', surface2: '#F0E8D4', nav: '#FFFDF7',
+  bg: '#F5EFE0', surface: '#FFFDF7', surface2: '#F0E8D4', skeleton: '#DED1B0', nav: '#FFFDF7',
   border: '#E3D7BA', borderStrong: '#CDBB94',
   // textMuted كان 2.3–2.8:1 وtextSecondary 4.26 على surface2 — الاتنين بقوا ≥4.5 (بند E). الثانوي أغمق بدرجة باينة (1.36:1
   // بينهم، زي الغامق 1.40) عشان التلات مستويات (نص/ثانوي/باهت) ميبقوش اتنين (visual-identity-reviewer)

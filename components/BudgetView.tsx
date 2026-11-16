@@ -111,7 +111,7 @@ export default function BudgetView() {
                   {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
                 </Text>
               </View>
-              {spendLoading ? <SpendLoading testID="budget_total_loading" style={styles.totalSub} /> : (
+              {spendLoading ? <SpendLoading testID="budget_total_loading" shape="line" style={styles.totalSub} /> : (
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
                   <View testID="budget_hero" style={styles.heroRow}>
@@ -156,7 +156,7 @@ export default function BudgetView() {
                   textAlign="right"
                 />
               </View>
-              {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} style={styles.sub} />}
+              {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} shape="line" style={styles.sub} />}
               {limit > 0 && !spendLoading && (
                 <>
                   <View style={styles.track}>

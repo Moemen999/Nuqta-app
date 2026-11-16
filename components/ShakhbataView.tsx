@@ -202,7 +202,7 @@ export default function ShakhbataView() {
                   <Text style={styles.bucketLabel}>{b.label} ({percents[b.key]}%)</Text>
                   <Money value={target} style={styles.bucketTarget} />
                 </View>
-                {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} style={styles.bucketSpend} /> : (
+                {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} shape="line" style={styles.bucketSpend} /> : (
                   <>
                     <View style={styles.track}>
                       <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />

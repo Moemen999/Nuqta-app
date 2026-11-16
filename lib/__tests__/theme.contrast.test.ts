@@ -230,3 +230,10 @@ it.each([['DARK', DARK], ['LIGHT', LIGHT]] as const)('%s: controlEdge وشريط
   for (const bgc of [c.bg, c.surface, c.surface2, c.nav]) expect(contrast(c.controlEdge, bgc)).toBeGreaterThanOrEqual(3);
   for (const bar of [c.danger, c.accentText]) expect(contrast(bar, c.surface)).toBeGreaterThanOrEqual(3);
 });
+
+describe('هيكل التحميل (skeleton)', () => {
+  it.each([['فاتح', LIGHT], ['غامق', DARK]] as const)('%s: باين على surface وعلى bg بحد أدنى 1.3:1', (_n, t) => {
+    expect(contrast(t.skeleton, t.surface)).toBeGreaterThanOrEqual(1.3);
+    expect(contrast(t.skeleton, t.bg)).toBeGreaterThanOrEqual(1.3);
+  });
+});
