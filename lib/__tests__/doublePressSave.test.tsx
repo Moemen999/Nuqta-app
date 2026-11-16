@@ -73,8 +73,23 @@ describe('حفظ عملية جديدة', () => {
     const before = commits.mock.calls.length;
     await press(screen.getByTestId('tx_save_button'));
     expect(commits.mock.calls.length).toBe(before);
-    expect(screen.getByTestId('tx_save_button').props.accessibilityState).toMatchObject({ busy: false });
-    expect(screen.getByTestId('tx_save_button_spinner', { includeHiddenElements: true }).props.animating).toBe(false);
+  });
+
+  it('بعد حفظ ناجح الـbusy بيفضل true والزرار مبيتغيّرش لحد ما الشاشة تتشال (NUQTA-3)', async () => {
+    await render(wrap(<AddTransactionModal />));
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(screen.getByTestId('tx_save_button').props.accessibilityState).toMatchObject({ busy: true });
+    expect(screen.getByTestId('tx_save_button_spinner').props.animating).toBe(true);
+  });
+
+  it('addTransaction بيرمي (من غير uid) ← رسالة خطأ والمودال مبيتقفلش', async () => {
+    (mockData.addTransaction as jest.Mock).mockRejectedValue(new Error('addTransaction: no signed-in user'));
+    await render(wrap(<AddTransactionModal />));
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
   });
 
   it('تعديل: ضغطتين في نفس الـtick ← updateTransaction مرة واحدة، ودوسة بعدها كمان', async () => {

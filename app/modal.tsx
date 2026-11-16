@@ -140,9 +140,9 @@ export default function AddTransactionModal() {
   const waiting = !!id && !linkSourcesReady;
   const missing = !!id && linkSourcesReady && !existing;
 
-  // بعد حفظ ناجح مفيش setState خالص (`useBusy.run` بيعمل setBusy قبل ما saveTransaction يرجع)،
-  // لأن المودال بيتشال بالأنيميشن وأي re-render للزرار وقتها كان بيكرّش Fabric (NUQTA-3)
-  function handleSave() { if (saved.current) return; return runSave(saveTransaction); }
+  // الضمان: بعد حفظ ناجح مفيش تغيير في شكل شجرة الـviews وقت الإقفال (المؤشر متركّب دايمًا، والـbusy
+  // بيفضل true لحد ما الشاشة تتشال) — mount/unmount للزرار وقتها كان بيكرّش Fabric (NUQTA-3)
+  function handleSave() { if (saved.current) return; return runSave(saveTransaction, () => saved.current); }
 
   /**
    * بعد حفظ **نجح** (`saved` اتعلّم قبلها). الهابتك والرجوع برّه أي `catch` بيقول «ما اتحفظش»:
@@ -232,7 +232,8 @@ export default function AddTransactionModal() {
       // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
       setError('حصل خطأ، جرب تاني');
     } finally {
-      setBusy(false);
+      // بعد النجاح الـbusy بيفضل true لحد ما الشاشة تتشال (NUQTA-3)
+      if (!saved.current) setBusy(false);
     }
   }
 

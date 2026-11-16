@@ -308,6 +308,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
   }
 
   function next() {
+    if (saved.current) return;
     freeze();
     const e = stepError(step);
     if (e) { setError(e); return; }
@@ -322,8 +323,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
       weekday: frequency === 'weekly' ? weekday : undefined,
     };
     // الحارس بس حوالين الكتابة (من غير await على السيرفر — `addIncome` بتعدّي على `track`)
-    // بعد حفظ ناجح مفيش setState (`useBusy.run`) — المودال بيتشال والـre-render وقتها كان بيكرّش Fabric (NUQTA-3)
-    if (saved.current) return;
+    // بعد حفظ ناجح الـbusy بيفضل true لحد ما المودال يتشال (`keepOnSuccess`) — NUQTA-3
     void runSave(async () => {
       if (saved.current) return;
       try {
@@ -340,7 +340,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
       // بعد النجاح الحارس مبيتفكش: المودال بيتشال والدوسة التانية مفروض متكتبش حاجة
       saved.current = true;
       onClose();
-    });
+    }, () => saved.current);
   }
 
   return (

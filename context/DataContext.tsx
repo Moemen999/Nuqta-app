@@ -1311,7 +1311,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }));
   }
   async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
-    if (!uid) return '';
+    // ممنوع '' هنا: المودال كان بيعتبرها نجاح ويقفل من غير ما يكتب حاجة (silent-failure-hunter)
+    if (!uid) throw new Error('addTransaction: no signed-in user');
     // بنضمن وجود createdAt دايمًا عشان الوقت يظهر مع كل العمليات (حتى اللي بتتولد من الديون والاشتراكات والجمعية)
     const withTimestamp = { createdAt: new Date().toISOString(), ...tx };
     const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
