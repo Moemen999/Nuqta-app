@@ -301,7 +301,7 @@ function makeStyles(c: ThemeColors) {
     container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: space.huge },
     footer: { ...stickyFooterStyle(c, c.bg), justifyContent: 'center' },
     lockIcon: { marginBottom: space.md },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', marginBottom: 28 },
+    title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', marginBottom: 28 },
     dotsRow: { flexDirection: 'row', gap: 18, marginBottom: space.xl },
     dot: { width: 18, height: 18, borderRadius: LOCK_DOT_RADIUS, borderWidth: 1 },
     error: { color: c.dangerText, fontSize: typeScale.body, marginBottom: 18, minHeight: 18, textAlign: 'center' },

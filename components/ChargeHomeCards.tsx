@@ -209,7 +209,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         const more = p.charges.length - 1;
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
-            <Text style={styles.title}>{titleOf(p)}</Text>
+            <Text numberOfLines={2} style={styles.title}>{titleOf(p)}</Text>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -319,7 +319,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },

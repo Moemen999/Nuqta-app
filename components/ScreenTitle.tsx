@@ -4,7 +4,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { typeScale } from '@/lib/tokens';
 
 /**
- * عنوان الشاشة — واحد في كل التطبيق (`typeScale.title`، عريض، لون النص،
+ * عنوان الشاشة — واحد في كل التطبيق (`typeScale.figure`، عريض — أكبر من عنوان القسم (`title`)، لون النص،
  * يمين) وبدور `header` للقارئ. أي شاشة بتعرض عنوانها بيعدّي من هنا؛ اختبار
  * الجرد `screenTitle.test.ts` بيرفض الرجوع لـ`fontSize` حرفي.
  * `flexShrink: 1` افتراضي: اسم طويل جنب زرار الرجوع بيلف سطر تاني مش بيزق الزرار.
@@ -15,7 +15,7 @@ export function ScreenTitle({ children, style }: { children: string; style?: Sty
   return (
     <Text
       accessibilityRole="header"
-      style={[{ color: colors.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 }, style]}>
+      style={[{ color: colors.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', flexShrink: 1 }, style]}>
       {children}
     </Text>
   );

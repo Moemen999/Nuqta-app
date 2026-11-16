@@ -219,7 +219,7 @@ export default function FirstRunSetup() {
                   <TouchableOpacity testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
                     onPress={() => setPickedWallets(p => toggle(p, r.key))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={r.name}>
-                    <Text style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
+                    <Text numberOfLines={2} style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
                       {on ? '✓ ' : ''}{r.name}
                     </Text>
                   </TouchableOpacity>
@@ -302,7 +302,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 24 },
     center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
     bigEmoji: { fontSize: SETUP_EMOJI_SIZE },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
+    title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
     centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
@@ -312,7 +312,7 @@ function makeStyles(c: ThemeColors) {
       borderColor: c.border, borderRadius: radius.lg, paddingHorizontal: space.lg, marginBottom: space.sm, minHeight: MIN_TOUCH + 8,
     },
     rowToggle: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, minHeight: MIN_TOUCH },
-    rowName: { color: c.text, fontSize: typeScale.title, textAlign: 'right' },
+    rowName: { color: c.text, fontSize: typeScale.title, textAlign: 'right', flexShrink: 1 },
     balanceInput: {
       width: 120, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: radius.md,
       color: c.text, backgroundColor: c.bg, paddingHorizontal: space.md, fontSize: typeScale.title,

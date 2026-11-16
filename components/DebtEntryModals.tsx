@@ -670,7 +670,7 @@ function makeStyles(c: ThemeColors) {
     leftoverQuestion: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xl, marginBottom: space.sm, lineHeight: 20 },
     leftoverOption: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.sm, minHeight: 44 },
     leftoverTitle: { fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
-    leftoverCaption: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 19 },
+    leftoverCaption: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },

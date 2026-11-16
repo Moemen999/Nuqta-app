@@ -32,9 +32,9 @@ describe('عنوان الشاشة', () => {
     expect(src).not.toMatch(/styles\.title\b/);
   });
 
-  it('ScreenTitle على typeScale.title وبدور header', () => {
+  it('ScreenTitle على typeScale.figure وبدور header', () => {
     const src = readFileSync(join(root, 'components/ScreenTitle.tsx'), 'utf8');
-    expect(src).toContain('typeScale.title');
+    expect(src).toContain('typeScale.figure');
     expect(src).toContain('accessibilityRole="header"');
   });
 });

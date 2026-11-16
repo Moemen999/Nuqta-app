@@ -14,6 +14,7 @@ import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, Vi
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LineIcon } from '@/components/LineIcon';
 import { typeScale, radius, space } from '@/lib/tokens';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
@@ -172,7 +173,7 @@ export default function NotificationsScreen() {
           <TouchableOpacity testID="notifications_hour_later" style={styles.stepBtn}
             onPress={() => notifs.setDailyHour((notifs.dailyHour + 1) % 24)}
             accessibilityRole="button" accessibilityLabel="زوّد ساعة التذكير">
-            <Text style={styles.stepText}>+</Text>
+            <LineIcon name="add" size={22} color={colors.text} />
           </TouchableOpacity>
           <Text testID="notifications_hour_value" style={styles.hourValue}
             accessibilityRole="adjustable" accessibilityLabel="ساعة التذكير"
@@ -184,7 +185,7 @@ export default function NotificationsScreen() {
           <TouchableOpacity testID="notifications_hour_earlier" style={styles.stepBtn}
             onPress={() => notifs.setDailyHour((notifs.dailyHour + 23) % 24)}
             accessibilityRole="button" accessibilityLabel="نقّص ساعة التذكير">
-            <Text style={styles.stepText}>−</Text>
+            <LineIcon name="remove" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -240,10 +241,9 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
     stepBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
-    stepText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     hourValue: { flex: 1, color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 19 },
+    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
     alarmBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: space.md, paddingHorizontal: space.lg },
     alarmBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
     groupLabel: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },

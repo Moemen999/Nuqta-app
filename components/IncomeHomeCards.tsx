@@ -137,7 +137,7 @@ export default function IncomeHomeCards() {
         const more = keys.length - 1;
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
-            <Text style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
+            <Text numberOfLines={2} style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
             <Text style={styles.sub}>
               {incomePeriodLabel(inc, key, today)} · في {walletHistoryName(wallets, inc.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -232,7 +232,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },

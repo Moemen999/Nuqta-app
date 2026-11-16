@@ -35,7 +35,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: 18, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
-    appName: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    appName: { color: c.text, fontSize: typeScale.figure, fontWeight: '700' },
     version: { color: c.textSecondary, fontSize: typeScale.body, marginTop: space.xs },
   });
 }
