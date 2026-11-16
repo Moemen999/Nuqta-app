@@ -83,9 +83,7 @@ export default function ArchiveSheet({
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={onClose} disabled={busy}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
+            <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} disabled={busy} />
             <Button
               testID="archive_sheet_confirm"
               label={confirmText}
@@ -115,7 +113,7 @@ function makeStyles(c: ThemeColors) {
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 14, lineHeight: 17 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.5 },
   });

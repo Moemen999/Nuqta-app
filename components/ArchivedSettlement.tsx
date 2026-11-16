@@ -7,6 +7,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
@@ -199,29 +200,23 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
           </ScrollView>
           <View style={styles.footer}>
             {blocked ? (
-              <TouchableOpacity testID="settle_blocked_ok" style={styles.saveBtn} onPress={onCancel} accessibilityRole="button">
-                <Text style={{ color: colors.onAccent, fontWeight: '700' }}>تمام</Text>
-              </TouchableOpacity>
+              <Button testID="settle_blocked_ok" label="تمام" style={styles.saveBtn} onPress={onCancel} />
             ) : (
               <>
-                <TouchableOpacity style={styles.cancelBtn} onPress={onCancel} accessibilityRole="button">
-                  <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onCancel} />
+                <Button
                   testID="settle_confirm"
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: !allPicked }}
                   // التأكيد على مسح (D3) بشكل زرار الحذف في التطبيق (خط ونص أحمر، زي "حذف الجمعية")
                   // مش زي "احفظ" — الـAlert القديم كان destructive (a11y-architect)
-                  style={[isDelete && confirmLabel ? styles.deleteBtn : styles.saveBtn, !allPicked && styles.btnBusy]}
+                  variant={isDelete && confirmLabel ? 'danger' : 'primary'}
+                  label={confirmLabel ?? 'احفظ'}
+                  style={styles.saveBtn}
                   disabled={!allPicked}
                   onPress={() => {
                     if (confirmed.current) return;
                     confirmed.current = true;
                     onConfirm(picked);
-                  }}>
-                  <Text style={{ color: isDelete && confirmLabel ? colors.dangerText : colors.onAccent, fontWeight: '700' }}>{confirmLabel ?? 'احفظ'}</Text>
-                </TouchableOpacity>
+                  }} />
               </>
             )}
           </View>
@@ -245,9 +240,7 @@ function makeStyles(c: ThemeColors) {
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    deleteBtn: { flex: 2, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    btnBusy: { opacity: 0.5 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

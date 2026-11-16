@@ -1,4 +1,5 @@
 import { ActionSheet } from '@/components/ActionSheet';
+import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
@@ -23,7 +24,7 @@ import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey
 import { MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -197,29 +198,11 @@ export default function SubscriptionsView() {
         </Text>
         <View style={styles.actionsRow}>
           {isStopped ? (
-            <TouchableOpacity testID={`subscription_resume_${s.id}`} style={[styles.payBtn, resumeBusyKey === `resume_${s.id}` && styles.btnBusy]} onPress={() => confirmResume(s)} disabled={resumeBusyKey === `resume_${s.id}`}
-              accessibilityRole="button" accessibilityLabel={`رجّع اشتراك ${s.name}`} accessibilityState={{ busy: resumeBusyKey === `resume_${s.id}`, disabled: resumeBusyKey === `resume_${s.id}` }}>
-              {resumeBusyKey === `resume_${s.id}` ? (
-                <View style={styles.btnLoading}>
-                  <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>بنرجّعه</Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>رجّعه</Text>
-              )}
-            </TouchableOpacity>
+            <Button testID={`subscription_resume_${s.id}`} size="sm" label="رجّعه" accessibilityLabel={`رجّع اشتراك ${s.name}`}
+              onPress={() => confirmResume(s)} busy={resumeBusyKey === `resume_${s.id}`} />
           ) : (
-            <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}
-              accessibilityRole="button" accessibilityLabel={`اتخصم اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `pay_${s.id}`, disabled: busyKey === `pay_${s.id}` }}>
-              {busyKey === `pay_${s.id}` ? (
-                <View style={styles.btnLoading}>
-                  <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>بنسجّل</Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>اتخصم</Text>
-              )}
-            </TouchableOpacity>
+            <Button size="sm" label="اتخصم" accessibilityLabel={`اتخصم اشتراك ${s.name}`}
+              onPress={() => confirmPay(s)} busy={busyKey === `pay_${s.id}`} />
           )}
           {/* دراسة الشكل خطوة 3: زرار أساسي واحد (اتخصم/رجّعه) والباقي في "⋯" — نفس كارت الدين */}
           <TouchableOpacity testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
@@ -239,9 +222,7 @@ export default function SubscriptionsView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity accessibilityRole="button" testID="subscription_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ اشتراك جديد</Text>
-        </TouchableOpacity>
+        <Button testID="subscription_add_button" label="+ اشتراك جديد" size="sm" onPress={() => setShowAdd(true)} />
         <Text style={styles.title}>الاشتراكات</Text>
       </View>
 
@@ -407,12 +388,8 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="subscription_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
+          <Button testID="subscription_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -427,7 +404,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
@@ -436,8 +412,6 @@ function makeStyles(c: ThemeColors) {
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     due: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
     actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
-    payBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.xl, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
     moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.sm, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     moreBtnText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     overlay: overlayStyle,
@@ -456,8 +430,8 @@ function makeStyles(c: ThemeColors) {
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }
@@ -594,12 +568,8 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="subscription_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="subscription_edit_save" label="حفظ التعديل" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>

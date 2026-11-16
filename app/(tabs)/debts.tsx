@@ -542,9 +542,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="debt_edit_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
@@ -650,7 +648,7 @@ function makeStyles(c: ThemeColors) {
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });

@@ -297,10 +297,7 @@ export default function AddTransactionModal() {
           {loadErrors.length > 0 ? (
             <>
               <Text style={styles.noWalletsText}>في بيانات ما قدرناش نجيبها، فمش هنعرف العملية دي مربوطة بإيه. جرّب تاني، ولو فضلت كده شوف البانر في الرئيسية.</Text>
-              <TouchableOpacity testID="tx_waiting_retry" style={styles.noWalletsBtn}
-                onPress={retryLoad} accessibilityRole="button">
-                <Text style={styles.noWalletsBtnText}>جرّب تاني</Text>
-              </TouchableOpacity>
+              <Button testID="tx_waiting_retry" label="جرّب تاني" onPress={retryLoad} />
             </>
           ) : (
             <>
@@ -308,10 +305,7 @@ export default function AddTransactionModal() {
               <Text style={styles.noWalletsText}>لسه بنجيب بياناتك عشان نعرف العملية دي مربوطة بإيه. لو الموضوع طوّل، اتأكد إن النت شغال.</Text>
             </>
           )}
-          <TouchableOpacity testID="tx_waiting_back" style={styles.noWalletsBtn}
-            onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.noWalletsBtnText}>رجوع</Text>
-          </TouchableOpacity>
+          <Button testID="tx_waiting_back" label="رجوع" onPress={() => router.back()} />
         </View>
       </View>
     );
@@ -323,10 +317,7 @@ export default function AddTransactionModal() {
         <ScreenTitle style={styles.screenTitle}>{TX_EDIT_OUTCOME_ALERT.gone.title}</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>{TX_EDIT_OUTCOME_ALERT.gone.body}</Text>
-          <TouchableOpacity testID="tx_link_changed_back" style={styles.noWalletsBtn}
-            onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.noWalletsBtnText}>رجوع</Text>
-          </TouchableOpacity>
+          <Button testID="tx_link_changed_back" label="رجوع" onPress={() => router.back()} />
         </View>
       </View>
     );
@@ -338,10 +329,7 @@ export default function AddTransactionModal() {
         <ScreenTitle style={styles.screenTitle}>تعديل عملية</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>العملية دي مبقتش موجودة، غالبًا اتمسحت. ومفيش تعديل اتحفظ.</Text>
-          <TouchableOpacity testID="tx_missing_back" style={styles.noWalletsBtn}
-            onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.noWalletsBtnText}>رجوع</Text>
-          </TouchableOpacity>
+          <Button testID="tx_missing_back" label="رجوع" onPress={() => router.back()} />
         </View>
       </View>
     );
@@ -355,10 +343,7 @@ export default function AddTransactionModal() {
         <ScreenTitle style={styles.screenTitle}>تسوية محفظة مؤرشفة</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>دي اتعملت لوحدها عشان رصيد المحفظة المؤرشفة يرجع صفر، فمبتتعدّلش ولا تتمسح. لو عايز تصلّح حاجة، عدّل العملية الأصلية اللي على المحفظة دي.</Text>
-          <TouchableOpacity testID="tx_settlement_back" style={styles.noWalletsBtn}
-            onPress={() => router.back()} accessibilityRole="button">
-            <Text style={styles.noWalletsBtnText}>رجوع</Text>
-          </TouchableOpacity>
+          <Button testID="tx_settlement_back" label="رجوع" onPress={() => router.back()} />
         </View>
       </View>
     );
@@ -373,10 +358,7 @@ export default function AddTransactionModal() {
         <View testID="tx_no_wallets" style={styles.noWallets}>
           <Text style={styles.noWalletsText}>مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.</Text>
           {/* replace مش push: المودال بيتقفل والرجوع من المحافظ بيودّي الرئيسية مش لفورم فاضي */}
-          <TouchableOpacity testID="tx_no_wallets_add" style={styles.noWalletsBtn}
-            onPress={() => router.replace('/settings-screens/wallets')} accessibilityRole="button">
-            <Text style={styles.noWalletsBtnText}>ضيف محفظة</Text>
-          </TouchableOpacity>
+          <Button testID="tx_no_wallets_add" label="ضيف محفظة" onPress={() => router.replace('/settings-screens/wallets')} />
         </View>
       )}
 
@@ -471,13 +453,9 @@ export default function AddTransactionModal() {
 
     <View style={styles.footer}>
       {isEdit && (
-        <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtn, (busy || syncing) && styles.btnBusy]} onPress={handleDelete} disabled={busy || syncing}>
-          <Text style={{ color: colors.dangerText }}>{busy ? '...' : 'حذف'}</Text>
-        </TouchableOpacity>
+        <Button variant="danger" label="حذف" style={styles.deleteBtn} onPress={handleDelete} disabled={syncing} busy={busy} />
       )}
-      <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing}>
-        <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-      </TouchableOpacity>
+      <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing} />
       <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || syncing} />
     </View>
 
@@ -506,11 +484,9 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     lockedHint: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 8, lineHeight: 18 },
     noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: 12, padding: 14, gap: 10, marginBottom: 8 },
     noWalletsText: { color: c.text, fontSize: 14, textAlign: 'right', lineHeight: 21 },
-    noWalletsBtn: { backgroundColor: c.accent, borderRadius: 10, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    noWalletsBtnText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.bg, insetBottom),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    deleteBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
+    deleteBtn: { flex: 1 },
     saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });

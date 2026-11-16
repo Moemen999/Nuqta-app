@@ -426,10 +426,8 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
             </ScrollView>
 
             <View style={styles.footer}>
-              <TouchableOpacity testID="income_setup_back" accessibilityRole="button" style={styles.cancelBtn}
-                onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }}>
-                <Text style={{ color: colors.textSecondary }}>{step === 0 ? 'إلغاء' : 'رجوع'}</Text>
-              </TouchableOpacity>
+              <Button variant="secondary" testID="income_setup_back" label={step === 0 ? 'إلغاء' : 'رجوع'} style={styles.cancelBtn}
+                onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }} />
               <Button testID="income_setup_next" label={step < 2 ? 'التالي' : 'حفظ'} style={styles.saveBtn} onPress={next} />
             </View>
           </View>
@@ -488,7 +486,7 @@ function makeStyles(c: ThemeColors) {
     summary: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 16 },
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
   });
 }

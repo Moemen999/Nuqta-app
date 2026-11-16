@@ -226,9 +226,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_payment_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="debt_payment_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
@@ -413,9 +411,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         {!!error && <Text testID="debt_increase_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_increase_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="debt_increase_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
@@ -622,9 +618,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="debt_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
@@ -682,7 +676,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footerError: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });

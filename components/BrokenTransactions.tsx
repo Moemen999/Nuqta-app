@@ -22,6 +22,7 @@ import { storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
 import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 
 export function BrokenTransactionsSection() {
   const { colors } = useTheme();
@@ -151,18 +152,11 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
             </ScrollView>
             {error ? <Text testID="broken_fix_error" style={styles.error} accessibilityLiveRegion="polite">{error}</Text> : null}
             <View style={styles.footer}>
-              <TouchableOpacity testID="broken_fix_cancel" accessibilityRole="button" style={styles.cancelBtn} onPress={onClose}>
-                <Text style={styles.cancelText}>إلغاء</Text>
-              </TouchableOpacity>
-              <TouchableOpacity testID="broken_fix_delete" accessibilityRole="button" disabled={waiting || deleting}
-                accessibilityState={{ disabled: waiting || deleting, busy: deleting }}
-                style={[styles.deleteBtn, (waiting || deleting) && styles.btnBusy]} onPress={remove}>
-                <Text style={styles.deleteText}>{FIX_DELETE}</Text>
-              </TouchableOpacity>
+              <Button variant="secondary" testID="broken_fix_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+              <Button variant="danger" testID="broken_fix_delete" label={FIX_DELETE} style={styles.deleteBtn}
+                disabled={waiting} busy={deleting} onPress={remove} />
               {!block && !waiting && (
-                <TouchableOpacity testID="broken_fix_save" accessibilityRole="button" style={styles.saveBtn} onPress={save}>
-                  <Text style={styles.saveText}>حفظ</Text>
-                </TouchableOpacity>
+                <Button testID="broken_fix_save" label="حفظ" style={styles.saveBtn} onPress={save} />
               )}
             </View>
           </View>
@@ -197,13 +191,9 @@ function makeStyles(c: ThemeColors) {
     inputText: { color: c.text, textAlign: 'right', fontSize: font.subtitle },
     error: { color: c.dangerText, fontSize: font.text, textAlign: 'center', marginTop: space.sm, paddingHorizontal: space.xxxl },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-    cancelText: { color: c.textSecondary },
-    deleteBtn: { flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-    deleteText: { color: c.dangerText, fontWeight: '700' },
-    saveBtn: { flex: 2, minHeight: MIN_TOUCH, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-    saveText: { color: c.onAccent, fontWeight: '700' },
-    btnBusy: { opacity: 0.6 },
+    cancelBtn: { flex: 1 },
+    deleteBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
     retryBtn: { alignSelf: 'flex-end', minHeight: MIN_TOUCH, justifyContent: 'center', marginTop: space.sm },
     retryText: { color: c.accentText, fontWeight: '700', textDecorationLine: 'underline' },
   });

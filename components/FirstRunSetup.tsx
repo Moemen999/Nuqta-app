@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -237,10 +238,8 @@ export default function FirstRunSetup() {
               <TextInput testID="setup_custom_wallet_input" style={styles.addInput} value={newWallet} onChangeText={setNewWallet}
                 placeholder="محفظة تانية (اكتب اسمها)" placeholderTextColor={colors.textMuted} maxLength={SETUP_NAME_MAX}
                 textAlign="right" onSubmitEditing={addCustomWallet} accessibilityLabel="اسم محفظة تانية" />
-              <TouchableOpacity testID="setup_custom_wallet_add" style={styles.addBtn} onPress={addCustomWallet}
-                accessibilityRole="button" accessibilityLabel="ضيف المحفظة">
-                <Text style={styles.addBtnText}>ضيف</Text>
-              </TouchableOpacity>
+              <Button variant="outline" testID="setup_custom_wallet_add" label="ضيف" style={styles.addBtn} onPress={addCustomWallet}
+                accessibilityLabel="ضيف المحفظة" />
             </View>
           </>
         ) : (
@@ -267,10 +266,8 @@ export default function FirstRunSetup() {
               <TextInput testID="setup_custom_cat_input" style={styles.addInput} value={newCat} onChangeText={setNewCat}
                 placeholder="فئة تانية (اكتب اسمها)" placeholderTextColor={colors.textMuted} maxLength={SETUP_NAME_MAX}
                 textAlign="right" onSubmitEditing={addCustomCat} accessibilityLabel="اسم فئة تانية" />
-              <TouchableOpacity testID="setup_custom_cat_add" style={styles.addBtn} onPress={addCustomCat}
-                accessibilityRole="button" accessibilityLabel="ضيف الفئة">
-                <Text style={styles.addBtnText}>ضيف</Text>
-              </TouchableOpacity>
+              <Button variant="outline" testID="setup_custom_cat_add" label="ضيف" style={styles.addBtn} onPress={addCustomCat}
+                accessibilityLabel="ضيف الفئة" />
             </View>
           </>
         )}
@@ -329,8 +326,7 @@ function makeStyles(c: ThemeColors) {
       flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: 10, color: c.text,
       backgroundColor: c.surface, paddingHorizontal: 12, fontSize: 14,
     },
-    addBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + 16, borderRadius: 10, borderWidth: 1, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-    addBtnText: { color: c.accentText, fontSize: 14, fontWeight: '700' },
+    addBtn: { minWidth: MIN_TOUCH + 16 },
     error: { color: c.dangerText, fontSize: 13, textAlign: 'right', marginTop: 12 },
     primaryBtn: { backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
     primaryText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },

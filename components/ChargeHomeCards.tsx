@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
@@ -11,13 +12,13 @@ import { chargeDateLabel, gamiyaOpenCharges, subscriptionOpenCharges, type OpenC
 import { todayStr, walletHistoryName } from '@/lib/finance';
 import { MONEY_MASK } from '@/lib/money';
 import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
-  StyleSheet, TouchableOpacity, View,
+  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
@@ -218,38 +219,27 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
             )}
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
             <View style={styles.actions}>
-              <TouchableOpacity
+              <Button
                 testID={`charge_card_yes_${p.id}`}
-                style={[styles.yesBtn, busy && { opacity: 0.6 }]}
+                label={yesLabel(p)}
                 disabled={busyKey !== null}
+                busy={busy}
                 onPress={() => record(p, charge, charge.amount)}
-                accessibilityRole="button"
-                accessibilityLabel={busy ? `بنسجّل "${p.name}"` : `"${p.name}" ${yesLabel(p)}`}
-                accessibilityState={{ busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={styles.yesText}>{yesLabel(p)}</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                onPress={() => setEditing({ p, charge })} accessibilityRole="button"
-                accessibilityLabel={`"${p.name}" المبلغ مختلف`}>
-                <Text style={styles.ghostText}>المبلغ مختلف</Text>
-              </TouchableOpacity>
+                accessibilityLabel={`"${p.name}" ${yesLabel(p)}`} />
+              <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
+                onPress={() => setEditing({ p, charge })}
+                accessibilityLabel={`"${p.name}" المبلغ مختلف`} />
               {p.kind === 'subscription' ? (
-                <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                  onPress={() => confirmSkip(p, charge)} accessibilityRole="button"
-                  accessibilityLabel={`"${p.name}" ما اتخصمش`}>
-                  <Text style={styles.ghostText}>ما اتخصمش</Text>
-                </TouchableOpacity>
+                <Button variant="secondary" size="sm" label="ما اتخصمش" disabled={busyKey !== null}
+                  onPress={() => confirmSkip(p, charge)}
+                  accessibilityLabel={`"${p.name}" ما اتخصمش`} />
               ) : (
-                <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
+                <Button variant="secondary" size="sm" label="لسه" disabled={busyKey !== null}
                   onPress={() => {
                     snooze(snoozeKey(p, today));
                     AccessibilityInfo.announceForAccessibility(`"${p.name}" هيسألك تاني بكرة`);
-                  }} accessibilityRole="button"
-                  accessibilityLabel={`"${p.name}" لسه`} accessibilityHint="الكارت هيستخبّى النهاردة بس">
-                  <Text style={styles.ghostText}>لسه</Text>
-                </TouchableOpacity>
+                  }}
+                  accessibilityLabel={`"${p.name}" لسه`} />
               )}
             </View>
           </View>
@@ -311,17 +301,9 @@ function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }:
               <Text style={styles.hint}>{`ده للمرة دي بس — "${name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} accessibilityRole="button">
-                <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-              </TouchableOpacity>
-              <TouchableOpacity testID="charge_amount_save" style={[styles.saveBtn, (!valid || busy) && { opacity: 0.5 }]}
-                disabled={!valid || busy} onPress={() => onSave(typed)}
-                accessibilityRole="button" accessibilityLabel={busy ? 'بنسجّل' : yes}
-                accessibilityState={{ disabled: !valid || busy, busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{yes}</Text>}
-              </TouchableOpacity>
+              <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+              <Button testID="charge_amount_save" label={yes} style={styles.saveBtn}
+                disabled={!valid} busy={busy} onPress={() => onSave(typed)} />
             </View>
           </View>
         </View>
@@ -341,16 +323,6 @@ function makeStyles(c: ThemeColors) {
     sub: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4 },
     amount: { color: c.incomeText, fontSize: 22, fontWeight: '700', textAlign: 'right', marginTop: 8 },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-    yesBtn: {
-      backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 22, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    yesText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
-    ghostBtn: {
-      borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    ghostText: { color: c.text, fontSize: 13 },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8, backgroundColor: c.surface,
       borderRadius: 12, borderWidth: 1, borderColor: c.borderStrong, padding: 12, marginBottom: 10,
@@ -368,7 +340,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 10 },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'center', marginTop: 10 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

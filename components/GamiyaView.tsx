@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
@@ -17,7 +18,7 @@ import { gamiyaMarkConfirmBody, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
@@ -139,21 +140,12 @@ export default function GamiyaView() {
                   شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
-                  <TouchableOpacity accessibilityRole="button"
+                  <Button size="sm"
+                    label={m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
                     // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
                     accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount, m.dueDate, m.monthIndex)}
-                    style={[styles.markBtn, busyKey === `month_${m.id}` && styles.btnBusy]}
-                    disabled={busyKey === `month_${m.id}`}>
-                    {busyKey === `month_${m.id}` ? (
-                      // الزرار ده صغير، فالدايرة اللي بتلف لوحدها أوضح من كلمة
-                      <ActivityIndicator size="small" color={colors.onAccent} />
-                    ) : (
-                      <Text style={{ color: colors.onAccent, fontSize: typeScale.caption, fontWeight: '700' }}>
-                        {m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
+                    busy={busyKey === `month_${m.id}`} />
                 ) : (
                   <Text style={{ color: colors.incomeText, fontSize: typeScale.caption }}>✓ خلص</Text>
                 )}
@@ -180,9 +172,7 @@ export default function GamiyaView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity accessibilityRole="button" testID="gamiya_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ جمعية جديدة</Text>
-        </TouchableOpacity>
+        <Button testID="gamiya_add_button" label="+ جمعية جديدة" size="sm" onPress={() => setShowAdd(true)} />
         <Text style={styles.title}>الجمعية</Text>
       </View>
 
@@ -313,12 +303,8 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="gamiya_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="gamiya_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="gamiya_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
+          <Button testID="gamiya_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -333,7 +319,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     // دراسة الشكل خطوة 3: نفس كارت الدين — من غير إطار، المقاسات من `typeScale`
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
@@ -349,7 +334,6 @@ function makeStyles(c: ThemeColors) {
     monthRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: space.xs },
     monthText: { fontSize: typeScale.caption, flex: 1, textAlign: 'right' },
     // كان ~28 طول — 44 للمس (دراسة الشكل)
-    markBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + space.lg, alignItems: 'center', justifyContent: 'center' },
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.sm, alignItems: 'center', paddingVertical: space.sm, marginTop: space.md },
     gamiyaActions: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md },
     editBtn: { flex: 1, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
@@ -369,8 +353,8 @@ function makeStyles(c: ThemeColors) {
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }
@@ -447,12 +431,8 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="gamiya_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="gamiya_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="gamiya_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="gamiya_edit_save" label="حفظ التعديل" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>

@@ -11,7 +11,7 @@ const wrap = (ui: React.ReactElement) => render(<ThemeProvider>{ui}</ThemeProvid
 warmUp(() => <ThemeProvider><Button label="x" /></ThemeProvider>);
 
 describe('Button', () => {
-  it.each(['primary', 'secondary', 'danger', 'ghost'] as const)('بيرسم النوع %s ويضغط', async (variant) => {
+  it.each(['primary', 'secondary', 'outline', 'danger', 'ghost'] as const)('بيرسم النوع %s ويضغط', async (variant) => {
     const onPress = jest.fn();
     await wrap(<Button testID="b" variant={variant} label="حفظ" onPress={onPress} />);
     await fireEvent.press(screen.getByTestId('b'));
@@ -57,7 +57,7 @@ describe('Button', () => {
 describe('جرد: مفيش saveBtn/addBtn بتاع StyleSheet في الملفات المنقولة', () => {
   const root = join(__dirname, '..', '..');
   const files: Record<string, RegExp> = {
-    'app/modal.tsx': /\bsaveBtn:\s*\{[^}]*backgroundColor/,
+    'app/modal.tsx': /\b(saveBtn|noWalletsBtn):\s*\{[^}]*backgroundColor/,
     'app/(tabs)/debts.tsx': /\b(saveBtn|addBtn):\s*\{[^}]*backgroundColor/,
     'components/DebtEntryModals.tsx': /\bsaveBtn:\s*\{[^}]*backgroundColor/,
     'components/ArchiveSheet.tsx': /\bsaveBtn:\s*\{[^}]*backgroundColor/,
@@ -65,6 +65,14 @@ describe('جرد: مفيش saveBtn/addBtn بتاع StyleSheet في الملفا�
     'app/settings-screens/wallets.tsx': /\baddBtn:\s*\{[^}]*backgroundColor/,
     'app/settings-screens/categories.tsx': /\baddBtn:\s*\{[^}]*backgroundColor/,
     'app/settings-screens/lock.tsx': /\bprimaryBtn:/,
+    'components/SubscriptionsView.tsx': /\b(saveBtn|addBtn|payBtn):\s*\{[^}]*backgroundColor/,
+    'components/GamiyaView.tsx': /\b(saveBtn|addBtn|markBtn):\s*\{[^}]*backgroundColor/,
+    'components/ChargeHomeCards.tsx': /\b(saveBtn|yesBtn):\s*\{[^}]*backgroundColor/,
+    'components/IncomeHomeCards.tsx': /\b(saveBtn|yesBtn):\s*\{[^}]*backgroundColor/,
+    'components/SetLockModal.tsx': /\bsaveBtn:\s*\{[^}]*backgroundColor/,
+    'components/BrokenTransactions.tsx': /\b(saveBtn|deleteBtn):\s*\{[^}]*(backgroundColor|borderColor)/,
+    'components/ArchivedSettlement.tsx': /\b(saveBtn|deleteBtn):\s*\{[^}]*(backgroundColor|borderColor)/,
+    'components/FirstRunSetup.tsx': /\baddBtn:\s*\{[^}]*borderColor/,
   };
   it.each(Object.keys(files))('%s', (f) => {
     const src = readFileSync(join(root, f), 'utf8');

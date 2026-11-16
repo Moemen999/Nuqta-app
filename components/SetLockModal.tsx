@@ -4,6 +4,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
@@ -145,12 +146,8 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="setlock_cancel" accessibilityRole="button" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity testID="setlock_submit" accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} accessibilityLabel={busy ? 'استنى شوية' : 'تأكيد'} style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="setlock_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
+          <Button testID="setlock_submit" label="تأكيد" style={styles.saveBtn} onPress={handleSubmit} busy={busy} />
         </View>
         </View>
       </View>
@@ -175,7 +172,7 @@ function makeStyles(c: ThemeColors) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10, justifyContent: 'center', minHeight: MIN_TOUCH },
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

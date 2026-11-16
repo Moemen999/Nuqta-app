@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
@@ -10,13 +11,13 @@ import { MONEY_MASK } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
-  StyleSheet, TouchableOpacity, View,
+  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
@@ -143,26 +144,17 @@ export default function IncomeHomeCards() {
             </Text>
             <Money value={inc.amount} sign="+" style={styles.amount} />
             <View style={styles.actions}>
-              <TouchableOpacity
+              <Button
                 testID={`income_card_yes_${inc.id}`}
-                style={[styles.yesBtn, busy && { opacity: 0.6 }]}
+                label="نزل"
                 disabled={busyKey !== null}
+                busy={busy}
                 onPress={() => record(inc, key, inc.amount)}
-                accessibilityRole="button"
-                accessibilityLabel={busy ? `بنسجّل "${inc.name}"` : `"${inc.name}" نزل`}
-                accessibilityState={{ busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={styles.yesText}>نزل</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                onPress={() => setEditing({ inc, key })} accessibilityRole="button">
-                <Text style={styles.ghostText}>المبلغ مختلف</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                onPress={() => confirmSkip(inc, key)} accessibilityRole="button">
-                <Text style={styles.ghostText}>ما نزلش</Text>
-              </TouchableOpacity>
+                accessibilityLabel={`"${inc.name}" نزل`} />
+              <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
+                onPress={() => setEditing({ inc, key })} />
+              <Button variant="secondary" size="sm" label="ما نزلش" disabled={busyKey !== null}
+                onPress={() => confirmSkip(inc, key)} />
             </View>
           </View>
         );
@@ -222,17 +214,9 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
               <Text style={styles.hint}>{`ده للفترة دي بس — "${inc.name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} accessibilityRole="button">
-                <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-              </TouchableOpacity>
-              <TouchableOpacity testID="income_amount_save" style={[styles.saveBtn, (!valid || busy) && { opacity: 0.5 }]}
-                disabled={!valid || busy} onPress={() => onSave(typed)}
-                accessibilityRole="button" accessibilityLabel={busy ? "بنسجّل" : "نزل"}
-                accessibilityState={{ disabled: !valid || busy, busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={{ color: colors.onAccent, fontWeight: '700' }}>نزل</Text>}
-              </TouchableOpacity>
+              <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+              <Button testID="income_amount_save" label="نزل" style={styles.saveBtn}
+                disabled={!valid} busy={busy} onPress={() => onSave(typed)} />
             </View>
           </View>
         </View>
@@ -252,16 +236,6 @@ function makeStyles(c: ThemeColors) {
     sub: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4 },
     amount: { color: c.incomeText, fontSize: 22, fontWeight: '700', textAlign: 'right', marginTop: 8 },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-    yesBtn: {
-      backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 22, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    yesText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
-    ghostBtn: {
-      borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    ghostText: { color: c.text, fontSize: 13 },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8, backgroundColor: c.surface,
       borderRadius: 12, borderWidth: 1, borderColor: c.borderStrong, padding: 12, marginBottom: 10,
@@ -279,7 +253,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 10 },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'center', marginTop: 10 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

@@ -8,12 +8,12 @@ import { ActivityIndicator, Pressable, View, type StyleProp, type ViewStyle } fr
  * الزرار الواحد للتطبيق (موجة البريميم 2، `reports/2026-11-16-premium-gap.md` §4 نقطة 3).
  *
  * - `primary`: accent/onAccent (الحفظ والإضافة) · `secondary`: surface + حد · `danger`: حد وخط الخطر (زي "حذف" القديم)
- *   · `ghost`: نص من غير خلفية ولا حد.
+ *   · `outline`: حد accent وخط accentText من غير خلفية ("ضيف" جنب حقل) · `ghost`: نص من غير خلفية ولا حد.
  * - `busy`: مؤشر لف مكان النص، والزرار `disabled` طول ما هو busy (نفس عقد `useBusy`: الدوسة التانية متعدّيش).
  *   الاسم للقارئ بيفضل `label` حتى والنص مخفي.
  * - `style` للتخطيط بس (flex/width) — الشكل نفسه من الأنواع، مش من هنا.
  */
-export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'danger' | 'ghost';
 
 export interface ButtonProps {
   variant?: ButtonVariant;
@@ -40,6 +40,7 @@ export function Button({
   const look = {
     primary: { bg: colors.accent, fg: colors.onAccent, border: 'transparent' },
     secondary: { bg: colors.surface, fg: colors.text, border: colors.borderStrong },
+    outline: { bg: 'transparent', fg: colors.accentText, border: colors.accent },
     danger: { bg: 'transparent', fg: colors.dangerText, border: colors.dangerBorder },
     ghost: { bg: 'transparent', fg: colors.textSecondary, border: 'transparent' },
   }[variant];
