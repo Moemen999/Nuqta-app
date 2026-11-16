@@ -3,7 +3,7 @@ import { Text } from '@/components/AppText';
 import { LineIcon } from '@/components/LineIcon';
 import { useTheme } from '@/context/ThemeContext';
 import { DEFAULT_CATEGORY_ICON } from '@/lib/finance';
-import { categoryIconSize } from '@/lib/tokens';
+import { categoryIconSize, space } from '@/lib/tokens';
 
 /** لون hex (#RRGGBB) بشفافية ~18% — خلفية الدايرة بلون الفئة (نفس لون عمودها في التقارير) */
 export function tintBackground(hex: string) {
@@ -29,6 +29,9 @@ export function CategoryIcon({ icon, size = categoryIconSize.bar, tint, testID }
     </View>
   );
 }
+
+/** صف «دايرة + اسم» — الدايرة أول عنصر (يمين الاسم)، والاسم بيتقص/بيلف من نصه */
+export const categoryInlineRow = { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm } as const;
 
 const styles = StyleSheet.create({
   circle: { alignItems: 'center', justifyContent: 'center' },

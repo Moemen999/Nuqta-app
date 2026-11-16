@@ -168,9 +168,9 @@ describe('الأيقونة على اختيارات الفئات', () => {
     await mount();
     await press('setup_start');
     await press('setup_next');
-    expect(screen.getByText('✓ 🍔 أكل')).toBeTruthy();
-    expect(screen.getByText('🎮 ترفيه')).toBeTruthy();
-    expect(screen.getByText('✓ 🏷️ أخرى')).toBeTruthy();
+    expect(screen.getByText('✓ أكل')).toBeTruthy();
+    expect(screen.getByText('ترفيه')).toBeTruthy();
+    expect(screen.getByText('✓ أخرى')).toBeTruthy();
     expect(screen.getByTestId('setup_cat_0').props.accessibilityLabel).toBe('أكل');
     await act(async () => { fireEvent.changeText(screen.getByTestId('setup_custom_cat_input'), 'قهوة'); });
     await press('setup_custom_cat_add');

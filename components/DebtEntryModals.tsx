@@ -23,7 +23,9 @@ import {
   increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -59,6 +61,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
+  const { categoryColors } = useChartColors();
   const notice = useNotice();
   const confirm = useConfirm();
   const { busy, run: runBusy } = useBusy();
@@ -201,7 +204,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
                 {selectableOptions(categories).map(c => (
                   <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                    <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                    <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
                   </TouchableOpacity>
                 ))}
               </View>

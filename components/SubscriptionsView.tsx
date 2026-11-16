@@ -10,6 +10,8 @@ import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectabl
 import FoldedSection from '@/components/FoldedSection';
 import { splitDone } from '@/lib/doneSections';
 import { dateText } from '@/lib/dateText';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { defaultWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
@@ -18,7 +20,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -273,6 +275,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, addSubscription } = useData();
+  const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
@@ -358,7 +361,10 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -459,6 +465,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, updateSubscription } = useData();
+  const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState(sub.name);
@@ -541,7 +548,10 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>

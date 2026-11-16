@@ -8,7 +8,8 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, stickyFooterStyle } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -254,7 +255,10 @@ export default function FirstRunSetup() {
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-                    <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c, icon: setupCategoryIcon(c) })}</Text>
+                    <View style={categoryInlineRow}>
+                      <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} />
+                      <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c }, { icon: false })}</Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}

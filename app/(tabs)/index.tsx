@@ -360,7 +360,8 @@ function HomeScreen() {
         {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
         {cold && recent.length === 0 && cold.recent.map(t => {
           const T = TYPE_LABELS[t.type];
-          const catLabel = categoryLabelById(cold.categories, t.categoryId);
+          const coldCat = !t.kind && t.type === 'expense' && t.categoryId ? cold.categories.find(c => c.id === t.categoryId) : undefined;
+          const catLabel = categoryLabelById(cold.categories, t.categoryId, coldCat ? { icon: false } : {});
           const title = t.kind ? COLD_KIND_LABEL[t.kind] : t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
           const name = (id?: string) => cold.wallets.find(w => w.id === id)?.name ?? '';
           // نفس شكل transactionWalletLabel ("من … إلى …")، بس من محافظ الكاش؛ محفظة مش فيه (مؤرشفة) ← من غير اسم
@@ -371,7 +372,12 @@ function HomeScreen() {
             <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
               accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${dayText(t.date, todayStr())}`}>
               <View style={styles.txMid}>
-                <Text style={styles.txTitle}>{title}</Text>
+                <View style={styles.txTitleRow}>
+                  {coldCat
+                    ? <CategoryIcon icon={coldCat.icon} size={categoryIconSize.row} />
+                    : <View style={{ width: categoryIconSize.row, height: categoryIconSize.row }} />}
+                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{title}</Text>
+                </View>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
               </View>
               <View style={styles.txRight}>

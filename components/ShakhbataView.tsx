@@ -1,7 +1,10 @@
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+
 import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -32,6 +35,7 @@ export default function ShakhbataView() {
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { categoryColors } = useChartColors();
   const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas, transfersStatus } = useData();
   // بند 11: "اتصرف" مبيظهرش لحد ما الديون والجمعية يوصلوا
   const spendLoading = transfersStatus === 'loading';
@@ -224,7 +228,10 @@ export default function ShakhbataView() {
         <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
         {categories.map(c => (
           <View key={c.id} style={styles.catRow}>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={styles.catName}>{categoryLabel(c)}</Text>
+            <View style={[categoryInlineRow, { marginBottom: space.sm }]}>
+              <CategoryIcon icon={c.icon} size={categoryIconSize.row} tint={categoryColors.get(c.id)} />
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.catName, { flexShrink: 1, marginBottom: 0 }]}>{categoryLabel(c, { icon: false })}</Text>
+            </View>
             <View style={styles.catBtns}>
               {BUCKET_META.map(b => {
                 const active = c.bucket === b.key;

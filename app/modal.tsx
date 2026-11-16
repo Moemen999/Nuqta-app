@@ -18,7 +18,9 @@ import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/l
 import { activeWalletIds, defaultWalletId, lastTransferToWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
 import { quietSelectionStyle, selectionA11y, selectionTextColor, type SelectionTone } from '@/lib/selection';
-import { MIN_TOUCH, radius, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -42,6 +44,7 @@ export default function AddTransactionModal() {
     wallets, categories, transactions, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad,
     addTransaction, updateTransaction, updateDebtLinkedTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
+  const { categoryColors } = useChartColors();
   const notice = useNotice();
   const confirm = useConfirm();
   const existing = id ? transactions.find(t => t.id === id) : undefined;
@@ -433,7 +436,10 @@ export default function AddTransactionModal() {
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { touch(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
+                <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>

@@ -17,6 +17,7 @@ afterEach(() => jest.useRealTimers());
 function setup(day: string, extraTx: unknown[] = []) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
+    wallets: [],
     categories: [{ id: 'c1', name: 'خروجات' }],
     budgets: { c1: 1000, total_budget: 5000 },
     transactions: [
@@ -91,10 +92,10 @@ it('الكارت اللي اتكتب فيه في المطوي بيفضل فيه 
   mockData.categories = [{ id: 'c1', name: 'خروجات' }, { id: 'c2', name: 'هدايا' }];
   const r = await render(ui());
   await act(async () => { fireEvent.press(screen.getByTestId('budget_no_limit_toggle')); });
-  await act(async () => { fireEvent(screen.getByLabelText('سقف 🏷️ هدايا'), 'focus'); });
+  await act(async () => { fireEvent(screen.getByLabelText('سقف هدايا'), 'focus'); });
   // الحفظ التلقائي وصل: السقف بقى متخزّن
   mockData.budgets = { c1: 1000, c2: 300, total_budget: 5000 };
   await r.rerender(ui());
   expect(screen.getByTestId('budget_no_limit_toggle').props.accessibilityLabel).toBe('فئات من غير سقف، فئة واحدة');
-  expect(screen.getByLabelText('سقف 🏷️ هدايا')).toBeTruthy();
+  expect(screen.getByLabelText('سقف هدايا')).toBeTruthy();
 });

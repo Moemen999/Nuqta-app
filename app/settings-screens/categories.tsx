@@ -11,13 +11,13 @@ import {
   categoryReferences, type ArchiveBlock,
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } from '@/lib/listenerErrors';
-import { categoryIcon } from '@/lib/finance';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize } from '@/lib/tokens';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
@@ -174,8 +174,8 @@ export default function CategoriesScreen() {
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`} hitSlop={5}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
-              style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
-              <Text style={styles.iconText}>{categoryIcon(c)}</Text>
+              style={styles.iconBtn}>
+              <CategoryIcon icon={c.icon} size={categoryIconSize.bar} tint={categoryColors.get(c.id)} />
             </TouchableOpacity>
             <TextInput
               testID={`category_name_input_${c.id}`}
@@ -249,8 +249,7 @@ function makeStyles(c: ThemeColors) {
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
     title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
-    iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-    iconText: { fontSize: 17 },
+    iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },
     nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },

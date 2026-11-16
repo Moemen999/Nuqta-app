@@ -1,7 +1,10 @@
 import { Money } from '@/components/Money';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -21,6 +24,7 @@ export default function BudgetView() {
   const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { categoryColors } = useChartColors();
   const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();
   // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا
   const spendLoading = transfersStatus === 'loading';
@@ -135,13 +139,16 @@ export default function BudgetView() {
           return (
             <View key={c.id} style={styles.card}>
               <View style={styles.head}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={styles.name}>{categoryLabel(c)}</Text>
+                <View style={[categoryInlineRow, { flex: 1, flexShrink: 1 }]}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.row} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={styles.name}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
                   placeholder="السقف"
                   placeholderTextColor={colors.textMuted}
-                  accessibilityLabel={`سقف ${categoryLabel(c)}`}
+                  accessibilityLabel={`سقف ${categoryLabel(c, { icon: false })}`}
                   onFocus={gi === 1 ? () => keepInFold(c.id) : undefined}
                   value={valueFor(c.id, budgets[c.id] || 0)}
                   onChangeText={v => onChange(c.id, v)}

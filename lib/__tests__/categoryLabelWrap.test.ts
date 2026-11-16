@@ -89,7 +89,7 @@ describe('نص شريحة الفئة المكتوب مباشرة: سطر واح�
     // (شرايح الفلتر)، أما سطور الأعمدة/الرئيسية فبتلف زي ما كانت. العدّ هنا إن الدايرة مستخدمة فعلاً.
     const users = SOURCE_DIRS.flatMap(d => sourceFiles(path.join(ROOT, d)))
       .filter(f => /<CategoryIcon\b/.test(fs.readFileSync(f, 'utf8')) && !f.endsWith('CategoryIcon.tsx'));
-    expect(users.length).toBeGreaterThanOrEqual(2);
+    expect(users.length).toBeGreaterThanOrEqual(10);
     const chip = fs.readFileSync(path.join(ROOT, 'app/(tabs)/reports.tsx'), 'utf8');
     expect(chip).toMatch(/<Text numberOfLines=\{1\} ellipsizeMode="middle"[^>]*>\{categoryLabel\(c, \{ icon: false \}\)\}/);
   });
