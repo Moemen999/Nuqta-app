@@ -178,3 +178,6 @@ export function bigAmountInputStyle(c: ThemeColors): TextStyle {
     paddingVertical: space.md,
   };
 }
+
+/** دايرة التقدّم (`ProgressRing`، ميزانية التخطيط): القطر وسُمك الخط */
+export const progressRing = { size: 64, stroke: 7, durationMs: 600 } as const;

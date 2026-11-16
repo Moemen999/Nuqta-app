@@ -1,4 +1,5 @@
 import { Money } from '@/components/Money';
+import { ProgressRing } from '@/components/ProgressRing';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
@@ -114,9 +115,13 @@ export default function BudgetView() {
               {spendLoading ? <SpendLoading testID="budget_total_loading" shape="line" style={styles.totalSub} /> : (
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
-                  <View testID="budget_hero" style={styles.heroRow}>
-                    <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalMonthSpend > totalBudget && { color: colors.dangerText }]} />
-                    <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
+                  <View style={styles.heroWithRing}>
+                    {/* دايرة التقدّم: نفس الأرقام والشرط (`totalMonthSpend > totalBudget` ← خطر) اللي الرقم البطل جنبها، زينة بس */}
+                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={totalMonthSpend > totalBudget ? colors.dangerText : colors.accentText} trackColor={colors.borderStrong} />
+                    <View testID="budget_hero" style={styles.heroRow}>
+                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalMonthSpend > totalBudget && { color: colors.dangerText }]} />
+                      <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
+                    </View>
                   </View>
                   {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
                 </>
@@ -192,7 +197,8 @@ function makeStyles(c: ThemeColors) {
     totalLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     totalRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: space.md },
     totalSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
-    heroRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.lg },
+    heroWithRing: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xxl, marginTop: space.lg },
+    heroRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, flexShrink: 1 },
     hero: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     heroOf: { color: c.textSecondary, fontSize: typeScale.body },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
