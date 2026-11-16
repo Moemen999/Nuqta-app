@@ -266,8 +266,8 @@ function DebtsContent() {
               {(d.personContactId || d.personPhone) ? (
                 <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
                   <View style={styles.personLinkRow}>
-                    <Text style={[styles.personName, styles.personNameLink]}>{d.personName}</Text>
-                    <LineIcon name="person-circle-outline" size={typeScale.body} color={colors.accentText} />
+                    <Text style={[styles.personName, styles.personNameLink, { flexShrink: 1 }]}>{d.personName}</Text>
+                    <LineIcon name="person-circle-outline" size={16} color={colors.accentText} />
                   </View>
                 </TouchableOpacity>
               ) : (
@@ -378,14 +378,14 @@ function DebtsContent() {
       </View>
 
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
-      {owedSplit.active.length === 0 && <EmptyHint testID="debts_owed_empty" icon="swap-horizontal-outline" message="مفيش حد مديون ليك دلوقتي" />}
+      {owedSplit.active.length === 0 && <EmptyHint testID="debts_owed_empty" icon="arrow-down-circle-outline" message="مفيش حد مديون ليك دلوقتي" />}
       {owedSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس ليا، ${debtsPhrase(owedSplit.done.length)}`} count={owedSplit.done.length}>
         {owedSplit.done.map(renderDebt)}
       </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
-      {iOweSplit.active.length === 0 && <EmptyHint testID="debts_iowe_empty" icon="swap-horizontal-outline" message="مفيش عليك ديون دلوقتي" />}
+      {iOweSplit.active.length === 0 && <EmptyHint testID="debts_iowe_empty" icon="arrow-up-circle-outline" message="مفيش عليك ديون دلوقتي" />}
       {iOweSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس عليا، ${debtsPhrase(iOweSplit.done.length)}`} count={iOweSplit.done.length}>
         {iOweSplit.done.map(renderDebt)}
@@ -608,7 +608,7 @@ function makeStyles(c: ThemeColors) {
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     personPhone: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
-    personLinkRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
+    personLinkRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, flexShrink: 1, minHeight: MIN_TOUCH },
     personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
     remainingText: { fontSize: typeScale.title, fontWeight: '700' },
     noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },

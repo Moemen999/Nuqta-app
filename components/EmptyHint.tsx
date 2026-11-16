@@ -13,13 +13,13 @@ export function EmptyHint({ icon, message, testID }: { icon: LineIconName; messa
   const { colors } = useTheme();
   return (
     <View testID={testID} style={styles.wrap}>
-      <HeroIcon name={icon} size={heroIconSize.inline} />
+      <HeroIcon testID={testID ? `${testID}_icon` : undefined} name={icon} size={heroIconSize.inline} />
       <Text style={[styles.text, { color: colors.textSecondary }]}>{message}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { alignItems: 'center', paddingVertical: space.xl, gap: space.sm },
+  wrap: { alignItems: 'center', paddingVertical: space.xxxl, gap: space.sm },
   text: { fontSize: typeScale.body, textAlign: 'center' },
 });

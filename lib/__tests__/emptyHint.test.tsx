@@ -14,6 +14,9 @@ describe('EmptyHint', () => {
     expect(screen.getByTestId('e')).toBeTruthy();
     expect(screen.getByText('مفيش اشتراكات مسجلة')).toBeTruthy();
     expect(screen.getByText('مفيش اشتراكات مسجلة').props.accessibilityElementsHidden).toBeFalsy();
+    const icon = screen.getByTestId('e_icon', { includeHiddenElements: true });
+    expect(icon.props.accessibilityElementsHidden).toBe(true);
+    expect(icon.props.importantForAccessibility).toBe('no-hide-descendants');
   });
 });
 
