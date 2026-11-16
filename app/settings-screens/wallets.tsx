@@ -21,7 +21,7 @@ import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
-import { MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
@@ -409,7 +409,7 @@ function makeStyles(c: ThemeColors) {
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
     dot: { width: 8, height: 8, borderRadius: radius.xxs },
-    walletCard: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
+    walletCard: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, ...cardElevation(c) },
     walletHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, marginBottom: space.md },
     nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     walletRow: { flexDirection: 'row-reverse', gap: space.md },

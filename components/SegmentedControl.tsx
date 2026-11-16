@@ -69,7 +69,7 @@ export function SegmentedControl<K extends string>({ segments, value, onChange, 
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    track: { flexDirection: 'row-reverse', backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.xxs, gap: space.xxs },
+    track: { flexDirection: 'row-reverse', backgroundColor: c.controlBg, borderRadius: radius.lg, padding: space.xxs, gap: space.xxs },
     // الإطار موجود دايمًا (شفاف) عشان الاختيار ميزقّش الكلام
     segment: { flex: 1, minHeight: MIN_TOUCH, borderRadius: radius.md, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.xxs },
     // ستايل احتياطي للمختارة قبل ما المؤشر يبقى جاهز (أول رسمة/قبل القياس) — مؤشر مش لون بس

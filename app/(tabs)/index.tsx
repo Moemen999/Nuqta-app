@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -457,7 +457,7 @@ function makeStyles(c: ThemeColors) {
     // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
     // دراسة الشكل خطوة 2 (قرار مؤمن 2026-11-06): الرصيد رقم بطل واحد، حدود أقل، والمقاسات من `typeScale` بس
-    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl },
+    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, ...cardElevation(c) },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
     balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
@@ -497,7 +497,7 @@ function makeStyles(c: ThemeColors) {
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
     },
     noWalletsBtnText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
-    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl, ...cardElevation(c) },
     seeAll: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: MIN_TOUCH,
       paddingVertical: space.lg,

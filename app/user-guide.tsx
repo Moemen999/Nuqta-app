@@ -6,7 +6,7 @@ import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
-import { glyphSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -173,7 +173,8 @@ export default function UserGuideScreen() {
       {SECTIONS.map(s => {
         const isOpen = openId === s.id;
         return (
-          <View key={s.id} style={styles.card}>
+          <View key={s.id} style={styles.cardShadow}>
+          <View style={styles.card}>
             <TouchableOpacity accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
               <Text style={styles.cardTitle}>{s.icon}  {s.title}</Text>
               <Text style={styles.chevron}>{isOpen ? '−' : '+'}</Text>
@@ -189,6 +190,7 @@ export default function UserGuideScreen() {
               </View>
             )}
           </View>
+          </View>
         );
       })}
 
@@ -203,7 +205,9 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
     intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: 19 },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: space.md, overflow: 'hidden' },
+    // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
+    cardShadow: { borderRadius: radius.lg, backgroundColor: c.surface, marginBottom: space.md, ...cardElevation(c) },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, overflow: 'hidden' },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
     cardTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     chevron: { color: c.accentText, fontSize: glyphSize.chevron, fontWeight: '700' },

@@ -1,4 +1,4 @@
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
 import { useNotifications } from '@/context/NotificationsContext';
@@ -205,6 +205,7 @@ export default function SettingsScreen() {
         <View key={section.key} testID={`settings_section_${section.key}`} style={styles.section}>
           <Text style={styles.sectionTitle}>{section.title}</Text>
           {!!section.subtitle && <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>}
+          <View style={styles.cardShadow}>
           <View style={styles.card}>
             {section.rows.map((row, i) => (
               <TouchableOpacity accessibilityRole="button"
@@ -225,6 +226,7 @@ export default function SettingsScreen() {
                 </View>
               </TouchableOpacity>
             ))}
+          </View>
           </View>
         </View>
       ))}
@@ -250,6 +252,8 @@ function makeStyles(c: ThemeColors) {
     // عناوين الأقسام أصغر وأهدى (دراسة الشكل) — الصفوف هي المهمة
     sectionTitle: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
     sectionSubtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
+    // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
+    cardShadow: { borderRadius: radius.xl, backgroundColor: c.surface, ...cardElevation(c) },
     card: { backgroundColor: c.surface, borderRadius: radius.xl, overflow: 'hidden' },
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxl, minHeight: MIN_TOUCH + space.md },
     rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },

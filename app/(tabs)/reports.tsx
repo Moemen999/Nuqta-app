@@ -1,4 +1,4 @@
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
 import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
@@ -437,7 +437,7 @@ function makeStyles(c: ThemeColors) {
     // نفس زرار التاريخ في الأرشيف (visual-identity-reviewer: كان نفس الزرار بشكلين)
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
-    heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
+    heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl, ...cardElevation(c) },
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     heroRow: { marginTop: space.xxs },
@@ -450,7 +450,7 @@ function makeStyles(c: ThemeColors) {
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
-    bars: { marginTop: 8, gap: 14 },
+    bars: { marginTop: 8, gap: 14, backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl, paddingVertical: space.xxl, ...cardElevation(c) },
     barRow: { gap: 6 },
     // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
     barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
@@ -461,7 +461,7 @@ function makeStyles(c: ThemeColors) {
     barValue: { color: c.text, fontSize: typeScale.body },
     barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
-    barTrack: { height: 6, borderRadius: radius.pill, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
+    barTrack: { height: 6, borderRadius: radius.pill, backgroundColor: c.border, flexDirection: 'row-reverse', overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: radius.pill },
     trendRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 8, marginBottom: 6 },
     trendCol: { flex: 1, alignItems: 'center', gap: 4, flexDirection: 'column-reverse' },

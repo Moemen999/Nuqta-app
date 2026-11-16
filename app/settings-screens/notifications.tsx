@@ -15,7 +15,7 @@ import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon } from '@/components/LineIcon';
-import { typeScale, radius, space } from '@/lib/tokens';
+import { cardElevation, typeScale, radius, space } from '@/lib/tokens';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
 export const PERMISSION_DENIED_BODY = 'التطبيق مش مسموح له يبعت إشعارات. فعّلها من إعدادات الموبايل.';
@@ -237,7 +237,7 @@ function makeStyles(c: ThemeColors) {
     switchLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     status: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: 17 },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, borderWidth: 1, borderColor: c.border },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, ...cardElevation(c) },
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
     stepBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },

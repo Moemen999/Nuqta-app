@@ -1,7 +1,7 @@
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
@@ -276,7 +276,7 @@ function makeStyles(c: ThemeColors) {
     percentInput: { backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, minHeight: MIN_TOUCH, fontSize: typeScale.body, fontWeight: '700' },
     warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: 17 },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
-    bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
+    bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     bucketLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     bucketTarget: { color: c.textSecondary, fontSize: typeScale.body },

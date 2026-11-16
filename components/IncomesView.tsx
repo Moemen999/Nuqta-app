@@ -16,7 +16,7 @@ import {
 } from '@/lib/recurringIncome';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -465,7 +465,7 @@ function makeStyles(c: ThemeColors) {
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: 20 },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
     cardPaused: { opacity: 0.7 },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },

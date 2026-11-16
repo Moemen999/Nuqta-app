@@ -2,7 +2,7 @@ import { Money } from '@/components/Money';
 import { ProgressRing } from '@/components/ProgressRing';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
@@ -205,7 +205,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xxl },
-    totalCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.xxxl },
+    totalCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.xxxl, ...cardElevation(c) },
     totalLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     totalRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: space.md },
     totalSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
@@ -214,7 +214,7 @@ function makeStyles(c: ThemeColors) {
     hero: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     heroOf: { color: c.textSecondary, fontSize: typeScale.body },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
-    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '500', flexShrink: 1 },
     input: { width: 110, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },

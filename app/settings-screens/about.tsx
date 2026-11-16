@@ -6,7 +6,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { space, radius, typeScale } from '@/lib/tokens';
+import { cardElevation, space, radius, typeScale } from '@/lib/tokens';
 
 
 export default function AboutScreen() {
@@ -34,7 +34,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: 18, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: 18, ...cardElevation(c), alignItems: 'center' },
     appName: { color: c.text, fontSize: typeScale.figure, fontWeight: '700' },
     version: { color: c.textSecondary, fontSize: typeScale.body, marginTop: space.xs },
   });

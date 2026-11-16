@@ -11,7 +11,7 @@ import { PIASTRE_EPS } from '@/lib/finance';
 import { speakable } from '@/lib/money';
 import type { MonthSummary } from '@/lib/monthSummary';
 import { TRANSFERS_FAILED_NOTE } from '@/lib/spending';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, radius, space, typeScale } from '@/lib/tokens';
 
 export const MONTH_CARD_TITLE = 'صرفت الشهر ده';
 export const MONTH_CARD_ERROR = 'مقدرناش نجيب عملياتك';
@@ -135,7 +135,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md, ...cardElevation(c) },
     title: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     value: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
     valueRow: { marginTop: space.xxs, flexShrink: 1 },

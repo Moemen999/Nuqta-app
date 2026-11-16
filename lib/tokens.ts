@@ -187,3 +187,13 @@ export function bigAmountInputStyle(c: ThemeColors): TextStyle {
 
 /** دايرة التقدّم (`ProgressRing`، ميزانية التخطيط): القطر وسُمك الخط، و`compact` للكارت الضيق (كارت الشهر في الرئيسية) */
 export const progressRing = { size: 64, stroke: 7, durationMs: 600, compact: { size: 44, stroke: 5 } } as const;
+
+/**
+ * رفعة الكارت (الفاتح بس): ظل خفيف دافي بدل إطار — التباين surface/bg في الفاتح 1.13:1 والكروت كانت مسطّحة.
+ * في الغامق `shadow` = null فمفيش حاجة بتتضاف. ممنوع على صفوف القوايم والشرايح والسيجمنت وأي خلفية شفافة/selectedBg.
+ * الكارت اللي عليه `overflow: 'hidden'` بيتلف بـView برّاني شايل الظل (iOS بيقص الظل).
+ */
+export function cardElevation(c: { shadow: string | null }): ViewStyle {
+  if (!c.shadow) return {};
+  return { shadowColor: c.shadow, shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 };
+}

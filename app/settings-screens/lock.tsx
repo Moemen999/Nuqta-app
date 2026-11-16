@@ -3,7 +3,7 @@ import SetLockModal from '@/components/SetLockModal';
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
@@ -142,7 +142,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: 17 },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, borderWidth: 1, borderColor: c.border },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, ...cardElevation(c) },
     status: { color: c.incomeText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
     row: { flexDirection: 'row-reverse', gap: space.sm },
     btnLabel: { color: c.text, fontSize: typeScale.body },

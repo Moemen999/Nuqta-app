@@ -26,7 +26,7 @@ import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -599,11 +599,11 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     summaryRow: { flexDirection: 'row-reverse', gap: space.md, marginBottom: space.md },
-    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
+    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg, ...cardElevation(c) },
     summaryLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     summaryValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxxl, marginBottom: space.sm },
-    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
+    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
@@ -613,7 +613,7 @@ function makeStyles(c: ThemeColors) {
     remainingText: { fontSize: typeScale.title, fontWeight: '700' },
     noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
     dueText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
-    track: { height: 4, backgroundColor: c.surface2, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
+    track: { height: 4, backgroundColor: c.border, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: radius.track },
     progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
     expandedArea: { marginTop: space.lg, borderTopWidth: 1, borderTopColor: c.border, paddingTop: space.md },

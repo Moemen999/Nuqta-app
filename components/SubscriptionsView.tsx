@@ -21,7 +21,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -405,7 +405,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     amount: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },

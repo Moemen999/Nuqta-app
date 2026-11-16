@@ -108,7 +108,7 @@ function makeStyles(c: ThemeColors) {
     row: { flexDirection: 'row-reverse', gap: space.sm, flexGrow: 1, alignItems: 'center' },
     // flexDirection 'row' عن قصد: التدرّج مربوط بالحافة الفيزيائية الشمال (الأكثف عندها) مش باتجاه القراية
     fade: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 24, flexDirection: 'row' },
-    chip: { backgroundColor: c.surface2, borderRadius: radius.md, borderWidth: 1.5, borderColor: 'transparent', paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    chip: { backgroundColor: c.controlBg, borderRadius: radius.md, borderWidth: 1.5, borderColor: 'transparent', paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     chipSelected: { backgroundColor: c.selectedBg, borderColor: c.selectedBorder },
     label: { color: c.textSecondary, fontSize: typeScale.body },
     labelSelected: { color: c.text, fontWeight: '700' },

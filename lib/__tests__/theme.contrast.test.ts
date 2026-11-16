@@ -34,7 +34,7 @@ const NON_TEXT_MIN = 3;
 const TEXT_MIN = 4.5;
 
 /** الخلفيات اللي عناصر الاختيار بتقف عليها فعلاً في التطبيق */
-const surfacesOf = (c: ThemeColors) => ({ bg: c.bg, nav: c.nav, surface: c.surface, surface2: c.surface2 });
+const surfacesOf = (c: ThemeColors) => ({ bg: c.bg, nav: c.nav, surface: c.surface, surface2: c.surface2, controlBg: c.controlBg });
 
 const TONES = ['accent', 'success', 'danger'] as const;
 
