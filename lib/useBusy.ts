@@ -25,7 +25,10 @@ export function useBusy() {
     }
   }, []);
 
-  return { busy, run };
+  /** فك القفل بإيدك: لما الحفظ فشل بعد ما `keepOnSuccess` كان سايبه مقفول (الزرار كان هيفضل بيلف للأبد) */
+  const release = useCallback(() => { running.current = false; setBusy(false); }, []);
+
+  return { busy, run, release };
 }
 
 /** "فيه عملية تانية شغالة" — لما دوسة بتتسقط عشان كتابة تانية لسه بتلف */

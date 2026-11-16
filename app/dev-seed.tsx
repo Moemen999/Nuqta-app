@@ -76,7 +76,10 @@ function DevSeed() {
     const ids: SeedIds = { wallets, categories };
     linkedStarted.current = true;
     SEED_WALLETS.forEach(w => data.updateWallet(ids.wallets[w.name], { openingBalance: w.openingBalance, lowAlert: w.lowAlert }));
-    seedTransactions(ids, today).forEach(tx => data.addTransaction(tx));
+    seedTransactions(ids, today).forEach(tx => data.addTransaction(tx).catch(() => {
+      setPhase('failed');
+      setStatus('عملية من عمليات التجربة ما اتسجلتش.');
+    }));
     // `addDebt` بيرمي لو المبلغ أو العدد مش صالح — منسيبوش رفض من غير ما حد يمسكه
     seedDebts(ids, today).forEach(d => data.addDebt(d).catch(() => {
       setPhase('failed');

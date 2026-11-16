@@ -94,7 +94,7 @@ export default function AddTransactionModal() {
   const [busy, setBusy] = useState(false);
   // ref متزامن بيغطي: (أ) ضغطتين في نفس الفريم قبل الـre-render (`useBusy`)، (ب) أي دوسة بعد حفظ ناجح
   // وقبل ما الشاشة تتشال بالأنيميشن (`saved`: بيتعلّم قبل `router.back()` وعمره ما بيتفك)
-  const { busy: saveGuard, run: runSave } = useBusy();
+  const { busy: saveGuard, run: runSave, release: releaseSave } = useBusy();
   const saved = useRef(false);
   const [loaded, setLoaded] = useState(false);
   // تعديل عملية دين مستني السيرفر — منفصل عن `busy` اللي بيتفك قبل ما الشيت ترد
@@ -211,6 +211,8 @@ export default function AddTransactionModal() {
           } catch (e) {
             // فشل التجهيز: مفيش حاجة اتحفظت، فالحارس يتفك والشاشة متترجعش
             saved.current = false;
+            releaseSave(); // `keepOnSuccess` كان سايب القفل مقفول — من غير ده الزرار يفضل بيلف للأبد
+            setBusy(false);
             console.warn('[tx] تعديل العملية فشل');
             reportAtomicFailure('حفظ العملية', e);
             setError('حصل خطأ، جرب تاني');
@@ -274,7 +276,8 @@ export default function AddTransactionModal() {
       setError('حصل خطأ ومفيش حاجة اتحفظت، جرب تاني');
     } finally {
       inFlight.current = false;
-      setSyncing(false);
+      // بعد النجاح الزرار مبيتغيّرش لحد ما الشاشة تتشال (NUQTA-3)
+      if (!saved.current) setSyncing(false);
     }
   }
 
