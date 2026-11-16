@@ -156,3 +156,18 @@ export function stickyFooterStyle(c: ThemeColors, bg: string, extraBottom: numbe
     backgroundColor: bg,
   };
 }
+
+/** خانة المبلغ البطل (مودال العملية والاشتراك والجمعية): الرقم هو البطل، وحافة ≥ 3:1 (`controlEdge`) */
+export function bigAmountInputStyle(c: ThemeColors): TextStyle {
+  return {
+    backgroundColor: c.surface2,
+    borderWidth: 1.5,
+    borderColor: c.controlEdge,
+    borderRadius: radius.lg,
+    color: c.text,
+    fontSize: typeScale.hero,
+    fontWeight: '700',
+    paddingHorizontal: space.xxl,
+    paddingVertical: space.md,
+  };
+}

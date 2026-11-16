@@ -18,7 +18,7 @@ import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/l
 import { activeWalletIds, defaultWalletId, lastTransferToWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
 import { quietSelectionStyle, selectionA11y, selectionTextColor, type SelectionTone } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -495,7 +495,7 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, minHeight: MIN_TOUCH, justifyContent: 'center', alignItems: 'center' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, marginBottom: space.xs },
     // حافة ≥ 3:1 (a11y-architect: من غيرها الخانة الفاضية 1.06:1 في الفاتح ومالهاش حدود)
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.lg, color: c.text, fontSize: typeScale.hero, fontWeight: '700', paddingHorizontal: space.xxl, paddingVertical: space.md },
+    bigInput: bigAmountInputStyle(c),
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
