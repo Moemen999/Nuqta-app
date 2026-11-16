@@ -175,7 +175,7 @@ export default function ArchiveScreen() {
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
 
-      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
+      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" bleed={space.xxl} />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>

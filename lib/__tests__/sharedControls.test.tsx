@@ -34,3 +34,15 @@ it('PeriodChips: testID `{prefix}_{key}` زي القديم، وحالة الاخ
   await act(async () => { fireEvent.press(screen.getByTestId('x_preset_thisMonth')); });
   expect(onChange).toHaveBeenCalledWith('thisMonth');
 });
+
+it('PeriodChips: سطر واحد بيتسحب (horizontal) من غير flexWrap، وبيطلع لحافة الأب بـbleed', async () => {
+  await render(<ThemeProvider><PeriodChips keys={['thisMonth', 'last7']} value="last7" onChange={() => {}} testIDPrefix="y_preset" bleed={16} /></ThemeProvider>);
+  const row = screen.getByTestId('y_preset_row');
+  expect(row.props.horizontal).toBe(true);
+  expect(row.props.showsHorizontalScrollIndicator).toBe(false);
+  const content = StyleSheet.flatten(row.props.contentContainerStyle);
+  expect(content.flexWrap).toBeUndefined();
+  expect(content.flexDirection).toBe('row-reverse');
+  expect(content.paddingHorizontal).toBe(16);
+  expect(StyleSheet.flatten(row.props.style).marginHorizontal).toBe(-16);
+});

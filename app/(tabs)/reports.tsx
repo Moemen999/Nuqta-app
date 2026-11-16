@@ -218,7 +218,7 @@ export default function ReportsScreen() {
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
 
-      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" />
+      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={16} />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
