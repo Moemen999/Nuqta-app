@@ -241,7 +241,7 @@ export default function ReportsScreen() {
         {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
-          {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
+          {spendLoading ? <SpendLoading shape="line" style={styles.changeValue} /> : (
             <Text style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
             </Text>
@@ -272,7 +272,7 @@ export default function ReportsScreen() {
       </FoldedSection>
 
       {spendLoading ? (
-        <SpendLoading testID="reports_bars_loading" style={styles.emptyState} />
+        <SpendLoading testID="reports_bars_loading" shape="bars" style={styles.emptyState} />
       ) : expenseByCat.length === 0 ? (
         <Text style={styles.emptyState}>مفيش مصاريف في الفترة دي</Text>
       ) : (
@@ -308,7 +308,7 @@ export default function ReportsScreen() {
       <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
       <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
       {spendLoading ? (
-        <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
+        <SpendLoading testID="reports_trend_loading" shape="bars" style={styles.emptyState} />
       ) : timelineEmpty ? (
         <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي</Text>
       ) : (
