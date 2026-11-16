@@ -33,7 +33,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { CategoryIcon } from '@/components/CategoryIcon';
+import { CategoryIcon, CategoryIconSpacer } from '@/components/CategoryIcon';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenArchivedWalletBannerText, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
@@ -375,7 +375,7 @@ function HomeScreen() {
                 <View style={styles.txTitleRow}>
                   {coldCat
                     ? <CategoryIcon icon={coldCat.icon} size={categoryIconSize.row} />
-                    : <View style={{ width: categoryIconSize.row, height: categoryIconSize.row }} />}
+                    : <CategoryIconSpacer />}
                   <Text style={[styles.txTitle, { flexShrink: 1 }]}>{title}</Text>
                 </View>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
@@ -407,7 +407,7 @@ function HomeScreen() {
                 <View style={styles.txTitleRow}>
                   {txCat
                     ? <CategoryIcon icon={txCat.icon} size={categoryIconSize.row} tint={categoryColors.get(txCat.id)} />
-                    : <View style={{ width: categoryIconSize.row, height: categoryIconSize.row }} />}
+                    : <CategoryIconSpacer />}
                   <Text style={[styles.txTitle, { flexShrink: 1 }]}>{txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
                 </View>
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>

@@ -16,7 +16,7 @@ import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
-import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { CategoryIcon, CategoryIconSpacer, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -316,7 +316,7 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
         <View style={categoryInlineRow}>
           {catFound
             ? <CategoryIcon icon={catIcon} size={categoryIconSize.row} tint={catTint} />
-            : <View style={{ width: categoryIconSize.row, height: categoryIconSize.row }} />}
+            : <CategoryIconSpacer />}
           <Text style={[styles.txTitle, { flexShrink: 1 }]}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
         </View>
         <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>

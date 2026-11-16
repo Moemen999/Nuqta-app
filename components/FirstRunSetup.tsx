@@ -256,7 +256,7 @@ export default function FirstRunSetup() {
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
                     <View style={categoryInlineRow}>
-                      <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} />
+                      <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} onSelected={on} />
                       <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c }, { icon: false })}</Text>
                     </View>
                   </TouchableOpacity>

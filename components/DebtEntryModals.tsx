@@ -205,9 +205,9 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
                   <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                     <View style={categoryInlineRow}>
-                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
-                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
-                </View>
+                      <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
+                      <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>

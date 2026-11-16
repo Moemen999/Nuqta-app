@@ -437,7 +437,7 @@ export default function AddTransactionModal() {
               <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { touch(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
-                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
                   <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
               </TouchableOpacity>

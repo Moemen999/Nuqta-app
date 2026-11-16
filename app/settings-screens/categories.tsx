@@ -171,7 +171,7 @@ export default function CategoriesScreen() {
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
             {/* الإيموجي لوحده كان بيتقري اسمه ("إيدين مضمومين") — دلوقتي بيقول بيعمل إيه (a11y-architect) */}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`} hitSlop={5}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
               style={styles.iconBtn}>

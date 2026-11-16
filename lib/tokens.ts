@@ -46,6 +46,8 @@ export const space = {
 
 /** مقاس دايرة أيقونة الفئة (`CategoryIcon`): شريحة فلتر / صف قايمة / عمود تقرير */
 export const categoryIconSize = { chip: 22, row: 24, bar: 28 } as const;
+/** داخل دايرة الفئة: الإيموجي/الأيقونة نسبة من القطر، ارتفاع سطره، وشفافية خلفية الـtint (hex 2E ≈ 18%) */
+export const categoryIconGlyph = { fontRatio: 0.55, lineRatio: 0.7, tintAlpha: '2E' } as const;
 
 /** مقاس الخطوط */
 export const font = {
