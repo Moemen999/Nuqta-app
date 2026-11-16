@@ -234,7 +234,7 @@ function makeStyles(c: ThemeColors) {
     },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
-    amount: { color: c.incomeText, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
+    amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
