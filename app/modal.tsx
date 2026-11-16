@@ -142,6 +142,15 @@ export default function AddTransactionModal() {
 
   function handleSave() { return runSave(saveTransaction); }
 
+  /**
+   * بعد حفظ **نجح** (`saved` اتعلّم قبلها). الهابتك والرجوع برّه أي `catch` بيقول «ما اتحفظش»:
+   * لو واحد منهم رمى، العملية اتحفظت فعلاً — الهابتك زينة بتتبلع، والرجوع بيتبلّغ بس
+   */
+  function afterSave() {
+    try { hapticSuccess(); } catch { /* زينة */ }
+    try { router.back(); } catch (e) { console.warn('[tx] الرجوع بعد الحفظ فشل'); reportAtomicFailure('حفظ العملية', e); }
+  }
+
   async function saveTransaction() {
     if (saved.current) return;
     if (missing || waiting || linkChanged) return;
@@ -191,20 +200,30 @@ export default function AddTransactionModal() {
           });
           return;
         }
-        settle.request(changes, settlements => {
+        settle.request(changes, async settlements => {
           if (saved.current) return;
           saved.current = true;
-          updateTransaction(existing.id, payload, settlements);
-          hapticSuccess();
-          router.back();
+          try {
+            // بترجع بعد الكتابة المحلية (`track`) مش بعد السيرفر — قاعدة 7
+            await updateTransaction(existing.id, payload, settlements);
+          } catch (e) {
+            // فشل التجهيز: مفيش حاجة اتحفظت، فالحارس يتفك والشاشة متترجعش
+            saved.current = false;
+            console.warn('[tx] تعديل العملية فشل');
+            reportAtomicFailure('حفظ العملية', e);
+            setError('حصل خطأ، جرب تاني');
+            return;
+          }
+          afterSave();
         });
       } else {
         await addTransaction(payload);
         saved.current = true;
-        hapticSuccess();
-        router.back();
+        afterSave();
       }
-    } catch {
+    } catch (e) {
+      console.warn('[tx] حفظ العملية فشل');
+      reportAtomicFailure('حفظ العملية', e);
       // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
       // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
       // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
@@ -244,8 +263,7 @@ export default function AddTransactionModal() {
       }
       saved.current = true;
       if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
-      hapticSuccess();
-      router.back();
+      afterSave();
     } catch (e) {
       // الدالة بترجّع نتيجة مبترميش — لو رمت يبقى حاجة مش متوقعة، ولازم توصل
       // Sentry باسم العملية زي أي فشل ذري (مفيش مبالغ ولا أسامي)

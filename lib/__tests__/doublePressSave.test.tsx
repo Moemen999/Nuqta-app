@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import AddTransactionModal from '@/app/modal';
 import IncomesView from '@/components/IncomesView';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
@@ -25,6 +26,9 @@ jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: fa
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
 
+const mockHaptic = jest.fn();
+jest.mock('@/lib/haptics', () => ({ ...jest.requireActual('@/lib/haptics'), hapticSuccess: () => mockHaptic() }));
+
 const wallet = { id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 };
 const wrap = (node: React.ReactNode) => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider>{node}</PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
 const press = (el: Parameters<typeof fireEvent.press>[0]) => act(async () => { fireEvent.press(el); });
@@ -41,7 +45,7 @@ function seed() {
     addIncome: jest.fn(), updateIncome: jest.fn(), recordIncomePeriods: jest.fn(), setIncomeStatus: jest.fn(), deleteIncome: jest.fn(),
   });
 }
-beforeEach(() => { mockParams = {}; seed(); });
+beforeEach(() => { mockParams = {}; mockHaptic.mockReset(); seed(); (router.back as jest.Mock).mockClear(); });
 warmUp(() => { seed(); return wrap(<AddTransactionModal />); });
 
 describe('حفظ عملية جديدة', () => {
@@ -70,6 +74,63 @@ describe('حفظ عملية جديدة', () => {
     await doublePress(screen.getByTestId('tx_save_button'));
     await press(screen.getByTestId('tx_save_button'));
     expect(mockData.updateTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('هابتك بيرمي بعد حفظ ناجح ← مفيش «حصل خطأ»، والعملية اتكتبت مرة، والرجوع حصل', async () => {
+    mockHaptic.mockImplementation(() => { throw new Error('haptic'); });
+    await render(wrap(<AddTransactionModal />));
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(screen.queryByText('حصل خطأ، جرب تاني')).toBeNull();
+    expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('addTransaction بيرمي ← رسالة، والحارس بيتفك', async () => {
+    (mockData.addTransaction as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    await render(wrap(<AddTransactionModal />));
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.addTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('تعديل: التجهيز بيرمي (callback التسوية) ← رسالة والشاشة مبترجعش، والمحاولة الجاية بتشتغل', async () => {
+    mockData.transactions = [{ id: 'tx_f', type: 'expense', amount: 50, walletId: 'w1', date: '2026-03-20' }];
+    mockParams = { id: 'tx_f' };
+    (mockData.updateTransaction as jest.Mock).mockImplementationOnce(() => { throw new Error('stage'); });
+    await render(wrap(<AddTransactionModal />));
+    await act(async () => {});
+    await type(screen.getByTestId('tx_amount_input'), '60');
+    await press(screen.getByTestId('tx_save_button'));
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.updateTransaction).toHaveBeenCalledTimes(2);
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('تعديل عملية دين: ضغطتين في نفس الـtick ← الكتابة الذرية مرة واحدة', async () => {
+    const tx = { id: 'tx_p', type: 'income', amount: 100, walletId: 'w1', date: '2026-03-20' };
+    Object.assign(mockData, {
+      transactions: [tx],
+      debts: [{
+        id: 'd1', personName: 'صاحبي', direction: 'owed_to_me', isInstallment: false, totalAmount: 100000,
+        date: '2026-03-10', createdAt: 'x', increases: [],
+        payments: [{ id: 'p1', date: '2026-03-20', amount: 100, walletId: 'w1', transactionId: 'tx_p' }],
+      }],
+      updateDebtLinkedTransaction: jest.fn(async () => ({ outcome: 'done', note: null })),
+    });
+    mockParams = { id: 'tx_p' };
+    await render(wrap(<AddTransactionModal />));
+    await act(async () => {});
+    await type(screen.getByTestId('tx_amount_input'), '80');
+    await doublePress(screen.getByTestId('tx_save_button'));
+    await act(async () => {});
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.updateDebtLinkedTransaction).toHaveBeenCalledTimes(1);
   });
 
   it('validation فاشل ← الحارس بيتفك والضغطة الجاية بتشتغل', async () => {
@@ -121,5 +182,13 @@ describe('حفظ دخل ثابت جديد', () => {
     await press(screen.getByTestId('income_setup_next'));
     expect(mockData.addIncome).toHaveBeenCalledTimes(2);
     expect(screen.queryByTestId('income_setup_next')).toBeNull(); // نجح ← اتقفل
+  });
+
+  it('دوسة بعد الحفظ الناجح (على الزرار القديم) ← مفيش دخل تاني', async () => {
+    await toLastStep();
+    const btn = screen.getByTestId('income_setup_next');
+    await press(btn);
+    await act(async () => { try { fireEvent.press(btn); } catch { /* اتشال */ } });
+    expect(mockData.addIncome).toHaveBeenCalledTimes(1);
   });
 });

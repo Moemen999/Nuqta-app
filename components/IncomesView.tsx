@@ -17,6 +17,7 @@ import {
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -327,7 +328,9 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
         // الدالتين بترجعوا بعد الكتابة المحلية (`track`/`addDocNoWait`) مش بعد تأكيد السيرفر — قاعدة 7
         if (income) await updateIncome(income.id, payload);
         else await addIncome(payload);
-      } catch {
+      } catch (e) {
+        console.warn('[income] حفظ الدخل الثابت فشل');
+        reportAtomicFailure('حفظ الدخل الثابت', e);
         // رمية متزامنة (تجهيز البيانات): المودال يفضل مفتوح والرسالة تبان
         setError('حصل خطأ، جرب تاني');
         return;
