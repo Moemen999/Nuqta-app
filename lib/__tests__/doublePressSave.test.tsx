@@ -65,6 +65,18 @@ describe('حفظ عملية جديدة', () => {
     expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
   });
 
+  it('دوسة بعد الحفظ الناجح ← مفيش re-render خالص للزرار (NUQTA-3: busy مبيتغيّرش)', async () => {
+    const commits = jest.fn();
+    await render(<React.Profiler id="m" onRender={commits}>{wrap(<AddTransactionModal />)}</React.Profiler>);
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    const before = commits.mock.calls.length;
+    await press(screen.getByTestId('tx_save_button'));
+    expect(commits.mock.calls.length).toBe(before);
+    expect(screen.getByTestId('tx_save_button').props.accessibilityState).toMatchObject({ busy: false });
+    expect(screen.getByTestId('tx_save_button_spinner', { includeHiddenElements: true }).props.animating).toBe(false);
+  });
+
   it('تعديل: ضغطتين في نفس الـtick ← updateTransaction مرة واحدة، ودوسة بعدها كمان', async () => {
     mockData.transactions = [{ id: 'tx_f', type: 'expense', amount: 50, walletId: 'w1', date: '2026-03-20' }];
     mockParams = { id: 'tx_f' };

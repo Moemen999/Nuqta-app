@@ -53,7 +53,7 @@ export function SegmentedControl<K extends string>({ segments, value, onChange, 
     <View style={[styles.track, style]} accessibilityRole="tablist">
       <Animated.View testID="segmented_indicator" pointerEvents="none" accessible={false}
         importantForAccessibility="no-hide-descendants" accessibilityElementsHidden
-        style={[styles.indicator, { width: target?.w ?? 0, opacity: ready ? 1 : 0, transform: [{ translateX: tx }] }]} />
+        collapsable={false} style={[styles.indicator, { width: target?.w ?? 0, opacity: ready ? 1 : 0, transform: [{ translateX: tx }] }]} />
       {segments.map(s => {
         const selected = s.key === value;
         return (

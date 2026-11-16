@@ -48,6 +48,7 @@ export function Button({
 
   return (
     <Pressable
+      collapsable={false}
       testID={testID}
       accessibilityRole="button"
       accessibilityHint={accessibilityHint}
@@ -72,12 +73,22 @@ export function Button({
         },
         style,
       ]}>
+      {/* `collapsable={false}`: opacity 1↔0 كان بيخلي Fabric يعمل unflatten للـView ويحرّك ولاده (addViewAt index 0، NUQTA-3) */}
       {/* وهو busy المحتوى بيفضل مرسوم (شفاف) والمؤشر فوقه مطلق — فالعرض ميتغيّرش والصف ميتنطّطش */}
-      <View style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, opacity: busy ? 0 : 1 }}>
+      <View collapsable={false} style={{ flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, opacity: busy ? 0 : 1 }}>
         {icon ? <LineIcon name={icon} size={iconOnly ? 22 : typeScale.title} color={look.fg} /> : null}
         {iconOnly ? null : <Text style={{ color: look.fg, fontSize: typeScale.body, fontWeight: '700' }}>{label}</Text>}
       </View>
-      {busy ? <ActivityIndicator testID={testID ? `${testID}_spinner` : undefined} color={look.fg} style={{ position: 'absolute' }} /> : null}
+      {/* متركّب دايمًا: busy بيغيّر props بس. mount/unmount وقت إقفال المودال كان بيكرّش Fabric (NUQTA-3: addViewAt) */}
+      <ActivityIndicator
+        collapsable={false}
+        testID={testID ? `${testID}_spinner` : undefined}
+        animating={busy}
+        color={look.fg}
+        importantForAccessibility={busy ? 'auto' : 'no-hide-descendants'}
+        accessibilityElementsHidden={!busy}
+        style={{ position: 'absolute', opacity: busy ? 1 : 0 }}
+      />
     </Pressable>
   );
 }

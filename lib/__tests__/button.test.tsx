@@ -34,11 +34,20 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
     // النص بيفضل مرسوم (شفاف) عشان العرض ميتغيّرش
     expect(screen.getByText('حفظ')).toBeTruthy();
-    expect(screen.getByTestId('b_spinner')).toBeTruthy();
+    expect(screen.getByTestId('b_spinner').props.animating).toBe(true);
     const b = screen.getByTestId('b');
     expect(b.props.accessibilityRole).toBe('button');
     expect(b.props.accessibilityLabel).toBe('حفظ، جاري التنفيذ');
     expect(b.props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+  });
+
+  it('المؤشر متركّب دايمًا وbusy بيغيّر props بس (NUQTA-3)', async () => {
+    const view = await wrap(<Button testID="b" label="حفظ" />);
+    expect(screen.getByTestId('b_spinner', { includeHiddenElements: true }).props.animating).toBe(false);
+    await view.rerender(<ThemeProvider><Button testID="b" label="حفظ" busy /></ThemeProvider>);
+    expect(screen.getByTestId('b_spinner').props.animating).toBe(true);
+    await view.rerender(<ThemeProvider><Button testID="b" label="حفظ" /></ThemeProvider>);
+    expect(screen.getByTestId('b_spinner', { includeHiddenElements: true }).props.animating).toBe(false);
   });
 
   it('iconOnly مفيهوش نص مرئي والاسم للقارئ', async () => {
@@ -83,5 +92,14 @@ describe('جرد: مفيش saveBtn/addBtn بتاع StyleSheet في الملفا�
     const src = readFileSync(join(root, f), 'utf8');
     expect(src).toMatch(/from '@\/components\/Button'/);
     expect(src).not.toMatch(files[f]);
+  });
+});
+
+describe('Button — منع flatten/unflatten في Fabric (NUQTA-3)', () => {
+  it('الـPressable وView المحتوى والمؤشر عليهم collapsable={false}', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/Button.tsx'), 'utf8') as string;
+    expect(src).toMatch(/<Pressable\s+collapsable=\{false\}/);
+    expect(src).toMatch(/<View collapsable=\{false\} style=\{\{ flexDirection: 'row-reverse'[^\n]*opacity: busy/);
+    expect(src).toMatch(/<ActivityIndicator\s+collapsable=\{false\}/);
   });
 });

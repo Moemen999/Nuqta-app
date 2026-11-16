@@ -140,7 +140,9 @@ export default function AddTransactionModal() {
   const waiting = !!id && !linkSourcesReady;
   const missing = !!id && linkSourcesReady && !existing;
 
-  function handleSave() { return runSave(saveTransaction); }
+  // بعد حفظ ناجح مفيش setState خالص (`useBusy.run` بيعمل setBusy قبل ما saveTransaction يرجع)،
+  // لأن المودال بيتشال بالأنيميشن وأي re-render للزرار وقتها كان بيكرّش Fabric (NUQTA-3)
+  function handleSave() { if (saved.current) return; return runSave(saveTransaction); }
 
   /**
    * بعد حفظ **نجح** (`saved` اتعلّم قبلها). الهابتك والرجوع برّه أي `catch` بيقول «ما اتحفظش»:
