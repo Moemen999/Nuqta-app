@@ -14,6 +14,7 @@ jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true }));
 
 const CIRC = 2 * Math.PI * ((progressRing.size - progressRing.stroke) / 2);
 
+function setupDate() { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`; }
 function setup(total: number, spent: number) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   const today = new Date();
@@ -64,4 +65,29 @@ it('الدايرة مخفية عن القارئ (الأرقام جنبها بت�
   setup(4000, 1000);
   await render(ui());
   expect(screen.getByTestId('budget_ring', { includeHiddenElements: true }).props.importantForAccessibility).toBe('no-hide-descendants');
+});
+
+it('96% ← الشرطة أقصر من المحيط (الدايرة مش مقفولة) والطرف butt', async () => {
+  setup(10000, 9600);
+  await render(ui());
+  await waitFor(() => expect(offset()).toBeCloseTo(CIRC * 0.04, 3));
+  expect(offset()).toBeGreaterThan(0);
+  expect(fill().props.strokeLinecap).toBe(0) // 0 = butt (1 = round);
+});
+
+it('0.1+0.2 من 0.3 ← درجة at: خطر (نفس budgetLevel، مش مقارنة خام)', async () => {
+  setup(0.3, 0.1);
+  mockData.transactions = [
+    { id: 'a', type: 'expense', amount: 0.1, date: setupDate(), walletId: 'w', categoryId: 'c1' },
+    { id: 'b', type: 'expense', amount: 0.2, date: setupDate(), walletId: 'w', categoryId: 'c1' },
+  ];
+  await render(ui());
+  await waitFor(() => expect(fill().props.stroke.payload).toBe(processColor(themeColors.dangerText)));
+});
+
+it('صفر مصروف ← مفيش شرطة ملوّنة', async () => {
+  setup(4000, 0);
+  await render(ui());
+  expect(screen.getByTestId('budget_ring', { includeHiddenElements: true })).toBeTruthy();
+  expect(screen.queryByTestId('budget_ring_fill', { includeHiddenElements: true })).toBeNull();
 });

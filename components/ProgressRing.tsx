@@ -26,9 +26,9 @@ export function ProgressRing({ spent, total, color, trackColor, testID }: Props)
   const reduceMotion = useReduceMotion();
   const progress = useRef(new Animated.Value(reduceMotion ? fraction : 0)).current;
 
+  // أول رسمة من صفر، وأي تغيّر بعدها من القيمة الحالية للجديدة (مش من صفر)
   useEffect(() => {
     if (reduceMotion) { progress.setValue(fraction); return; }
-    progress.setValue(0);
     const anim = Animated.timing(progress, { toValue: fraction, duration: durationMs, easing: Easing.out(Easing.cubic), useNativeDriver: false });
     anim.start();
     return () => anim.stop();
@@ -46,14 +46,15 @@ export function ProgressRing({ spent, total, color, trackColor, testID }: Props)
     >
       <Svg width={size} height={size}>
         <Circle cx={size / 2} cy={size / 2} r={r} stroke={trackColor} strokeWidth={stroke} fill="none" />
-        <AnimatedCircle
+        {/* نسبة صفر ← مفيش شرطة خالص (الطرف المدوّر كان بيرسم نقطة)، والطرف `butt` عشان الدايرة متتقفلش بصريًا قبل 100% */}
+        {fraction > 0 && <AnimatedCircle
           testID={testID ? `${testID}_fill` : undefined}
           cx={size / 2} cy={size / 2} r={r}
-          stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="round"
+          stroke={color} strokeWidth={stroke} fill="none" strokeLinecap="butt"
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={dashOffset as unknown as number}
           rotation={-90} originX={size / 2} originY={size / 2}
-        />
+        />}
       </Svg>
     </View>
   );

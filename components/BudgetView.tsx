@@ -11,7 +11,7 @@ import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
-import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
+import { budgetForecastText, budgetLevel, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo, useState } from 'react';
@@ -66,6 +66,10 @@ export default function BudgetView() {
     () => monthSpendTotal(transactions, nowMonth, transfers),
     [transactions, nowMonth, transfers]
   );
+  // «اتجاوزت/صرفت الميزانية بالظبط» (over/at) ← لون الخطر، للرقم البطل والدايرة مع بعض؛ نفس `budgetLevel` بتاع الرئيسية
+  // (نص قرش) و`at` خطر كمان عشان يتسق مع كروت الفئات (`pct >= 100` «خلصت») — قرار الجلسة 2026-11-16
+  const totalLevel = budgetLevel(totalMonthSpend, totalBudget);
+  const totalDanger = totalLevel === 'over' || totalLevel === 'at';
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
     categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth, transfers)));
@@ -116,10 +120,10 @@ export default function BudgetView() {
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
                   <View style={styles.heroWithRing}>
-                    {/* دايرة التقدّم: نفس الأرقام والشرط (`totalMonthSpend > totalBudget` ← خطر) اللي الرقم البطل جنبها، زينة بس */}
-                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={totalMonthSpend > totalBudget ? colors.dangerText : colors.accentText} trackColor={colors.borderStrong} />
+                    {/* دايرة التقدّم: نفس الأرقام والشرط (`totalDanger`) اللي الرقم البطل جنبها، زينة بس */}
+                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={totalDanger ? colors.dangerText : colors.accentText} trackColor={colors.borderStrong} />
                     <View testID="budget_hero" style={styles.heroRow}>
-                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalMonthSpend > totalBudget && { color: colors.dangerText }]} />
+                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalDanger && { color: colors.dangerText }]} />
                       <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
                     </View>
                   </View>
