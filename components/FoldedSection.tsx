@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, space } from '@/lib/tokens';
+import { MIN_TOUCH, space, radius, typeScale } from '@/lib/tokens';
 import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -72,15 +72,15 @@ export default function FoldedSection({ title, count, children, testID, framed =
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    framed: { marginTop: space.xl, borderWidth: 1, borderColor: c.border, borderRadius: 12, overflow: 'hidden' },
+    framed: { marginTop: space.xl, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, overflow: 'hidden' },
     plain: { marginTop: space.xl },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.surface2, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: MIN_TOUCH },
-    headAlone: { borderRadius: 12, borderWidth: 1, borderColor: c.border },
+    headAlone: { borderRadius: radius.lg, borderWidth: 1, borderColor: c.border },
     headOpen: { marginBottom: space.md },
     headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
     headGrow: { flex: 1 },
-    title: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },
     titleShrink: { flexShrink: 1 },
-    chevron: { color: c.textMuted, fontSize: 12 },
+    chevron: { color: c.textMuted, fontSize: typeScale.caption },
   });
 }

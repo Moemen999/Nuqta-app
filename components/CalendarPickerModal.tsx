@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y } from '@/lib/selection';
-import { MIN_TOUCH, overlayCenteredStyle, radius } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, radius, glyphSize, typeScale } from '@/lib/tokens';
 // اسم اليوم كامل لقارئ الشاشة («الأربع، 11 نوفمبر 2026») — نفس قايمة الدخل الثابت، عشان الاتنين ميختلفوش
 import { MONTH_NAMES } from '@/lib/dateText';
 import { WEEKDAY_NAMES } from '@/lib/recurringIncome';
@@ -175,19 +175,19 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: 16, width: '88%', maxWidth: 360, borderWidth: 1, borderColor: c.borderStrong },
     header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     navBtn: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
-    navText: { color: c.text, fontSize: 20 },
+    navText: { color: c.text, fontSize: glyphSize.chevron },
     labelRow: { flexDirection: 'row-reverse', gap: 10 },
     labelBtn: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    label: { color: c.accentText, fontSize: 15, fontWeight: '700' },
+    label: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
     weekRow: { flexDirection: 'row-reverse', marginBottom: 6 },
-    weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: 11 },
+    weekday: { flex: 1, textAlign: 'center', color: c.textSecondary, fontSize: typeScale.caption },
     grid: { flexDirection: 'row-reverse', flexWrap: 'wrap' },
     // طول ثابت مش `aspectRatio`: مع عرض بالنسبة جوه صف بيلف، أندرويد كان بيحسب الطول من غير ما يعيد
     // توسيط الرقم — على الشاومي (1.0.0.011) الخانة 32 بس والرقم لازق تحت في كل الصفوف ماعدا صف واحد
     dayCell: { width: '14.28%', height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm },
     monthCell: { width: '33.33%', height: MONTH_CELL_HEIGHT, alignItems: 'center', justifyContent: 'center', borderRadius: radius.md },
     cellSelected: { backgroundColor: c.accent },
-    cellText: { color: c.text, fontSize: 13 },
+    cellText: { color: c.text, fontSize: typeScale.body },
     cellTextSelected: { color: c.onAccent, fontWeight: '700' },
   });
 }

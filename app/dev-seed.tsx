@@ -17,6 +17,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } fro
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, space, typeScale } from '@/lib/tokens';
 
 /**
  * تعبئة حساب الاختبار ببيانات وهمية ثابتة — **في نسخ التطوير بس** (`__DEV__`).
@@ -208,16 +209,16 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 16 },
-    label: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6 },
-    value: { color: c.text, fontSize: 15, textAlign: 'right' },
-    errorValue: { color: c.dangerText, fontSize: 15, textAlign: 'right' },
-    btn: { backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xxl, borderWidth: 1, borderColor: c.border, marginBottom: space.xxl },
+    label: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },
+    value: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    errorValue: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right' },
+    btn: { backgroundColor: c.accent, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', marginBottom: space.md },
     btnBusy: { opacity: 0.6 },
-    btnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    btnDanger: { borderColor: c.dangerBorder, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
-    btnDangerText: { color: c.dangerText, fontSize: 16, fontWeight: '700' },
-    status: { color: c.textSecondary, fontSize: 14, textAlign: 'right', marginTop: 8 },
-    error: { color: c.dangerText, fontSize: 14, textAlign: 'right', marginTop: 8 },
+    btnText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
+    btnDanger: { borderColor: c.dangerBorder, borderWidth: 1, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', marginBottom: space.md },
+    btnDangerText: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700' },
+    status: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
   });
 }

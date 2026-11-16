@@ -27,6 +27,7 @@ import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { typeScale } from '@/lib/tokens';
 
 // الـsplash يفضل لحد ما يبقى فيه حاجة تتعرض، والحزام (5 ثواني) بيبدأ من هنا —
 // برّه أي كومبوننت، عشان يشتغل حتى لو الخطوط علّقت (lib/splash.ts)
@@ -43,7 +44,7 @@ function SetupChecking() {
     <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 12 }}
       accessibilityLiveRegion="polite">
       <ActivityIndicator color={colors.accent} size="large" />
-      <Text style={{ color: colors.textSecondary, fontSize: 14 }}>بنتأكد من حسابك…</Text>
+      <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>بنتأكد من حسابك…</Text>
     </View>
   );
 }

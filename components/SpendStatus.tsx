@@ -3,6 +3,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { TRANSFERS_FAILED_NOTE, TRANSFERS_LOADING, TRANSFERS_SLOW, TRANSFERS_SLOW_MS } from '@/lib/spending';
 import { useEffect, useState } from 'react';
 import type { StyleProp, TextStyle } from 'react-native';
+import { space, typeScale } from '@/lib/tokens';
 
 /**
  * بند 11 (قرار مؤمن 2026-11-05): رقم المصروف مبيظهرش لحد ما الديون والجمعية يوصلوا — من غيرهم السلفة وقسط
@@ -17,7 +18,7 @@ export function SpendLoading({ testID, style }: { testID?: string; style?: Style
     return () => clearTimeout(t);
   }, []);
   return (
-    <Text testID={testID} style={[{ color: colors.textSecondary, fontSize: 13, textAlign: 'right' }, style]}>
+    <Text testID={testID} style={[{ color: colors.textSecondary, fontSize: typeScale.body, textAlign: 'right' }, style]}>
       {slow ? TRANSFERS_SLOW : TRANSFERS_LOADING}
     </Text>
   );
@@ -27,7 +28,7 @@ export function SpendLoading({ testID, style }: { testID?: string; style?: Style
 export function TransfersFailedNote({ testID, style }: { testID?: string; style?: StyleProp<TextStyle> }) {
   const { colors } = useTheme();
   return (
-    <Text testID={testID} style={[{ color: colors.dangerText, fontSize: 12, textAlign: 'right', marginTop: 6 }, style]}>
+    <Text testID={testID} style={[{ color: colors.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs }, style]}>
       {TRANSFERS_FAILED_NOTE}
     </Text>
   );

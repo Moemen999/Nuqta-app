@@ -152,13 +152,13 @@ export default function ShakhbataView() {
       <View style={styles.percentHead}>
         {percentDrafts ? (
           <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={savePercents} disabled={savingPercents}>
-            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
+            <Text style={{ color: colors.accentText, fontSize: typeScale.caption, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
               {savingPercents ? '...' : 'حفظ النسب'}
             </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={startEditingPercents}>
-            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700' }}>عدّل النسب</Text>
+            <Text style={{ color: colors.accentText, fontSize: typeScale.caption, fontWeight: '700' }}>عدّل النسب</Text>
           </TouchableOpacity>
         )}
         <Text style={styles.label}>نسبك الحالية</Text>
@@ -280,8 +280,8 @@ function makeStyles(c: ThemeColors) {
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     bucketLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     bucketTarget: { color: c.textSecondary, fontSize: typeScale.body },
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
     hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },

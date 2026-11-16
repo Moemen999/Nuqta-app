@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
 import FoldedSection from '@/components/FoldedSection';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, typeScale } from '@/lib/tokens';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
@@ -36,8 +36,8 @@ export default function ArchivedList({ title, items, onRestore }: {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: c.border },
-    name: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+    name: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     restoreBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, justifyContent: 'center', alignItems: 'center' },
-    restore: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
+    restore: { color: c.accentText, fontSize: typeScale.caption, fontWeight: '700' },
   });
 }

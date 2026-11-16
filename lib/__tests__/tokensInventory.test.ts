@@ -1,27 +1,29 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, readdirSync, statSync } from 'fs';
+import { join, relative } from 'path';
 
 /**
- * جرد التوكنز (موجة البريميم 2): الشاشات اللي اتنقلت مفيش فيها `fontSize` ولا
- * `borderRadius` حرفي — المقاسات من `typeScale` و`radius` في `lib/tokens.ts`.
- * القايمة بتكبر مع كل شاشة تتنقل.
+ * جرد التوكنز (موجة البريميم 2 — الدفعة الأخيرة): التطبيق كله (`app/**` و`components/**`، ملفات `.tsx`)
+ * مفيش فيه `fontSize` ولا `borderRadius` برقم حرفي — المقاسات من `typeScale` و`radius` و`glyphSize`
+ * في `lib/tokens.ts`. المسح تلقائي، فأي ملف جديد بيتفحص من غير ما حد يضيفه لقايمة.
  */
 const root = join(__dirname, '..', '..');
-const FILES = [
-  // تاب الالتزامات
-  'components/SubscriptionsView.tsx', 'components/GamiyaView.tsx', 'app/(tabs)/debts.tsx',
-  // مودال العملية، الدين، الدخل، كروت الرئيسية، أول تجهيز، الإشعارات
-  'app/modal.tsx', 'components/DebtEntryModals.tsx', 'components/IncomesView.tsx',
-  'components/ChargeHomeCards.tsx', 'components/IncomeHomeCards.tsx',
-  'components/FirstRunSetup.tsx', 'app/settings-screens/notifications.tsx',
-  // الإعدادات الفرعية، القفل، كشف الحساب، المودالات الصغيرة (الدفعة 3)
-  'app/settings-screens/lock.tsx', 'app/settings-screens/delete-account.tsx',
-  'app/settings-screens/feedback.tsx', 'app/settings-screens/wallets.tsx',
-  'app/settings-screens/categories.tsx', 'app/settings-screens/about.tsx',
-  'app/person-ledger.tsx', 'components/LockScreen.tsx', 'components/SetLockModal.tsx',
-  'components/CategoryIconPicker.tsx', 'components/ContactPickerModal.tsx',
-  'components/DebtReminderFields.tsx',
-];
+
+/** استثناءات صريحة (ملف ← السبب). فاضية دلوقتي: `HeroAmount`/`Money` مفيهمش أرقام حرفية أصلاً، و`tabLabelStyle` في `lib/`. */
+const ALLOWLIST: Record<string, string> = {};
+
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) return name === '__tests__' ? [] : walk(p);
+    return p.endsWith('.tsx') ? [relative(root, p).split('\\').join('/')] : [];
+  });
+}
+
+const FILES = [...walk(join(root, 'app')), ...walk(join(root, 'components'))].filter((f) => !(f in ALLOWLIST));
+
+it('المسح لاقى ملفات', () => {
+  expect(FILES.length).toBeGreaterThan(50);
+});
 
 describe.each(FILES)('%s', (file) => {
   const src = readFileSync(join(root, file), 'utf8');

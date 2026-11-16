@@ -4,7 +4,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/archiving';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
@@ -188,7 +188,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                         // المختار بيتقري مش بيتشاف بس (a11y-architect)
                         {...selectionA11y(picked[d.walletId] === t.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, picked[d.walletId] === t.id)]}>
-                        <Text style={{ color: colors.text, fontSize: 13 }}>{t.name}</Text>
+                        <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -233,12 +233,12 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    card: { backgroundColor: c.surface2, borderRadius: 12, padding: 12, marginTop: 14, borderWidth: 1, borderColor: c.border },
-    body: { color: c.text, fontSize: 13, textAlign: 'right', lineHeight: 20, marginBottom: 10 },
+    card: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
+    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: 20, marginBottom: space.md },
     bodyBlocked: { marginBottom: 0 },
-    hint: { color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 20, marginTop: 14 },
+    hint: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 20, marginTop: space.xl },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

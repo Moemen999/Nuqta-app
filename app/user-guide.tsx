@@ -6,6 +6,7 @@ import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
+import { glyphSize, radius, space, typeScale } from '@/lib/tokens';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -201,15 +202,15 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    intro: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginBottom: 16, lineHeight: 19 },
-    card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10, overflow: 'hidden' },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: 19 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: space.md, overflow: 'hidden' },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
-    cardTitle: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    chevron: { color: c.accentText, fontSize: 20, fontWeight: '700' },
+    cardTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    chevron: { color: c.accentText, fontSize: glyphSize.chevron, fontWeight: '700' },
     cardBody: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
     bulletRow: { flexDirection: 'row-reverse', marginBottom: 10 },
-    bulletDot: { color: c.accentText, fontSize: 14, marginLeft: 8, marginTop: 1 },
-    bulletText: { flex: 1, color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 21 },
-    footer: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 20 },
+    bulletDot: { color: c.accentText, fontSize: typeScale.body, marginLeft: space.sm, marginTop: 1 },
+    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    footer: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxxl },
   });
 }

@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, typeScale } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -39,6 +39,6 @@ export default function BackButton({ onPress }: { onPress?: () => void }) {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     row: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, minHeight: MIN_TOUCH, paddingHorizontal: 4 },
-    text: { color: c.accentText, fontSize: 14 },
+    text: { color: c.accentText, fontSize: typeScale.body },
   });
 }

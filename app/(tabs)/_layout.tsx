@@ -9,6 +9,7 @@ import { FabScrollProvider, useFabVisible } from '@/context/FabScrollContext';
 import { useTheme } from '@/context/ThemeContext';
 import { tabLabelStyle } from '@/lib/appFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius } from '@/lib/tokens';
 
 /**
  * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
@@ -176,9 +177,9 @@ const styles = StyleSheet.create({
   // `bottom` بيتحسب من حافة الشاشة (مش 90 ثابت — موبايل بشريط تنقّل أطول كان بيغطّي الزرار على التاب)
   fabWrap: { position: 'absolute', alignSelf: 'center' },
   fab: {
-    width: 54, height: 54, borderRadius: 27,
+    width: 54, height: 54, borderRadius: radius.pill,
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
-  iconPill: { width: 52, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
+  iconPill: { width: 52, height: 28, borderRadius: radius.pill, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 });

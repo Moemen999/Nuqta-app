@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, glyphSize } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -468,7 +468,7 @@ function makeStyles(c: ThemeColors) {
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
     walletChipName: { color: c.text, fontSize: typeScale.caption, fontWeight: '500' },
     walletChipVal: { color: c.textSecondary, fontSize: typeScale.caption },
-    dot: { width: 8, height: 8, borderRadius: 4 },
+    dot: { width: 8, height: 8, borderRadius: radius.pill },
     // البانر من غير إطار حواليه (دراسة الشكل): شريط على البداية بس بلون نوعه — البانرات اللي بتحط `borderColor` (خطر/تحذير)
     // بيبان عليها الشريط، والعادي من غير. قرار مؤمن 2026-10-28 (كل البانرات ظاهرة فوق، كل واحد بـ✕) زي ما هو
     banner: { backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: 'transparent', borderRadius: radius.lg, padding: space.lg, marginTop: space.md },
@@ -489,14 +489,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: c.accentText, borderRadius: radius.lg,
       padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
     },
-    noWalletsEmoji: { fontSize: 40 },
-    noWalletsTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-    noWalletsBody: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    noWalletsEmoji: { fontSize: glyphSize.emptyEmoji },
+    noWalletsTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
+    noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
     noWalletsBtn: {
-      backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
+      backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
     },
-    noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
+    noWalletsBtnText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
     txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
     seeAll: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: MIN_TOUCH,

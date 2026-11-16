@@ -5,6 +5,7 @@ import { type BalanceProjection } from '@/lib/finance';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { typeScale } from '@/lib/tokens';
 
 /**
  * سطر صغير تحت خانة المبلغ: الرقم بفواصل، والرصيد رايح فين لو حفظت.
@@ -44,8 +45,8 @@ export default function AmountPreview({ amount, projections }: { amount: string;
 
 const makeStyles = (c: ThemeColors) => StyleSheet.create({
   wrap: { marginTop: 6, gap: 2 },
-  amountText: { color: c.textSecondary, fontSize: 13, textAlign: 'right' },
+  amountText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
   row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
-  walletName: { color: c.textSecondary, fontSize: 12 },
-  balanceText: { color: c.textSecondary, fontSize: 12 },
+  walletName: { color: c.textSecondary, fontSize: typeScale.caption },
+  balanceText: { color: c.textSecondary, fontSize: typeScale.caption },
 });

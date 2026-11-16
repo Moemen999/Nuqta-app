@@ -5,7 +5,7 @@ import { pendingSummaryPhrase } from '@/lib/pendingSummary';
 import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -103,25 +103,25 @@ function makeStyles(c: ThemeColors) {
     line: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8,
       // دراسة الشكل: من غير إطار حواليه — الشريط الدهبي على البداية بس (زي البانرات)
-      backgroundColor: c.surface, borderRadius: 12,
+      backgroundColor: c.surface, borderRadius: radius.lg,
       borderRightWidth: 4, borderRightColor: c.accentText,
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8,
     },
     // الـ✕ جنب السطر مش جوّاه: زرار جوه زرار قارئ الشاشة بيدمجهم في عنصر واحد
     lineRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, marginTop: 10 },
     lineFlex: { flex: 1 },
-    lineText: { flex: 1, color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-    chevron: { color: c.textSecondary, fontSize: 20 },
+    lineText: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    chevron: { color: c.textSecondary, fontSize: glyphSize.chevron },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '85%' }), padding: 0, overflow: 'hidden' },
     content: { padding: 20 },
     title: sheetTitleStyle(c, 6),
-    group: { color: c.textSecondary, fontSize: 13, fontWeight: '700', textAlign: 'right', marginTop: 12, marginBottom: 8 },
+    group: { color: c.textSecondary, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.lg, marginBottom: space.sm },
     footer: stickyFooterStyle(c, c.nav),
     closeBtn: {
-      flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10,
+      flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md,
       alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH,
     },
-    closeText: { color: c.text, fontSize: 14, fontWeight: '700' },
+    closeText: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
   });
 }

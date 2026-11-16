@@ -432,16 +432,16 @@ function makeStyles(c: ThemeColors) {
     barValue: { color: c.text, fontSize: typeScale.body },
     barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
-    barTrack: { height: 10, borderRadius: 5, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
-    barFill: { height: '100%', borderRadius: 5 },
+    barTrack: { height: 10, borderRadius: radius.pill, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
+    barFill: { height: '100%', borderRadius: radius.pill },
     trendRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 8, marginBottom: 6 },
     trendCol: { flex: 1, alignItems: 'center', gap: 4 },
     // العمود بيطلع من تحت
-    trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
+    trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: radius.xxs, overflow: 'hidden' },
     // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
     // العمود الناقص: إطار بلون العمود كامل + ملو أخف جواه (الشفافية على الملو بس، مش على الإطار)، عشان قصره ميتقريش "صرفت أقل" ولا صفر.
     // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
-    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden' },
+    trendFill: { width: '100%', borderRadius: radius.xxs, overflow: 'hidden' },
     trendInner: { flex: 1, flexDirection: 'column-reverse', gap: 2 },
     trendSegment: { minHeight: 2 },
     // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
@@ -450,7 +450,7 @@ function makeStyles(c: ThemeColors) {
     trendValue: { color: c.text, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
     legend: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.lg, rowGap: space.xs, marginTop: space.sm, marginBottom: space.sm },
     legendItem: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, maxWidth: '100%' },
-    legendDot: { width: 10, height: 10, borderRadius: 5 },
+    legendDot: { width: 10, height: 10, borderRadius: radius.pill },
     legendText: { color: c.textSecondary, fontSize: typeScale.caption },
     personCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.sm },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },

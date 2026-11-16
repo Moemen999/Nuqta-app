@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useAppLock } from '@/context/AppLockContext';
 import { spoken } from '@/components/NoticeProvider';
-import { MIN_TOUCH, overlayCenteredStyle, space } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, space, radius, typeScale } from '@/lib/tokens';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -168,24 +168,24 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: { ...overlayCenteredStyle, paddingHorizontal: 24 },
     card: {
-      alignSelf: 'stretch', backgroundColor: c.nav, borderRadius: 16, borderWidth: 1, borderColor: c.borderStrong,
+      alignSelf: 'stretch', backgroundColor: c.nav, borderRadius: radius.xl, borderWidth: 1, borderColor: c.borderStrong,
       borderRightWidth: 4, borderRightColor: c.accent, padding: 20, gap: 8,
     },
     textBlock: { gap: 10 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: 14.5, lineHeight: 22, textAlign: 'right' },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 22, textAlign: 'right' },
     row: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
     stack: { flexDirection: 'column' },
     btn: {
-      flexGrow: 1, minHeight: MIN_TOUCH, borderRadius: 10, paddingHorizontal: space.xxl, paddingVertical: space.md,
+      flexGrow: 1, minHeight: MIN_TOUCH, borderRadius: radius.md, paddingHorizontal: space.xxl, paddingVertical: space.md,
       alignItems: 'center', justifyContent: 'center',
     },
     primaryBtn: { backgroundColor: c.accent },
-    primaryText: { color: c.onAccent, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    primaryText: { color: c.onAccent, fontSize: typeScale.body, fontWeight: '700', textAlign: 'center' },
     dangerBtn: { borderWidth: 1.5, borderColor: c.danger },
     // نص الخطر expenseText مش danger: danger كنص على nav ‏4.14–4.42 تحت 4.5 (visual-identity-reviewer)
-    dangerText: { color: c.expenseText, fontSize: 15, fontWeight: '700', textAlign: 'center' },
+    dangerText: { color: c.expenseText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'center' },
     cancelBtn: { borderWidth: 1, borderColor: c.borderStrong },
-    cancelText: { color: c.textSecondary, fontSize: 15, textAlign: 'center' },
+    cancelText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center' },
   });
 }

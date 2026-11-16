@@ -135,7 +135,7 @@ function makeStyles(c: ThemeColors) {
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },
     splitRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'baseline', gap: space.sm },
     // نفس شريط BudgetView (4 ارتفاع، مسار borderStrong)
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.lg, overflow: 'hidden', flexDirection: 'row-reverse' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden', flexDirection: 'row-reverse' },
+    fill: { height: '100%', borderRadius: radius.track },
   });
 }

@@ -201,8 +201,8 @@ function makeStyles(c: ThemeColors) {
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '500', flexShrink: 1 },
     input: { width: 110, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },
     // المسار نفسه باين (surface2 على الكارت كان 1.1:1 — الشريط كان بيبان شرطة سايبة)
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.lg, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     sub: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     forecast: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
   });

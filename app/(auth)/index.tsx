@@ -10,6 +10,7 @@ import {
   StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { glyphSize, radius, space, typeScale } from '@/lib/tokens';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -136,7 +137,7 @@ export default function AuthScreen() {
 
       <TouchableOpacity accessibilityRole="button" style={styles.googleBtn} onPress={() => promptAsync()} disabled={googleBusy}>
         {googleBusy ? <ActivityIndicator color={colors.text} /> : (
-          <Text style={{ color: colors.text, fontWeight: '600', fontSize: 14 }}>تسجيل الدخول بحساب جوجل</Text>
+          <Text style={{ color: colors.text, fontWeight: '600', fontSize: typeScale.body }}>تسجيل الدخول بحساب جوجل</Text>
         )}
       </TouchableOpacity>
 
@@ -200,18 +201,18 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.bg },
     container: { flexGrow: 1, backgroundColor: c.bg, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 40, gap: 12 },
-    title: { color: c.accentText, fontSize: 36, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
-    tagline: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginBottom: 18 },
-    subtitle: { color: c.textSecondary, fontSize: 15, textAlign: 'center', marginBottom: 4 },
-    googleBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingVertical: 13, alignItems: 'center', marginTop: 10 },
+    title: { color: c.accentText, fontSize: glyphSize.logo, fontWeight: '700', textAlign: 'center', marginBottom: 2 },
+    tagline: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginBottom: 18 },
+    subtitle: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginBottom: space.xxs },
+    googleBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingVertical: 13, alignItems: 'center', marginTop: space.md },
     dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 4 },
     dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
-    dividerText: { color: c.textMuted, fontSize: 12 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center' },
-    button: { backgroundColor: c.accent, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
-    buttonText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
-    resetText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 12, textDecorationLine: 'underline' },
-    switchText: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 14 },
+    dividerText: { color: c.textMuted, fontSize: typeScale.caption },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, paddingHorizontal: space.xl, paddingVertical: space.lg, fontSize: typeScale.body },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center' },
+    button: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: space.xl, alignItems: 'center', marginTop: space.sm },
+    buttonText: { color: c.onAccent, fontSize: typeScale.body, fontWeight: '700' },
+    resetText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg, textDecorationLine: 'underline' },
+    switchText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginTop: space.xl },
   });
 }
