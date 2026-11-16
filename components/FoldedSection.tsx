@@ -48,7 +48,14 @@ export default function FoldedSection({ title, count, children, testID, framed =
       testID={testID ? `${testID}_toggle` : undefined}
       accessibilityRole="button" accessibilityState={{ expanded: open }}
       accessibilityLabel={a11yLabel ?? label}>
-      <Text style={[styles.title, action && styles.titleShrink]}>{label}</Text>
+      {/* العدد (والحالة) نص لوحده جنب العنوان مش آخر سطر العنوان: أندرويد/Fabric على الجهاز قاس
+          «ديون اتسددت (5)» أضيق من المرسوم وقصّ «(5)» في الثيم الفاتح (2026-11-16). العدد بقى عنصر
+          flexShrink:0 فمبيتقصّش، والعنوان هو اللي بيتقلّص. بيتقري كله بـ`accessibilityLabel` فوق. */}
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, styles.titleShrink]} textBreakStrategy="simple">{showCount || !status ? title : base + ' — ' + status}</Text>
+        {showCount && <Text style={[styles.title, styles.fixed]}>({count})</Text>}
+        {showCount && status ? <Text style={[styles.title, styles.fixed]}>{`— ${status}`}</Text> : null}
+      </View>
       {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
       <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
     </TouchableOpacity>
@@ -80,7 +87,9 @@ function makeStyles(c: ThemeColors) {
     headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
     headGrow: { flex: 1 },
     title: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', flexShrink: 1, gap: space.xs },
     titleShrink: { flexShrink: 1 },
+    fixed: { flexShrink: 0 },
     chevron: { color: c.textMuted, fontSize: typeScale.caption },
   });
 }

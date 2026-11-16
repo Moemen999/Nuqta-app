@@ -84,8 +84,9 @@ describe('شاشة الديون — "اتسددت" مطوي', () => {
     expect(screen.queryByText('منى')).toBeNull();
     expect(screen.queryByText('سارة')).toBeNull();
     expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityState).toEqual({ expanded: false });
-    expect(screen.getByText('ديون اتسددت (2)')).toBeTruthy();
-    expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
+    expect(screen.getAllByText('ديون اتسددت').length).toBe(2);
+    expect(screen.getAllByText('(2)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('(1)').length).toBeGreaterThan(0);
     // قارئ الشاشة بيفرّق بين القسمين
     expect(screen.getByTestId('debts_settled_owed_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس ليا، دينين');
     expect(screen.getByTestId('debts_settled_iowe_toggle').props.accessibilityLabel).toBe('ديون اتسددت من فلوس عليا، دين واحد');
@@ -141,7 +142,8 @@ describe('الجمعية — "جمعيات خلصت" مطوي', () => {
     await render(wrap(<GamiyaView />));
     expect(screen.getByText('جمعية الشغل')).toBeTruthy();
     expect(screen.queryByText('جمعية العيلة')).toBeNull();
-    expect(screen.getByText('جمعيات خلصت (1)')).toBeTruthy();
+    expect(screen.getByText('جمعيات خلصت')).toBeTruthy();
+    expect(screen.getAllByText('(1)').length).toBeGreaterThan(0);
     await act(async () => { fireEvent.press(screen.getByTestId('gamiyas_finished_toggle')); });
     expect(screen.getByText('جمعية العيلة')).toBeTruthy();
   });
@@ -237,6 +239,7 @@ describe('تاب الديون: دين باقيه أقل من نص قرش', () =>
     mockData.debts = [debt('d1', 'أحمد', 'owed_to_me', 1000, 400), debt('d2', 'منى', 'owed_to_me', 100.004, 100)];
     await render(wrap(<DebtsTabScreen />));
     expect(screen.queryByText('منى')).toBeNull();
-    expect(screen.getByText('ديون اتسددت (1)')).toBeTruthy();
+    expect(screen.getByText('ديون اتسددت')).toBeTruthy();
+    expect(screen.getAllByText('(1)').length).toBeGreaterThan(0);
   });
 });
