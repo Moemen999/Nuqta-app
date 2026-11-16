@@ -60,11 +60,11 @@ const FAB_ANIM_MS = 200;
 
 /**
  * الزرار نفسه: حركة نزول + شفافية. لو "تقليل الحركة" شغّال ← من غير حركة.
- * وهو مستخبي مبيتدوسش ومبيتقراش لقارئ الشاشة.
+ * وهو مستخبي مبيتدوسش (الإخفاء بصري بس)، ومع قارئ الشاشة بيفضل ظاهر دايمًا.
  */
 function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
   const { colors } = useTheme();
-  const progress = useRef(new Animated.Value(1)).current; // 1 = ظاهر
+  const progress = useRef(new Animated.Value(visible ? 1 : 0)).current; // 1 = ظاهر
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -72,7 +72,9 @@ function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
     try {
       AccessibilityInfo.isReduceMotionEnabled?.()?.then((v) => { if (alive) setReduceMotion(!!v); }).catch(() => {});
     } catch { /* مفيش إعداد ← بالحركة */ }
-    return () => { alive = false; };
+    let sub: { remove: () => void } | undefined;
+    try { sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => { if (alive) setReduceMotion(!!v); }); } catch { /* زي فوق */ }
+    return () => { alive = false; sub?.remove?.(); };
   }, []);
 
   useEffect(() => {
@@ -86,15 +88,13 @@ function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
     <Animated.View
       testID="tx_add_fab_wrap"
       pointerEvents={visible ? 'box-none' : 'none'}
-      accessibilityElementsHidden={!visible}
-      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       style={[styles.fabWrap, {
         bottom,
         opacity: progress,
         transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [FAB_HIDE_DISTANCE, 0] }) }],
       }]}>
-      <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
-        <Text style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
+      <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+        <Text importantForAccessibility="no" style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
       </TouchableOpacity>
     </Animated.View>
   );

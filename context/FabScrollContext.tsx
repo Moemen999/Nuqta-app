@@ -1,6 +1,6 @@
 import { usePathname } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import { AccessibilityInfo, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { FAB_SETTLE_MS, fabScrollStep, fabScrollStopped } from '@/lib/fabScroll';
 
 /**
@@ -14,6 +14,7 @@ import { FAB_SETTLE_MS, fabScrollStep, fabScrollStopped } from '@/lib/fabScroll'
 
 type ScrollProps = {
   onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag: () => void;
   onScrollEndDrag: () => void;
   onMomentumScrollBegin: () => void;
   onMomentumScrollEnd: () => void;
@@ -23,15 +24,13 @@ type ScrollProps = {
 type Actions = {
   /** كل اللي الـScrollView محتاجه — `{...scrollProps}` */
   scrollProps: ScrollProps;
-  onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
   /** ظهّر الزرار (تغيير تاب فرعي مثلاً) وصفّر المرساة */
   show: () => void;
-  scrollEventThrottle: number;
 };
 
 const noopFn = () => {};
-const noopProps: ScrollProps = { onScroll: noopFn, onScrollEndDrag: noopFn, onMomentumScrollBegin: noopFn, onMomentumScrollEnd: noopFn, scrollEventThrottle: 16 };
-const noop: Actions = { scrollProps: noopProps, onScroll: noopFn, show: noopFn, scrollEventThrottle: 16 };
+const noopProps: ScrollProps = { onScroll: noopFn, onScrollBeginDrag: noopFn, onScrollEndDrag: noopFn, onMomentumScrollBegin: noopFn, onMomentumScrollEnd: noopFn, scrollEventThrottle: 16 };
+const noop: Actions = { scrollProps: noopProps, show: noopFn };
 
 const ActionsContext = createContext<Actions>(noop);
 const VisibleContext = createContext<boolean>(true);
@@ -39,7 +38,10 @@ const VisibleContext = createContext<boolean>(true);
 export function FabScrollProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [visible, setVisible] = useState(true);
-  const anchor = useRef(0);
+  // null = "مش متحددة": بتتظبط على أول حدث تمرير (بعد show() التاب بيرجع في مكان تمريره القديم)
+  const anchor = useRef<number | null>(null);
+  const dragging = useRef(false);
+  const screenReader = useRef(false);
   const visibleRef = useRef(true);
 
   const apply = useCallback((v: boolean) => {
@@ -57,31 +59,52 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     clearTimer();
     timer.current = setTimeout(() => {
       timer.current = null;
-      anchor.current = fabScrollStopped(anchor.current).anchorY;
+      if (anchor.current !== null) anchor.current = fabScrollStopped(anchor.current).anchorY;
       apply(true);
     }, ms);
   }, [apply, clearTimer]);
 
   const show = useCallback(() => {
     clearTimer();
-    anchor.current = 0;
+    dragging.current = false;
+    anchor.current = null;
     apply(true);
   }, [apply, clearTimer]);
 
+  // قارئ الشاشة شغّال ← الزرار ظاهر دايمًا ومن غير أي منطق تمرير (مستخدم TalkBack/VoiceOver
+  // مبيشوفش اختفاء بصري، ولازم يلاقي الزرار في أي لحظة)
+  useEffect(() => {
+    let alive = true;
+    const set = (v: boolean) => { screenReader.current = v; if (v) show(); };
+    try {
+      AccessibilityInfo.isScreenReaderEnabled?.()?.then((v) => { if (alive) set(!!v); }).catch(() => {});
+    } catch { /* مفيش إعداد ← بمنطق التمرير */ }
+    let sub: { remove: () => void } | undefined;
+    try { sub = AccessibilityInfo.addEventListener?.('screenReaderChanged', (v: boolean) => { if (alive) set(!!v); }); } catch { /* زي فوق */ }
+    return () => { alive = false; sub?.remove?.(); };
+  }, [show]);
+
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (screenReader.current) return;
     const y = e?.nativeEvent?.contentOffset?.y;
     if (typeof y !== 'number') return;
+    // أول حدث بعد show(): نظبط المرساة على مكانه بس — مفيش حركة اتعملت لسه
+    if (anchor.current === null) { anchor.current = Math.max(0, y); return; }
     const next = fabScrollStep(anchor.current, y, visibleRef.current);
     anchor.current = next.anchorY;
     if (next.visible !== visibleRef.current) apply(next.visible);
-    // مستخبي ← كل حدث بيأجّل الرجوع (debounce): الرجوع أول ما الأحداث تقف
-    if (!next.visible) armSettle(FAB_SETTLE_MS); else clearTimer();
+    // مستخبي ← كل حدث بيأجّل الرجوع (debounce): الرجوع أول ما الأحداث تقف — إلا والإصبع ماسك (بيتسلّح عند endDrag)
+    if (!next.visible && !dragging.current) armSettle(FAB_SETTLE_MS); else clearTimer();
   }, [apply, armSettle, clearTimer]);
 
-  const onScrollEndDrag = useCallback(() => { if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
-  // momentum بدأ ← لسه بيتحرك، متفتحش الزرار
-  const onMomentumScrollBegin = clearTimer;
-  const onMomentumScrollEnd = useCallback(() => { if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
+  const onScrollBeginDrag = useCallback(() => { dragging.current = true; clearTimer(); }, [clearTimer]);
+  const onScrollEndDrag = useCallback(() => {
+    dragging.current = false;
+    if (!screenReader.current && !visibleRef.current) armSettle(FAB_SETTLE_MS);
+  }, [armSettle]);
+  // momentum بدأ: مفيش مسح للمهلة هنا — أحداث onScroll أثناء الـmomentum بتعيد تسليحها، ومسحها كان بيسيب الزرار مستخبي للأبد لو الـmomentum مخلّصش بحدث
+  const onMomentumScrollBegin = noopFn;
+  const onMomentumScrollEnd = useCallback(() => { dragging.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
 
   useEffect(() => clearTimer, [clearTimer]);
 
@@ -89,9 +112,9 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { show(); }, [pathname, show]);
 
   const actions = useMemo<Actions>(() => ({
-    scrollProps: { onScroll, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd, scrollEventThrottle: 16 },
-    onScroll, show, scrollEventThrottle: 16,
-  }), [onScroll, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd, show]);
+    scrollProps: { onScroll, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd, scrollEventThrottle: 16 },
+    show,
+  }), [onScroll, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollBegin, onMomentumScrollEnd, show]);
 
   return (
     <ActionsContext.Provider value={actions}>
