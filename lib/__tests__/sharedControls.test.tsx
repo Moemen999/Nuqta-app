@@ -21,7 +21,9 @@ it('SegmentedControl: tablist، كل واحد tab بحالة selected، وطول
   expect(ind).toHaveLength(1);
   expect(StyleSheet.flatten(ind[0].props.style).borderColor).not.toBe('transparent');
   expect(ind[0].props.pointerEvents).toBe('none');
-  expect(StyleSheet.flatten(a.props.style).borderColor).toBe('transparent');
+  // قبل القياس (Jest) المختارة بتاخد الستايل الاحتياطي، وغير المختارة شفافة
+  expect(StyleSheet.flatten(a.props.style).borderColor).not.toBe('transparent');
+  expect(StyleSheet.flatten(b.props.style).borderColor).toBe('transparent');
   await act(async () => { fireEvent.press(b); });
   expect(onChange).toHaveBeenCalledWith('b');
 });
@@ -71,4 +73,24 @@ describe('PeriodChips: البداية يمين والتدرّج', () => {
     await act(async () => { row.props.onContentSizeChange(300, 44); });
     expect(screen.queryByTestId('z_preset_fade', { includeHiddenElements: true })).toBeNull();
   });
+});
+
+it('SegmentedControl: قبل الجاهزية المختارة بتاخد الستايل الاحتياطي، وبعد القياس بيتشال، وأول رسمة من غير حركة', async () => {
+  const Seg = ({ v }: { v: 'a' | 'b' }) => (
+    <ThemeProvider><SegmentedControl value={v} onChange={() => {}} segments={[
+      { key: 'a', label: 'أ', testID: 'g_a' }, { key: 'b', label: 'ب', testID: 'g_b' },
+    ]} /></ThemeProvider>);
+  const { rerender } = await render(<Seg v="a" />);
+  expect(StyleSheet.flatten(screen.getByTestId('g_a').props.style).borderColor).not.toBe('transparent');
+  expect(StyleSheet.flatten(screen.getByTestId('g_b').props.style).borderColor).toBe('transparent');
+  const lay = (id: string, x: number) => fireEvent(screen.getByTestId(id), 'layout', { nativeEvent: { layout: { x, y: 0, width: 100, height: 44 } } });
+  await act(async () => { lay('g_a', 100); lay('g_b', 0); });
+  expect(StyleSheet.flatten(screen.getByTestId('g_a').props.style).borderColor).toBe('transparent');
+  const ind = screen.getByTestId('segmented_indicator', { includeHiddenElements: true });
+  const st = StyleSheet.flatten(ind.props.style);
+  expect(st.opacity).toBe(1);
+  expect(st.width).toBe(100);
+  expect(JSON.stringify(st.transform)).toContain('100'); // أول رسمة: في مكانه على طول
+  await rerender(<Seg v="b" />);
+  expect(screen.getAllByTestId('segmented_indicator', { includeHiddenElements: true })).toHaveLength(1);
 });
