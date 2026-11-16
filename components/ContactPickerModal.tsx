@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, overlayStyle, sheetStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, space, typeScale, radius } from '@/lib/tokens';
 import { filterContacts, normalizePhone, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -142,26 +142,26 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayStyle,
     sheet: sheetStyle(c, { height: '80%' }),
-    headerRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-    sheetTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
+    headerRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.md },
+    sheetTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
     closeBtn: {
-      minHeight: 44, justifyContent: 'center', paddingHorizontal: 14,
-      borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, backgroundColor: c.surface2,
+      minHeight: 44, justifyContent: 'center', paddingHorizontal: space.xl,
+      borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, backgroundColor: c.surface2,
     },
-    closeBtnText: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700' },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    contactCount: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginTop: 8 },
-    list: { flex: 1, marginTop: 6 },
+    closeBtnText: { color: c.textSecondary, fontSize: typeScale.body, fontWeight: '700' },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    contactCount: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm },
+    list: { flex: 1, marginTop: space.xs },
     contactRow: { height: ROW_HEIGHT, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: c.border },
-    contactName: { color: c.text, fontSize: 14, textAlign: 'right' },
-    contactPhone: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 2 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 24 },
+    contactName: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    contactPhone: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.huge },
     createBtn: {
       minHeight: MIN_TOUCH, justifyContent: 'center', alignItems: 'center',
-      borderWidth: 1.5, borderColor: c.accent, borderRadius: 10,
-      backgroundColor: c.surface2, paddingHorizontal: 14, paddingVertical: 10,
+      borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md,
+      backgroundColor: c.surface2, paddingHorizontal: space.xl, paddingVertical: space.md,
     },
-    createBtnText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'center' },
-    createBtnHint: { color: c.textMuted, fontSize: 11, textAlign: 'center', marginTop: 3 },
+    createBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'center' },
+    createBtnHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: 3 },
   });
 }

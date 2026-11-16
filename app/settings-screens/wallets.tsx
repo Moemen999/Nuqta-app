@@ -21,7 +21,7 @@ import { useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
@@ -405,22 +405,22 @@ export default function WalletsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
-    dot: { width: 8, height: 8, borderRadius: 4 },
-    walletCard: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: c.border },
-    walletHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginBottom: 10 },
-    nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
-    walletRow: { flexDirection: 'row-reverse', gap: 10 },
-    microLabel: { color: c.textMuted, fontSize: 10.5, textAlign: 'right', marginBottom: 3 },
-    pendingHint: { color: c.accentText, fontSize: 12, textAlign: 'right', marginTop: 4 },
-    smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, color: c.text, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
+    dot: { width: 8, height: 8, borderRadius: radius.xxs },
+    walletCard: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
+    walletHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, marginBottom: space.md },
+    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    walletRow: { flexDirection: 'row-reverse', gap: space.md },
+    microLabel: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 3 },
+    pendingHint: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, paddingVertical: 7, fontSize: typeScale.body },
     // "حذف" كان نص لوحده ~16 بكسل جنب خانة نص — بقى 44 (MIN_TOUCH، a11y-architect)
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    deleteText: { color: c.dangerText, fontSize: 12.5 },
-    addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
-    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, minHeight: MIN_TOUCH },
+    deleteText: { color: c.dangerText, fontSize: typeScale.body },
+    addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md, marginBottom: space.xs, alignItems: 'center' },
+    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, paddingHorizontal: space.lg, paddingVertical: space.sm, fontSize: typeScale.body, minHeight: MIN_TOUCH },
     addBtn: { width: MIN_TOUCH, paddingHorizontal: 0 },
     btnBusy: { opacity: 0.6 },
   });

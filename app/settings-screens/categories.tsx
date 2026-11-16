@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
-import { MIN_TOUCH, categoryIconSize } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, space, typeScale, radius } from '@/lib/tokens';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -249,16 +249,16 @@ export default function CategoriesScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
     iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },
-    nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: c.border },
+    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    deleteText: { color: c.dangerText, fontSize: 12.5 },
-    addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
-    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, minHeight: MIN_TOUCH },
+    deleteText: { color: c.dangerText, fontSize: typeScale.body },
+    addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md, marginBottom: space.xs, alignItems: 'center' },
+    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, paddingHorizontal: space.lg, paddingVertical: space.sm, fontSize: typeScale.body, minHeight: MIN_TOUCH },
     addBtn: { width: MIN_TOUCH, paddingHorizontal: 0 },
     btnBusy: { opacity: 0.6 },
   });

@@ -14,6 +14,13 @@ const FILES = [
   'app/modal.tsx', 'components/DebtEntryModals.tsx', 'components/IncomesView.tsx',
   'components/ChargeHomeCards.tsx', 'components/IncomeHomeCards.tsx',
   'components/FirstRunSetup.tsx', 'app/settings-screens/notifications.tsx',
+  // الإعدادات الفرعية، القفل، كشف الحساب، المودالات الصغيرة (الدفعة 3)
+  'app/settings-screens/lock.tsx', 'app/settings-screens/delete-account.tsx',
+  'app/settings-screens/feedback.tsx', 'app/settings-screens/wallets.tsx',
+  'app/settings-screens/categories.tsx', 'app/settings-screens/about.tsx',
+  'app/person-ledger.tsx', 'components/LockScreen.tsx', 'components/SetLockModal.tsx',
+  'components/CategoryIconPicker.tsx', 'components/ContactPickerModal.tsx',
+  'components/DebtReminderFields.tsx',
 ];
 
 describe.each(FILES)('%s', (file) => {
