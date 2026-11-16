@@ -199,7 +199,7 @@ export default function SettingsScreen() {
       style={styles.scrollArea}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
-      <ScreenTitle style={{ marginBottom: space.xs }}>الإعدادات</ScreenTitle>
+      <ScreenTitle style={styles.screenTitle}>الإعدادات</ScreenTitle>
 
       {sections.map(section => (
         <View key={section.key} testID={`settings_section_${section.key}`} style={styles.section}>
@@ -241,6 +241,7 @@ export default function SettingsScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    screenTitle: { marginBottom: space.xs },
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
     // 16 فوق زي ما كان (insets.top + 16) — الـinset بقى على الحاوية برّه

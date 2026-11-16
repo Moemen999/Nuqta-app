@@ -291,7 +291,7 @@ export default function AddTransactionModal() {
   if (waiting) {
     return (
       <View testID="tx_waiting" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
-        <ScreenTitle style={{ marginBottom: 16 }}>تعديل عملية</ScreenTitle>
+        <ScreenTitle style={styles.screenTitle}>تعديل عملية</ScreenTitle>
         <View style={styles.noWallets}>
           {/* قراية اترفضت (مش نت بطيء): "اتأكد من النت" كانت هتبقى كدب، والاستنى مش هيخلص لوحده */}
           {loadErrors.length > 0 ? (
@@ -320,7 +320,7 @@ export default function AddTransactionModal() {
   if (linkChanged) {
     return (
       <View testID="tx_link_changed" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
-        <ScreenTitle style={{ marginBottom: 16 }}>{TX_EDIT_OUTCOME_ALERT.gone.title}</ScreenTitle>
+        <ScreenTitle style={styles.screenTitle}>{TX_EDIT_OUTCOME_ALERT.gone.title}</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>{TX_EDIT_OUTCOME_ALERT.gone.body}</Text>
           <TouchableOpacity testID="tx_link_changed_back" style={styles.noWalletsBtn}
@@ -335,7 +335,7 @@ export default function AddTransactionModal() {
   if (missing) {
     return (
       <View testID="tx_missing" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
-        <ScreenTitle style={{ marginBottom: 16 }}>تعديل عملية</ScreenTitle>
+        <ScreenTitle style={styles.screenTitle}>تعديل عملية</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>العملية دي مبقتش موجودة، غالبًا اتمسحت. ومفيش تعديل اتحفظ.</Text>
           <TouchableOpacity testID="tx_missing_back" style={styles.noWalletsBtn}
@@ -352,7 +352,7 @@ export default function AddTransactionModal() {
   if (existing?.isSettlement) {
     return (
       <View testID="tx_settlement_locked" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
-        <ScreenTitle style={{ marginBottom: 16 }}>تسوية محفظة مؤرشفة</ScreenTitle>
+        <ScreenTitle style={styles.screenTitle}>تسوية محفظة مؤرشفة</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>دي اتعملت لوحدها عشان رصيد المحفظة المؤرشفة يرجع صفر، فمبتتعدّلش ولا تتمسح. لو عايز تصلّح حاجة، عدّل العملية الأصلية اللي على المحفظة دي.</Text>
           <TouchableOpacity testID="tx_settlement_back" style={styles.noWalletsBtn}
@@ -367,7 +367,7 @@ export default function AddTransactionModal() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-      <ScreenTitle style={{ marginBottom: 16 }}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</ScreenTitle>
+      <ScreenTitle style={styles.screenTitle}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</ScreenTitle>
 
       {!isEdit && noActiveWallets && (
         <View testID="tx_no_wallets" style={styles.noWallets}>
@@ -488,6 +488,7 @@ export default function AddTransactionModal() {
 
 function makeStyles(c: ThemeColors, insetBottom: number) {
   return StyleSheet.create({
+    screenTitle: { marginBottom: space.xxl },
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 20, paddingBottom: 24 },
     row: { flexDirection: 'row-reverse', gap: 8, marginBottom: 8 },

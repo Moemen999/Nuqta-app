@@ -220,7 +220,7 @@ export default function ReportsScreen() {
       {...fabScroll.scrollProps}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
-      <ScreenTitle style={{ marginBottom: space.xl }}>التقارير</ScreenTitle>
+      <ScreenTitle style={styles.screenTitle}>التقارير</ScreenTitle>
 
       <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={space.xxl} />
 
@@ -400,6 +400,7 @@ export default function ReportsScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    screenTitle: { marginBottom: space.xl },
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
     content: { padding: space.xxl, paddingBottom: 40 },
