@@ -1,4 +1,4 @@
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
 import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
@@ -261,7 +261,7 @@ export default function ReportsScreen() {
             <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
               <View style={styles.chipInner}>
-                <CategoryIcon icon={c.icon} size={22} />
+                <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
               </View>
             </TouchableOpacity>
@@ -286,7 +286,7 @@ export default function ReportsScreen() {
                 <View style={styles.barHead}>
                   {catById.has(c.id) ? (
                     <View style={styles.barNameWrap}>
-                      <CategoryIcon icon={catById.get(c.id)!.icon} />
+                      <CategoryIcon icon={catById.get(c.id)!.icon} tint={c.color} />
                       {/* بتلف مع تكبير الخط (a11y) — مش شريحة بطول ثابت، فمفيش numberOfLines */}
                       <Text style={styles.barNameText}>{plainName(c.id)}</Text>
                     </View>
@@ -425,9 +425,9 @@ function makeStyles(c: ThemeColors) {
     // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
     barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
     barName: { flex: 1, minWidth: 120, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    barNameWrap: { flex: 1, minWidth: 120, flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+    barNameWrap: { flex: 1, minWidth: 120, flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     barNameText: { flex: 1, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    chipInner: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+    chipInner: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     barValue: { color: c.text, fontSize: typeScale.body },
     barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)

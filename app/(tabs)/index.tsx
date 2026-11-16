@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -61,7 +61,7 @@ function HomeScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending } = useData();
-  const { walletColors } = useChartColors();
+  const { walletColors, categoryColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
   const dailyHour = useDailyReminderHour();
@@ -397,12 +397,13 @@ function HomeScreen() {
               style={styles.txRow}
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>
-                {txCat ? (
-                  <View style={styles.txTitleRow}>
-                    <CategoryIcon icon={txCat.icon} size={24} />
-                    <Text style={[styles.txTitle, { flexShrink: 1 }]}>{categoryLabelById(categories, t.categoryId, { icon: false })}</Text>
-                  </View>
-                ) : <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>}
+                {/* مكان الدايرة محجوز (View فاضي بنفس المقاس) في صفوف من غير فئة — العناوين على نفس الخط */}
+                <View style={styles.txTitleRow}>
+                  {txCat
+                    ? <CategoryIcon icon={txCat.icon} size={categoryIconSize.row} tint={categoryColors.get(txCat.id)} />
+                    : <View style={{ width: categoryIconSize.row, height: categoryIconSize.row }} />}
+                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+                </View>
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
@@ -499,7 +500,7 @@ function makeStyles(c: ThemeColors) {
     seeAllChevron: { color: c.textSecondary, fontSize: typeScale.title },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
-    txTitleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+    txTitleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
     txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },

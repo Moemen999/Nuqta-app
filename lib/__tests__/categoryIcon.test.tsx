@@ -8,16 +8,20 @@ const wrap = async (ui: React.ReactElement) => render(<ThemeProvider>{ui}</Theme
 
 describe('CategoryIcon', () => {
   it('إيموجي مختار ← بيظهر جوه الدايرة', async () => {
-    await wrap(<CategoryIcon icon="🍔" />);
+    await wrap(<CategoryIcon icon="🍔" testID="ci" />);
     expect(screen.getByText('🍔', { includeHiddenElements: true })).toBeTruthy();
   });
   it.each([undefined, '', '🏷️'])('من غير أيقونة (%p) ← أيقونة خطية مش 🏷️', async icon => {
-    await wrap(<CategoryIcon icon={icon} />);
+    await wrap(<CategoryIcon icon={icon} testID="ci" />);
     expect(screen.queryByText('🏷️', { includeHiddenElements: true })).toBeNull();
-    expect(screen.getByTestId('category_icon', { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.getByTestId('ci', { includeHiddenElements: true })).toBeTruthy();
+  });
+  it('tint ← خلفية بلون الفئة بشفافية، ومن غيره سطح + إطار', async () => {
+    await wrap(<CategoryIcon icon="🍔" tint="#3987E5" testID="ci" />);
+    expect(screen.getByTestId('ci', { includeHiddenElements: true })).toHaveStyle({ backgroundColor: '#3987E52E' });
   });
   it('مخفية عن قارئ الشاشة (الاسم جنبها هو اللي بيتقري)', async () => {
-    await wrap(<CategoryIcon icon="🍔" />);
-    expect(screen.getByTestId('category_icon', { includeHiddenElements: true }).props.accessibilityElementsHidden).toBe(true);
+    await wrap(<CategoryIcon icon="🍔" testID="ci" />);
+    expect(screen.getByTestId('ci', { includeHiddenElements: true }).props.accessibilityElementsHidden).toBe(true);
   });
 });

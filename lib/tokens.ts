@@ -44,6 +44,9 @@ export const space = {
   huge: 24,
 } as const;
 
+/** مقاس دايرة أيقونة الفئة (`CategoryIcon`): شريحة فلتر / صف قايمة / عمود تقرير */
+export const categoryIconSize = { chip: 22, row: 24, bar: 28 } as const;
+
 /** مقاس الخطوط */
 export const font = {
   micro: 10.5,
