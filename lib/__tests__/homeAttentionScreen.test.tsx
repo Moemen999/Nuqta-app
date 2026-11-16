@@ -491,7 +491,7 @@ describe('✕ والحالة اللي بتتغيّر', () => {
     categories: [CAT], budgets: { c1: 100 }, transactions: [exp('t1', spend, TODAY, 'c1')],
   });
 
-  it('قربت اتقفلت ← الإنفاق وصل 100 (خلصت) ← الصف بيرجع، والمفتاح القديم متخزّن؛ وخلصت اتقفلت ثم عدّت (120) فاضلة مقفولة', async () => {
+  it('قربت اتقفلت ← الإنفاق وصل 100 (خلصت) ← الصف بيرجع، والمفتاح القديم متخزّن؛ وخلصت اتقفلت ثم عدّت (120) ← الصف بيرجع «عدّيت»', async () => {
     setData(budgetData(85));
     const r = await mount();
     expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85/100)')).toBeTruthy();
@@ -503,9 +503,10 @@ describe('✕ والحالة اللي بتتغيّر', () => {
     expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (100/100)')).toBeTruthy();
     await press('attention_dismiss_budget_c1');
     expect(shown('home_attention_line')).toBe(false);
+    // «خلصت» ← «عدّيت» معلومة جديدة: الصف بيرجع بمفتاحه (قرار 2026-11-16)
     setData(budgetData(120));
     await r.rerender(ui());
-    expect(shown('home_attention_line')).toBe(false);
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل عدّيت (120/100)')).toBeTruthy();
   });
 
   it('قربت اتقفلت ← الإنفاق عدّى الحد (120) ← الصف بيرجع', async () => {
@@ -515,7 +516,7 @@ describe('✕ والحالة اللي بتتغيّر', () => {
     expect(shown('home_attention_line')).toBe(false);
     setData(budgetData(120));
     await r.rerender(ui());
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (120/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل عدّيت (120/100)')).toBeTruthy();
   });
 
   it('العكس: خلصت (120/100) اتقفلت ← الإنفاق نزل لـ85 (قربت) ← الصف بيظهر بمفتاح «near» الجديد', async () => {

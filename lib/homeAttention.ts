@@ -80,8 +80,11 @@ export const ATTENTION_ROUTE = {
 
 const RANK = { budget: 0, low: 1, due: 2, verifyEmail: 3, noTxToday: 4 } as const;
 
-/** مفتاح الـ✕ للميزانية: «قربت» ← near، أي حاجة غيرها (خلصت/عدّت) ← over — زي ما كان */
-export const budgetDismissKey = (catId: string, level: string) => `${catId}:${level === 'near' ? 'near' : 'over'}`;
+/**
+ * مفتاح الـ✕ للميزانية: لكل درجة مفتاحها (near / at / over). الانتقال من «خلصت» لـ«عدّيت» معلومة جديدة فالبانر
+ * اللي اتقفل بـ✕ على «خلصت» بيرجع (قرار الجلسة 2026-11-16؛ كانوا at/over مفتاح واحد).
+ */
+export const budgetDismissKey = (catId: string, level: string) => `${catId}:${level === 'near' ? 'near' : level === 'at' ? 'at' : 'over'}`;
 
 /**
  * كل العناصر اللي **حالتها موجودة دلوقتي** (قبل أي ✕)، مرتّبة: ميزانيات الفئات (خلصت قبل قربت)
@@ -98,12 +101,12 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
     .map(b => ({ ...b, level: budgetLevel(b.spend, b.limit) }))
     .filter(b => b.level !== 'under')
     .forEach(b => {
-      const word = b.level === 'near' ? 'قربت تخلص' : 'خلصت';
+      const word = b.level === 'near' ? 'قربت تخلص' : b.level === 'over' ? 'عدّيت' : 'خلصت';
       items.push({
         id: `budget_${b.cat.id}`, kind: 'budget', type: 'budget', instance: budgetDismissKey(b.cat.id, b.level),
         text: `ميزانية ${b.cat.name} ${word} (${i.money(b.spend)}/${i.money(b.limit)})`,
         label: speakable(`ميزانية ${b.cat.name} ${word} (${i.money(b.spend)} من ${i.money(b.limit)})`),
-        dismissName: b.cat.name, tone: 'warn', route: ATTENTION_ROUTE.budget,
+        dismissName: b.cat.name, tone: b.level === 'over' ? 'danger' : 'warn', route: ATTENTION_ROUTE.budget,
         rank: RANK.budget, sort: b.level === 'near' ? 1 : 0,
       });
     });

@@ -10,7 +10,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
+import { categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
 import { budgetForecastText, budgetLevel, budgetLevelColor, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
@@ -69,7 +69,6 @@ export default function BudgetView() {
   // الرقم البطل والدايرة مع بعض، نفس `budgetLevel` بتاع الرئيسية (نص قرش): 'over' (عدّيت) خطر، و'at' (صرفت بالظبط) دهبي
   // زي الرئيسية — الأحمر للتعدّي بس (قرار مؤمن 2026-11-16)
   const totalLevel = budgetLevel(totalMonthSpend, totalBudget);
-  const totalDanger = totalLevel === 'over';
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
     categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth, transfers)));
@@ -120,13 +119,19 @@ export default function BudgetView() {
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
                   <View style={styles.heroWithRing}>
-                    {/* دايرة التقدّم: نفس الأرقام والشرط (`totalDanger`) اللي الرقم البطل جنبها، زينة بس */}
+                    {/* دايرة التقدّم: نفس الأرقام والدرجة (`totalLevel` ← `budgetLevelColor`) اللي الرقم البطل جنبها، زينة بس */}
                     <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={budgetLevelColor(totalLevel, colors, colors.accentText)} trackColor={colors.borderStrong} />
                     <View testID="budget_hero" style={styles.heroRow}>
-                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalLevel === 'at' && { color: colors.accentText }, totalDanger && { color: colors.dangerText }]} />
+                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalLevel !== 'under' && { color: budgetLevelColor(totalLevel, colors, colors.text) }]} />
                       <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
                     </View>
                   </View>
+                  {/* الدرجة بالكلام مش باللون بس — نفس نص كارت الشهر في الرئيسية */}
+                  {(totalLevel === 'at' || totalLevel === 'over') && (
+                    <Text testID="budget_total_level" style={[styles.totalSub, { color: budgetLevelColor(totalLevel, colors, colors.accentText) }]}>
+                      {totalLevel === 'at' ? 'الميزانية خلصت' : `عدّيت الميزانية بـ ${money(Math.abs(snapPiastre(totalBudget - totalMonthSpend)))} ج.م`}
+                    </Text>
+                  )}
                   {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
                 </>
               )}
@@ -140,10 +145,11 @@ export default function BudgetView() {
           const cards = group.map(c => {
           const limit = numberFor(c.id, budgets[c.id] || 0);
           const spend = spendByCategory.get(c.id) || 0;
-          const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
+          const level = limit > 0 ? budgetLevel(spend, limit) : 'under';
+          // at/over ← الشريط مليان (999.996 من 1000 كانت 99.9996%) — زي كارت الشهر في الرئيسية
+          const pct = limit > 0 ? (level === 'at' || level === 'over' ? 100 : Math.min(100, (spend / limit) * 100)) : 0;
           // لون بس من 80% (دراسة الشكل: الأخضر على كل حاجة سليمة كان دوشة) — الشريط بتوكنز النص (≥ 4.5 على المسار)
           // الدرجة من `budgetLevel` (نص قرش) زي الإجمالي والرئيسية: 'over' خطر، 'at'/'near' دهبي — العرض (%) زي ما هو
-          const level = limit > 0 ? budgetLevel(spend, limit) : 'under';
           const color = budgetLevelColor(level, colors, colors.textSecondary);
           const textColor = color;
 

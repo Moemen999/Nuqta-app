@@ -64,14 +64,15 @@ describe('ميزانية الفئة (توقعات homeBudgetBanner)', () => {
     expect(buildAttentionItems(cat(900))[0].text).toMatch(/^ميزانية أكل قربت تخلص/);
     expect(buildAttentionItems(cat(799))).toEqual([]);
   });
-  it('النص `صرف/حد` والـlabel `صرف من حد` ومفتاح الـ✕ بالدرجة (قربت ← near، غيرها ← over)', () => {
+  it('النص `صرف/حد` والـlabel `صرف من حد` ومفتاح الـ✕ لكل درجة (near / at / over) — الانتقال من خلصت لعدّيت يرجّع البانر', () => {
     const [near] = buildAttentionItems(cat(900));
     expect(near.text).toBe('ميزانية أكل قربت تخلص (900/1,000)');
     expect(near.label).toBe('ميزانية أكل قربت تخلص (900 من 1,000)');
     expect(near).toMatchObject({ type: 'budget', instance: 'c1:near', route: ATTENTION_ROUTE.budget, dismissName: 'أكل' });
-    expect(buildAttentionItems(cat(1000))[0].instance).toBe('c1:over'); // «at» كمان over
+    expect(buildAttentionItems(cat(1000))[0].instance).toBe('c1:at');
     expect(buildAttentionItems(cat(1200))[0].instance).toBe('c1:over');
-    expect(budgetDismissKey('c1', 'at')).toBe('c1:over');
+    expect(budgetDismissKey('c1', 'at')).toBe('c1:at');
+    expect(budgetDismissKey('c1', 'over')).toBe('c1:over');
   });
   it('الديون لسه بتتحمّل (spendKnown=false) ← مفيش ميزانية. والسلفة مش مصروف', () => {
     expect(ids({ ...cat(900), spendKnown: false })).toEqual([]);
