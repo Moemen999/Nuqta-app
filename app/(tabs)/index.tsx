@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconSize } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -328,7 +328,7 @@ function HomeScreen() {
         ))}
         {noWallets && !cold && (
           <View testID="home_no_wallets" style={styles.noWallets}>
-            <HeroIcon name="wallet-outline" size={heroIconSize.empty} testID="home_no_wallets_icon" />
+            <View style={{ marginBottom: heroIconGap - space.sm }}><HeroIcon name="wallet-outline" size={heroIconSize.empty} testID="home_no_wallets_icon" /></View>
             <Text style={styles.noWalletsTitle} accessibilityRole="header">مفيش ولا محفظة</Text>
             <Text style={styles.noWalletsBody}>
               {onlyArchived
@@ -488,7 +488,7 @@ function makeStyles(c: ThemeColors) {
     // نفس شكل البانرات الجديدة (دراسة الشكل): من غير إطار، شريط بداية دهبي (دعوة تصرف)
     noWallets: {
       backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: c.accentText, borderRadius: radius.lg,
-      padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
+      padding: space.xxl, alignItems: 'center', gap: space.sm, marginTop: space.xs, marginBottom: space.lg,
     },
     noWalletsTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },

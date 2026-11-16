@@ -9,7 +9,7 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -187,7 +187,7 @@ export default function FirstRunSetup() {
   if (step === 'welcome') {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <HeroIcon name="wallet-outline" size={heroIconSize.setup} testID="setup_icon" />
+        <View style={{ marginBottom: heroIconGap - space.lg }}><HeroIcon name="wallet-outline" size={heroIconSize.setup} testID="setup_icon" /></View>
         <Text style={styles.title}>نبدأ بإيه؟</Text>
         <Text style={styles.centerText}>
           اختار المحافظ اللي بتصرف منها ورصيد كل واحدة دلوقتي، والفئات اللي بتصرف عليها. تقدر تغيّر أي حاجة بعدين من الإعدادات.

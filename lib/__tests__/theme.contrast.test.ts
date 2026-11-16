@@ -1,4 +1,5 @@
 import { DARK, LIGHT, type ThemeColors } from '@/context/ThemeContext';
+import { categoryIconGlyph } from '@/lib/tokens';
 
 /**
  * نسبة التباين بمعادلة WCAG. الهدف مننا: العنصر المختار يبان بالتأكيد،
@@ -235,5 +236,21 @@ describe('هيكل التحميل (skeleton)', () => {
   it.each([['فاتح', LIGHT], ['غامق', DARK]] as const)('%s: باين على surface وعلى bg بحد أدنى 1.3:1', (_n, t) => {
     expect(contrast(t.skeleton, t.surface)).toBeGreaterThanOrEqual(1.3);
     expect(contrast(t.skeleton, t.bg)).toBeGreaterThanOrEqual(1.3);
+  });
+});
+
+/** أيقونة `HeroIcon`: `accentText` فوق دايرة `accent` بشفافية (`tintBackground`) على الخلفيتين — موجة البريميم 6 */
+describe.each([
+  ['الفاتح', LIGHT],
+  ['الغامق', DARK],
+])('تباين HeroIcon — الوضع %s', (_label, colors) => {
+  function blend(fg: string, alphaHex: string, bg: string) {
+    const a = parseInt(alphaHex, 16) / 255;
+    const ch = (i: number) => Math.round(parseInt(fg.slice(i, i + 2), 16) * a + parseInt(bg.slice(i, i + 2), 16) * (1 - a));
+    return '#' + [1, 3, 5].map(i => ch(i).toString(16).padStart(2, '0')).join('');
+  }
+  it.each(['bg', 'surface'] as const)('accentText فوق tintBackground(accent) على %s ≥ 3:1', key => {
+    const circle = blend(colors.accent, categoryIconGlyph.tintAlpha, colors[key]);
+    expect(contrast(colors.accentText, circle)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
   });
 });

@@ -1,4 +1,4 @@
-import { MIN_TOUCH, heroIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import type { LineIconName } from '@/components/LineIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,7 +22,7 @@ const SLIDES: { icon: LineIconName; title: string; body: string }[] = [
     body: 'الرئيسية بتوريك رصيدك في كل محافظك وآخر عملياتك.\nوالتقارير بتقولك فلوسك راحت فين بالظبط، في أي فترة تختارها.',
   },
   {
-    icon: 'pie-chart-outline',
+    icon: 'layers-outline',
     title: 'التخطيط',
     body: 'جواه حاجتين:\n• الميزانية — تحدد سقف لصرفك كل شهر\n• توزيع الدخل (شخبطة) — تقسّم دخلك بالنسب اللي انت تحددها (احتياجات، رفاهيات، خطط مستقبلية)',
   },
@@ -32,7 +32,7 @@ const SLIDES: { icon: LineIconName; title: string; body: string }[] = [
     body: 'جواه تلات حاجات:\n• الديون — مين عليه فلوس ليك ومين ليه عندك\n• الاشتراكات — بتذكّرك قبل كل خصم\n• الجمعية — بتتابع أقساطك وشهر استلامك',
   },
   {
-    icon: 'add-circle-outline',
+    icon: 'add',
     title: 'الزرار الذهبي',
     body: 'أهم زرار في التطبيق. اضغطه في أي وقت عشان تسجّل مصروف أو إيراد أو تحويل بين محافظك.',
   },
@@ -102,7 +102,7 @@ function makeStyles(c: ThemeColors) {
     skipBtn: { alignSelf: 'flex-start', padding: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     skipText: { color: c.textMuted, fontSize: typeScale.body },
     slideArea: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
-    iconWrap: { marginBottom: space.huge },
+    iconWrap: { marginBottom: heroIconGap },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'center', marginBottom: space.xl },
     body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 26 },
     dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 24 },

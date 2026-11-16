@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, View } from 'react-native';
+import { Animated, Easing } from 'react-native';
 import { LineIcon, type LineIconName } from '@/components/LineIcon';
 import { tintBackground } from '@/components/CategoryIcon';
 import { useTheme } from '@/context/ThemeContext';
@@ -19,8 +19,9 @@ const ENTER_FROM_SCALE = 0.9;
 export function HeroIcon({ name, size, animateKey, testID }: { name: LineIconName; size: number; animateKey?: string | number; testID?: string }) {
   const { colors } = useTheme();
   const reduceMotion = useReduceMotion();
-  const enter = useRef(new Animated.Value(1)).current;
   const animated = animateKey !== undefined && !reduceMotion;
+  // أول رسمة بالقيمة الصح (0 لو هتتحرّك) — من غير فريم كاملة قبل الـeffect
+  const enter = useRef(new Animated.Value(animated ? 0 : 1)).current;
 
   useEffect(() => {
     if (!animated) { enter.setValue(1); return; }
@@ -34,10 +35,10 @@ export function HeroIcon({ name, size, animateKey, testID }: { name: LineIconNam
     <Animated.View testID={testID} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden
       style={{
         width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
-        backgroundColor: tintBackground(colors.accent), opacity: enter,
-        transform: [{ scale: enter.interpolate({ inputRange: [0, 1], outputRange: [ENTER_FROM_SCALE, 1] }) }],
+        backgroundColor: tintBackground(colors.accent), opacity: animated ? enter : 1,
+        transform: [{ scale: animated ? enter.interpolate({ inputRange: [0, 1], outputRange: [ENTER_FROM_SCALE, 1] }) : 1 }],
       }}>
-      <View><LineIcon name={name} size={Math.round(size * heroIconGlyphRatio)} color={colors.accentText} /></View>
+      <LineIcon name={name} size={Math.round(size * heroIconGlyphRatio)} color={colors.accentText} />
     </Animated.View>
   );
 }

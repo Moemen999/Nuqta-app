@@ -84,6 +84,8 @@ export const glyphSize = { chevron: 20, logo: 36 } as const;
 /** دايرة الأيقونة الكبيرة (`HeroIcon`) بدل الإيموجي الزخرفي: الترحيب / أول تجهيز / الحالة الفاضية، والأيقونة نسبة من القطر */
 export const heroIconSize = { welcome: 80, setup: 64, empty: 56 } as const;
 export const heroIconGlyphRatio = 0.5;
+/** المسافة تحت الدايرة قبل العنوان — نفسها في الشاشات التلاتة */
+export const heroIconGap = space.xl;
 
 /**
  * أصغر هدف لمس مقبول. أي حاجة بتتدوس لازم توصل للرقم ده — إما بارتفاع/عرض
