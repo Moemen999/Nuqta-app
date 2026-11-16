@@ -370,7 +370,9 @@ export default function WalletsScreen() {
           <Button
             testID="wallet_add_button"
             size="sm"
-            label="+"
+            icon="add"
+            iconOnly
+            label="إضافة محفظة"
             style={styles.addBtn}
             busy={adding}
             onPress={() => {

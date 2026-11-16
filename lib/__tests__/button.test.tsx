@@ -32,11 +32,19 @@ describe('Button', () => {
     await wrap(<Button testID="b" label="حفظ" busy onPress={onPress} />);
     await fireEvent.press(screen.getByTestId('b'));
     expect(onPress).not.toHaveBeenCalled();
-    expect(screen.queryByText('حفظ')).toBeNull();
+    // النص بيفضل مرسوم (شفاف) عشان العرض ميتغيّرش
+    expect(screen.getByText('حفظ')).toBeTruthy();
+    expect(screen.getByTestId('b_spinner')).toBeTruthy();
     const b = screen.getByTestId('b');
     expect(b.props.accessibilityRole).toBe('button');
-    expect(b.props.accessibilityLabel).toBe('حفظ');
+    expect(b.props.accessibilityLabel).toBe('حفظ، جاري التنفيذ');
     expect(b.props.accessibilityState).toMatchObject({ disabled: true, busy: true });
+  });
+
+  it('iconOnly مفيهوش نص مرئي والاسم للقارئ', async () => {
+    await wrap(<Button testID="b" icon="add" iconOnly label="إضافة فئة" />);
+    expect(screen.queryByText('إضافة فئة')).toBeNull();
+    expect(screen.getByTestId('b').props.accessibilityLabel).toBe('إضافة فئة');
   });
 
   it('accessibilityLabel بيغلب الـlabel', async () => {

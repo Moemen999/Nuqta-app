@@ -202,7 +202,9 @@ export default function CategoriesScreen() {
           <Button
             testID="category_add_button"
             size="sm"
-            label="+"
+            icon="add"
+            iconOnly
+            label="إضافة فئة"
             style={styles.addBtn}
             busy={adding}
             onPress={() => {

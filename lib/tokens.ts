@@ -81,6 +81,11 @@ export const radius = {
  */
 export const MIN_TOUCH = 44;
 
+/** حالات الزرار (`components/Button`): مضغوط، معطّل/مشغول، وتصغير الضغطة */
+export const pressedOpacity = 0.85;
+export const disabledOpacity = 0.6;
+export const pressedScale = 0.98;
+
 /** صف أفقي بترتيب عربي صح (من اليمين للشمال) */
 export function rowRTL(gap?: number): ViewStyle {
   return gap === undefined
