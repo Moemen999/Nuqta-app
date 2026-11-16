@@ -1,6 +1,6 @@
 import { router, Tabs, usePathname } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
 import { HapticTab } from '@/components/haptic-tab';
@@ -10,6 +10,7 @@ import { useTheme } from '@/context/ThemeContext';
 import { tabLabelStyle } from '@/lib/appFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius } from '@/lib/tokens';
+import { useReduceMotion } from '@/lib/useReduceMotion';
 
 /**
  * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
@@ -66,17 +67,7 @@ const FAB_ANIM_MS = 200;
 function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
   const { colors } = useTheme();
   const progress = useRef(new Animated.Value(visible ? 1 : 0)).current; // 1 = ظاهر
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    try {
-      AccessibilityInfo.isReduceMotionEnabled?.()?.then((v) => { if (alive) setReduceMotion(!!v); }).catch(() => {});
-    } catch { /* مفيش إعداد ← بالحركة */ }
-    let sub: { remove: () => void } | undefined;
-    try { sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => { if (alive) setReduceMotion(!!v); }); } catch { /* زي فوق */ }
-    return () => { alive = false; sub?.remove?.(); };
-  }, []);
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => {
     if (reduceMotion) { progress.setValue(visible ? 1 : 0); return; }

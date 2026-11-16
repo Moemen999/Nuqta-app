@@ -16,9 +16,12 @@ it('SegmentedControl: tablist، كل واحد tab بحالة selected، وطول
   const a = screen.getByTestId('seg_a'), b = screen.getByTestId('seg_b');
   expect([a.props.accessibilityRole, a.props.accessibilityState.selected, b.props.accessibilityState.selected]).toEqual(['tab', true, false]);
   expect(StyleSheet.flatten(a.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
-  // المؤشر مش بالخلفية بس: إطار دهبي على المختار بس (contrast test بيثبّت إنه ≥ 3:1)
-  expect(StyleSheet.flatten(a.props.style).borderColor).not.toBe('transparent');
-  expect(StyleSheet.flatten(b.props.style).borderColor).toBe('transparent');
+  // المؤشر مش بالخلفية بس: إطار دهبي على طبقة المؤشر الواحدة (contrast test بيثبّت إنه ≥ 3:1)، والشرايح نفسها شفافة
+  const ind = screen.getAllByTestId('segmented_indicator', { includeHiddenElements: true });
+  expect(ind).toHaveLength(1);
+  expect(StyleSheet.flatten(ind[0].props.style).borderColor).not.toBe('transparent');
+  expect(ind[0].props.pointerEvents).toBe('none');
+  expect(StyleSheet.flatten(a.props.style).borderColor).toBe('transparent');
   await act(async () => { fireEvent.press(b); });
   expect(onChange).toHaveBeenCalledWith('b');
 });
