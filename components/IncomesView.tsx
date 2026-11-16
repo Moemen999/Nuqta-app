@@ -17,7 +17,7 @@ import {
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
-import { useBusyKey } from '@/lib/useBusy';
+import { useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
@@ -251,6 +251,8 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addIncome, updateIncome } = useData();
   const { amountsHidden } = usePrivacy();
+  // ref متزامن: ضغطتين في نفس الفريم قبل الـre-render كانوا بينادوا `addIncome` مرتين (دخل مكرر)
+  const { busy: saving, run: runSave } = useBusy();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(income?.name ?? '');
@@ -317,9 +319,12 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
       dayOfMonth: frequency === 'monthly' ? Number(day) : undefined,
       weekday: frequency === 'weekly' ? weekday : undefined,
     };
-    if (income) updateIncome(income.id, payload);
-    else addIncome(payload);
-    onClose();
+    // الحارس بس حوالين الكتابة (من غير await على السيرفر — `addIncome` بتعدّي على `track`)
+    void runSave(() => {
+      if (income) updateIncome(income.id, payload);
+      else addIncome(payload);
+      onClose();
+    });
   }
 
   return (
@@ -428,7 +433,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
             <View style={styles.footer}>
               <Button variant="secondary" testID="income_setup_back" label={step === 0 ? 'إلغاء' : 'رجوع'} style={styles.cancelBtn}
                 onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }} />
-              <Button testID="income_setup_next" label={step < 2 ? 'التالي' : 'حفظ'} style={styles.saveBtn} onPress={next} />
+              <Button testID="income_setup_next" label={step < 2 ? 'التالي' : 'حفظ'} style={styles.saveBtn} onPress={next} busy={saving} />
             </View>
           </View>
         </View>

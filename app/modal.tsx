@@ -30,6 +30,7 @@ import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
 import { hapticSuccess } from '@/lib/haptics';
+import { useBusy } from '@/lib/useBusy';
 
 const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
   { key: 'expense', label: 'مصروف', tone: 'danger' },
@@ -91,6 +92,8 @@ export default function AddTransactionModal() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // ref متزامن: ضغطتين في نفس الفريم قبل الـre-render كانوا بيعدّوا الاتنين (عملية مكررة)
+  const { busy: saveGuard, run: runSave } = useBusy();
   const [loaded, setLoaded] = useState(false);
   // تعديل عملية دين مستني السيرفر — منفصل عن `busy` اللي بيتفك قبل ما الشيت ترد
   const [syncing, setSyncing] = useState(false);
@@ -135,7 +138,9 @@ export default function AddTransactionModal() {
   const waiting = !!id && !linkSourcesReady;
   const missing = !!id && linkSourcesReady && !existing;
 
-  async function handleSave() {
+  function handleSave() { return runSave(saveTransaction); }
+
+  async function saveTransaction() {
     if (missing || waiting || linkChanged) return;
     const amt = Number(amount);
     // مفيش ولا محفظة خالص ≠ نسي يختار واحدة — الرسالة بتقول السبب الحقيقي (a11y-architect)
@@ -456,7 +461,7 @@ export default function AddTransactionModal() {
         <Button variant="danger" label="حذف" style={styles.deleteBtn} onPress={handleDelete} disabled={syncing} busy={busy} />
       )}
       <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing} />
-      <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || syncing} />
+      <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || saveGuard || syncing} />
     </View>
 
     {settle.sheet}
