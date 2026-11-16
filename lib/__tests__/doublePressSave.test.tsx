@@ -139,6 +139,24 @@ describe('حفظ عملية جديدة', () => {
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 
+  it('تعديل: updateTransaction بيرفض بعد ما الحفظ رجع ← الزرار مش busy والإلغاء شغال والضغطة التانية بتكتب (release)', async () => {
+    mockData.transactions = [{ id: 'tx_r', type: 'expense', amount: 50, walletId: 'w1', date: '2026-03-20' }];
+    mockParams = { id: 'tx_r' };
+    // رفض غير متزامن: الـcatch بيشتغل بعد ما `runSave` خلص و`saved` لسه true (keepOnSuccess)
+    (mockData.updateTransaction as jest.Mock).mockImplementationOnce(() => new Promise((_, rej) => setTimeout(() => rej(new Error('late')), 20)));
+    await render(wrap(<AddTransactionModal />));
+    await act(async () => {});
+    await type(screen.getByTestId('tx_amount_input'), '60');
+    await press(screen.getByTestId('tx_save_button'));
+    await act(async () => { await new Promise(r => setTimeout(r, 60)); });
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByTestId('tx_save_button').props.accessibilityState).toMatchObject({ busy: false, disabled: false });
+    expect(screen.getByText('إلغاء')).toBeTruthy();
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.updateTransaction).toHaveBeenCalledTimes(2);
+  });
+
   it('تعديل عملية دين: ضغطتين في نفس الـtick ← الكتابة الذرية مرة واحدة', async () => {
     const tx = { id: 'tx_p', type: 'income', amount: 100, walletId: 'w1', date: '2026-03-20' };
     Object.assign(mockData, {
