@@ -19,6 +19,7 @@ import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -27,6 +28,7 @@ const BUCKET_META = [
 ] as const;
 
 export default function ShakhbataView() {
+  const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -124,7 +126,7 @@ export default function ShakhbataView() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} {...fabScroll.scrollProps} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {/* «توزيع الدخل» (دراسة الشكل، قرار مؤمن 2026-11-06): الاسم بيقول هي إيه؛ «شخبطة» فاضلة في السطر عشان اللي متعوّد عليها */}
       <Text style={styles.title}>توزيع الدخل</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها (الشاشة دي كان اسمها شخبطة)</Text>

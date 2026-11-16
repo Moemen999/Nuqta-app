@@ -13,10 +13,12 @@ import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_KEY = 'total_budget';
 
 export default function BudgetView() {
+  const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();
@@ -77,6 +79,7 @@ export default function BudgetView() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
+        {...fabScroll.scrollProps}
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>الميزانية الشهرية</Text>
         {transfersStatus === 'failed' && <TransfersFailedNote testID="budget_transfers_failed" style={{ marginTop: -8, marginBottom: 12 }} />}

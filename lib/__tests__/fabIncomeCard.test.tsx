@@ -1,5 +1,7 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { ScrollView } from 'react-native';
+import { useFabScroll } from '@/context/FabScrollContext';
 import TabLayout from '@/app/(tabs)/_layout';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { todayStr } from '@/lib/finance';
@@ -11,8 +13,13 @@ import { todayStr } from '@/lib/finance';
  */
 
 let mockPath = '/';
+// شاشة تجريبية جوه التابات بتبلّغ بالتمرير زي الشاشات الحقيقية
+function MockScreen() {
+  const f = useFabScroll();
+  return <ScrollView testID="mock_scroll" {...f.scrollProps} />;
+}
 jest.mock('expo-router', () => {
-  const Tabs = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+  const Tabs = ({ children }: { children: React.ReactNode }) => <>{children}<MockScreen /></>;
   Tabs.Screen = () => null;
   return { Tabs, usePathname: () => mockPath, router: { push: jest.fn() } };
 });
@@ -69,5 +76,67 @@ describe('الزرار العايم "+" ظاهر دايمًا', () => {
       await mount();
       expect(screen.queryByTestId('tx_add_button')).toBeNull();
     }
+  });
+});
+
+describe('الزرار العايم "+" بيختفي وانت بتمرّر لتحت ويرجع لما التمرير يقف (قرار 2026-11-16)', () => {
+  const scrollTo = (y: number) => fireEvent.scroll(screen.getByTestId('mock_scroll'), { nativeEvent: { contentOffset: { y } } });
+  const hidden = () => screen.getByTestId('tx_add_fab_wrap', { includeHiddenElements: true }).props.pointerEvents === 'none';
+
+  beforeEach(() => {
+    Object.assign(mockData, {
+      incomes: [], subscriptions: [], gamiyas: [], wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }],
+      serverReachable: true, setupStatus: 'done', loadErrors: [],
+    });
+    mockPath = '/';
+  });
+
+  it('ظاهر عند الفتح، ومستخبي بعد تمرير لتحت، ويرجع فورًا بتمرير لفوق', async () => {
+    await mount();
+    expect(hidden()).toBe(false);
+    await scrollTo(200);
+    expect(hidden()).toBe(true);
+    expect(screen.getByTestId('tx_add_fab_wrap', { includeHiddenElements: true }).props.accessibilityElementsHidden).toBe(true);
+    await scrollTo(150);
+    expect(hidden()).toBe(false);
+  });
+
+  it('التمرير وقف (end drag بعد momentum أو مهلة) ← يرجع ظاهر', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await scrollTo(200);
+      expect(hidden()).toBe(true);
+      // لسه momentum ← مبيرجعش
+      await fireEvent(sv, 'scrollEndDrag');
+      await fireEvent(sv, 'momentumScrollBegin');
+      await act(async () => { jest.advanceTimersByTime(1000); });
+      expect(hidden()).toBe(true);
+      await fireEvent(sv, 'momentumScrollEnd');
+      await act(async () => { jest.advanceTimersByTime(300); });
+      expect(hidden()).toBe(false);
+      // احتياط: آخر حدث onScroll + مهلة من غير أحداث نهاية
+      await scrollTo(400);
+      expect(hidden()).toBe(true);
+      await act(async () => { jest.advanceTimersByTime(300); });
+      expect(hidden()).toBe(false);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('أول الشاشة ← ظاهر', async () => {
+    await mount();
+    await scrollTo(200);
+    await scrollTo(10);
+    expect(hidden()).toBe(false);
+  });
+
+  it('تغيير المسار ← ظاهر', async () => {
+    const view = await mount();
+    await scrollTo(200);
+    expect(hidden()).toBe(true);
+    mockPath = '/reports';
+    await view.rerender(<ThemeProvider><TabLayout /></ThemeProvider>);
+    expect(hidden()).toBe(false);
   });
 });

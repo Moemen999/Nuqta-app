@@ -37,6 +37,7 @@ import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenArchivedWalletBannerText, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
 
@@ -54,6 +55,7 @@ export default function HomeTab() {
 }
 
 function HomeScreen() {
+  const fabScroll = useFabScroll();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -243,6 +245,7 @@ function HomeScreen() {
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
+        {...fabScroll.scrollProps}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {/* كارت الشهر: أول حاجة في التمرير تحت الرصيد الثابت. testID مش `home_banner_` (البانرات كلها ليها ✕ — homeBannerOrder). دوسة ← التقارير

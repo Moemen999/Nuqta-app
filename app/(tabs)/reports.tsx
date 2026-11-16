@@ -25,11 +25,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
 const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'last6Months', 'custom'];
 
 export default function ReportsScreen() {
+  const fabScroll = useFabScroll();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -211,6 +213,7 @@ export default function ReportsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}
+      {...fabScroll.scrollProps}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>

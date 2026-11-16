@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 /** نفس أسامي الاشتراكات والجمعية — مصدر واحد في `lib/autoCharge.ts` */
 export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;
@@ -34,6 +35,7 @@ export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;
  * زراير تحت)، بس الفلوس داخلة مش خارجة.
  */
 export default function IncomesView() {
+  const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { incomes, wallets, transactions, recordIncomePeriods, setIncomeStatus, deleteIncome } = useData();
@@ -143,7 +145,7 @@ export default function IncomesView() {
   }
 
   return (
-    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} {...fabScroll.scrollProps}>
       <View style={styles.titleRow}>
         <TouchableOpacity testID="income_add_button" accessibilityRole="button" style={styles.addBtn} onPress={() => setEditing('new')}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دخل ثابت</Text>
