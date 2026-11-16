@@ -12,6 +12,7 @@ import { exactAlarmStatus } from '@/lib/exactAlarm';
 import { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
@@ -90,7 +91,7 @@ export default function NotificationsScreen() {
       keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>الإشعارات</Text>
+        <ScreenTitle>الإشعارات</ScreenTitle>
       </View>
 
       <View style={styles.switchRow}>
@@ -230,7 +231,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
     switchLabel: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
     status: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 2 },

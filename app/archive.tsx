@@ -24,6 +24,7 @@ import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
@@ -173,7 +174,7 @@ export default function ArchiveScreen() {
     <>
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>أرشيف العمليات</Text>
+        <ScreenTitle>أرشيف العمليات</ScreenTitle>
       </View>
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
@@ -337,7 +338,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },

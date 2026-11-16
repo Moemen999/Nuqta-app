@@ -16,6 +16,7 @@ import type { ThemePreference } from '@/context/ThemeContext';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
 
@@ -198,7 +199,7 @@ export default function SettingsScreen() {
       style={styles.scrollArea}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>الإعدادات</Text>
+      <ScreenTitle style={{ marginBottom: space.xs }}>الإعدادات</ScreenTitle>
 
       {sections.map(section => (
         <View key={section.key} testID={`settings_section_${section.key}`} style={styles.section}>
@@ -244,7 +245,6 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flex: 1 },
     // 16 فوق زي ما كان (insets.top + 16) — الـinset بقى على الحاوية برّه
     content: { padding: space.xxl, paddingTop: 16, paddingBottom: space.huge * 2 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
     section: { marginTop: space.huge },
     // عناوين الأقسام أصغر وأهدى (دراسة الشكل) — الصفوف هي المهمة
     sectionTitle: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },

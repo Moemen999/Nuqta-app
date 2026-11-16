@@ -12,6 +12,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Row = {
@@ -129,7 +130,7 @@ export default function PersonLedgerScreen() {
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</Text>
+        <ScreenTitle>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</ScreenTitle>
       </View>
 
       {!group ? (
@@ -246,7 +247,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     summaryCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, alignItems: 'center', marginBottom: space.xxl },
     summaryLabel: { color: c.textSecondary, fontSize: typeScale.body },
     summaryValue: { fontSize: typeScale.title, fontWeight: '700', marginTop: space.xs },

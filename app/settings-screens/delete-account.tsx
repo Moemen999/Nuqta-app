@@ -1,5 +1,6 @@
 import BackButton from '@/components/BackButton';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth, type DeleteSignInOutcome, type ReauthOutcome } from '@/context/AuthContext';
 import { useAppLock } from '@/context/AppLockContext';
@@ -152,7 +153,7 @@ export default function DeleteAccountScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <BackButton onPress={busy ? () => {} : undefined} />
-          <Text style={styles.title} accessibilityRole="header">مسح الحساب</Text>
+          <ScreenTitle>مسح الحساب</ScreenTitle>
         </View>
 
         <View style={styles.card}>
@@ -211,7 +212,6 @@ const makeStyles = (c: ThemeColors, bottomInset: number) =>
     content: { padding: 16, paddingBottom: 24 },
     // نفس رأس feedback.tsx وlock.tsx (visual-identity-reviewer)
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.dangerBorder, padding: 14, gap: 8 },
     cardTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right' },
     body: { color: c.textSecondary, fontSize: 13.5, lineHeight: 21, textAlign: 'right' },

@@ -20,6 +20,7 @@ import { MIN_TOUCH, categoryIconSize } from '@/lib/tokens';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -159,7 +160,7 @@ export default function CategoriesScreen() {
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.headerRow}>
           <BackButton />
-          <Text style={styles.title}>الفئات</Text>
+          <ScreenTitle>الفئات</ScreenTitle>
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
 
@@ -250,7 +251,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
     iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },

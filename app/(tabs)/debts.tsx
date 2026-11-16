@@ -34,6 +34,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -358,7 +359,7 @@ function DebtsContent() {
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <Button testID="debt_add_button" size="sm" label="+ دين جديد" onPress={() => setShowAddDebt(true)} />
-        <Text style={styles.title}>الديون والأقساط</Text>
+        <ScreenTitle>الديون والأقساط</ScreenTitle>
       </View>
 
       <View style={styles.summaryRow}>
@@ -595,7 +596,6 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flex: 1 },
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700' },
     summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
     summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },

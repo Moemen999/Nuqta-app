@@ -2,6 +2,7 @@ import BackButton from '@/components/BackButton';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
@@ -163,7 +164,7 @@ export default function UserGuideScreen() {
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>دليل المستخدم</Text>
+        <ScreenTitle>دليل المستخدم</ScreenTitle>
       </View>
 
       <Text style={styles.intro}>كل حاجة في التطبيق، مشروحة بالتفصيل. دوس على أي قسم عشان تفتحه.</Text>
@@ -200,7 +201,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
     intro: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginBottom: 16, lineHeight: 19 },
     card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10, overflow: 'hidden' },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },

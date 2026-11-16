@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -63,7 +64,7 @@ export default function FeedbackScreen() {
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.headerRow}>
           <BackButton />
-          <Text style={styles.title}>شاركنا رأيك</Text>
+          <ScreenTitle>شاركنا رأيك</ScreenTitle>
         </View>
 
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
@@ -122,7 +123,6 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 24 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 8 },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: MIN_TOUCH, justifyContent: 'center' },

@@ -24,6 +24,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabScroll } from '@/context/FabScrollContext';
@@ -219,7 +220,7 @@ export default function ReportsScreen() {
       {...fabScroll.scrollProps}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
-      <Text style={styles.title}>التقارير</Text>
+      <ScreenTitle style={{ marginBottom: space.xl }}>التقارير</ScreenTitle>
 
       <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={space.xxl} />
 
@@ -402,7 +403,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
     content: { padding: space.xxl, paddingBottom: 40 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     // نفس زرار التاريخ في الأرشيف (visual-identity-reviewer: كان نفس الزرار بشكلين)
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },

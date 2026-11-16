@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,7 +57,7 @@ export default function LockScreen_Settings() {
       keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title} accessibilityRole="header">قفل التطبيق</Text>
+        <ScreenTitle>قفل التطبيق</ScreenTitle>
       </View>
 
       {!enabled ? (
@@ -140,7 +141,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border },
     status: { color: c.incomeText, fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 10 },

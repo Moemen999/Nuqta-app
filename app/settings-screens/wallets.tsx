@@ -24,6 +24,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -305,7 +306,7 @@ export default function WalletsScreen() {
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.headerRow}>
           <BackButton />
-          <Text style={styles.title}>المحافظ</Text>
+          <ScreenTitle>المحافظ</ScreenTitle>
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم المحفظة تعدله مباشرة</Text>
 
@@ -406,7 +407,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
     dot: { width: 8, height: 8, borderRadius: 4 },
     walletCard: { backgroundColor: c.surface, borderRadius: 12, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: c.border },

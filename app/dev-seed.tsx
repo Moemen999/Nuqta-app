@@ -15,6 +15,7 @@ import { doc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -157,7 +158,7 @@ function DevSeed() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>بيانات التجربة (للمطوّر)</Text>
+        <ScreenTitle>بيانات التجربة (للمطوّر)</ScreenTitle>
       </View>
 
       {!uidParam ? (
@@ -207,7 +208,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 16 },
     label: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6 },
     value: { color: c.text, fontSize: 15, textAlign: 'right' },

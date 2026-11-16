@@ -4,6 +4,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
@@ -16,7 +17,7 @@ export default function AboutScreen() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>عن التطبيق</Text>
+        <ScreenTitle>عن التطبيق</ScreenTitle>
       </View>
 
       <View style={styles.card}>
@@ -32,7 +33,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 18, borderWidth: 1, borderColor: c.border, alignItems: 'center' },
     appName: { color: c.text, fontSize: 22, fontWeight: '700' },
     version: { color: c.textSecondary, fontSize: 13, marginTop: 6 },
