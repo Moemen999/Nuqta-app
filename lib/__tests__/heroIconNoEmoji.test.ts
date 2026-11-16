@@ -11,7 +11,7 @@ describe('مفيش إيموجي زخرفي كبير', () => {
   it('ثوابت الإيموجي الكبير اتشالت من tokens', () => {
     expect('onboardingEmoji' in tokens.glyphSize).toBe(false);
     expect('emptyEmoji' in tokens.glyphSize).toBe(false);
-    expect(tokens.heroIconSize).toEqual({ welcome: 80, setup: 64, empty: 56 });
+    expect(tokens.heroIconSize).toEqual({ welcome: 80, setup: 64, empty: 56, inline: 40 });
   });
   it.each(['components/OnboardingScreen.tsx', 'components/FirstRunSetup.tsx'])('%s: مفيش إيموجي في الكود ولا ثابت حجمه', (f) => {
     const src = read(f);

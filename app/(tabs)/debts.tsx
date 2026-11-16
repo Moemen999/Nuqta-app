@@ -17,6 +17,7 @@ import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { LineIcon } from '@/components/LineIcon';
+import { EmptyHint } from '@/components/EmptyHint';
 import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
@@ -264,7 +265,10 @@ function DebtsContent() {
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
                 <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
-                  <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
+                  <View style={styles.personLinkRow}>
+                    <Text style={[styles.personName, styles.personNameLink]}>{d.personName}</Text>
+                    <LineIcon name="person-circle-outline" size={typeScale.body} color={colors.accentText} />
+                  </View>
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.personName}>{d.personName}</Text>
@@ -374,14 +378,14 @@ function DebtsContent() {
       </View>
 
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
-      {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
+      {owedSplit.active.length === 0 && <EmptyHint testID="debts_owed_empty" icon="swap-horizontal-outline" message="مفيش حد مديون ليك دلوقتي" />}
       {owedSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس ليا، ${debtsPhrase(owedSplit.done.length)}`} count={owedSplit.done.length}>
         {owedSplit.done.map(renderDebt)}
       </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
-      {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
+      {iOweSplit.active.length === 0 && <EmptyHint testID="debts_iowe_empty" icon="swap-horizontal-outline" message="مفيش عليك ديون دلوقتي" />}
       {iOweSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس عليا، ${debtsPhrase(iOweSplit.done.length)}`} count={iOweSplit.done.length}>
         {iOweSplit.done.map(renderDebt)}
@@ -599,12 +603,12 @@ function makeStyles(c: ThemeColors) {
     summaryLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     summaryValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxxl, marginBottom: space.sm },
-    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xl },
     debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     personPhone: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
+    personLinkRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
     personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
     remainingText: { fontSize: typeScale.title, fontWeight: '700' },
     noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },

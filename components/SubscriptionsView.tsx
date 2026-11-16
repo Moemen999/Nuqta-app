@@ -26,6 +26,7 @@ import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { EmptyHint } from '@/components/EmptyHint';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 // الاسم من مكان واحد: "كل 45 يوم" بدل "مخصص" (lib/frequencyLabel.ts)
@@ -226,8 +227,8 @@ export default function SubscriptionsView() {
         <Text style={styles.title}>الاشتراكات</Text>
       </View>
 
-      {subscriptions.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات مسجلة</Text>}
-      {subscriptions.length > 0 && active.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات شغالة دلوقتي</Text>}
+      {subscriptions.length === 0 && <EmptyHint testID="subs_empty" icon="repeat-outline" message="مفيش اشتراكات مسجلة" />}
+      {subscriptions.length > 0 && active.length === 0 && <EmptyHint testID="subs_empty_active" icon="repeat-outline" message="مفيش اشتراكات شغالة دلوقتي" />}
       {active.map(renderSubscription)}
       <FoldedSection testID="subscriptions_stopped" title="اشتراكات واقفة" a11yLabel={`اشتراكات واقفة، ${subscriptionsPhrase(stopped.length)}`} count={stopped.length}>
         {stopped.map(renderSubscription)}
@@ -404,7 +405,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },

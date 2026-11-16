@@ -20,6 +20,7 @@ import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { EmptyHint } from '@/components/EmptyHint';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
@@ -176,7 +177,7 @@ export default function GamiyaView() {
         <Text style={styles.title}>الجمعية</Text>
       </View>
 
-      {gamiyas.length === 0 && <Text style={styles.emptyState}>مفيش جمعية مسجلة</Text>}
+      {gamiyas.length === 0 && <EmptyHint testID="gamiya_empty" icon="people-outline" message="مفيش جمعية مسجلة" />}
       {activeGamiyas.map(renderGamiya)}
       <FoldedSection testID="gamiyas_finished" title="جمعيات خلصت" a11yLabel={`جمعيات خلصت، ${gamiyasPhrase(finishedGamiyas.length)}`} count={finishedGamiyas.length}>
         {finishedGamiyas.map(renderGamiya)}
@@ -319,7 +320,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     // دراسة الشكل خطوة 3: نفس كارت الدين — من غير إطار، المقاسات من `typeScale`
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
