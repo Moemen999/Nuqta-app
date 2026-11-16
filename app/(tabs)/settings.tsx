@@ -8,6 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
+import { outboxLogoutSentence } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -66,7 +67,7 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites, deletionPending } = useData();
+  const { wallets, categories, pendingWrites, outboxCount, deletionPending } = useData();
   const confirm = useConfirm();
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
@@ -90,6 +91,18 @@ export default function SettingsScreen() {
    * المستخدم يعرف قبل ما يخرج، مش يكتشف إن عمليات ناقصة بعدين.
    */
   function confirmLogout() {
+    // الطابور المتشفّر بيتمسح مع الخروج (قرار مؤمن 1) — فالعدد بيتقال صريح إنه هيضيع
+    if (outboxCount > 0) {
+      confirm(
+        'لسه فيه عمليات ما اترفعتش',
+        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها، أو اخرج وانت عارف.`,
+        [
+          { text: 'أستنى', style: 'cancel' },
+          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut() },
+        ]
+      );
+      return;
+    }
     if (pendingWrites > 0) {
       confirm(
         'لسه فيه بيانات بترفع',

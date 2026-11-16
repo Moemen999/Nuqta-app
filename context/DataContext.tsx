@@ -46,6 +46,11 @@ import {
 } from '@/lib/firstRunSetup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hapticError } from '@/lib/haptics';
+import { hasLinkFields, OUTBOX_UNREADABLE_TITLE, planReplay, openEntry, rejectedReplayBody, unreadableReplayBody, type StoredEntry } from '@/lib/outbox';
+import {
+  clearOutboxForUid, listOutboxEntries, logOutboxFailure, mergeOutboxEntry, outboxSessionId, putOutboxEntry, readOutboxKey,
+  removeOutboxEntry, replayOutboxDoc, sweepOtherOutboxes,
+} from '@/lib/outboxStore';
 
 /**
  * `archived` و`archivedAt` اختياريين عن قصد: المحافظ والفئات الموجودة من قبل
@@ -546,6 +551,11 @@ type DataContextType = {
   incomes: RecurringIncome[];
   /** عدد الكتابات اللي اتبعتت ولسه ما جاش تأكيد من السيرفر بيها */
   pendingWrites: number;
+  /**
+   * عمليات جديدة متسجلة على الموبايل (الطابور المتشفّر) ولسه ما اتأكدتش من السيرفر — رسالة الخروج بتقول إنها هتضيع
+   * (قرار مؤمن 1: الخروج بيمسحها). أوسع من `pendingWrites`: فيها اللي من فتحة قبل كده ولسه مستنية النت.
+   */
+  outboxCount: number;
   /** العمليات اللي اتحفظت على الموبايل ولسه بترفع (من metadata بتاعة فايربيز) */
   pendingTxIds: Set<string>;
   /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
@@ -609,7 +619,8 @@ type DataContextType = {
   archiveCategory: (id: string, reassign: Record<string, string>) => Promise<void>;
   submitFeedback: (type: FeedbackType, text: string) => Promise<FeedbackOutcome>;
   restoreCategory: (id: string) => Promise<void>;
-  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<string>;
+  /** `durable` = تتحفظ متشفّرة على الموبايل لحد ما السيرفر يأكدها (مودال العملية الجديدة بس — `lib/outbox.ts`) */
+  addTransaction: (tx: Omit<Transaction, 'id'>, opts?: { durable?: true }) => Promise<string>;
   updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
   /** تعديل عملية مربوطة بدين — العملية والدين في ذرة واحدة (`lib/linkedEdit.ts`) */
   updateDebtLinkedTransaction: (
@@ -709,8 +720,19 @@ const ACCOUNT_DELETE_VERIFY_ROUNDS = 3;
 export const ACCOUNT_COLLECTIONS = ['wallets', 'categories', 'transactions', 'budgets', 'shakhbata_income', 'shakhbata_settings', 'debts', 'subscriptions', 'gamiyas', 'incomes'] as const;
 /** حد الـbatch في فايرستور 500 — 400 بهامش */
 const ACCOUNT_DELETE_BATCH = 400;
+/** سقف حفظ النسخة المتشفّرة قبل الكتابة — بعده الكتابة بتمشي والحفظ بيكمّل ورا (فشله مبيوقّفش العملية) */
+const OUTBOX_PERSIST_TIMEOUT_MS = 800;
+/** سقف إعادة مدخلة واحدة عند الفتح — بعده بتستنى الفتحة الجاية (`runTransaction` بترفض لوحدها بعد ~10 ثواني) */
+const OUTBOX_REPLAY_TIMEOUT_MS = 20000;
 
 /** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
+/** بيستنى الوعد بحد أقصى `ms` ومبيرميش — بعد السقف الشغل بيكمّل ورا (حفظ الطابور المتشفّر قبل الكتابة) */
+async function waitAtMost(p: Promise<unknown>, ms: number): Promise<void> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([p.then(() => {}, () => {}), new Promise<void>(r => { t = setTimeout(r, ms); })]);
+  if (t) clearTimeout(t);
+}
+
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   let t: ReturnType<typeof setTimeout> | undefined;
   const cap = new Promise<never>((_, reject) => { t = setTimeout(() => reject(new Error('timeout')), ms); });
@@ -776,6 +798,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [pendingWrites, setPendingWrites] = useState(0);
   const [pendingTxIds, setPendingTxIds] = useState<Set<string>>(new Set());
   const pendingCount = useRef(0);
+  /** معرّفات العمليات اللي ليها مدخلة في الطابور المتشفّر للحساب الحالي (`lib/outboxStore.ts`) */
+  const outboxIds = useRef(new Set<string>());
+  const [outboxCount, setOutboxCount] = useState(0);
+  const uidNow = useRef(uid);
+  uidNow.current = uid;
+  /** إعادة الطابور: مرة لكل حساب في الجلسة لما تخلص؛ لو فضل حاجة (النت وقع) بتتعاد مع رجوع الاتصال */
+  const outboxReplay = useRef<{ uid?: string; running: boolean; done: boolean }>({ running: false, done: false });
+  /** مدخلات "مش مقروءة" اتعرضت رسالتها في الجلسة دي ومستنية "تمام" — عشان متتعرضش مرتين */
+  const outboxUnreadableShown = useRef(new Set<string>());
   const errorShown = useRef(false);
   const notice = useNotice();
   // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
@@ -1052,6 +1083,47 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; if (retry) clearTimeout(retry); };
   }, [uid, creationTime]);
 
+  /**
+   * الطابور المتشفّر والحساب: الخروج (أو حساب تاني) ← مدخلات الحساب القديم **ومفتاحه** بيتمسحوا (قرار مؤمن 1 — رسالة
+   * الخروج بتقول العدد). الدخول ← مدخلات أي حساب تاني فاضلة على الجهاز بتتكنس (العدد بس في اللوج)، ومعرّفات الحساب ده
+   * بتتقري عشان `outboxCount` والـlistener.
+   */
+  const outboxUidPrev = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const prev = outboxUidPrev.current;
+    outboxUidPrev.current = uid;
+    outboxIds.current = new Set();
+    setOutboxCount(0);
+    outboxReplay.current = { uid, running: false, done: false };
+    outboxUnreadableShown.current = new Set();
+    if (prev && prev !== uid) clearOutboxForUid(prev).catch(e => logOutboxFailure('clear on sign-out failed', e));
+    if (!uid) return;
+    sweepOtherOutboxes(uid)
+      .then(n => { if (n > 0) console.warn('[outbox] swept entries of another account', n); })
+      .catch(e => logOutboxFailure('sweep failed', e));
+    listOutboxEntries(uid)
+      .then(list => {
+        if (uidNow.current !== uid) return;
+        list.forEach(e => outboxIds.current.add(e.txId));
+        setOutboxCount(outboxIds.current.size);
+      })
+      .catch(e => logOutboxFailure('list failed', e));
+  }, [uid]);
+
+  /**
+   * إعادة الطابور عند الفتح (`replayOutbox`): لما الحساب يبان، والسيرفر متاح، وعلامة مسح الحساب اتقرت (`setupStatus`
+   * بيفضل `checking` لحد ما تتقري) ومفيش مسح شغال. لو فضل حاجة (النت وقع في النص) بتتعاد مع رجوع الاتصال.
+   */
+  useEffect(() => {
+    if (!uid || !serverReachable || setupStatus === 'checking' || deletingRef.current) return;
+    const st = outboxReplay.current;
+    if (st.uid === uid && (st.running || st.done)) return;
+    outboxReplay.current = { uid, running: true, done: false };
+    replayOutbox(uid)
+      .catch(e => { logOutboxFailure('replay failed', e); return false; })
+      .then(done => { if (outboxReplay.current.uid === uid) outboxReplay.current = { uid, running: false, done }; });
+  }, [uid, serverReachable, setupStatus]);
+
   // الـlisteners في effect لوحده عشان "جرّب تاني" يفتحهم من الأول من غير ما
   // يعيد التحقق من التجهيز (شوف setupStatus)
   useEffect(() => {
@@ -1104,6 +1176,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setBrokenTransactions(prev => (JSON.stringify(prev) === JSON.stringify(split.broken) ? prev : split.broken));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
+      // الطابور المتشفّر: العملية ظهرت من غير كتابة معلّقة ← السيرفر عنده نسختها، المدخلة ملهاش لازمة
+      // (من غير تخزين على القرص: مستند من غير `hasPendingWrites` في الكاش ده اتشاف من السيرفر في الجلسة دي)
+      if (outboxIds.current.size > 0) {
+        snap.docs.forEach(d => { if (!d.metadata.hasPendingWrites && outboxIds.current.has(d.id)) dropOutbox(uid, d.id); });
+      }
 
       // fromCache معناها إن العميل مش متزامن مع السيرفر دلوقتي — ودي أصدق إجابة
       // على سؤال "هل أقدر أوصل فايرستور؟" لأنها جاية من فايربيز نفسها
@@ -1310,17 +1387,132 @@ export function DataProvider({ children }: { children: ReactNode }) {
       archived: deleteField(), archivedAt: deleteField(),
     }));
   }
-  async function addTransaction(tx: Omit<Transaction, 'id'>): Promise<string> {
+  async function addTransaction(tx: Omit<Transaction, 'id'>, opts?: { durable?: true }): Promise<string> {
     // ممنوع '' هنا: المودال كان بيعتبرها نجاح ويقفل من غير ما يكتب حاجة (silent-failure-hunter)
     if (!uid) throw new Error('addTransaction: no signed-in user');
     // بنضمن وجود createdAt دايمًا عشان الوقت يظهر مع كل العمليات (حتى اللي بتتولد من الديون والاشتراكات والجمعية)
     const withTimestamp = { createdAt: new Date().toISOString(), ...tx };
     const clean = Object.fromEntries(Object.entries(withTimestamp).filter(([, v]) => v !== undefined));
-    return addDocNoWait('transactions', clean, 'العملية');
+    if (!opts?.durable) return addDocNoWait('transactions', clean, 'العملية');
+    // العملية المربوطة (دخل/اشتراك/جمعية/تسوية) بتتكتب مع سجلها — إعادتها لوحدها كانت هتعمل عملية من غير سجل
+    if (hasLinkFields(clean)) {
+      console.warn('[outbox] durable refused for a linked transaction');
+      return addDocNoWait('transactions', clean, 'العملية');
+    }
+    return addDurableTransaction(uid, clean);
   }
+
+  /**
+   * الطابور المتشفّر (reports/2026-11-16-outbox-design.md): النسخة على الجهاز الأول (بسقف `OUTBOX_PERSIST_TIMEOUT_MS`)،
+   * وبعدين نفس كتابة `addDocNoWait`. فشل الحفظ أو بطؤه **مبيوقّفش** الكتابة — الطابور حماية زيادة مش شرط.
+   * المدخلة بتتشال لما العملية تظهر في الـlistener من غير كتابة معلّقة، أو لو `setDoc` اترفض (رسالة `track` العادية).
+   */
+  async function addDurableTransaction(forUid: string, clean: Record<string, unknown>): Promise<string> {
+    const ref = doc(collection(db, 'users', forUid, 'transactions'));
+    const id = ref.id;
+    outboxIds.current.add(id);
+    setOutboxCount(outboxIds.current.size);
+    const put = putOutboxEntry(forUid, id, clean).then(
+      r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); forgetOutboxId(id); } },
+      e => { logOutboxFailure('persist failed', e); forgetOutboxId(id); },
+    );
+    await waitAtMost(put, OUTBOX_PERSIST_TIMEOUT_MS);
+    track(setDoc(ref, clean).catch(e => { dropOutbox(forUid, id); throw e; }), 'العملية');
+    return id;
+  }
+
+  function forgetOutboxId(id: string) {
+    if (!outboxIds.current.delete(id)) return;
+    setOutboxCount(outboxIds.current.size);
+  }
+
+  /** شيل مدخلة من الطابور (اتأكدت، اترفضت، اتمسحت). فشل الشيل ← لوج بس: الإعادة بعدين بتلاقيها موجودة فبتشيلها */
+  function dropOutbox(forUid: string, id: string) {
+    if (uidNow.current === forUid) forgetOutboxId(id);
+    return removeOutboxEntry(forUid, id).catch(e => logOutboxFailure('remove failed', e));
+  }
+
+  /**
+   * إعادة الطابور عند الفتح — مدخلات **جلسة سابقة** بس (الحالية لسه في طابور فايربيز). كل واحدة في `runTransaction`:
+   * موجودة على السيرفر ← المدخلة بتتشال **من غير كتابة** (تعديل 100 ← 120 من جهاز تاني ميتمسحش)؛ مش موجودة ← `t.set`.
+   * `unavailable`/السقف ← تفضل للمرة الجاية؛ `permission-denied`/`invalid-argument` ← تتشال برسالة واحدة. مش مقروءة
+   * (مفتاح ضايع/فك فشل) ← رسالة «ما قدرناش نرجّعها» بالعدد والتاريخ، وبتتشال بعد "تمام". النجاح من غير رسالة (قرار 2).
+   *
+   * **ثغرة معروفة ومقبولة (قرار مؤمن 3):** العملية وصلت السيرفر والتطبيق اتقفل قبل ما المدخلة تتشال، واتمسحت من جهاز
+   * تاني في الثواني دي ← الإعادة هنا بتلاقيها مش موجودة فبترجّعها. مفيش علامة "اتمسحت" على السيرفر نفرّق بيها.
+   *
+   * بيرجّع `true` لو مفيش حاجة فاضلة تتعاد في الجلسة دي.
+   */
+  async function replayOutbox(forUid: string): Promise<boolean> {
+    let listed: { txId: string; stored: StoredEntry | null }[];
+    try { listed = await listOutboxEntries(forUid); } catch (e) { logOutboxFailure('list failed', e); return false; }
+    if (uidNow.current !== forUid) return false;
+    if (listed.length === 0) return true;
+    listed.forEach(e => outboxIds.current.add(e.txId));
+    setOutboxCount(outboxIds.current.size);
+    const sid = outboxSessionId();
+    const broken = listed.filter(e => !e.stored).map(e => ({ txId: e.txId, savedAt: null as string | null }));
+    const plan = planReplay(listed.filter((e): e is { txId: string; stored: StoredEntry } => !!e.stored), sid);
+    if (plan.length === 0 && broken.length === 0) return true;
+    let key: Uint8Array | null;
+    try { key = await readOutboxKey(forUid); } catch (e) { logOutboxFailure('key read failed', e); return false; }
+    const readable: { txId: string; data: Record<string, unknown> }[] = [];
+    const unreadable = [...broken];
+    for (const e of plan) {
+      const opened = openEntry(e.stored, forUid, e.txId, key);
+      if (opened.ok) readable.push({ txId: e.txId, data: opened.data });
+      else unreadable.push({ txId: e.txId, savedAt: e.stored.savedAt });
+    }
+    const fresh = unreadable.filter(u => !outboxUnreadableShown.current.has(u.txId));
+    if (fresh.length > 0) {
+      fresh.forEach(u => outboxUnreadableShown.current.add(u.txId));
+      console.warn('[outbox] unreadable entries', fresh.length);
+      const dates = fresh.map(u => u.savedAt).filter((d): d is string => isDateStr(d)).sort();
+      // مفيش مفتاح جديد عليها، ومبتتشالش غير بعد ما المستخدم يشوف الرسالة — قفل التطبيق قبل "تمام" ← بتظهر تاني
+      notice(OUTBOX_UNREADABLE_TITLE, unreadableReplayBody(fresh.length, dates[0] ?? todayStr(), todayStr()), () => {
+        fresh.forEach(u => { outboxUnreadableShown.current.delete(u.txId); void dropOutbox(forUid, u.txId); });
+      });
+    }
+    if (readable.length === 0) return true;
+    if (deletingRef.current || uidNow.current !== forUid) return false;
+    if (!(await waitForOurWritesToLand())) return false;
+    let allDone = true;
+    const rejected: Record<string, unknown>[] = [];
+    for (const r of readable) {
+      if (deletingRef.current || uidNow.current !== forUid || !serverReachableRef.current) { allDone = false; break; }
+      const ref = doc(db, 'users', forUid, 'transactions', r.txId);
+      try {
+        await withTimeout(countPending(replayOutboxDoc(ref, r.data)), OUTBOX_REPLAY_TIMEOUT_MS);
+        await dropOutbox(forUid, r.txId);
+      } catch (e) {
+        noteAtomicFailure('رفع العمليات المحفوظة', e);
+        const code = (e as { code?: string })?.code;
+        if (code === 'permission-denied' || code === 'invalid-argument') {
+          rejected.push(r.data);
+          await dropOutbox(forUid, r.txId);
+        } else {
+          allDone = false;
+        }
+      }
+    }
+    if (rejected.length > 0 && uidNow.current === forUid) {
+      hapticError();
+      const today = todayStr();
+      notice(WRITE_ERROR_TITLE, rejected.map(d => rejectedReplayBody(Number(d.amount), String(d.date), today)).join('\n\n'));
+    }
+    return allDone;
+  }
+
   async function updateTransaction(id: string, tx: Partial<Transaction>, settlements: Settlement[] = []) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+    // لسه في الطابور المتشفّر ← التعديل بيتدمج في المدخلة (قرار مؤمن 4) عشان الإعادة متكتبش الرقم القديم.
+    // التسوية (محفظة مؤرشفة) برّه الطابور عن قصد — بتمشي مع الـbatch العادي
+    if (outboxIds.current.has(id)) {
+      const forUid = uid;
+      const merge = mergeOutboxEntry(forUid, id, clean).catch(e => logOutboxFailure('merge failed', e));
+      await waitAtMost(merge, OUTBOX_PERSIST_TIMEOUT_MS);
+    }
     if (settlements.length === 0) {
       track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean), 'تعديل العملية');
       return;
@@ -1622,6 +1814,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function deleteTransaction(id: string, settlements: Settlement[] = []) {
     if (!uid) return;
+    // المدخلة الأول: لو التطبيق اتقفل بعد الحذف وقبل شيلها، الإعادة كانت هترجّع العملية اللي اتمسحت
+    if (outboxIds.current.has(id)) {
+      await waitAtMost(dropOutbox(uid, id), OUTBOX_PERSIST_TIMEOUT_MS);
+    }
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'transactions', id));
     stageReconcile(batch, id);
@@ -2778,6 +2974,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           // فشله بعد قراية فاضية ← "مش متأكدين": محاولة قبلها ممكن تكون مسحت الباقي، فـ"مفيش حاجة اتمسحت" مش صح (جولة 2)
           try { await withTimeout(deleteDoc(doc(db, 'users', uid)), EXPORT_READ_TIMEOUT_MS); }
           catch (e) { console.warn('[delete-account] user doc failed', e instanceof Error ? e.name : 'unknown'); return fail(true); }
+          // الطابور المتشفّر ومفتاحه — من غيره الإعادة كانت هترجّع عمليات على حساب اتمسح
+          outboxIds.current.clear();
+          setOutboxCount(0);
+          try { await clearOutboxForUid(uid); } catch (e) { logOutboxFailure('clear on delete failed', e); }
           return { outcome: 'done' };
         }
         await deleteRefs(refs);
@@ -2957,7 +3157,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, brokenTransactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         transfersStatus: transfersStatusFrom(delivered, loadErrors),

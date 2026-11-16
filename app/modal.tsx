@@ -221,7 +221,8 @@ export default function AddTransactionModal() {
           afterSave();
         });
       } else {
-        await addTransaction(payload);
+        // `durable`: نسخة متشفّرة على الموبايل لحد ما السيرفر يأكد — لو التطبيق اتقفل أوفلاين متضيعش (lib/outbox.ts)
+        await addTransaction(payload, { durable: true });
         saved.current = true;
         afterSave();
       }
