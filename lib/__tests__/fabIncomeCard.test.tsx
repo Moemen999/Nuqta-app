@@ -103,28 +103,58 @@ describe('الزرار العايم "+" بيختفي وانت بتمرّر لت�
     expect(hidden()).toBe(false);
   });
 
-  it('التمرير وقف (end drag بعد momentum أو مهلة) ← يرجع ظاهر', async () => {
+  it('رفع الصباع ← يرجع بعد ~100ms حتى لو الـmomentum لسه بيبعت onScroll لتحت', async () => {
     jest.useFakeTimers();
     try {
       await mount();
       const sv = screen.getByTestId('mock_scroll');
       await prime();
+      await fireEvent(sv, 'scrollBeginDrag');
       await scrollTo(200);
       expect(hidden()).toBe(true);
-      // لسه momentum (أحداث onScroll بتعيد التسليح) ← مبيرجعش
       await fireEvent(sv, 'scrollEndDrag');
       await fireEvent(sv, 'momentumScrollBegin');
-      await act(async () => { jest.advanceTimersByTime(200); });
       await scrollTo(260);
-      await act(async () => { jest.advanceTimersByTime(200); });
-      expect(hidden()).toBe(true);
-      await fireEvent(sv, 'momentumScrollEnd');
-      await act(async () => { jest.advanceTimersByTime(300); });
+      await act(async () => { jest.advanceTimersByTime(150); });
       expect(hidden()).toBe(false);
-      // احتياط: آخر حدث onScroll + مهلة من غير أحداث نهاية
+      // momentum كمّل لتحت ← مبيخبّيهوش تاني
+      await scrollTo(400);
+      await scrollTo(600);
+      expect(hidden()).toBe(false);
+      await fireEvent(sv, 'momentumScrollEnd');
+      // سحب جديد لتحت ← يخبّيه تاني
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(650);
+      await scrollTo(700);
+      expect(hidden()).toBe(true);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('beginDrag جديد في نص الـmomentum ← السحب لتحت يخبّيه', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await prime();
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(200);
+      await fireEvent(sv, 'scrollEndDrag');
+      await act(async () => { jest.advanceTimersByTime(150); });
+      expect(hidden()).toBe(false);
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(300);
+      expect(hidden()).toBe(true);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('من غير drag خالص (تمرير برمجي) ← يرجع بعد المهلة من آخر حدث', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      await prime();
       await scrollTo(400);
       expect(hidden()).toBe(true);
-      await act(async () => { jest.advanceTimersByTime(300); });
+      await act(async () => { jest.advanceTimersByTime(150); });
       expect(hidden()).toBe(false);
     } finally { jest.useRealTimers(); }
   });

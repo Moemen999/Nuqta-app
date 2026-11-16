@@ -1,4 +1,4 @@
-import { FAB_SCROLL_THRESHOLD, FAB_TOP_ZONE, fabScrollStep, fabScrollStopped, nextFabVisible } from '@/lib/fabScroll';
+import { FAB_SCROLL_THRESHOLD, FAB_SETTLE_MS, FAB_TOP_ZONE, fabScrollStep, fabScrollStopped, nextFabVisible } from '@/lib/fabScroll';
 
 describe('fabScroll: الزرار العايم بيختفي مع التمرير لتحت بس (قرار 2026-11-16)', () => {
   it('أول الشاشة ← ظاهر حتى لو كان مستخبي', () => {
@@ -38,5 +38,9 @@ describe('fabScroll: الزرار العايم بيختفي مع التمرير 
 
   it('التمرير وقف ← ظاهر، والمرساة زي ما هي', () => {
     expect(fabScrollStopped(140)).toEqual({ anchorY: 140, visible: true });
+  });
+
+  it('مهلة الرجوع بعد رفع الصباع قصيرة (~100ms)', () => {
+    expect(FAB_SETTLE_MS).toBe(100);
   });
 });

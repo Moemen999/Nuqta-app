@@ -4,7 +4,7 @@ import { AccessibilityInfo, type NativeScrollEvent, type NativeSyntheticEvent } 
 import { FAB_SETTLE_MS, fabScrollStep, fabScrollStopped } from '@/lib/fabScroll';
 
 /**
- * الزرار العايم "+" بيختفي وانت بتمرّر لتحت وبيرجع أول ما التمرير يقف (قرار مؤمن 2026-11-16).
+ * الزرار العايم "+" بيختفي وانت بتمرّر لتحت وبيرجع أول ما ترفع صباعك (قرار مؤمن 2026-11-16؛ الـmomentum بعد رفع الصباع مبيخبّيهوش).
  * الشاشات بتبلّغ بالتمرير عبر `useFabScroll()`، والزرار (في `app/(tabs)/_layout.tsx`)
  * بيقرا الحالة من `useFabVisible()`. عن قصد في Contextين: الأولى ثابتة فالشاشات
  * مبتتعملش render تاني مع كل تغيير حالة.
@@ -41,6 +41,8 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
   // null = "مش متحددة": بتتظبط على أول حدث تمرير (بعد show() التاب بيرجع في مكان تمريره القديم)
   const anchor = useRef<number | null>(null);
   const dragging = useRef(false);
+  // بعد endDrag وقبل beginDrag الجاي: أحداث الـmomentum مبتخبّيش الزرار ولا بتعيد المهلة
+  const afterDrag = useRef(false);
   const screenReader = useRef(false);
   const visibleRef = useRef(true);
 
@@ -67,6 +69,7 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
   const show = useCallback(() => {
     clearTimer();
     dragging.current = false;
+    afterDrag.current = false;
     anchor.current = null;
     apply(true);
   }, [apply, clearTimer]);
@@ -90,6 +93,8 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     if (typeof y !== 'number') return;
     // أول حدث بعد show(): نظبط المرساة على مكانه بس — مفيش حركة اتعملت لسه
     if (anchor.current === null) { anchor.current = Math.max(0, y); return; }
+    // momentum بعد رفع الصباع: المرساة بس بتتابع، والزرار مبيتخبّاش تاني لحد سحب جديد
+    if (afterDrag.current) { anchor.current = Math.max(0, y); return; }
     const next = fabScrollStep(anchor.current, y, visibleRef.current);
     anchor.current = next.anchorY;
     if (next.visible !== visibleRef.current) apply(next.visible);
@@ -97,14 +102,15 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     if (!next.visible && !dragging.current) armSettle(FAB_SETTLE_MS); else clearTimer();
   }, [apply, armSettle, clearTimer]);
 
-  const onScrollBeginDrag = useCallback(() => { dragging.current = true; clearTimer(); }, [clearTimer]);
+  const onScrollBeginDrag = useCallback(() => { dragging.current = true; afterDrag.current = false; clearTimer(); }, [clearTimer]);
   const onScrollEndDrag = useCallback(() => {
     dragging.current = false;
+    afterDrag.current = true;
     if (!screenReader.current && !visibleRef.current) armSettle(FAB_SETTLE_MS);
   }, [armSettle]);
   // momentum بدأ: مفيش مسح للمهلة هنا — أحداث onScroll أثناء الـmomentum بتعيد تسليحها، ومسحها كان بيسيب الزرار مستخبي للأبد لو الـmomentum مخلّصش بحدث
   const onMomentumScrollBegin = noopFn;
-  const onMomentumScrollEnd = useCallback(() => { dragging.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
+  const onMomentumScrollEnd = useCallback(() => { dragging.current = false; afterDrag.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
 
   useEffect(() => clearTimer, [clearTimer]);
 

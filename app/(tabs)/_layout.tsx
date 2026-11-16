@@ -30,7 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  * عشان يسجل مصروف بسرعة مكانش لاقيه. أهم فعل في التطبيق. لو قعد فوق حاجة،
  * الحاجة هي اللي بتتنقل. ومن غير محفظة شاشة العملية نفسها فيها "ضيف محفظة".
  * **الاستثناء الوحيد: التمرير** (قرار مؤمن 2026-11-16، «يختفي في حالة
- * الحركة فقط»): بيختفي وانت بتمرّر لتحت وبيرجع أول ما التمرير يقف (أو فورًا لو
+ * الحركة فقط»): بيختفي وانت بتمرّر لتحت وبيرجع أول ما ترفع صباعك (أو فورًا لو
  * مرّرت لفوق). ظاهر دايمًا عند فتح
  * التطبيق وعند تغيير التاب (والتاب الفرعي في التخطيط) وفي أول الشاشة. المنطق في
  * `lib/fabScroll.ts` والحالة في `context/FabScrollContext.tsx`.
@@ -94,7 +94,7 @@ function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
         transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [FAB_HIDE_DISTANCE, 0] }) }],
       }]}>
       <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
-        <Text importantForAccessibility="no" style={[styles.fabText, { color: colors.onAccent }]}>+</Text>
+        <LineIcon name="add" size={30} color={colors.onAccent} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -180,6 +180,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
-  fabText: { fontSize: 28, fontWeight: '700', marginTop: -2 },
   iconPill: { width: 52, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 });
