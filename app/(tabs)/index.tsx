@@ -33,6 +33,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenArchivedWalletBannerText, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
@@ -387,6 +388,7 @@ function HomeScreen() {
           // الفئة الممسوحة بتطلع باسمها الصريح، مش بتترجع لـ"مصروف" العامة —
           // "مصروف" بتقول إن العملية مالهاش فئة، والحقيقة إن فئتها اتمسحت
           const catLabel = categoryLabelById(categories, t.categoryId);
+          const txCat = t.type === 'expense' && t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
           const walletLabel = transactionWalletLabel(t, wallets);
           return (
             <TouchableOpacity accessibilityRole="button"
@@ -395,7 +397,12 @@ function HomeScreen() {
               style={styles.txRow}
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>
-                <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+                {txCat ? (
+                  <View style={styles.txTitleRow}>
+                    <CategoryIcon icon={txCat.icon} size={24} />
+                    <Text style={[styles.txTitle, { flexShrink: 1 }]}>{categoryLabelById(categories, t.categoryId, { icon: false })}</Text>
+                  </View>
+                ) : <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>}
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
@@ -492,6 +499,7 @@ function makeStyles(c: ThemeColors) {
     seeAllChevron: { color: c.textSecondary, fontSize: typeScale.title },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
+    txTitleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
     txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
     txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },

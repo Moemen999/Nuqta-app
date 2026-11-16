@@ -24,6 +24,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabScroll } from '@/context/FabScrollContext';
 
@@ -147,6 +148,8 @@ export default function ReportsScreen() {
   const stacked = catFilter.length > 0 && pieSlices.length > 1;
   const columnColor = catFilter.length > 0 && pieSlices.length === 1 ? pieSlices[0].color : colors.accentText;
   const sliceColors = useMemo(() => new Map(pieSlices.map(s => [s.id, s.color])), [pieSlices]);
+  const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const plainName = (id: string) => categoryLabel(catById.get(id), { icon: false });
   const sliceNames = useMemo(() => new Map(pieSlices.map(s => [s.id, s.name])), [pieSlices]);
   // فوق 6 أعمدة العرض حوالي 36 نقطة: القروش بتصغّر الرقم لحد ما يتقص. الرسم للمقارنة، والرقم بالقرش في الرقم البطل
   const roundColumns = timeline.buckets.length > 6;
@@ -257,7 +260,10 @@ export default function ReportsScreen() {
           return (
             <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
+              <View style={styles.chipInner}>
+                <CategoryIcon icon={c.icon} size={22} />
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -278,7 +284,13 @@ export default function ReportsScreen() {
               // مقفولة. الاسم، والمبلغ (Money أخ مستقل)، والنسبة — كل واحد محطة، بنفس ترتيب العين
               <View key={c.id} testID={`reports_bar_${c.id}`} style={styles.barRow}>
                 <View style={styles.barHead}>
-                  <Text style={styles.barName}>{c.name}</Text>
+                  {catById.has(c.id) ? (
+                    <View style={styles.barNameWrap}>
+                      <CategoryIcon icon={catById.get(c.id)!.icon} />
+                      {/* بتلف مع تكبير الخط (a11y) — مش شريحة بطول ثابت، فمفيش numberOfLines */}
+                      <Text style={styles.barNameText}>{plainName(c.id)}</Text>
+                    </View>
+                  ) : <Text style={styles.barName}>{c.name}</Text>}
                   <Money value={c.amount} currency={false} style={styles.barValue} />
                   <Text style={styles.barPercent} accessibilityLabel={`${c.percent.replace('%', ' بالمية')} من المصروف`}>{c.percent}</Text>
                 </View>
@@ -413,6 +425,9 @@ function makeStyles(c: ThemeColors) {
     // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
     barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
     barName: { flex: 1, minWidth: 120, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    barNameWrap: { flex: 1, minWidth: 120, flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
+    barNameText: { flex: 1, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    chipInner: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
     barValue: { color: c.text, fontSize: typeScale.body },
     barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
