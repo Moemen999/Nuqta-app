@@ -22,7 +22,7 @@
 - **@expo-google-fonts/ibm-plex-sans-arabic** لخط IBM Plex Sans Arabic (400/500/700) — كان Tajawal لحد 2026-10-18 وعمره ما اتطبّق فعلاً
 - **expo-contacts** لاختيار شخص من جهات الاتصال في شاشة الديون
 - **expo-file-system** + **expo-sharing** + **xlsx** لتصدير الأرشيف إكسيل
-- **react-native-chart-kit** + **react-native-svg** للرسوم في التقارير
+- رسوم التقارير أعمدة مرسومة بـ`View` في `app/(tabs)/reports.tsx` (الحساب في `lib/spendTimeline.ts` و`lib/barRows.ts`) — مفيش مكتبة رسوم. **react-native-svg** متثبّت في `package.json` بس مفيش استيراد ليه في الشاشة
 - **expo-notifications** — نظام إشعارات نظام حقيقي وشغال (مش بانرات داخلية بس): `lib/notifications.ts` بيظبط قناة أندرويد ويطلب الإذن ويجدول الإشعارات، و`context/NotificationsContext.tsx` بيدير تفعيل/تعطيل الإشعارات وإعدادات التذكير اليومي من الإعدادات (`settings.tsx`)
 
 ## البنية (إيه اللي في كل فولدر)
