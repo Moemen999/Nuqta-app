@@ -32,6 +32,7 @@ import { useReduceMotion } from '@/lib/useReduceMotion';
 
 /** مدة نمو الأعمدة من صفر لقيمتها */
 const BAR_GROW_MS = 400;
+const TREND_TRACK_H = 110;
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
 const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'last6Months', 'custom'];
@@ -51,6 +52,7 @@ export default function ReportsScreen() {
   const reduceMotion = useReduceMotion();
   // 0 ← 1: كل الأعمدة (الأفقية والزمنية) بتكبر بنفس القيمة. الأرقام والارتفاعات مبتتغيّرش — تحويل scale على الرسم بس
   const grow = useRef(new Animated.Value(1)).current;
+  const playedKey = useRef<string | null>(null);
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [selectedCats, setCatFilter] = useState<string[]>([]);
   // فئة اتمسحت والشاشة مفتوحة تخرج من الفلتر: الرقم كان هيعدّها والشرايح لأ، فالعمود يبقى من غير جزء يوضّحه
@@ -159,12 +161,21 @@ export default function ReportsScreen() {
   const growKey = `${range.from}|${range.to}|${catFilter.join(',')}`;
   useEffect(() => {
     if (reduceMotion) { grow.setValue(1); return; }
+    // مرة لكل growKey: رجوع التحميل بعد أول مرة مبيعيدش الحركة
+    if (playedKey.current === growKey) { grow.setValue(1); return; }
     if (spendLoading) { grow.setValue(0); return; }
+    playedKey.current = growKey;
     grow.setValue(0);
     const anim = Animated.timing(grow, { toValue: 1, duration: BAR_GROW_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true });
     anim.start();
     return () => anim.stop();
   }, [growKey, spendLoading, reduceMotion, grow]);
+  // ارتفاع العمود بالنقط (من نفس قاعدة ارتفاعه) — للإزاحة اللي بتحاكي النمو من تحت
+  const barHeight = (b: TimelineBucket) => Math.max(
+    b.share * TREND_TRACK_H, b.amount > 0 ? TREND_TRACK_H * 0.02 : 0,
+    b.partial && b.amount > 0 ? 6 : 0,
+    stacked && b.segments.length > 1 ? b.segments.length * 4 - 2 + (b.partial ? 4 : 0) : 0,
+  );
   const sliceColors = useMemo(() => new Map(pieSlices.map(s => [s.id, s.color])), [pieSlices]);
   const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   const plainName = (id: string) => categoryLabel(catById.get(id), { icon: false });
@@ -258,7 +269,7 @@ export default function ReportsScreen() {
         {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
-          {spendLoading ? <SpendLoading shape="line" style={styles.changeValue} /> : (
+          {spendLoading ? <SpendLoading announce={false} shape="line" style={styles.changeValue} /> : (
             <Text style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
             </Text>
@@ -289,7 +300,7 @@ export default function ReportsScreen() {
       </FoldedSection>
 
       {spendLoading ? (
-        <SpendLoading testID="reports_bars_loading" shape="bars" style={styles.emptyState} />
+        <SpendLoading announce={false} testID="reports_bars_loading" shape="bars" style={styles.emptyState} />
       ) : expenseByCat.length === 0 ? (
         <Text style={styles.emptyState}>مفيش مصاريف في الفترة دي</Text>
       ) : (
@@ -314,7 +325,7 @@ export default function ReportsScreen() {
                 </View>
                 {/* زخرفي: الرقم والنسبة مكتوبين فوقه */}
                 <View style={styles.barTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-                  <Animated.View style={[styles.barFill, { width: `${Math.max(c.share * 100, c.amount > 0 ? 2 : 0)}%`, backgroundColor: c.color, transformOrigin: 'right', transform: [{ scaleX: grow }] }]} />
+                  <Animated.View style={[styles.barFill, { width: `${Math.max(c.share * 100, c.amount > 0 ? 2 : 0)}%`, backgroundColor: c.color, opacity: grow }]} />
                 </View>
               </View>
             ))}
@@ -325,18 +336,21 @@ export default function ReportsScreen() {
       <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
       <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
       {spendLoading ? (
-        <SpendLoading testID="reports_trend_loading" shape="bars" style={styles.emptyState} />
+        <SpendLoading announce={false} testID="reports_trend_loading" shape="bars" style={styles.emptyState} />
       ) : timelineEmpty ? (
         <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي</Text>
       ) : (
         <>
-          {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع المبلغ (فوق العمود) وبعده التاريخ كامل (و"مش فترة كاملة" لو ناقص) — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
+          {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع التاريخ كامل وبعده المبلغ (الشجرة: التاريخ ← المبلغ، و`column-reverse` بيرسم المبلغ فوق) (و"مش فترة كاملة" لو ناقص) — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
           <View testID="reports_trend" style={styles.trendRow}>
             {timeline.buckets.map(b => (
               <View key={b.key} testID={`reports_trend_${b.key}`} style={styles.trendCol}>
-                {b.future && b.amount === 0
-                  ? <Text style={styles.trendValue} accessibilityLabel="لسه ما جاش">—</Text>
-                  : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} />}
+                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                  accessibilityLabel={columnLabel(b)}>{b.label}</Text>
+                {b.sublabel !== '' && (
+                  <Text style={styles.trendSublabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                    importantForAccessibility="no" accessibilityElementsHidden>{b.sublabel}</Text>
+                )}
                 <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                   <Animated.View style={[
                     styles.trendFill,
@@ -346,7 +360,8 @@ export default function ReportsScreen() {
                     b.partial && b.amount > 0 && { minHeight: 6 },
                     // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
                     stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },
-                    { transformOrigin: 'bottom', transform: [{ scaleY: grow }] },
+                    // scale حوالين المنتصف + إزاحة نص الارتفاع = نمو من تحت من غير `transformOrigin` (مش مضمون مع native driver)
+                    { transform: [{ translateY: grow.interpolate({ inputRange: [0, 1], outputRange: [barHeight(b) / 2, 0] }) }, { scaleY: grow }] },
                   ]}>
                     {/* الملو جوه الإطار: الشفافية عليه هو بس، فالإطار بيفضل بلون العمود كامل */}
                     <View style={[styles.trendInner, barFillStyle(b, stacked, columnColor)]}>
@@ -356,12 +371,9 @@ export default function ReportsScreen() {
                     </View>
                   </Animated.View>
                 </View>
-                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
-                  accessibilityLabel={columnLabel(b)}>{b.label}</Text>
-                {b.sublabel !== '' && (
-                  <Text style={styles.trendSublabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
-                    importantForAccessibility="no" accessibilityElementsHidden>{b.sublabel}</Text>
-                )}
+                {b.future && b.amount === 0
+                  ? <Text style={styles.trendValue} accessibilityLabel="لسه ما جاش">—</Text>
+                  : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} />}
               </View>
             ))}
           </View>
@@ -452,14 +464,14 @@ function makeStyles(c: ThemeColors) {
     barTrack: { height: 6, borderRadius: radius.pill, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
     barFill: { height: '100%', borderRadius: radius.pill },
     trendRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 8, marginBottom: 6 },
-    trendCol: { flex: 1, alignItems: 'center', gap: 4 },
+    trendCol: { flex: 1, alignItems: 'center', gap: 4, flexDirection: 'column-reverse' },
     // العمود بيطلع من تحت
-    trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.surface2 },
+    trendTrack: { height: TREND_TRACK_H, width: '70%', justifyContent: 'flex-end', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.surface2 },
     // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
     // العمود الناقص: إطار بلون العمود كامل + ملو أخف جواه (الشفافية على الملو بس، مش على الإطار)، عشان قصره ميتقريش "صرفت أقل" ولا صفر.
     // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
     trendFill: { width: '100%', borderTopLeftRadius: radius.xxs, borderTopRightRadius: radius.xxs, overflow: 'hidden' },
-    // الفاصل 2 شفاف: بيبان بلون خلفية الشاشة (c.bg) اللي ورا المسار الشفاف
+    // الفاصل 2 شفاف: بيبان بلون خلفية الشاشة (c.bg) اللي ورا المسار الشفاف (مفيش صندوق)
     trendInner: { flex: 1, flexDirection: 'column-reverse', gap: 2 },
     trendSegment: { minHeight: 2 },
     // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
