@@ -92,8 +92,10 @@ export default function AddTransactionModal() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // ref متزامن: ضغطتين في نفس الفريم قبل الـre-render كانوا بيعدّوا الاتنين (عملية مكررة)
+  // ref متزامن بيغطي: (أ) ضغطتين في نفس الفريم قبل الـre-render (`useBusy`)، (ب) أي دوسة بعد حفظ ناجح
+  // وقبل ما الشاشة تتشال بالأنيميشن (`saved`: بيتعلّم قبل `router.back()` وعمره ما بيتفك)
   const { busy: saveGuard, run: runSave } = useBusy();
+  const saved = useRef(false);
   const [loaded, setLoaded] = useState(false);
   // تعديل عملية دين مستني السيرفر — منفصل عن `busy` اللي بيتفك قبل ما الشيت ترد
   const [syncing, setSyncing] = useState(false);
@@ -141,6 +143,7 @@ export default function AddTransactionModal() {
   function handleSave() { return runSave(saveTransaction); }
 
   async function saveTransaction() {
+    if (saved.current) return;
     if (missing || waiting || linkChanged) return;
     const amt = Number(amount);
     // مفيش ولا محفظة خالص ≠ نسي يختار واحدة — الرسالة بتقول السبب الحقيقي (a11y-architect)
@@ -189,12 +192,15 @@ export default function AddTransactionModal() {
           return;
         }
         settle.request(changes, settlements => {
+          if (saved.current) return;
+          saved.current = true;
           updateTransaction(existing.id, payload, settlements);
           hapticSuccess();
           router.back();
         });
       } else {
         await addTransaction(payload);
+        saved.current = true;
         hapticSuccess();
         router.back();
       }
@@ -224,7 +230,7 @@ export default function AddTransactionModal() {
     txId: string, payload: Partial<Transaction> & LinkedEditNext,
     expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>, settlements: Settlement[],
   ) {
-    if (inFlight.current) return;
+    if (inFlight.current || saved.current) return;
     inFlight.current = true;
     setSyncing(true);
     try {
@@ -236,6 +242,7 @@ export default function AddTransactionModal() {
         if (result.outcome === 'gone') router.back();
         return;
       }
+      saved.current = true;
       if (result.note) notice(INSTALLMENTS_CHANGED_TITLE, result.note);
       hapticSuccess();
       router.back();

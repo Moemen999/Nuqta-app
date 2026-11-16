@@ -15,9 +15,10 @@ import { warmUp } from '@/test-utils/warmUp';
  * (ref متزامن). `fireEvent.press` مرتين جوه `act` واحدة = نفس الـtick من غير re-render بينهم.
  */
 
+let mockParams: Record<string, string> = {};
 jest.mock('expo-router', () => ({
   router: { push: jest.fn(), replace: jest.fn(), back: jest.fn() },
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => mockParams,
 }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: false }) }));
@@ -40,7 +41,7 @@ function seed() {
     addIncome: jest.fn(), updateIncome: jest.fn(), recordIncomePeriods: jest.fn(), setIncomeStatus: jest.fn(), deleteIncome: jest.fn(),
   });
 }
-beforeEach(() => seed());
+beforeEach(() => { mockParams = {}; seed(); });
 warmUp(() => { seed(); return wrap(<AddTransactionModal />); });
 
 describe('حفظ عملية جديدة', () => {
@@ -50,6 +51,25 @@ describe('حفظ عملية جديدة', () => {
     await doublePress(screen.getByTestId('tx_save_button'));
     await act(async () => {});
     expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('دوسة بعد الحفظ الناجح وقبل ما الشاشة تتشال ← مفيش كتابة تانية', async () => {
+    await render(wrap(<AddTransactionModal />));
+    await type(screen.getByTestId('tx_amount_input'), '50');
+    await press(screen.getByTestId('tx_save_button'));
+    await press(screen.getByTestId('tx_save_button')); // الشاشة لسه متركّبة (router.back مجرد mock)
+    expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('تعديل: ضغطتين في نفس الـtick ← updateTransaction مرة واحدة، ودوسة بعدها كمان', async () => {
+    mockData.transactions = [{ id: 'tx_f', type: 'expense', amount: 50, walletId: 'w1', date: '2026-03-20' }];
+    mockParams = { id: 'tx_f' };
+    await render(wrap(<AddTransactionModal />));
+    await act(async () => {});
+    await type(screen.getByTestId('tx_amount_input'), '60');
+    await doublePress(screen.getByTestId('tx_save_button'));
+    await press(screen.getByTestId('tx_save_button'));
+    expect(mockData.updateTransaction).toHaveBeenCalledTimes(1);
   });
 
   it('validation فاشل ← الحارس بيتفك والضغطة الجاية بتشتغل', async () => {
@@ -90,5 +110,16 @@ describe('حفظ دخل ثابت جديد', () => {
     await next(); await next();
     await press(screen.getByTestId('income_setup_next'));
     expect(mockData.addIncome).toHaveBeenCalledTimes(1);
+  });
+
+  it('addIncome بيرمي ← المودال مبيتقفلش، الرسالة بتظهر، والمحاولة الجاية بتشتغل', async () => {
+    (mockData.addIncome as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+    await toLastStep();
+    await press(screen.getByTestId('income_setup_next'));
+    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByTestId('income_setup_next')).toBeTruthy(); // لسه مفتوح
+    await press(screen.getByTestId('income_setup_next'));
+    expect(mockData.addIncome).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId('income_setup_next')).toBeNull(); // نجح ← اتقفل
   });
 });

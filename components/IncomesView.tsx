@@ -18,7 +18,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy, useBusyKey } from '@/lib/useBusy';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
@@ -251,8 +251,9 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addIncome, updateIncome } = useData();
   const { amountsHidden } = usePrivacy();
-  // ref متزامن: ضغطتين في نفس الفريم قبل الـre-render كانوا بينادوا `addIncome` مرتين (دخل مكرر)
+  // ref متزامن: ضغطتين في نفس الفريم قبل الـre-render (`useBusy`)، و`saved` بيمنع أي دوسة بعد النجاح وقبل ما المودال يتشال
   const { busy: saving, run: runSave } = useBusy();
+  const saved = useRef(false);
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(income?.name ?? '');
@@ -320,9 +321,19 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
       weekday: frequency === 'weekly' ? weekday : undefined,
     };
     // الحارس بس حوالين الكتابة (من غير await على السيرفر — `addIncome` بتعدّي على `track`)
-    void runSave(() => {
-      if (income) updateIncome(income.id, payload);
-      else addIncome(payload);
+    void runSave(async () => {
+      if (saved.current) return;
+      try {
+        // الدالتين بترجعوا بعد الكتابة المحلية (`track`/`addDocNoWait`) مش بعد تأكيد السيرفر — قاعدة 7
+        if (income) await updateIncome(income.id, payload);
+        else await addIncome(payload);
+      } catch {
+        // رمية متزامنة (تجهيز البيانات): المودال يفضل مفتوح والرسالة تبان
+        setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      // بعد النجاح الحارس مبيتفكش: المودال بيتشال والدوسة التانية مفروض متكتبش حاجة
+      saved.current = true;
       onClose();
     });
   }
