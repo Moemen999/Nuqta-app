@@ -79,7 +79,7 @@ describe('الزرار العايم "+" ظاهر دايمًا', () => {
   });
 });
 
-describe('الزرار العايم "+" بيختفي وانت بتمرّر لتحت ويرجع لما التمرير يقف (قرار 2026-11-16)', () => {
+describe('الزرار العايم "+" بيختفي وانت بتمرّر لتحت ويرجع بعد عُشر ثانية من ما التمرير يقف (قرار 2026-11-16)', () => {
   const scrollTo = (y: number) => fireEvent.scroll(screen.getByTestId('mock_scroll'), { nativeEvent: { contentOffset: { y } } });
   // أول حدث بعد الفتح/تغيير التاب بيظبط المرساة بس — زي المستخدم اللي بيبدأ من الأول
   const prime = () => scrollTo(0);
@@ -103,7 +103,7 @@ describe('الزرار العايم "+" بيختفي وانت بتمرّر لت�
     expect(hidden()).toBe(false);
   });
 
-  it('رفع الصباع ← يرجع بعد ~100ms حتى لو الـmomentum لسه بيبعت onScroll لتحت', async () => {
+  it('رفع الصباع + momentum لتحت مستمر ← مستخبي طول ما onScroll شغال، وبعد آخر حدث بـ100ms يرجع', async () => {
     jest.useFakeTimers();
     try {
       await mount();
@@ -111,22 +111,93 @@ describe('الزرار العايم "+" بيختفي وانت بتمرّر لت�
       await prime();
       await fireEvent(sv, 'scrollBeginDrag');
       await scrollTo(200);
-      expect(hidden()).toBe(true);
       await fireEvent(sv, 'scrollEndDrag');
       await fireEvent(sv, 'momentumScrollBegin');
-      await scrollTo(260);
-      await act(async () => { jest.advanceTimersByTime(150); });
+      for (const y of [260, 330, 400, 480, 560]) {
+        await scrollTo(y);
+        await act(async () => { jest.advanceTimersByTime(60); });
+        expect(hidden()).toBe(true);
+      }
+      await act(async () => { jest.advanceTimersByTime(39); });
+      expect(hidden()).toBe(true);
+      await act(async () => { jest.advanceTimersByTime(2); });
       expect(hidden()).toBe(false);
-      // momentum كمّل لتحت ← مبيخبّيهوش تاني
-      await scrollTo(400);
-      await scrollTo(600);
-      expect(hidden()).toBe(false);
-      await fireEvent(sv, 'momentumScrollEnd');
       // سحب جديد لتحت ← يخبّيه تاني
       await fireEvent(sv, 'scrollBeginDrag');
       await scrollTo(650);
       await scrollTo(700);
       expect(hidden()).toBe(true);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('momentumScrollEnd مجاش ← برضه يرجع بعد آخر onScroll بـ100ms', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await prime();
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(200);
+      await fireEvent(sv, 'scrollEndDrag');
+      await fireEvent(sv, 'momentumScrollBegin');
+      await scrollTo(300);
+      await act(async () => { jest.advanceTimersByTime(50); });
+      await scrollTo(380);
+      await act(async () => { jest.advanceTimersByTime(99); });
+      expect(hidden()).toBe(true);
+      await act(async () => { jest.advanceTimersByTime(2); });
+      expect(hidden()).toBe(false);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('momentumScrollEnd بيسلّح المهلة كمان', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await prime();
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(200);
+      await fireEvent(sv, 'scrollEndDrag');
+      await fireEvent(sv, 'momentumScrollBegin');
+      await scrollTo(300);
+      await fireEvent(sv, 'momentumScrollEnd');
+      await act(async () => { jest.advanceTimersByTime(101); });
+      expect(hidden()).toBe(false);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('رفع الصباع من غير تزحليق ← يرجع بعد 100ms من الرفع', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await prime();
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(200);
+      await fireEvent(sv, 'scrollEndDrag');
+      await act(async () => { jest.advanceTimersByTime(99); });
+      expect(hidden()).toBe(true);
+      await act(async () => { jest.advanceTimersByTime(2); });
+      expect(hidden()).toBe(false);
+    } finally { jest.useRealTimers(); }
+  });
+
+  it('تزحليق لفوق بعد رفع الصباع ← ظاهر', async () => {
+    jest.useFakeTimers();
+    try {
+      await mount();
+      const sv = screen.getByTestId('mock_scroll');
+      await prime();
+      await scrollTo(500);
+      await fireEvent(sv, 'scrollBeginDrag');
+      await scrollTo(400);
+      await fireEvent(sv, 'scrollEndDrag');
+      await fireEvent(sv, 'momentumScrollBegin');
+      await scrollTo(300);
+      expect(hidden()).toBe(false);
+      await scrollTo(200);
+      expect(hidden()).toBe(false);
     } finally { jest.useRealTimers(); }
   });
 
