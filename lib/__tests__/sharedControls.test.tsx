@@ -44,5 +44,28 @@ it('PeriodChips: سطر واحد بيتسحب (horizontal) من غير flexWrap�
   expect(content.flexWrap).toBeUndefined();
   expect(content.flexDirection).toBe('row-reverse');
   expect(content.paddingHorizontal).toBe(16);
-  expect(StyleSheet.flatten(row.props.style).marginHorizontal).toBe(-16);
+  expect(StyleSheet.flatten(row.parent!.props.style).marginHorizontal).toBe(-16);
+  expect(row.props.accessibilityRole).toBe('radiogroup');
+});
+
+describe('PeriodChips: البداية يمين والتدرّج', () => {
+  const setup = async () => {
+    await render(<ThemeProvider><PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'all', 'custom']} value="thisMonth" onChange={() => {}} testIDPrefix="z_preset" /></ThemeProvider>);
+    const row = screen.getByTestId('z_preset_row');
+    return { row };
+  };
+  it('onContentSizeChange قبل onLayout ← لسه بيبدأ يمين (مرة واحدة)', async () => {
+    const { row } = await setup();
+    await act(async () => { row.props.onContentSizeChange(600, 44); });
+    expect(screen.queryByTestId('z_preset_fade', { includeHiddenElements: true })).toBeNull();
+    await act(async () => { row.props.onLayout({ nativeEvent: { layout: { width: 360, height: 44, x: 0, y: 0 } } }); });
+    // البداية يمين = اتحرّك لآخر الصف (240 = 600 − 360) فالمحتوى المستخبي على الشمال ← التدرّج ظاهر
+    expect(screen.getByTestId('z_preset_fade', { includeHiddenElements: true })).toBeTruthy();
+  });
+  it('التدرّج مش ظاهر لو الشرايح كفّت، ويختفي عند أقصى الشمال', async () => {
+    const { row } = await setup();
+    await act(async () => { row.props.onLayout({ nativeEvent: { layout: { width: 360, height: 44, x: 0, y: 0 } } }); });
+    await act(async () => { row.props.onContentSizeChange(300, 44); });
+    expect(screen.queryByTestId('z_preset_fade', { includeHiddenElements: true })).toBeNull();
+  });
 });

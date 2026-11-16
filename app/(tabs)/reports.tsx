@@ -221,7 +221,7 @@ export default function ReportsScreen() {
       keyboardDismissMode="on-drag">
       <Text style={styles.title}>التقارير</Text>
 
-      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={16} />
+      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={space.xxl} />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -401,7 +401,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: space.xxl, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     // نفس زرار التاريخ في الأرشيف (visual-identity-reviewer: كان نفس الزرار بشكلين)
