@@ -75,14 +75,33 @@ it('96% ← الشرطة أقصر من المحيط (الدايرة مش مقف�
   expect(fill().props.strokeLinecap).toBe(0) // 0 = butt (1 = round);
 });
 
-it('0.1+0.2 من 0.3 ← درجة at: خطر (نفس budgetLevel، مش مقارنة خام)', async () => {
+it('0.1+0.2 من 0.3 ← درجة at: دهبي مش خطر (نفس budgetLevel، مش مقارنة خام)', async () => {
   setup(0.3, 0.1);
   mockData.transactions = [
     { id: 'a', type: 'expense', amount: 0.1, date: setupDate(), walletId: 'w', categoryId: 'c1' },
     { id: 'b', type: 'expense', amount: 0.2, date: setupDate(), walletId: 'w', categoryId: 'c1' },
   ];
   await render(ui());
+  await waitFor(() => expect(fill().props.stroke.payload).toBe(processColor(themeColors.accentText)));
+  expect(screen.getByTestId('budget_ring', { includeHiddenElements: true })).toBeTruthy();
+});
+
+const flat = (n: unknown): Record<string, unknown> => Object.assign({}, ...[(n as { props: { style?: unknown } }).props.style].flat(5).filter(Boolean));
+
+it.each([1000, 999.996])('at (%s من 1000): الدايرة والفئة دهبي مش خطر', async (spent) => {
+  setup(1000, spent);
+  mockData.budgets = { total_budget: 1000, c1: 1000 };
+  await render(ui());
+  await waitFor(() => expect(fill().props.stroke.payload).toBe(processColor(themeColors.accentText)));
+  expect(flat(screen.getByText(/خلصت — /)).color).toBe(themeColors.accentText);
+});
+
+it('over (1000.01 من 1000): الدايرة والفئة خطر', async () => {
+  setup(1000, 1000.01);
+  mockData.budgets = { total_budget: 1000, c1: 1000 };
+  await render(ui());
   await waitFor(() => expect(fill().props.stroke.payload).toBe(processColor(themeColors.dangerText)));
+  expect(flat(screen.getByText(/عدّيت — /)).color).toBe(themeColors.dangerText);
 });
 
 it('صفر مصروف ← مفيش شرطة ملوّنة', async () => {

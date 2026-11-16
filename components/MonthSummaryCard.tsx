@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
+import { budgetLevelColor } from '@/lib/budgetForecast';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { HeroAmount } from '@/components/HeroAmount';
@@ -58,7 +59,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
     let budgetBlock: ReactNode = null;
     if (budget) {
       const pct = budget.level === 'at' || budget.level === 'over' ? 100 : Math.min(100, (spent / budget.limit) * 100);
-      const barColor = budget.level === 'over' ? colors.dangerText : budget.level === 'under' ? colors.textSecondary : colors.accentText;
+      const barColor = budgetLevelColor(budget.level, colors, colors.textSecondary);
       const bar = (
         // زخرفي: الأرقام مكتوبة فوقه (نفس مسار BudgetView)
         <View style={styles.track} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -85,7 +86,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
           : `عدّيت الميزانية بـ ${money(Math.abs(budget.remaining))} جنيه`);
         budgetBlock = (
           <>
-            <Text testID="home_month_budget_line" style={[styles.sub, { color: budget.level === 'over' ? colors.dangerText : colors.accentText }]}>{text}</Text>
+            <Text testID="home_month_budget_line" style={[styles.sub, { color: budgetLevelColor(budget.level, colors, colors.accentText) }]}>{text}</Text>
             {bar}
           </>
         );

@@ -11,7 +11,7 @@ import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
-import { budgetForecastText, budgetLevel, budgetRunOutDay } from '@/lib/budgetForecast';
+import { budgetForecastText, budgetLevel, budgetLevelColor, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo, useState } from 'react';
@@ -66,10 +66,10 @@ export default function BudgetView() {
     () => monthSpendTotal(transactions, nowMonth, transfers),
     [transactions, nowMonth, transfers]
   );
-  // «اتجاوزت/صرفت الميزانية بالظبط» (over/at) ← لون الخطر، للرقم البطل والدايرة مع بعض؛ نفس `budgetLevel` بتاع الرئيسية
-  // (نص قرش) و`at` خطر كمان عشان يتسق مع كروت الفئات (`pct >= 100` «خلصت») — قرار الجلسة 2026-11-16
+  // الرقم البطل والدايرة مع بعض، نفس `budgetLevel` بتاع الرئيسية (نص قرش): 'over' (عدّيت) خطر، و'at' (صرفت بالظبط) دهبي
+  // زي الرئيسية — الأحمر للتعدّي بس (قرار مؤمن 2026-11-16)
   const totalLevel = budgetLevel(totalMonthSpend, totalBudget);
-  const totalDanger = totalLevel === 'over' || totalLevel === 'at';
+  const totalDanger = totalLevel === 'over';
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
     categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth, transfers)));
@@ -121,9 +121,9 @@ export default function BudgetView() {
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
                   <View style={styles.heroWithRing}>
                     {/* دايرة التقدّم: نفس الأرقام والشرط (`totalDanger`) اللي الرقم البطل جنبها، زينة بس */}
-                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={totalDanger ? colors.dangerText : colors.accentText} trackColor={colors.borderStrong} />
+                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={budgetLevelColor(totalLevel, colors, colors.accentText)} trackColor={colors.borderStrong} />
                     <View testID="budget_hero" style={styles.heroRow}>
-                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalDanger && { color: colors.dangerText }]} />
+                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalLevel === 'at' && { color: colors.accentText }, totalDanger && { color: colors.dangerText }]} />
                       <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
                     </View>
                   </View>
@@ -142,8 +142,10 @@ export default function BudgetView() {
           const spend = spendByCategory.get(c.id) || 0;
           const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
           // لون بس من 80% (دراسة الشكل: الأخضر على كل حاجة سليمة كان دوشة) — الشريط بتوكنز النص (≥ 4.5 على المسار)
-          const color = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
-          const textColor = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
+          // الدرجة من `budgetLevel` (نص قرش) زي الإجمالي والرئيسية: 'over' خطر، 'at'/'near' دهبي — العرض (%) زي ما هو
+          const level = limit > 0 ? budgetLevel(spend, limit) : 'under';
+          const color = budgetLevelColor(level, colors, colors.textSecondary);
+          const textColor = color;
 
           return (
             <View key={c.id} style={styles.card}>
@@ -172,7 +174,7 @@ export default function BudgetView() {
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
                   {/* 80% و100% بالكلمة كمان — الفرق بين اللونين 1.07–1.34:1 بس (a11y-architect) */}
-                  <Text style={[styles.sub, { color: textColor }]}>{pct >= 100 ? 'خلصت — ' : pct >= 80 ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
+                  <Text style={[styles.sub, { color: textColor }]}>{level === 'over' ? 'عدّيت — ' : level === 'at' ? 'خلصت — ' : level === 'near' ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                   {forecast(c.id, monthRowsToDate.filter(t => t.categoryId === c.id), budgets[c.id] || 0, spend)}
                 </>
               )}
