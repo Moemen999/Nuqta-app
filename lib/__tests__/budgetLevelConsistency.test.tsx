@@ -31,12 +31,12 @@ const CASES: [number, 'at' | 'over', RegExp, RegExp, RegExp, 'accentText' | 'dan
 describe.each(CASES)('%s من 1000 (%s)', (spent, level, homeWord, bannerWord, catWord, colorKey) => {
   it('الأربع أماكن: نفس الدرجة والكلمة واللون', async () => {
     expect(budgetLevel(spent, 1000)).toBe(level);
-    const overBy = snapPiastre(spent - 1000);
     await render(wrap(<MonthSummaryCard testID="m" onPress={() => {}} state={{ kind: 'ready', transfersFailed: false, budgetsFailed: false,
       summary: { spent, previous: null, budget: { limit: 1000, remaining: snapPiastre(1000 - spent), level } } as never }} />));
     const line = screen.getByTestId('home_month_budget_line');
     expect(String(line.props.children).replace(/,/g, '')).toMatch(homeWord);
     expect(flat(line).color).toBe(colors[colorKey]);
+    if (level === 'over') expect([line.props.children].flat().join('')).toBe('عدّيت الميزانية بـ 0.01 ج.م');
 
     const [item] = buildAttentionItems({
       spendKnown: true, nowMonth: d.slice(0, 7), transfers: new Set(), money: (n: number) => String(n),
@@ -58,6 +58,6 @@ describe.each(CASES)('%s من 1000 (%s)', (spent, level, homeWord, bannerWord, c
     const total = screen.getByTestId('budget_total_level');
     expect(String(total.props.children).replace(/,/g, '')).toMatch(homeWord);
     expect(flat(total).color).toBe(colors[colorKey]);
-    expect(overBy === 0 || overBy > 0).toBe(true);
+    if (level === 'over') expect([total.props.children].flat().join('')).toBe('عدّيت الميزانية بـ 0.01 ج.م');
   });
 });
