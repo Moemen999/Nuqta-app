@@ -185,5 +185,5 @@ export function bigAmountInputStyle(c: ThemeColors): TextStyle {
   };
 }
 
-/** دايرة التقدّم (`ProgressRing`، ميزانية التخطيط): القطر وسُمك الخط */
-export const progressRing = { size: 64, stroke: 7, durationMs: 600 } as const;
+/** دايرة التقدّم (`ProgressRing`، ميزانية التخطيط): القطر وسُمك الخط، و`compact` للكارت الضيق (كارت الشهر في الرئيسية) */
+export const progressRing = { size: 64, stroke: 7, durationMs: 600, compact: { size: 44, stroke: 5 } } as const;

@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { budgetLevelColor } from '@/lib/budgetForecast';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ProgressRing } from '@/components/ProgressRing';
 import { HeroAmount } from '@/components/HeroAmount';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -57,9 +58,12 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
     const parts: string[] = [`${MONTH_CARD_TITLE} ${money(spent)} جنيه`];
 
     let budgetBlock: ReactNode = null;
+    let ring: ReactNode = null;
     if (budget) {
       const pct = budget.level === 'at' || budget.level === 'over' ? 100 : Math.min(100, (spent / budget.limit) * 100);
       const barColor = budgetLevelColor(budget.level, colors, colors.textSecondary);
+      // دايرة الميزانية (نفس `spent` و`budget.limit` واللون بتاع الشريط) — نسبة مش مبلغ فبتفضل باينة والمبالغ مخفية، وزينة بس
+      ring = <ProgressRing compact testID="home_month_ring" spent={spent} total={budget.limit} color={barColor} trackColor={colors.borderStrong} />;
       const bar = (
         // زخرفي: الأرقام مكتوبة فوقه (نفس مسار BudgetView)
         <View style={styles.track} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -102,9 +106,13 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
 
     body = (
       <>
-        <HeroAmount unitTestID="home_month_unit" style={styles.valueRow}>
-          <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{money(spent)}</Text>
-        </HeroAmount>
+        {/* الرقم يمين تحت العنوان والدايرة شمال (row-reverse) — الرقم هو اللي بيتقري الأول */}
+        <View style={styles.heroWithRing}>
+          <HeroAmount unitTestID="home_month_unit" style={styles.valueRow}>
+            <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{money(spent)}</Text>
+          </HeroAmount>
+          {ring}
+        </View>
         {budgetBlock}
         {transfersFailed && <TransfersFailedNote testID="home_month_transfers_failed" />}
       </>
@@ -130,7 +138,8 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md },
     title: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     value: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
-    valueRow: { marginTop: space.xxs },
+    valueRow: { marginTop: space.xxs, flexShrink: 1 },
+    heroWithRing: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: space.lg },
     loading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },

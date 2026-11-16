@@ -12,14 +12,15 @@ export function ringFraction(spent: number, total: number): number {
   return Math.min(1, Math.max(0, spent / total));
 }
 
-type Props = { spent: number; total: number; color: string; trackColor: string; testID?: string };
+type Props = { spent: number; total: number; color: string; trackColor: string; testID?: string; compact?: boolean };
 
 /**
  * دايرة تقدّم: بتتملي من صفر وتبدأ من فوق **عكس عقارب الساعة** (RTL — HIG: اعكس اتجاه التقدّم).
  * زينة بس: مخفية عن القارئ لأن الأرقام جنبها بتتقري. من غير حركة مع «تقليل الحركة».
  */
-export function ProgressRing({ spent, total, color, trackColor, testID }: Props) {
-  const { size, stroke, durationMs } = progressRing;
+export function ProgressRing({ spent, total, color, trackColor, testID, compact }: Props) {
+  const { durationMs } = progressRing;
+  const { size, stroke } = compact ? progressRing.compact : progressRing;
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const fraction = ringFraction(spent, total);

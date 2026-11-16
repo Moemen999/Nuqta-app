@@ -36,6 +36,8 @@ describe.each(CASES)('%s من 1000 (%s)', (spent, level, homeWord, bannerWord, c
     const line = screen.getByTestId('home_month_budget_line');
     expect(String(line.props.children).replace(/,/g, '')).toMatch(homeWord);
     expect(flat(line).color).toBe(colors[colorKey]);
+    // دايرة الرئيسية: نفس لون كلمة الكارت
+    expect(screen.getByTestId('home_month_ring_fill', { includeHiddenElements: true }).props.stroke.payload).toBe(processColor(colors[colorKey]));
     if (level === 'over') expect([line.props.children].flat().join('')).toBe('عدّيت الميزانية بـ 0.01 ج.م');
 
     const [item] = buildAttentionItems({
