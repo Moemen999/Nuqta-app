@@ -185,7 +185,7 @@ export default function SubscriptionsView() {
     const waitingReply = isStopped && subscriptionOpenCharges(s, todayStr()).length > 0;
     const tone = isStopped ? colors.textSecondary : colors.text;
     return (
-      <View key={s.id} style={[styles.card, soon && { borderColor: colors.warnBorder }]}>
+      <View key={s.id} style={[styles.card, soon && { borderWidth: 1, borderColor: colors.warnBorder }]}>
         <View style={styles.cardHead}>
           <Text style={[styles.name, { color: tone }]}>{s.name}</Text>
           <Money value={s.amount} style={[styles.amount, { color: tone }]} />

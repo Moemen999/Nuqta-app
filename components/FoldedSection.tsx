@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cardElevation, MIN_TOUCH, space, radius, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, space, radius, typeScale } from '@/lib/tokens';
 import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -62,8 +62,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
   );
 
   return (
-    <View style={framed ? styles.framedShadow : styles.plain} testID={testID}>
-      <View style={framed ? styles.framed : undefined}>
+    <View style={framed ? styles.framed : styles.plain} testID={testID}>
       {action ? (
         <View style={[styles.headRow, !framed && open && styles.headOpen]}>
           {toggle}
@@ -74,19 +73,17 @@ export default function FoldedSection({ title, count, children, testID, framed =
         </View>
       ) : toggle}
       {open && children}
-      </View>
     </View>
   );
 }
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل (الإطار اتشال لصالح الرفعة)
-    framedShadow: { marginTop: space.xl, borderRadius: radius.lg, ...(c.shadow ? { backgroundColor: c.surface } : null), ...cardElevation(c) },
-    framed: { borderRadius: radius.lg, overflow: 'hidden' },
+    // الإطار باقي هنا عن قصد (مراجعة 9c2a5ab): القسم المطوي جواه صفوف على الصفحة، وخلفية للغلاف كانت هتسطّحها
+    framed: { marginTop: space.xl, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, overflow: 'hidden' },
     plain: { marginTop: space.xl },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.controlBg, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: MIN_TOUCH },
-    headAlone: { borderRadius: radius.lg, ...cardElevation(c) },
+    headAlone: { borderRadius: radius.lg, borderWidth: 1, borderColor: c.border },
     headOpen: { marginBottom: space.md },
     headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
     headGrow: { flex: 1 },
