@@ -80,15 +80,22 @@ export function Button({
         {iconOnly ? null : <Text style={{ color: look.fg, fontSize: typeScale.body, fontWeight: '700' }}>{label}</Text>}
       </View>
       {/* متركّب دايمًا: busy بيغيّر props بس. mount/unmount وقت إقفال المودال كان بيكرّش Fabric (NUQTA-3: addViewAt) */}
-      <ActivityIndicator
+      {/* NUQTA-3 (1.0.0.028، «at index 1»): ActivityIndicator بيحط `style` على View خارجي بتاعه ومبيمرّرلوش
+          `collapsable` (RN 0.81 ActivityIndicator.js سطر 100/112). فـ`opacity: 1` كان بيخلّي الخارجي layout-only
+          فيتعمله flatten، و`opacity: 0` بيرجّعه view حقيقي ← reparent وقت busy ← Fabric بيكرّش. الحل: الـopacity
+          والمكان على View بتاعنا بـ`collapsable={false}` (عمره ما يتعمله flatten)، والمؤشر جوّاه من غير style بيتغيّر */}
+      <View
         collapsable={false}
-        testID={testID ? `${testID}_spinner` : undefined}
-        animating={busy}
-        color={look.fg}
+        pointerEvents="none"
         importantForAccessibility={busy ? 'auto' : 'no-hide-descendants'}
         accessibilityElementsHidden={!busy}
-        style={{ position: 'absolute', opacity: busy ? 1 : 0 }}
-      />
+        style={{ position: 'absolute', opacity: busy ? 1 : 0 }}>
+        <ActivityIndicator
+          testID={testID ? `${testID}_spinner` : undefined}
+          animating={busy}
+          color={look.fg}
+        />
+      </View>
     </Pressable>
   );
 }

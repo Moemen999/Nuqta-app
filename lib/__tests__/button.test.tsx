@@ -100,6 +100,10 @@ describe('Button — منع flatten/unflatten في Fabric (NUQTA-3)', () => {
     const src = require('fs').readFileSync(require('path').join(__dirname, '../../components/Button.tsx'), 'utf8') as string;
     expect(src).toMatch(/<Pressable\s+collapsable=\{false\}/);
     expect(src).toMatch(/<View collapsable=\{false\} style=\{\{ flexDirection: 'row-reverse'[^\n]*opacity: busy/);
-    expect(src).toMatch(/<ActivityIndicator\s+collapsable=\{false\}/);
+    // ActivityIndicator مبيمرّرش collapsable للـView الخارجي بتاعه (RN 0.81) — فالـopacity/المكان لازم يبقوا على
+    // View بتاعنا بـcollapsable={false} والمؤشر جوّاه من غير style (NUQTA-3 على 1.0.0.028: «at index 1»)
+    expect(src).toMatch(/<View\s+collapsable=\{false\}[^>]*style=\{\{ position: 'absolute', opacity: busy \? 1 : 0 \}\}>\s*<ActivityIndicator/);
+    const indicator = src.slice(src.indexOf('<ActivityIndicator'), src.indexOf('/>', src.indexOf('<ActivityIndicator')));
+    expect(indicator).not.toMatch(/style=/);
   });
 });
