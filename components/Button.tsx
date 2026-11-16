@@ -27,12 +27,13 @@ export interface ButtonProps {
   iconOnly?: boolean;
   testID?: string;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
 }
 
 export function Button({
   variant = 'primary', label, onPress, disabled = false, busy = false, size = 'md',
-  icon, iconOnly = false, testID, accessibilityLabel, style,
+  icon, iconOnly = false, testID, accessibilityLabel, accessibilityHint, style,
 }: ButtonProps) {
   const { colors } = useTheme();
   const off = disabled || busy;
@@ -49,6 +50,7 @@ export function Button({
     <Pressable
       testID={testID}
       accessibilityRole="button"
+      accessibilityHint={accessibilityHint}
       accessibilityLabel={busy ? `${accessibilityLabel ?? label}، جاري التنفيذ` : (accessibilityLabel ?? label)}
       accessibilityState={{ disabled: off, busy }}
       disabled={off}

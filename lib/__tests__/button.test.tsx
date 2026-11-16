@@ -47,6 +47,11 @@ describe('Button', () => {
     expect(screen.getByTestId('b').props.accessibilityLabel).toBe('إضافة فئة');
   });
 
+  it('accessibilityHint بيتمرر للـPressable', async () => {
+    await wrap(<Button testID="b" label="لسه" accessibilityHint="الكارت هيستخبّى النهاردة بس" />);
+    expect(screen.getByTestId('b').props.accessibilityHint).toBe('الكارت هيستخبّى النهاردة بس');
+  });
+
   it('accessibilityLabel بيغلب الـlabel', async () => {
     await wrap(<Button testID="b" label="+" accessibilityLabel="ضيف" />);
     expect(screen.getByTestId('b').props.accessibilityLabel).toBe('ضيف');

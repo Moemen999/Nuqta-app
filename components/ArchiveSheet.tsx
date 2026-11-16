@@ -115,6 +115,5 @@ function makeStyles(c: ThemeColors) {
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
-    btnBusy: { opacity: 0.5 },
   });
 }

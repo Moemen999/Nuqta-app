@@ -239,7 +239,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
                     snooze(snoozeKey(p, today));
                     AccessibilityInfo.announceForAccessibility(`"${p.name}" هيسألك تاني بكرة`);
                   }}
-                  accessibilityLabel={`"${p.name}" لسه`} />
+                  accessibilityLabel={`"${p.name}" لسه`} accessibilityHint="الكارت هيستخبّى النهاردة بس" />
               )}
             </View>
           </View>
