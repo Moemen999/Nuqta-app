@@ -181,7 +181,7 @@ export default function GamiyaView() {
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <TouchableOpacity accessibilityRole="button" testID="gamiya_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ جمعية جديدة</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ جمعية جديدة</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الجمعية</Text>
       </View>
@@ -291,7 +291,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -330,47 +330,47 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    addBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
     // دراسة الشكل خطوة 3: نفس كارت الدين — من غير إطار، المقاسات من `typeScale`
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     sub2: { color: c.textSecondary, fontSize: typeScale.caption },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
-    track: { height: 6, backgroundColor: c.surface2, borderRadius: 3, marginTop: 10, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 3 },
+    track: { height: 6, backgroundColor: c.surface2, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
     due: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
-    expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
-    monthRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6 },
+    expandedArea: { marginTop: space.lg, borderTopWidth: 1, borderTopColor: c.border, paddingTop: space.md },
+    monthRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: space.xs },
     monthText: { fontSize: typeScale.caption, flex: 1, textAlign: 'right' },
     // كان ~28 طول — 44 للمس (دراسة الشكل)
     markBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + space.lg, alignItems: 'center', justifyContent: 'center' },
-    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, alignItems: 'center', paddingVertical: 9, marginTop: 10 },
-    gamiyaActions: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
+    deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.sm, alignItems: 'center', paddingVertical: space.sm, marginTop: space.md },
+    gamiyaActions: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md },
     editBtn: { flex: 1, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     deleteBtnFlex: { flex: 1, borderWidth: 1.5, borderColor: c.danger, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    hintNote: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', lineHeight: 17, marginBottom: 4 },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    hintNote: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 17, marginBottom: space.xxs },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.title, fontWeight: '700', paddingHorizontal: space.xl, paddingVertical: space.lg },
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
     btnBusy: { opacity: 0.6 },
   });
 }
@@ -432,7 +432,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>

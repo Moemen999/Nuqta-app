@@ -20,7 +20,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -202,10 +202,10 @@ export default function SubscriptionsView() {
               {resumeBusyKey === `resume_${s.id}` ? (
                 <View style={styles.btnLoading}>
                   <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنرجّعه</Text>
+                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>بنرجّعه</Text>
                 </View>
               ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>رجّعه</Text>
+                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>رجّعه</Text>
               )}
             </TouchableOpacity>
           ) : (
@@ -214,10 +214,10 @@ export default function SubscriptionsView() {
               {busyKey === `pay_${s.id}` ? (
                 <View style={styles.btnLoading}>
                   <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنسجّل</Text>
+                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>بنسجّل</Text>
                 </View>
               ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
+                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>اتخصم</Text>
               )}
             </TouchableOpacity>
           )}
@@ -240,7 +240,7 @@ export default function SubscriptionsView() {
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
         <TouchableOpacity accessibilityRole="button" testID="subscription_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ اشتراك جديد</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ اشتراك جديد</Text>
         </TouchableOpacity>
         <Text style={styles.title}>الاشتراكات</Text>
       </View>
@@ -351,7 +351,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -363,7 +363,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
-                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -372,13 +372,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => { freeze(); setFrequency('monthly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => { freeze(); setFrequency('yearly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => { freeze(); setFrequency('custom'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
@@ -424,40 +424,40 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    addBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
-    name: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    amount: { color: c.text, fontSize: 14, fontWeight: '700' },
-    sub: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
-    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
+    name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    amount: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    due: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
+    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
+    payBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.xl, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
     moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.sm, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
-    moreBtnText: { color: c.text, fontSize: 17, fontWeight: '700' },
+    moreBtnText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    row: { flexDirection: 'row-reverse', gap: 8 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10, justifyContent: 'center', minHeight: MIN_TOUCH },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.title, fontWeight: '700', paddingHorizontal: space.xl, paddingVertical: space.lg },
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    row: { flexDirection: 'row-reverse', gap: space.sm },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
     btnBusy: { opacity: 0.6 },
   });
 }
@@ -538,7 +538,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -550,7 +550,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
-                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -559,13 +559,13 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
