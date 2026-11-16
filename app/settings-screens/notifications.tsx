@@ -14,6 +14,7 @@ import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, Vi
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { typeScale, radius, space } from '@/lib/tokens';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
 export const PERMISSION_DENIED_BODY = 'التطبيق مش مسموح له يبعت إشعارات. فعّلها من إعدادات الموبايل.';
@@ -148,7 +149,7 @@ export default function NotificationsScreen() {
           <Text style={styles.switchLabel} accessibilityRole="header">{EXACT_ALARM_TITLE}</Text>
           {/* alarmText مش hint (a11y-architect): textMuted 11.5 كان تحت 4.5:1 في الثيمين، والسطرين دول الإرشاد الوحيد */}
           <Text style={styles.alarmText}>{EXACT_ALARM_BODY}</Text>
-          <Text testID="exact_alarm_status" style={[styles.alarmText, { marginTop: 6 }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
+          <Text testID="exact_alarm_status" style={[styles.alarmText, { marginTop: space.xs }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
           <TouchableOpacity testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
             onPress={() => runOpenAlarm(async () => {
               if (!(await notifs.openExactAlarmSettings())) notice(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
@@ -196,12 +197,12 @@ export default function NotificationsScreen() {
         </Text>
         {/* مجموعتين (visual-identity-reviewer: 10 صفوف بتطوّل الشاشة): التحذيرات مفتوحة دايمًا،
             والباقي مطوي لحد ما المستخدم يفتحه */}
-        <Text style={[styles.groupLabel, { marginTop: 12 }]}>تحذيرات الأرقام</Text>
+        <Text style={[styles.groupLabel, { marginTop: space.lg }]}>تحذيرات الأرقام</Text>
         {[...WARNING_BANNERS, ...(showRoutine ? BANNER_TYPES.filter(t => !WARNING_BANNERS.includes(t)) : [])].map((type, i) => {
           const chosen = intervalMs(type, banners.intervals);
           return (
-            <View key={type} style={{ marginTop: 12 }}>
-              {i === WARNING_BANNERS.length && <Text style={[styles.groupLabel, { marginBottom: 6 }]}>باقي التنبيهات</Text>}
+            <View key={type} style={{ marginTop: space.lg }}>
+              {i === WARNING_BANNERS.length && <Text style={[styles.groupLabel, { marginBottom: space.xs }]}>باقي التنبيهات</Text>}
               <Text style={styles.typeLabel}>{BANNER_LABELS[type]}</Text>
               <View style={styles.row}>
                 {intervalOptions(type).map(o => (
@@ -210,7 +211,7 @@ export default function NotificationsScreen() {
                     {...selectionA11y(chosen === o.ms, 'radio')}
                     accessibilityLabel={`${BANNER_LABELS[type]}: يرجع بعد ${o.label}`}
                     style={[styles.graceBtn, selectionStyle(colors, chosen === o.ms)]}>
-                    <Text style={{ color: colors.text, fontSize: 11.5 }}>{o.label}</Text>
+                    <Text style={{ color: colors.text, fontSize: typeScale.caption }}>{o.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -229,24 +230,24 @@ export default function NotificationsScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12 },
-    switchLabel: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-    status: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 2 },
-    hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 3, lineHeight: 17 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginTop: 18, borderWidth: 1, borderColor: c.border },
-    row: { flexDirection: 'row-reverse', gap: 8, marginTop: 8 },
-    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: 44 },
-    stepBtn: { width: 44, height: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
-    stepText: { color: c.text, fontSize: 20, fontWeight: '700' },
-    hourValue: { flex: 1, color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' },
-    typeLabel: { color: c.text, fontSize: 13, textAlign: 'right' },
-    alarmText: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
-    alarmBtn: { minHeight: 44, borderRadius: 10, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: 10, paddingHorizontal: 12 },
-    alarmBtnText: { color: c.accentText, fontSize: 13.5, fontWeight: '700' },
-    groupLabel: { color: c.textSecondary, fontSize: 12, fontWeight: '700', textAlign: 'right' },
-    toggleRow: { minHeight: 44, justifyContent: 'center', marginTop: 8 },
-    toggleText: { color: c.accentText, fontSize: 13, fontWeight: '700', textAlign: 'right' },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
+    switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.lg },
+    switchLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    status: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: 17 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, borderWidth: 1, borderColor: c.border },
+    row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
+    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
+    stepBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
+    stepText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    hourValue: { flex: 1, color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
+    typeLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 19 },
+    alarmBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: space.md, paddingHorizontal: space.lg },
+    alarmBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
+    groupLabel: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },
+    toggleRow: { minHeight: 44, justifyContent: 'center', marginTop: space.sm },
+    toggleText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
   });
 }

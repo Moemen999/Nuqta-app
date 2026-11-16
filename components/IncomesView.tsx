@@ -16,7 +16,7 @@ import {
 } from '@/lib/recurringIncome';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -124,10 +124,10 @@ export default function IncomesView() {
         {busy ? (
           <View style={styles.btnLoading}>
             <ActivityIndicator size="small" color={colors.danger} />
-            <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>بنمسح</Text>
+            <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>بنمسح</Text>
           </View>
         ) : (
-          <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>امسحه</Text>
+          <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>امسحه</Text>
         )}
       </TouchableOpacity>
     );
@@ -203,7 +203,7 @@ export default function IncomesView() {
               {/* اللي عمره ما سجّل: المسح مكان "وقّفه" — التوقيف كان هيسيب كارت مالوش لازمة */}
               {incomeHasRecords(inc, transactions) ? (
                 <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button">
-                  <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>وقّفه</Text>
+                  <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>وقّفه</Text>
                 </TouchableOpacity>
               ) : deleteButton(inc)}
             </View>
@@ -357,7 +357,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <TouchableOpacity key={w.id} onPress={() => pickWallet(w.id)}
                         {...selectionA11y(walletId === w.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                        <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                        <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -367,7 +367,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <TouchableOpacity key={f} onPress={() => { freeze(); setFrequency(f); }}
                         {...selectionA11y(frequency === f, 'radio')}
                         style={[styles.typeBtn, selectionStyle(colors, frequency === f)]}>
-                        <Text style={{ color: colors.text, fontSize: 12.5 }}>{f === 'monthly' ? 'كل شهر' : 'كل أسبوع'}</Text>
+                        <Text style={{ color: colors.text, fontSize: typeScale.body }}>{f === 'monthly' ? 'كل شهر' : 'كل أسبوع'}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -393,7 +393,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                           <TouchableOpacity key={n} onPress={() => { freeze(); setWeekday(i); }}
                             {...selectionA11y(weekday === i, 'radio')}
                             style={[styles.chip, selectionStyle(colors, weekday === i)]}>
-                            <Text style={{ color: colors.text, fontSize: 13 }}>{n}</Text>
+                            <Text style={{ color: colors.text, fontSize: typeScale.body }}>{n}</Text>
                           </TouchableOpacity>
                         ))}
                       </View>
@@ -440,51 +440,48 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20, lineHeight: 20 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: 20 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, borderWidth: 1, borderColor: c.border },
     cardPaused: { opacity: 0.7 },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
-    name: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    amount: { color: c.text, fontSize: 14, fontWeight: '700' },
-    sub: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    due: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
-    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 16, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    payText: { color: c.onAccent, fontWeight: '700', fontSize: 12.5 },
-    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
-    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: 8, paddingHorizontal: 14, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    editText: { color: c.text, fontSize: 12.5 },
-    stopBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 8, paddingHorizontal: 14, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    amount: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    due: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
+    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
+    payBtn: { backgroundColor: c.accent, borderRadius: radius.sm, paddingHorizontal: space.xxl, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    payText: { color: c.onAccent, fontWeight: '700', fontSize: typeScale.body },
+    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
+    editBtn: { borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.sm, paddingHorizontal: space.xl, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    editText: { color: c.text, fontSize: typeScale.body },
+    stopBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.sm, paddingHorizontal: space.xl, minHeight: MIN_TOUCH, justifyContent: 'center' },
     btnBusy: { opacity: 0.6 },
-    stoppedToggle: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    stoppedToggleText: { color: c.textSecondary, fontSize: 12.5 },
+    stoppedToggle: { alignSelf: 'center', paddingVertical: space.md, paddingHorizontal: space.xxl, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    stoppedToggleText: { color: c.textSecondary, fontSize: typeScale.body },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    stepsRow: { flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginBottom: 8 },
-    stepDot: { width: 28, height: 4, borderRadius: 2, backgroundColor: c.borderStrong },
-    stepTitle: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 17 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: {
-      backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text,
-      fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12, fontVariant: ['tabular-nums'],
-    },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, justifyContent: 'center', minHeight: MIN_TOUCH },
-    row: { flexDirection: 'row-reverse', gap: 8 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', minHeight: MIN_TOUCH, justifyContent: 'center' },
-    modeCard: { borderWidth: 1.5, borderRadius: 12, padding: 14, marginTop: 12 },
-    modeTitle: { color: c.text, fontSize: 14, fontWeight: '700', textAlign: 'right' },
-    modeBody: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4, lineHeight: 18 },
-    summary: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 16 },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    stepsRow: { flexDirection: 'row-reverse', gap: space.xs, justifyContent: 'center', marginBottom: space.sm },
+    stepDot: { width: 28, height: 4, borderRadius: radius.track, backgroundColor: c.borderStrong },
+    stepTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    bigInput: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, justifyContent: 'center', minHeight: MIN_TOUCH },
+    row: { flexDirection: 'row-reverse', gap: space.sm },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', minHeight: MIN_TOUCH, justifyContent: 'center' },
+    modeCard: { borderWidth: 1.5, borderRadius: radius.lg, padding: space.xl, marginTop: space.lg },
+    modeTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
+    summary: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxl },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

@@ -9,7 +9,7 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -293,46 +293,49 @@ export default function FirstRunSetup() {
   );
 }
 
+// إيموجي الترحيب زينة مش نص — مفيش درجة في `typeScale` ليه، فمسمّى هنا بدل رقم حرفي
+const SETUP_EMOJI_SIZE = 56;
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 24 },
-    center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-    bigEmoji: { fontSize: 56 },
-    title: { color: c.text, fontSize: 22, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
-    sub: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6, marginBottom: 14, lineHeight: 20 },
-    centerText: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
-    hint: { color: c.textMuted, fontSize: 12, textAlign: 'center' },
-    failTitle: { color: c.dangerText, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+    content: { padding: space.xxl, paddingBottom: 24 },
+    center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
+    bigEmoji: { fontSize: SETUP_EMOJI_SIZE },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
+    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
+    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
+    failTitle: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     row: {
-      flexDirection: 'row-reverse', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderWidth: 1,
-      borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, minHeight: MIN_TOUCH + 8,
+      flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, backgroundColor: c.surface, borderWidth: 1,
+      borderColor: c.border, borderRadius: radius.lg, paddingHorizontal: space.lg, marginBottom: space.sm, minHeight: MIN_TOUCH + 8,
     },
-    rowToggle: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH },
-    rowName: { color: c.text, fontSize: 15, textAlign: 'right' },
+    rowToggle: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, minHeight: MIN_TOUCH },
+    rowName: { color: c.text, fontSize: typeScale.title, textAlign: 'right' },
     balanceInput: {
-      width: 120, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: 10,
-      color: c.text, backgroundColor: c.bg, paddingHorizontal: 10, fontSize: 15,
+      width: 120, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: radius.md,
+      color: c.text, backgroundColor: c.bg, paddingHorizontal: space.md, fontSize: typeScale.title,
     },
-    chips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
+    chips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
     chip: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 20, paddingHorizontal: 14, minHeight: MIN_TOUCH,
+      borderWidth: 1, borderColor: c.border, borderRadius: radius.sheet, paddingHorizontal: space.xl, minHeight: MIN_TOUCH,
       justifyContent: 'center', backgroundColor: c.surface,
     },
-    chipText: { fontSize: 14 },
+    chipText: { fontSize: typeScale.body },
     bold: { fontWeight: '700' },
-    addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 12 },
+    addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.lg },
     addInput: {
-      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: 10, color: c.text,
-      backgroundColor: c.surface, paddingHorizontal: 12, fontSize: 14,
+      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, color: c.text,
+      backgroundColor: c.surface, paddingHorizontal: space.lg, fontSize: typeScale.body,
     },
     addBtn: { minWidth: MIN_TOUCH + 16 },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'right', marginTop: 12 },
-    primaryBtn: { backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    primaryText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    ghostText: { color: c.textSecondary, fontSize: 15 },
-    wideBtn: { alignSelf: 'stretch', marginTop: 4 },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.lg },
+    primaryBtn: { backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
+    primaryText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
+    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
+    ghostText: { color: c.textSecondary, fontSize: typeScale.title },
+    wideBtn: { alignSelf: 'stretch', marginTop: space.xxs },
     flexBtn: { flex: 1 },
   });
 }
