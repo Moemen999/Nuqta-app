@@ -3,6 +3,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 
 export type ReassignTarget = { id: string; name: string };
@@ -85,13 +86,13 @@ export default function ArchiveSheet({
             <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={onClose} disabled={busy}>
               <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button"
+            <Button
               testID="archive_sheet_confirm"
-              style={[styles.saveBtn, (!allAssigned || busy) && styles.btnBusy]}
-              disabled={!allAssigned || busy}
-              onPress={() => onConfirm(assignments)}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : confirmText}</Text>
-            </TouchableOpacity>
+              label={confirmText}
+              style={styles.saveBtn}
+              disabled={!allAssigned}
+              busy={busy}
+              onPress={() => onConfirm(assignments)} />
           </View>
         </View>
       </View>
@@ -115,7 +116,7 @@ function makeStyles(c: ThemeColors) {
     note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 14, lineHeight: 17 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.5 },
   });
 }

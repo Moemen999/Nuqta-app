@@ -6,6 +6,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 import { useNotice } from '@/components/NoticeProvider';
 import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
@@ -64,13 +65,7 @@ export default function LockScreen_Settings() {
             القفل بيطلب منك رقم سري أو باسورد قبل ما تفتح التطبيق. بياناتك محمية بحسابك أصلاً —
             ده بيمنع أي حد ماسك موبايلك إنه يشوفها.
           </Text>
-          <TouchableOpacity
-            testID="lock_enable_button"
-            accessibilityRole="button"
-            style={styles.primaryBtn}
-            onPress={() => setModalMode('enable')}>
-            <Text style={styles.primaryBtnText}>تفعيل قفل التطبيق</Text>
-          </TouchableOpacity>
+          <Button testID="lock_enable_button" variant="secondary" label="تفعيل قفل التطبيق" onPress={() => setModalMode('enable')} />
         </>
       ) : (
         <View style={styles.card}>
@@ -156,7 +151,5 @@ function makeStyles(c: ThemeColors) {
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: MIN_TOUCH },
     changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
     disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
-    primaryBtn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 13 },
-    primaryBtnText: { color: c.text, fontWeight: '700', fontSize: 13.5 },
   });
 }

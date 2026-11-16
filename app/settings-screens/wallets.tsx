@@ -22,6 +22,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacit
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH } from '@/lib/tokens';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
@@ -366,17 +367,17 @@ export default function WalletsScreen() {
         <View style={styles.addRow}>
           <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
             maxLength={NAME_MAX_LENGTH} value={newWallet} onChangeText={setNewWallet} textAlign="right" />
-          <TouchableOpacity accessibilityRole="button"
+          <Button
             testID="wallet_add_button"
-            style={[styles.addBtn, adding && styles.btnBusy]}
-            disabled={adding}
+            size="sm"
+            label="+"
+            style={styles.addBtn}
+            busy={adding}
             onPress={() => {
               const name = newWallet.trim();
               if (!name) return;
               runAdd(async () => { await addWallet(name); setNewWallet(''); });
-            }}>
-            <Text style={styles.addBtnText}>{adding ? '...' : '+'}</Text>
-          </TouchableOpacity>
+            }} />
         </View>
 
         <ArchivedList title="المحافظ المؤرشفة" items={archivedWallets} onRestore={confirmRestore} />
@@ -418,8 +419,7 @@ function makeStyles(c: ThemeColors) {
     deleteText: { color: c.dangerText, fontSize: 12.5 },
     addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
     addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, minHeight: MIN_TOUCH },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, width: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    addBtnText: { color: c.onAccent, fontSize: 20, fontWeight: '700' },
+    addBtn: { width: MIN_TOUCH, paddingHorizontal: 0 },
     btnBusy: { opacity: 0.6 },
   });
 }

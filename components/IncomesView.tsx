@@ -23,6 +23,7 @@ import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
   TouchableOpacity, View,
 } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 import { useFabScroll } from '@/context/FabScrollContext';
@@ -147,9 +148,7 @@ export default function IncomesView() {
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} {...fabScroll.scrollProps}>
       <View style={styles.titleRow}>
-        <TouchableOpacity testID="income_add_button" accessibilityRole="button" style={styles.addBtn} onPress={() => setEditing('new')}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دخل ثابت</Text>
-        </TouchableOpacity>
+        <Button testID="income_add_button" size="sm" label="+ دخل ثابت" onPress={() => setEditing('new')} />
         <Text style={styles.title}>الدخل الثابت</Text>
       </View>
 
@@ -431,9 +430,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                 onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }}>
                 <Text style={{ color: colors.textSecondary }}>{step === 0 ? 'إلغاء' : 'رجوع'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity testID="income_setup_next" accessibilityRole="button" style={styles.saveBtn} onPress={next}>
-                <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{step < 2 ? 'التالي' : 'حفظ'}</Text>
-              </TouchableOpacity>
+              <Button testID="income_setup_next" label={step < 2 ? 'التالي' : 'حفظ'} style={styles.saveBtn} onPress={next} />
             </View>
           </View>
         </View>
@@ -448,7 +445,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20, lineHeight: 20 },
     card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
     cardPaused: { opacity: 0.7 },
@@ -493,6 +489,6 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    saveBtn: { flex: 2 },
   });
 }

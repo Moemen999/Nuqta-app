@@ -29,6 +29,7 @@ import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle,
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -228,9 +229,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           <TouchableOpacity accessibilityRole="button" testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_payment_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button testID="debt_payment_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -417,9 +416,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           <TouchableOpacity accessibilityRole="button" testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_increase_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button testID="debt_increase_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -628,9 +625,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <TouchableOpacity accessibilityRole="button" testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button testID="debt_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
 
@@ -688,7 +683,7 @@ function makeStyles(c: ThemeColors) {
     footerError: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }

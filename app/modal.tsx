@@ -24,6 +24,7 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
@@ -476,11 +477,7 @@ export default function AddTransactionModal() {
       <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing}>
         <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
       </TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" testID="tx_save_button" style={[styles.saveBtn, (busy || syncing) && styles.btnBusy]} onPress={handleSave} disabled={busy || syncing}>
-        {syncing ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-        )}
-      </TouchableOpacity>
+      <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || syncing} />
     </View>
 
     {settle.sheet}
@@ -513,7 +510,7 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     footer: stickyFooterStyle(c, c.bg, insetBottom),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
     deleteBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }

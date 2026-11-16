@@ -32,6 +32,7 @@ import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
@@ -356,9 +357,7 @@ function DebtsContent() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity accessibilityRole="button" testID="debt_add_button" style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دين جديد</Text>
-        </TouchableOpacity>
+        <Button testID="debt_add_button" size="sm" label="+ دين جديد" onPress={() => setShowAddDebt(true)} />
         <Text style={styles.title}>الديون والأقساط</Text>
       </View>
 
@@ -545,9 +544,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           <TouchableOpacity accessibilityRole="button" testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
             <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
           </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button testID="debt_edit_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
 
@@ -599,7 +596,6 @@ function makeStyles(c: ThemeColors) {
     content: { padding: 16, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     title: { color: c.text, fontSize: 18, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
     summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
     summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
     summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
@@ -655,7 +651,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }
