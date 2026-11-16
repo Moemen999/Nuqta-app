@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, glyphSize } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconSize } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -11,6 +11,7 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
 import { LineIcon } from '@/components/LineIcon';
+import { HeroIcon } from '@/components/HeroIcon';
 import { useData } from '@/context/DataContext';
 import { transferTransactionIds } from '@/lib/spending';
 import { monthSummary } from '@/lib/monthSummary';
@@ -327,7 +328,7 @@ function HomeScreen() {
         ))}
         {noWallets && !cold && (
           <View testID="home_no_wallets" style={styles.noWallets}>
-            <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
+            <HeroIcon name="wallet-outline" size={heroIconSize.empty} testID="home_no_wallets_icon" />
             <Text style={styles.noWalletsTitle} accessibilityRole="header">مفيش ولا محفظة</Text>
             <Text style={styles.noWalletsBody}>
               {onlyArchived
@@ -489,7 +490,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: c.accentText, borderRadius: radius.lg,
       padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
     },
-    noWalletsEmoji: { fontSize: glyphSize.emptyEmoji },
     noWalletsTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
     noWalletsBtn: {

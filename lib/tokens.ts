@@ -78,8 +78,12 @@ export const radius = {
   pill: 999,
 } as const;
 
-/** مقاسات رموز/إيموجي مالهاش درجة في `typeScale` (رمز سهم، إيموجي حالة فاضية/ترحيب، شعار تسجيل الدخول) */
-export const glyphSize = { chevron: 20, emptyEmoji: 40, onboardingEmoji: 64, logo: 36 } as const;
+/** مقاسات رموز مالهاش درجة في `typeScale` (رمز سهم، شعار تسجيل الدخول) */
+export const glyphSize = { chevron: 20, logo: 36 } as const;
+
+/** دايرة الأيقونة الكبيرة (`HeroIcon`) بدل الإيموجي الزخرفي: الترحيب / أول تجهيز / الحالة الفاضية، والأيقونة نسبة من القطر */
+export const heroIconSize = { welcome: 80, setup: 64, empty: 56 } as const;
+export const heroIconGlyphRatio = 0.5;
 
 /**
  * أصغر هدف لمس مقبول. أي حاجة بتتدوس لازم توصل للرقم ده — إما بارتفاع/عرض

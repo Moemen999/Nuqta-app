@@ -9,7 +9,8 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { HeroIcon } from '@/components/HeroIcon';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -186,7 +187,7 @@ export default function FirstRunSetup() {
   if (step === 'welcome') {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.bigEmoji}>👋</Text>
+        <HeroIcon name="wallet-outline" size={heroIconSize.setup} testID="setup_icon" />
         <Text style={styles.title}>نبدأ بإيه؟</Text>
         <Text style={styles.centerText}>
           اختار المحافظ اللي بتصرف منها ورصيد كل واحدة دلوقتي، والفئات اللي بتصرف عليها. تقدر تغيّر أي حاجة بعدين من الإعدادات.
@@ -293,15 +294,11 @@ export default function FirstRunSetup() {
   );
 }
 
-// إيموجي الترحيب زينة مش نص — مفيش درجة في `typeScale` ليه، فمسمّى هنا بدل رقم حرفي
-const SETUP_EMOJI_SIZE = 56;
-
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: 24 },
     center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
-    bigEmoji: { fontSize: SETUP_EMOJI_SIZE },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
     centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
