@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@rea
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useState } from 'react';
@@ -51,7 +51,13 @@ function SetupChecking() {
 
 function RootNavigator() {
   const { user, loading } = useAuth();
-  const { theme } = useTheme();
+  const { theme, colors } = useTheme();
+  // خلفية التنقّل من ثيمنا: الافتراضي بتاع react-navigation (#F2F2F2) كان بيبان شريط رمادي تحت المودال
+  // في الفاتح (اتشاف على 1.0.0.032)
+  const navTheme = useMemo(() => {
+    const base = theme === 'dark' ? DarkTheme : DefaultTheme;
+    return { ...base, colors: { ...base.colors, background: colors.bg } };
+  }, [theme, colors.bg]);
   const { enabled, isLocked, readFailed, loading: lockLoading } = useAppLock();
   const { setupStatus } = useData();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
@@ -75,7 +81,7 @@ function RootNavigator() {
   // شاشة الترحيب بتظهر مرة واحدة بس لأول مستخدم جديد
   if (!onboardingDone) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         <OnboardingScreen onDone={() => setOnboardingDone(true)} />
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -84,7 +90,7 @@ function RootNavigator() {
 
   if (shouldShowLock({ enabled, isLocked, readFailed })) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         <LockScreen />
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -96,7 +102,7 @@ function RootNavigator() {
   // `checking` لمحة قصيرة أول مرة بس — بعدها الحالة متفكرة على الجهاز.
   if (user && (setupStatus === 'needed' || setupStatus === 'checking')) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         {setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />}
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -104,7 +110,7 @@ function RootNavigator() {
   }
 
   return (
-    <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavThemeProvider value={navTheme}>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
       <DataLoadErrorBanner />
       {/* مفيش هيدر النظام لأي شاشة (كل شاشة ليها عنوانها وزرار رجوع بالعربي). شاشة "مسح الحساب" كانت ناسية
