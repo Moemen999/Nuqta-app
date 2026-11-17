@@ -52,7 +52,7 @@ describe('تذكيرات الديون', () => {
 
   it('الدين اللي عليا بيقول كده في العنوان', async () => {
     await run({ debts: [debt({ personName: 'سامي', direction: 'i_owe', dueDate: soon(5), reminderDaysBefore: 0 })] });
-    expect(scheduled[0].title).toBe('عليا لـ سامي');
+    expect(scheduled[0].title).toBe('عليا لـسامي');
     expect(scheduled[0].date).toBe(soon(5));
   });
 

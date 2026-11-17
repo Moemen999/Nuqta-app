@@ -52,7 +52,7 @@ export const LEFTOVER_REQUIRED = 'اختار الأول: يتضاف على آخ�
 export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
 /** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
 const NEAR_DOUBLE = 1.5;
-export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
+export const DEBT_SETTLED_TITLE = 'الدين ده اتسدد بالكامل';
 // جملة عامة صح في الشاشتين (الديون وكشف الشخص) — مش "نزل تحت" (arabic-copy-reviewer +
 // silent-failure-hunter، جولة 2)
 export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" تحت قايمة الديون، ودوس عليه عشان تفتحه.';
@@ -214,14 +214,14 @@ function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void })
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">تسجيل دفعة — {debt.personName}</Text>
           <Text style={styles.hintText}>المتبقي: <Money value={remaining} /></Text>
           {!!progressLabel && <Text style={styles.installmentText}>{progressLabel}</Text>}
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
+          <TextInput testID="debt_payment_amount" accessibilityLabel="المبلغ" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -253,14 +253,14 @@ function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void })
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {!!error && <Text testID="debt_payment_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="debt_payment_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
@@ -373,9 +373,9 @@ function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>زيادة على دين — {debt.personName}</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">زيادة على دين — {debt.personName}</Text>
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
@@ -392,7 +392,7 @@ function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }
           {!linkedToWallet && isCreditPurchase(debt) && <Text testID="debt_increase_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
-          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={changeAmount}
+          <TextInput testID="debt_increase_amount" accessibilityLabel="المبلغ الإضافي" style={styles.bigInput} value={amount} onChangeText={changeAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -437,7 +437,7 @@ function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
@@ -505,7 +505,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   async function handleSave() {
     // "1e999" كان بيعدّي من فحص الصفر لوحده ويتسجل دين Infinity (`toMoneyAmount`)
     const amt = toMoneyAmount(Number(totalAmount));
-    if (!personName.trim() || amt === null) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
+    if (!personName.trim() || amt === null) { setError('دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
@@ -551,9 +551,9 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>دين جديد</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">دين جديد</Text>
 
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
@@ -583,7 +583,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
             </Text>
           ) : (
             <>
-              <Text style={styles.hintText}>الدين هيتسجل بس من غير ما يأثر على أي رصيد دلوقتي — وقت السداد بس هيتسجل كعملية حقيقية</Text>
+              <Text style={styles.hintText}>الدين هيتسجل من غير ما يأثر على أي رصيد دلوقتي، وهيتسجل كعملية حقيقية وقت السداد بس.</Text>
               {direction === 'i_owe' && <Text testID="debt_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
             </>
           )}
@@ -600,11 +600,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
+          <TextInput accessibilityLabel="اسم الشخص" maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={v => { freeze(); setTotalAmount(v); }}
+          <TextInput testID="debt_add_amount" accessibilityLabel="المبلغ الإجمالي" style={styles.bigInput} value={totalAmount} onChangeText={v => { freeze(); setTotalAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           {linkedToWallet && <AmountPreview amount={totalAmount} projections={projections} />}
 
@@ -623,7 +623,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
@@ -641,7 +641,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           {isInstallment && (
             <>
               <Text style={styles.label}>عدد الأقساط</Text>
-              <TextInput style={styles.input} value={installmentCount} onChangeText={v => { freeze(); setInstallmentCount(v); }}
+              <TextInput accessibilityLabel="عدد الأقساط" style={styles.input} value={installmentCount} onChangeText={v => { freeze(); setInstallmentCount(v); }}
                 placeholder="مثلاً: 6" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
             </>
           )}
@@ -654,13 +654,13 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           />
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { freeze(); setNote(v); }}
+          <TextInput accessibilityLabel="ملاحظة" maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { freeze(); setNote(v); }}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
-
-          {!!error && <Text style={styles.error}>{error}</Text>}
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {!!error && <Text testID="debt_add_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="debt_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />

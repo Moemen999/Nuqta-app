@@ -21,7 +21,7 @@ const debt = {
   id: 'd1', direction: 'i_owe', personName: 'صاحبي', totalAmount: 1000, isInstallment: false,
   date: '2026-01-01', payments: [], increases: [],
 } as unknown as Debt;
-const DUE = 'الزيادة فتحت الدين تاني، فالمعاد الجاي بقى 15 ديسمبر 2026.';
+const DUE = 'الزيادة فتحت الدين تاني، فمعاد القسط الجاي بقى 15 ديسمبر 2026.';
 
 function seed(result: Record<string, unknown>) {
   Object.assign(mockData, {
@@ -44,9 +44,9 @@ it('المعاد بس اتغيّر ← رسالة بعنوانها', async () =>
 });
 
 it('العدد والمعاد اتغيّروا ← رسالة واحدة فيها الاتنين', async () => {
-  seed({ note: 'بعد الزيادة، الأقساط بقت 4 بدل 3.', dueNote: DUE });
+  seed({ note: 'بعد الزيادة، عدد الأقساط بقى 4 بدل 3.', dueNote: DUE });
   await increase();
-  expect(screen.getByText(`بعد الزيادة، الأقساط بقت 4 بدل 3.\n${DUE}`)).toBeTruthy();
+  expect(screen.getByText(`بعد الزيادة، عدد الأقساط بقى 4 بدل 3.\n${DUE}`)).toBeTruthy();
 });
 
 it('مفيش تغيير في المعاد ← مفيش رسالة معاد', async () => {

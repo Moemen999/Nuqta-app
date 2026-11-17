@@ -213,6 +213,14 @@ export function installmentsPhrase(n: number) {
   return countPhrase(n, 'مفيش أقساط', 'قسط واحد', 'قسطين', 'أقساط', 'قسط');
 }
 
+export function resultsPhrase(n: number) {
+  return countPhrase(n, 'مفيش نتايج', 'نتيجة واحدة', 'نتيجتين', 'نتايج', 'نتيجة');
+}
+
+export function contactsPhrase(n: number) {
+  return countPhrase(n, 'مفيش جهات اتصال', 'جهة اتصال واحدة', 'جهتين اتصال', 'جهات اتصال', 'جهة اتصال');
+}
+
 export function transactionsPhrase(n: number) {
   return countPhrase(n, 'مفيش عمليات', 'عملية واحدة', 'عمليتين', 'عمليات', 'عملية');
 }

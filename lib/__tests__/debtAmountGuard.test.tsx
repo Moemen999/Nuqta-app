@@ -100,7 +100,7 @@ describe('دين جديد', () => {
 
   it.each(INVALID)('%s ← مرفوض بنفس الرسالة، ومفيش دين', async v => {
     const onClose = await add(v);
-    expect(screen.getByText('من فضلك دخّل اسم ومبلغ صحيحين')).toBeTruthy();
+    expect(screen.getByText('دخّل اسم ومبلغ صحيحين')).toBeTruthy();
     expect(mockData.addDebt).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

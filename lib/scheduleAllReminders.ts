@@ -84,7 +84,7 @@ export async function scheduleAllReminders(opts: {
     const remaining = debtGrandTotal(d) - debtPaid(d);
     const mine = d.direction === 'owed_to_me';
     candidates.push({
-      title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,
+      title: mine ? `ليا عند ${d.personName}` : `عليا لـ${d.personName}`,
       body: `المعاد ${whenPhrase(d.reminderDaysBefore)}${debtLeft(remaining)}`,
       date: addDays(d.dueDate, -d.reminderDaysBefore),
       kind: 'debt',

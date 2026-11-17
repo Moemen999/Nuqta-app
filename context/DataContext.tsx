@@ -260,7 +260,7 @@ export const PAY_OUTCOME_ALERT_GAMIYA: typeof PAY_OUTCOME_ALERT = {
   ...PAY_OUTCOME_ALERT,
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
-    body: 'المحفظة المربوطة بيه اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل الجمعية واختار محفظة شغالة وجرب تاني.',
+    body: 'المحفظة المربوطة بيها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. عدّل الجمعية واختار محفظة شغالة وجرب تاني.',
   },
 };
 
@@ -282,12 +282,24 @@ export const DEBT_GONE_ALERT = {
   title: 'الدين اتمسح',
   body: 'الدين ده اتمسح (يمكن من جهاز تاني)، فمفيش حاجة اتسجلت.',
 };
+/** نفس الرسالة بس للمسح: "اتسجلت" هنا غلط، المستخدم بيمسح مش بيسجّل */
+export const DEBT_GONE_DELETE_ALERT = {
+  title: 'الدين اتمسح',
+  body: 'الدين ده اتمسح (يمكن من جهاز تاني)، فمفيش حاجة اتغيّرت.',
+};
 
 export const PAY_OUTCOME_ALERT_DEBT: Record<Exclude<DebtPayOutcome, 'done'>, { title: string; body: string }> = {
-  ...PAY_OUTCOME_ALERT,
+  'no-connection': {
+    title: 'مفيش نت دلوقتي',
+    body: 'ما اتسجلش حاجة. العملية دي لازم تتأكد من السيرفر عشان متتسجلش مرتين — جرب تاني أول ما النت يرجع.',
+  },
+  failed: {
+    title: 'ما اتسجلش',
+    body: 'العملية ما كملتش ومفيش حاجة اتسجلت ولا الرصيد اتغيّر. اتأكد إن النت شغال وجرب تاني.',
+  },
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
-    body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
+    body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلتش حاجة. اختار محفظة شغالة وجرب تاني.',
   },
   gone: DEBT_GONE_ALERT,
   uncertain: {
@@ -387,7 +399,7 @@ export const INCOME_DELETE_ALERT: Record<Exclude<IncomeDeleteOutcome, 'done'>, {
  * المربوطة اتأرشفت من جهاز تاني بين الدوسة والمسح (`WalletArchivedError`).
  */
 export const DEBT_ENTRY_DELETE_ALERT: Record<Exclude<DebtEntryDeleteOutcome, 'done'>, { title: string; body: string }> = {
-  gone: DEBT_GONE_ALERT,
+  gone: DEBT_GONE_DELETE_ALERT,
   'no-connection': {
     title: 'مفيش نت دلوقتي',
     body: 'ما اتمسحش حاجة، والرصيد زي ما هو. المسح لازم يتأكد من السيرفر عشان العدد والمحفظة يتظبطوا صح — جرب تاني أول ما النت يرجع.',
@@ -2152,7 +2164,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       batch.set(txRef, {
         createdAt: new Date().toISOString(),
         type, amount: data.totalAmount, walletId: data.walletId, date: data.date,
-        note: `${data.direction === 'owed_to_me' ? 'قرض لـ' : 'استلاف من'} ${data.personName}`,
+        note: data.direction === 'owed_to_me' ? `قرض لـ${data.personName}` : `استلاف من ${data.personName}`,
       });
       initialTransactionId = txRef.id;
     }
@@ -2273,7 +2285,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const txData = {
           type, amount, walletId, date,
           categoryId: type === 'expense' ? categoryId : undefined,
-          note: `${debt.direction === 'owed_to_me' ? 'استلام دين من' : 'سداد دين لـ'} ${debt.personName}`,
+          note: debt.direction === 'owed_to_me' ? `استلام دين من ${debt.personName}` : `سداد دين لـ${debt.personName}`,
           createdAt: new Date().toISOString(),
         };
         t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
@@ -2514,7 +2526,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const type = debt.direction === 'owed_to_me' ? 'expense' : 'income';
           const txData = {
             type, amount, walletId, date,
-            note: `${debt.direction === 'owed_to_me' ? 'زيادة قرض لـ' : 'زيادة استلاف من'} ${debt.personName}`,
+            note: debt.direction === 'owed_to_me' ? `زيادة قرض لـ${debt.personName}` : `زيادة استلاف من ${debt.personName}`,
             createdAt: new Date().toISOString(),
           };
           t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));

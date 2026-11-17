@@ -196,7 +196,7 @@ export function installmentEditMessage(beforeCount: number | undefined, afterCou
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (typeof afterCount !== 'number' || !Number.isFinite(afterCount) || afterCount <= 0) return null;
   if (beforeCount === afterCount) return null;
-  return `بعد التعديل، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
+  return `بعد التعديل، عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.`;
 }
 
 /**

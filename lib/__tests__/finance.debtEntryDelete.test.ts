@@ -91,15 +91,15 @@ describe('debtEntryDeleteMessage — التأكيد بيقول كل حاجة', (
     const d = debt({ direction: 'i_owe', payments: [pay] });
     const m = debtEntryDeleteMessage(d, 'payment', debtEntryDeletePlan(d, 'payment', 'p1')!, 'الكاش', money);
     expect(m.title).toBe('تمسح الدفعة دي؟');
-    expect(m.body).toContain('دفعة 500 ج.م لـ أحمد هتتمسح.');
-    expect(m.body).toContain('الـ 500 ج.م هترجع لمحفظة "الكاش".');
+    expect(m.body).toContain('دفعة 500 ج.م لـأحمد هتتمسح.');
+    expect(m.body).toContain('والمبلغ هيرجع لمحفظة "الكاش".');
   });
 
   it('دفعة من حد: الفلوس بتتشال من المحفظة', () => {
     const d = debt({ direction: 'owed_to_me', payments: [pay] });
     const m = debtEntryDeleteMessage(d, 'payment', debtEntryDeletePlan(d, 'payment', 'p1')!, 'الكاش', money);
     expect(m.body).toContain('دفعة 500 ج.م من أحمد هتتمسح.');
-    expect(m.body).toContain('الـ 500 ج.م هتتشال من محفظة "الكاش".');
+    expect(m.body).toContain('والمبلغ هيتشال من محفظة "الكاش".');
   });
 
   it('زيادة: بتسمّي الدين', () => {
@@ -107,7 +107,7 @@ describe('debtEntryDeleteMessage — التأكيد بيقول كل حاجة', (
     const m = debtEntryDeleteMessage(d, 'increase', debtEntryDeletePlan(d, 'increase', 'i1')!, 'البنك', money);
     expect(m.title).toBe('تمسح الزيادة دي؟');
     expect(m.body).toContain('زيادة 300 ج.م على دين أحمد هتتمسح.');
-    expect(m.body).toContain('هترجع لمحفظة "البنك"');
+    expect(m.body).toContain('هيرجع لمحفظة "البنك"');
   });
 
   it('العدد لو هيتحرك بيتقال', () => {

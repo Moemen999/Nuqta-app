@@ -1,5 +1,6 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
 import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine } from '@/lib/reopenDue';
+import { installmentsPhrase } from '@/lib/archiving';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -1185,9 +1186,9 @@ export function installmentChangeMessage(
   // بس لو العدد اتغيّر برضه (أول ما دين قديم يتثبّت قسطه وفرقه — 2026-09-30)
   // بيتقال، مش بيتغيّر ساكت. "بدل 0" على عدد مش معروف كانت هتبقى كدب
   if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) {
-    return beforeCount > 0 && afterCount > 0 ? `الأقساط بقت ${afterCount} بدل ${beforeCount}.` : null;
+    return beforeCount > 0 && afterCount > 0 ? `عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.` : null;
   }
-  return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
+  return `دفعت ${fmt(paidAmount)} ج.م بدل ${fmt(expectedValue)} ج.م، عدد الأقساط بقى ${afterCount}.`;
 }
 
 /**
@@ -1289,7 +1290,7 @@ export function installmentIncreaseMessage(beforeCount: number | undefined, afte
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (!Number.isFinite(afterCount) || afterCount <= 0) return null;
   if (beforeCount === afterCount) return null;
-  return `بعد الزيادة، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
+  return `بعد الزيادة، عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.`;
 }
 
 export type DebtEntryKind = 'payment' | 'increase';
@@ -1387,7 +1388,7 @@ export function debtEntryDeleteMessage(
   const amt = `${money(plan.amount)} ج.م`;
   const lines: string[] = [];
   if (kind === 'payment') {
-    lines.push(`دفعة ${amt} ${d.direction === 'owed_to_me' ? 'من' : 'لـ'} ${d.personName} هتتمسح.`);
+    lines.push(`دفعة ${amt} ${d.direction === 'owed_to_me' ? `من ${d.personName}` : `لـ${d.personName}`} هتتمسح.`);
   } else {
     lines.push(`زيادة ${amt} على دين ${d.personName} هتتمسح.`);
   }
@@ -1395,8 +1396,8 @@ export function debtEntryDeleteMessage(
     ? installmentCountBackLine(plan.countBefore, plan.countAfter) : null;
   if (countLine) lines.push(countLine);
   if (plan.dueRestore) lines.push(dueRestoreLine(plan.dueRestore));
-  if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
-  else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
+  if (plan.walletEffect === 'returns') lines.push(`والمبلغ هيرجع لمحفظة "${walletName}".`);
+  else if (plan.walletEffect === 'leaves') lines.push(`والمبلغ هيتشال من محفظة "${walletName}".`);
   else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');
 
   return { title: kind === 'payment' ? 'تمسح الدفعة دي؟' : 'تمسح الزيادة دي؟', body: lines.join('\n') };
@@ -1428,7 +1429,7 @@ export function planInstallmentCountEdit(
 }
 
 export function installmentCountTooLowMessage(paidCount: number) {
-  return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
+  return `اتسجل ${installmentsPhrase(paidCount)} خلاص، فالعدد لازم يكون أكبر من كده.`;
 }
 
 export const INSTALLMENT_VALUE_TOO_SMALL = 'كده القسط هيبقى أقل من قرش، اختار عدد أقل.';

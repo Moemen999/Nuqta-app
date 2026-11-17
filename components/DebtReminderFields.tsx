@@ -38,7 +38,7 @@ export default function DebtReminderFields({
     <>
       <Text style={styles.label}>معاد الدين (اختياري)</Text>
       <View style={styles.row}>
-        <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`معاد الدين، ${dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
           <Text style={styles.dateBtnText}>{dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}</Text>
         </TouchableOpacity>
         {!!dueDate && (

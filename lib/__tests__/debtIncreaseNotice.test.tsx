@@ -42,11 +42,11 @@ async function save(result: unknown) {
 }
 
 it('العدد اتغيّر ← تنبيه "عدد الأقساط اتظبط" بالقديم والجديد، والمودال بيتقفل', async () => {
-  const onClose = await save({ outcome: 'done', note: 'بعد الزيادة، الأقساط بقت 8 بدل 6.' });
+  const onClose = await save({ outcome: 'done', note: 'بعد الزيادة، عدد الأقساط بقى 8 بدل 6.' });
   // رسالة بشكل التطبيق (NoticeProvider) مش الـAlert الأصلي
   expect(alertSpy).not.toHaveBeenCalled();
   expect(screen.getByTestId('notice_title').props.children).toBe(INSTALLMENTS_CHANGED_TITLE);
-  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، عدد الأقساط بقى 8 بدل 6.');
   expect(onClose).toHaveBeenCalled();
 });
 

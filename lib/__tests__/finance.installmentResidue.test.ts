@@ -180,7 +180,7 @@ describe('اللي دفع القسط المقرّب على القسط الأخي
     const r = paid(d, 333.33);
     // باقي 0.01 > نص قرش ← قسط واحد على الأقل (كان 0: "القسط 3 من 3" والفلوس مفتوحة)
     expect(r.debt.installmentCount).toBe(4);
-    expect(r.note).toBe('دفعت 333.33 بدل 333.34، الأقساط بقت 4.');
+    expect(r.note).toBe('دفعت 333.33 ج.م بدل 333.34 ج.م، عدد الأقساط بقى 4.');
     expect(installmentProgressLabel(r.debt)).toBe('القسط 4 من 4');
     expect(suggestedInstallmentPayment(r.debt)).toBe(0.01);
   });
@@ -192,7 +192,7 @@ describe('السماحية بالفلوس مش بنسبة من القسط (بن�
     // القاعدة القديمة: ceil(5.005 − 0.005) = 5 ← 6، والـ5 ج.م كانت بتستخبى
     const r = paid(created(6000, 6), 995);
     expect(r.debt.installmentCount).toBe(7);
-    expect(r.note).toBe('دفعت 995 بدل 1,000، الأقساط بقت 7.');
+    expect(r.note).toBe('دفعت 995 ج.م بدل 1,000 ج.م، عدد الأقساط بقى 7.');
     const rest = payThrough(r.debt);
     // 1000 × 5 وبعدين 5
     expect(rest.amounts).toEqual([1000, 1000, 1000, 1000, 1000, 5]);
@@ -279,7 +279,7 @@ describe('ديون قبل الحقل ده', () => {
     // باقي 1005، دفع 1000 بدل 1005 ← باقي 5: ceil(0.005 − 0.005) = 0 ← 1
     const r = paid(d, 1000);
     expect(r.debt.installmentCount).toBe(7);
-    expect(r.note).toBe('دفعت 1,000 بدل 1,005، الأقساط بقت 7.');
+    expect(r.note).toBe('دفعت 1,000 ج.م بدل 1,005 ج.م، عدد الأقساط بقى 7.');
   });
 
   it('من غير قسط متخزّن خالص (خطوة 6): التثبيت بيكتب الفرق ← 12 قسط، آخرها 83.37', () => {
@@ -304,7 +304,7 @@ describe('ديون قبل الحقل ده', () => {
     const r = paid(legacy, 1000);
     // باقي 4005 ← ceil(4004.995 ÷ 1000) = 5، + دفعتين = 7
     expect(r.debt.installmentCount).toBe(7);
-    expect(r.note).toBe('الأقساط بقت 7 بدل 6.');
+    expect(r.note).toBe('عدد الأقساط بقى 7 بدل 6.');
   });
 });
 
@@ -372,7 +372,7 @@ describe('مع خطوة 7: زيادة فتحت دين متسدد', () => {
 
 describe('الرسالة لما العدد يتغيّر والمبلغ هو الاقتراح', () => {
   it('بتقول العدد القديم والجديد', () => {
-    expect(installmentChangeMessage(1000, 1000, 6, 7, false)).toBe('الأقساط بقت 7 بدل 6.');
+    expect(installmentChangeMessage(1000, 1000, 6, 7, false)).toBe('عدد الأقساط بقى 7 بدل 6.');
   });
   it('من غير عدد قديم معروف ← مفيش "بدل 0"', () => {
     expect(installmentChangeMessage(1000, 1000, 0, 7, false)).toBeNull();
@@ -424,7 +424,7 @@ describe('المراجعة (الجولة 1)', () => {
     // 1000 على 12، دفع 83.30: باقي 916.70 − 0.04 = 11 × 83.33 + 0.03 > نص قرش
     const r = paid(created(1000, 12), 83.3);
     expect(r.debt.installmentCount).toBe(13);
-    expect(r.note).toContain('الأقساط بقت 13');
+    expect(r.note).toContain('عدد الأقساط بقى 13');
   });
 });
 
@@ -459,7 +459,7 @@ describe('زيادة على دين أقساط: التقريب بيتشال في 
     const d = increased(created(1000, 12), 500);
     expect(d.installmentResidue).toEqual(withStamp(d, { amount: 0.06, forInstallment: 83.33, over: 18 }));
     expect(d.installmentCount).toBe(18);
-    expect(installmentIncreaseMessage(12, 18)).toBe('بعد الزيادة، الأقساط بقت 18 بدل 12.');
+    expect(installmentIncreaseMessage(12, 18)).toBe('بعد الزيادة، عدد الأقساط بقى 18 بدل 12.');
     const r = payThrough(d);
     expect(r.amounts).toEqual([...Array(17).fill(83.33), 83.39]);
     expect(r.counts).toEqual(Array(18).fill(18));

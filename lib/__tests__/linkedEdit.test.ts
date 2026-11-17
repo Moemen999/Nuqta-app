@@ -157,7 +157,7 @@ it('عملية مش مربوطة بالدين ده ← null', () => {
 
 describe('installmentEditMessage', () => {
   it('العدد اتغيّر ← جملة بالقديم والجديد', () => {
-    expect(installmentEditMessage(6, 7)).toBe('بعد التعديل، الأقساط بقت 7 بدل 6.');
+    expect(installmentEditMessage(6, 7)).toBe('بعد التعديل، عدد الأقساط بقى 7 بدل 6.');
   });
   it('ما اتغيّرش، أو القديم مش معروف ← null', () => {
     expect(installmentEditMessage(6, 6)).toBeNull();

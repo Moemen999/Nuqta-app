@@ -22,7 +22,7 @@ export const DUE_NOT_RESTORED = {
 };
 
 export function reopenedDueMessage(due: string): string {
-  return `الزيادة فتحت الدين تاني، فالمعاد الجاي بقى ${dueDateLabel(due)}.`;
+  return `الزيادة فتحت الدين تاني، فمعاد القسط الجاي بقى ${dueDateLabel(due)}.`;
 }
 
 /** سطر تأكيد المسح لما المعاد هيرجع */

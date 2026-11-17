@@ -76,7 +76,7 @@ it('محفظة شغالة ← التأكيد بيقول العدد وإن الأ
   const [title, body, buttons] = alertSpy.mock.calls[0];
   expect(title).toBe('مسح الدين');
   expect(body).toBe('متأكد إنك عايز تمسح دين "أحمد"؟ (هيتمسح معاه عمليتين كمان، وده هيغيّر أرصدة المحافظ المرتبطة)');
-  const destructive = (buttons as { text: string; onPress?: () => unknown }[]).find(b => b.text === 'حذف');
+  const destructive = (buttons as { text: string; onPress?: () => unknown }[]).find(b => b.text === 'امسحه');
   await act(async () => { await destructive?.onPress?.(); });
   expect(mockData.deleteDebt).toHaveBeenCalledWith('d1');
 });
@@ -87,7 +87,7 @@ it('اتمنع لحظة الدوسة ← رسالة المنع بتظهر', asyn
     outcome: 'blocked', reason: 'wallet-archived', title: 'المحفظة دي مؤرشفة', body: 'اتأرشفت من جهاز تاني',
   }));
   await pressDelete();
-  const destructive = (alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[]).find(b => b.text === 'حذف');
+  const destructive = (alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[]).find(b => b.text === 'امسحه');
   await act(async () => { await destructive?.onPress?.(); });
   expect(screen.getByTestId('notice_body').props.children).toBe('اتأرشفت من جهاز تاني');
 });

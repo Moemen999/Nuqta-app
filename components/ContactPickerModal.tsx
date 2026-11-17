@@ -4,12 +4,13 @@ import { filterContacts, normalizePhone, phoneForDisplay, type ContactEntry } fr
 import { memo, useDeferredValue, useMemo, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { contactsPhrase, resultsPhrase } from '@/lib/archiving';
 
 /**
- * ارتفاع ثابت للصف عشان نقدر نستخدم getItemLayout — من غيره FlatList
- * بتقيس كل صف لوحدها والتمرير بيهزّ مع الليستات الكبيرة.
+ * أقل ارتفاع للصف (مش ثابت): الخط الكبير من إعدادات النظام بيطوّل الصف، فارتفاع ثابت كان بيقص الاسم والرقم.
+ * من غير getItemLayout FlatList بتقيس الصفوف لوحدها — أمان أكتر من تمرير بيقفز على الخط الكبير.
  */
-const ROW_HEIGHT = 62;
+const ROW_MIN_HEIGHT = 62;
 
 const ContactRow = memo(function ContactRow({
   contact, styles, onPick,
@@ -19,7 +20,8 @@ const ContactRow = memo(function ContactRow({
   onPick: (c: ContactEntry) => void;
 }) {
   return (
-    <TouchableOpacity accessibilityRole="button" style={styles.contactRow} onPress={() => onPick(contact)}>
+    <TouchableOpacity accessibilityRole="button" style={styles.contactRow} onPress={() => onPick(contact)}
+      accessibilityLabel={`${contact.name}، ${contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}`}>
       <Text style={styles.contactName} numberOfLines={1}>{contact.name}</Text>
       <Text style={styles.contactPhone} numberOfLines={1}>{contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}</Text>
     </TouchableOpacity>
@@ -73,21 +75,22 @@ export default function ContactPickerModal({
           خاص بيه. من غيره الكيبورد كانت بتغطي نتايج البحث. */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
           {/* كان مفيش أي طريقة باينة للرجوع من غير زرار في آخر الليست —
               زرار الرجوع الظاهر من فوق بقى موجود جنب العنوان */}
           <View style={styles.headerRow}>
-            <Text style={styles.sheetTitle}>اختار من جهات الاتصال</Text>
+            <Text style={styles.sheetTitle} accessibilityRole="header">اختار من جهات الاتصال</Text>
             <TouchableOpacity
               onPress={close}
               style={styles.closeBtn}
               hitSlop={8}
               accessibilityRole="button"
-              accessibilityLabel="إغلاق جهات الاتصال">
-              <Text style={styles.closeBtnText}>✕ إغلاق</Text>
+              accessibilityLabel="إغلاق">
+              <Text style={styles.closeBtnText} importantForAccessibility="no">✕ إغلاق</Text>
             </TouchableOpacity>
           </View>
           <TextInput
+            accessibilityLabel="دور بالاسم أو الرقم"
             style={styles.input}
             value={search}
             onChangeText={setSearch}
@@ -97,15 +100,14 @@ export default function ContactPickerModal({
             autoCorrect={false}
             autoCapitalize="none"
           />
-          <Text style={styles.contactCount}>
-            {searching ? `${results.length} نتيجة من ${contacts.length}` : `${contacts.length} جهة اتصال`}
+          <Text style={styles.contactCount} accessibilityLiveRegion="polite">
+            {searching ? `${resultsPhrase(results.length)} من ${contacts.length}` : contactsPhrase(contacts.length)}
           </Text>
           <FlatList
             style={styles.list}
             data={results}
             keyExtractor={item => item.id}
             renderItem={({ item }) => <ContactRow contact={item} styles={styles} onPick={handlePick} />}
-            getItemLayout={(_, index) => ({ length: ROW_HEIGHT, offset: ROW_HEIGHT * index, index })}
             initialNumToRender={12}
             maxToRenderPerBatch={12}
             windowSize={7}
@@ -152,7 +154,7 @@ function makeStyles(c: ThemeColors) {
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     contactCount: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm },
     list: { flex: 1, marginTop: space.xs },
-    contactRow: { height: ROW_HEIGHT, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: c.border },
+    contactRow: { minHeight: ROW_MIN_HEIGHT, paddingVertical: space.xs, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: c.border },
     contactName: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
     contactPhone: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.huge },
