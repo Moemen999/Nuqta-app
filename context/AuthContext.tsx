@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { markUserSignOut } from '@/lib/outboxStore';
 
 type AuthContextType = {
   user: User | null;
@@ -95,7 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logOut() {
-    await firebaseSignOut(auth);
+    // خروج طلبه المستخدم ← الطابور المتشفّر بيتمسح (قرار مؤمن 1). خروج غصب مبيعدّيش من هنا فالمدخلات بتفضل
+    markUserSignOut(auth.currentUser?.uid);
+    try { await firebaseSignOut(auth); }
+    catch (e) { markUserSignOut(null); throw e; }
   }
 
   /**

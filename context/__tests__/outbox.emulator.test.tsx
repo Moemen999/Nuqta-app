@@ -9,11 +9,16 @@ import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 import { WRITE_ERROR_TITLE } from '@/lib/writeError';
 import { todayStr } from '@/lib/finance';
+import * as Sentry from '@sentry/react-native';
 import {
   OUTBOX_PREFIX, OUTBOX_UNREADABLE_TITLE, openEntry, outboxSecureKeyName, outboxStorageKey, parseStored, rejectedReplayBody,
-  unreadableReplayBody,
+  unreadableReplayBody, walletGoneReplayBody,
 } from '@/lib/outbox';
-import { __newOutboxSessionForTests, putOutboxEntry, readOutboxKey, replayOutboxDoc } from '@/lib/outboxStore';
+import {
+  __newOutboxSessionForTests, markUserSignOut, putOutboxEntry, readOutboxKey, replayOutboxDoc, updateOutboxMeta,
+} from '@/lib/outboxStore';
+
+jest.mock('@sentry/react-native', () => ({ captureMessage: jest.fn(), captureException: jest.fn(), addBreadcrumb: jest.fn() }));
 
 /**
  * الطابور المحلي المتشفّر (reports/2026-11-16-outbox-design.md) على المحاكي الحقيقي و`DataProvider` الحقيقي.
@@ -85,6 +90,17 @@ function newTxId() {
   return doc(collection(db, 'users', uid, 'transactions')).id;
 }
 
+/**
+ * فشل تخزين مؤقت لمفاتيح معيّنة. **مش** `jest.spyOn(...).mockRestore()`: دوال الـmock بتاعة AsyncStorage هي نفسها `jest.fn`،
+ * و`mockRestore` عليها بيمسح تنفيذها خالص — فكل الاختبارات اللي بعدها كانت بتقع (removeItem بيرجّع undefined).
+ */
+function failStorage(name: 'setItem' | 'removeItem' | 'multiRemove', when: (...args: any[]) => boolean): () => void {
+  const fn = (AsyncStorage as unknown as Record<string, jest.Mock>)[name];
+  const orig = fn.getMockImplementation()!;
+  fn.mockImplementation(async (...args: any[]) => { if (when(...args)) throw new Error('disk'); return orig(...args); });
+  return () => { fn.mockImplementation(orig); };
+}
+
 async function openStored(forUid: string, id: string) {
   const stored = parseStored(await AsyncStorage.getItem(outboxStorageKey(forUid, id)));
   if (!stored) return null;
@@ -115,9 +131,10 @@ it('2. مدخلة من جلسة قديمة والعملية مش على السي
   h = await renderDataProvider();
   await h.waitForReady();
   await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 20000 });
-  const docs = await serverTxs(uid);
-  expect(docs.map(d => d.id)).toEqual([id]);
-  expect(docs[0].data()).toEqual(data);
+  // رفض بيشيل المدخلة كان هيبان هنا قبل قراية السيرفر (money-reviewer)
+  expect(mockNotice).not.toHaveBeenCalled();
+  // قراية مستند واحد من السيرفر — استعلام المجموعة كان ممكن يتجاوب من snapshot الـlistener قبل ما الكتابة توصله
+  expect((await getDocFromServer(txDoc(uid, id))).data()).toEqual(data);
   await settle(1000);
   expect(await serverTxs(uid)).toHaveLength(1);
   expect(mockNotice).not.toHaveBeenCalled();
@@ -151,14 +168,14 @@ it('3. العملية وصلت قبل كده واتعدّلت 100 ← 120 من �
 });
 
 it('3ب. ذرة الإعادة نفسها: المستند موجود ← مبتكتبش (الـlistener في 3 ممكن يشيل المدخلة قبلها)، مش موجود ← بتكتبه', async () => {
-  await preparedAccount();
+  const w0 = await preparedAccount();
   const id = newTxId();
-  const base = { type: 'expense', amount: 100, walletId: 'w', date: todayStr() };
+  const base = { type: 'expense', amount: 100, walletId: w0, date: todayStr() };
   await setDoc(txDoc(uid, id), { ...base, amount: 120 });
-  expect(await replayOutboxDoc(txDoc(uid, id), base)).toBe('exists');
+  expect(await replayOutboxDoc(uid, id, base)).toBe('exists');
   expect((await getDocFromServer(txDoc(uid, id))).data()?.amount).toBe(120);
   const id2 = newTxId();
-  expect(await replayOutboxDoc(txDoc(uid, id2), base)).toBe('written');
+  expect(await replayOutboxDoc(uid, id2, base)).toBe('written');
   expect((await getDocFromServer(txDoc(uid, id2))).data()).toEqual(base);
 }, 60000);
 
@@ -183,24 +200,34 @@ it('4. حساب تاني: مدخلاته بتتكنس، ومدخلة متشفّ�
   expect((await getDocFromServer(txDoc(uid, idForeign))).exists()).toBe(false);
 });
 
-it('5. السيرفر رفض الإعادة (القواعد) ← رسالة واحدة بالمبلغ والتاريخ، والمدخلة بتتشال ومبتتعادش', async () => {
+it('5. السيرفر رفض الإعادة (القواعد): أول جلسة بتعلّم بس (التوكن ممكن يكون لسه ما اتربطش)، والجلسة اللي بعدها رسالة واحدة والمدخلة بتتشال بعد "تمام"', async () => {
   const w = await preparedAccount();
   const id = newTxId();
   const date = todayStr();
   await putOutboxEntry(uid, id, { type: 'expense', amount: -5, walletId: w, date });
+  const first = __newOutboxSessionForTests();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await waitFor(async () => expect(parseStored(await AsyncStorage.getItem(outboxStorageKey(uid, id)))?.rj).toBe(first), { timeout: 20000 });
+  await settle(1000);
+  expect(mockNotice).not.toHaveBeenCalled();
+  await h.unmount(); h = undefined;
   __newOutboxSessionForTests();
   h = await renderDataProvider();
   await h.waitForReady();
-  await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, rejectedReplayBody(-5, date, date)), { timeout: 20000 });
-  await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 5000 });
-  // الاتصال وقع ورجع ← مفيش إعادة تانية ولا رسالة تانية
+  await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, rejectedReplayBody(-5, date, date), expect.any(Function)), { timeout: 20000 });
+  // لسه موجودة لحد "تمام"
+  expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).not.toBeNull();
+  // الاتصال وقع ورجع قبل "تمام" ← مفيش إعادة تانية ولا رسالة تانية
   await disableNetwork(db);
   try { await h.waitForData(api => !api.serverReachable, 10000); } finally { await enableNetwork(db); }
   await h.waitForData(api => api.serverReachable, 15000);
   await settle(1500);
   expect(mockNotice).toHaveBeenCalledTimes(1);
+  await act(async () => { mockNotice.mock.calls[0][2](); });
+  await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 5000 });
   expect(await serverTxs(uid)).toHaveLength(0);
-});
+}, 90000);
 
 it('6. المفتاح ضاع ← رسالة «ما قدرناش نرجّعها» بالعدد والتاريخ، مفيش كتابة، والمدخلة بتتشال بعد "تمام" بس', async () => {
   const w = await preparedAccount();
@@ -276,6 +303,7 @@ it('9. الخروج بيمسح الطابور ومفتاحه (قرار مؤمن 
     await h.api().addTransaction({ type: 'expense', amount: 40, walletId: w, date: todayStr() }, { durable: true });
     await h.waitForData(api => api.outboxCount === 1);
     const was = getMockUid();
+    markUserSignOut(was);
     setMockUid(null as never);
     await act(async () => { h!.rerender(); });
     await waitFor(async () => expect(await outboxKeysOf(was)).toEqual([]), { timeout: 5000 });
@@ -297,4 +325,165 @@ it('العملية المربوطة مبتدخلش الطابور حتى لو ح
   } finally {
     warn.mockRestore();
   }
+});
+
+it('9ب. خروج غصب (من غير logOut) ← المدخلات بتفضل', async () => {
+  const w = await preparedAccount();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await putOutboxEntry(uid, newTxId(), { type: 'expense', amount: 3, walletId: w, date: todayStr() });
+  setMockUid(null as never);
+  await act(async () => { h!.rerender(); });
+  await settle(1500);
+  expect(await outboxKeysOf(uid)).toHaveLength(1);
+  expect(secure[keyNameFor(uid)]).toBeDefined();
+});
+
+it('9ج. مسح الخروج فشل ← اللي اتحفظ قبل الخروج مبيتعادش بعد الدخول تاني', async () => {
+  const w = await preparedAccount();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  const id = newTxId();
+  await putOutboxEntry(uid, id, { type: 'expense', amount: 8, walletId: w, date: todayStr() });
+  await settle(20);
+  const restore = failStorage('multiRemove', (keys: string[]) => keys.includes(outboxStorageKey(uid, id)));
+  try {
+    markUserSignOut(uid);
+    setMockUid(null as never);
+    await act(async () => { h!.rerender(); });
+    await waitFor(async () => expect(await AsyncStorage.getItem(`nuqta-outbox-x:v1:${uid}:cleared`)).not.toBeNull(), { timeout: 5000 });
+    await settle(500);
+  } finally { restore(); }
+  expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).not.toBeNull();
+  await h.unmount(); h = undefined;
+  setMockUid(uid);
+  __newOutboxSessionForTests();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 15000 });
+  await settle(1000);
+  expect((await getDocFromServer(txDoc(uid, id))).exists()).toBe(false);
+}, 60000);
+
+it('10. المحفظة اتأرشفت قبل الإعادة ← مفيش كتابة، رسالة بالمبلغ والتاريخ، والمدخلة بتتشال بعد "تمام"', async () => {
+  await preparedAccount();
+  const archived = doc(collection(db, 'users', uid, 'wallets'));
+  await setDoc(archived, { name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true, archivedAt: new Date().toISOString() });
+  const id = newTxId();
+  const date = todayStr();
+  await putOutboxEntry(uid, id, { type: 'expense', amount: 60, walletId: archived.id, date });
+  __newOutboxSessionForTests();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, walletGoneReplayBody(60, date, date), expect.any(Function)), { timeout: 20000 });
+  expect((await getDocFromServer(txDoc(uid, id))).exists()).toBe(false);
+  expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).not.toBeNull();
+  await act(async () => { mockNotice.mock.calls[0][2](); });
+  await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 5000 });
+}, 60000);
+
+it('11. مسح العملية وشيل مدخلتها فشل ← علامة مسح، والإعادة مبترجّعهاش', async () => {
+  const w = await preparedAccount();
+  const id = newTxId();
+  await putOutboxEntry(uid, id, { type: 'expense', amount: 12, walletId: w, date: todayStr() });
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await h.waitForData(api => api.outboxCount === 1);
+  const restore = failStorage('removeItem', (k: string) => k === outboxStorageKey(uid, id));
+  try { await h.api().deleteTransaction(id); } finally { restore(); }
+  expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).not.toBeNull();
+  await h.unmount(); h = undefined;
+  __newOutboxSessionForTests();
+  h = await renderDataProvider();
+  await h.waitForReady();
+  await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, id))).toBeNull(), { timeout: 15000 });
+  await settle(1000);
+  expect((await getDocFromServer(txDoc(uid, id))).exists()).toBe(false);
+  expect(mockNotice).not.toHaveBeenCalled();
+}, 60000);
+
+it('12. تعديل مقدرناش ندمجه (المدخلة مش مقروءة) ← المدخلة بتتكتب من جديد بالعملية كاملة بعد التعديل', async () => {
+  h = await renderDataProvider();
+  await h.waitForReady();
+  const w = h.api().wallets[0].id;
+  await disableNetwork(db);
+  try {
+    await h.waitForData(api => !api.serverReachable, 10000);
+    const id = await h.api().addTransaction({ type: 'expense', amount: 100, walletId: w, date: todayStr(), note: 'أصل' }, { durable: true });
+    await h.waitForData(api => api.transactions.some(t => t.id === id));
+    delete secure[keyNameFor(uid)];
+    await h.api().updateTransaction(id, { amount: 120 });
+    expect(await openStored(uid, id)).toEqual({ ok: true, data: expect.objectContaining({ amount: 120, note: 'أصل', walletId: w, type: 'expense' }) });
+  } finally {
+    await enableNetwork(db);
+  }
+}, 60000);
+
+it('13. حفظين مع بعض على حساب من غير مفتاح ← مفتاح واحد والاتنين مقروءين', async () => {
+  const u = 'raceUser';
+  const a = 'txa', b = 'txb';
+  const data = { type: 'expense', amount: 1, walletId: 'w', date: todayStr() };
+  await Promise.all([putOutboxEntry(u, a, data), putOutboxEntry(u, b, data)]);
+  expect(await openStored(u, a)).toEqual({ ok: true, data });
+  expect(await openStored(u, b)).toEqual({ ok: true, data });
+});
+
+it('14. قراية المفتاح فشلت: أول جلسة بنستنى، وفي جلسة تانية رسالة «ما قدرناش نرجّع»', async () => {
+  const w = await preparedAccount();
+  const id = newTxId();
+  await putOutboxEntry(uid, id, { type: 'expense', amount: 9, walletId: w, date: todayStr() });
+  const get = SecureStore.getItemAsync as jest.Mock;
+  const name = keyNameFor(uid);
+  const orig = get.getMockImplementation()!;
+  get.mockImplementation(async (k: string) => { if (k === name) throw new Error('keystore'); return orig(k); });
+  try {
+    __newOutboxSessionForTests();
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await settle(2500);
+    expect(mockNotice).not.toHaveBeenCalled();
+    await h.unmount(); h = undefined;
+    __newOutboxSessionForTests();
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_UNREADABLE_TITLE, expect.any(String), expect.any(Function)), { timeout: 15000 });
+  } finally { get.mockImplementation(orig); }
+  expect((await getDocFromServer(txDoc(uid, id))).exists()).toBe(false);
+}, 60000);
+
+it('15. فشل غير الرفض بيتحسب بالجلسات: أقل من 3 ← تفضل وتتعلّم؛ 3 جلسات ← رسالة وتتشال بعد "تمام"', async () => {
+  const w = await preparedAccount();
+  const fresh = newTxId();
+  const tired = newTxId();
+  const date = todayStr();
+  await putOutboxEntry(uid, fresh, { type: 'expense', amount: 21, walletId: w, date });
+  await putOutboxEntry(uid, tired, { type: 'expense', amount: 22, walletId: w, date });
+  await updateOutboxMeta(uid, tired, { fa: ['old1', 'old2'] });
+  const spy = jest.spyOn(require('@/lib/outboxStore'), 'replayOutboxDoc').mockRejectedValue(Object.assign(new Error('x'), { code: 'aborted' }));
+  try {
+    const sid = __newOutboxSessionForTests();
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(WRITE_ERROR_TITLE, rejectedReplayBody(22, date, date), expect.any(Function)), { timeout: 20000 });
+    expect(parseStored(await AsyncStorage.getItem(outboxStorageKey(uid, fresh)))?.fa).toEqual([sid]);
+    expect(await AsyncStorage.getItem(outboxStorageKey(uid, tired))).not.toBeNull();
+    await act(async () => { mockNotice.mock.calls[0][2](); });
+    await waitFor(async () => expect(await AsyncStorage.getItem(outboxStorageKey(uid, tired))).toBeNull(), { timeout: 5000 });
+    expect(await AsyncStorage.getItem(outboxStorageKey(uid, fresh))).not.toBeNull();
+  } finally { spy.mockRestore(); }
+}, 60000);
+
+it('16. حفظ النسخة على الجهاز فشل ← الكتابة بتكمّل، وحدث Sentry معدود من غير بيانات', async () => {
+  h = await renderDataProvider();
+  await h.waitForReady();
+  const w = h.api().wallets[0].id;
+  const capture = Sentry.captureMessage as jest.Mock;
+  capture.mockClear();
+  const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+  let id = '';
+  try { id = await h.api().addTransaction({ type: 'expense', amount: 4567, walletId: w, date: todayStr() }, { durable: true }); }
+  finally { restore(); }
+  await waitFor(() => expect(capture).toHaveBeenCalledWith('outbox: persist-failed', expect.objectContaining({ tags: { outbox_reason: 'persist-failed' } })), { timeout: 5000 });
+  expect(JSON.stringify(capture.mock.calls)).not.toContain('4567');
+  await waitFor(async () => expect((await getDocFromServer(txDoc(uid, id))).exists()).toBe(true), { timeout: 15000 });
 });

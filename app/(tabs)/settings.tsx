@@ -8,7 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
-import { outboxLogoutSentence } from '@/lib/outbox';
+import { outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -94,11 +94,11 @@ export default function SettingsScreen() {
     // الطابور المتشفّر بيتمسح مع الخروج (قرار مؤمن 1) — فالعدد بيتقال صريح إنه هيضيع
     if (outboxCount > 0) {
       confirm(
-        'لسه فيه عمليات ما اترفعتش',
-        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها، أو اخرج وانت عارف.`,
+        outboxLogoutTitle(outboxCount),
+        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut() },
+          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut() },
         ]
       );
       return;

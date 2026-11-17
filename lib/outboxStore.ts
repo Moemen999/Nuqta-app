@@ -2,7 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { bytesToHex, hexToBytes } from '@noble/ciphers/utils';
-import { runTransaction, type DocumentReference } from 'firebase/firestore';
+import * as Sentry from '@sentry/react-native';
+import { doc, runTransaction } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { todayStr } from '@/lib/finance';
 import {
@@ -54,12 +55,18 @@ export async function readOutboxKey(uid: string): Promise<Uint8Array | null> {
   }
 }
 
-async function keyForWrite(uid: string): Promise<Uint8Array> {
-  const existing = await readOutboxKey(uid);
-  if (existing) return existing;
-  const k = rng(OUTBOX_KEY_BYTES);
-  await SecureStore.setItemAsync(await keyName(uid), bytesToHex(k));
-  return k;
+/**
+ * قفل لكل حساب: حفظين في نفس اللحظة على حساب مالوش مفتاح كانوا هيعملوا مفتاحين، والتاني يكتب فوق الأول — فالمدخلة
+ * الأولى تبقى مش مقروءة.
+ */
+function keyForWrite(uid: string): Promise<Uint8Array> {
+  return serial(`key:${uid}`, async () => {
+    const existing = await readOutboxKey(uid);
+    if (existing) return existing;
+    const k = rng(OUTBOX_KEY_BYTES);
+    await SecureStore.setItemAsync(await keyName(uid), bytesToHex(k));
+    return k;
+  });
 }
 
 const queues = new Map<string, Promise<unknown>>();
@@ -81,9 +88,31 @@ export function putOutboxEntry(uid: string, txId: string, data: Record<string, u
   return serial(outboxStorageKey(uid, txId), async () => {
     if (!canPersistMore((await outboxKeys(uid)).length)) return 'skipped';
     const key = await keyForWrite(uid);
-    const stored = sealEntry({ uid, txId, data, sid: outboxSessionId(), savedAt: todayStr(), key, rng });
+    const stored = sealEntry({ uid, txId, data, sid: outboxSessionId(), savedAt: todayStr(), key, rng, t: Date.now() });
     await AsyncStorage.setItem(outboxStorageKey(uid, txId), JSON.stringify(stored));
     return 'saved';
+  });
+}
+
+/**
+ * تعديل مقدرناش ندمجه (المدخلة مش موجودة أو مش مقروءة): بنكتب المدخلة من جديد بالعملية كاملة بعد التعديل — عشان الإعادة
+ * متكتبش الرقم القديم. الجلسة الحالية (مش هتتعاد في الجلسة دي، وفايربيز شايلة التعديل).
+ */
+export function rewriteOutboxEntry(uid: string, txId: string, data: Record<string, unknown>): Promise<void> {
+  return serial(outboxStorageKey(uid, txId), async () => {
+    const key = await keyForWrite(uid);
+    const stored = sealEntry({ uid, txId, data, sid: outboxSessionId(), savedAt: todayStr(), key, rng, t: Date.now() });
+    await AsyncStorage.setItem(outboxStorageKey(uid, txId), JSON.stringify(stored));
+  });
+}
+
+/** علامات المحاولات (`rj`، `fa`) — مش سرية (مفيهاش بيانات)، فبتتكتب بره التشفير. مدخلة مش موجودة ← مفيش حاجة */
+export function updateOutboxMeta(uid: string, txId: string, patch: Pick<StoredEntry, 'rj' | 'fa'>): Promise<void> {
+  const sk = outboxStorageKey(uid, txId);
+  return serial(sk, async () => {
+    const stored = parseStored(await AsyncStorage.getItem(sk));
+    if (!stored) return;
+    await AsyncStorage.setItem(sk, JSON.stringify({ ...stored, ...patch }));
   });
 }
 
@@ -96,7 +125,7 @@ export function mergeOutboxEntry(uid: string, txId: string, patch: Record<string
     const key = await readOutboxKey(uid);
     const opened = openEntry(stored, uid, txId, key);
     if (!opened.ok || !key) return 'unreadable';
-    const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch), sid: stored.sid, savedAt: stored.savedAt, key, rng });
+    const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch), sid: stored.sid, savedAt: stored.savedAt, key, rng, t: stored.t });
     await AsyncStorage.setItem(sk, JSON.stringify(next));
     return 'merged';
   });
@@ -104,7 +133,67 @@ export function mergeOutboxEntry(uid: string, txId: string, patch: Record<string
 
 export function removeOutboxEntry(uid: string, txId: string): Promise<void> {
   const sk = outboxStorageKey(uid, txId);
-  return serial(sk, () => AsyncStorage.removeItem(sk));
+  return serial(sk, async () => {
+    await AsyncStorage.removeItem(sk);
+    await AsyncStorage.removeItem(tombstoneKey(uid, txId));
+  });
+}
+
+/* ─── علامات على مستوى الحساب (بره بادئة المدخلات عشان `parseStorageKey` ميشوفهاش) ─── */
+const META_PREFIX = 'nuqta-outbox-x:v1:';
+const metaKey = (uid: string, name: string) => `${META_PREFIX}${uid}:${name}`;
+const tombstoneKey = (uid: string, txId: string) => metaKey(uid, `del:${txId}`);
+const metaUid = (k: string) => (k.startsWith(META_PREFIX) ? k.slice(META_PREFIX.length).split(':')[0] : null);
+
+/** العملية اتمسحت وشيل مدخلتها فشل أو اتأخر — الإعادة بتشوف العلامة دي ومبتكتبش */
+export function writeOutboxTombstone(uid: string, txId: string): Promise<void> {
+  return AsyncStorage.setItem(tombstoneKey(uid, txId), '1');
+}
+export async function hasOutboxTombstone(uid: string, txId: string): Promise<boolean> {
+  return (await AsyncStorage.getItem(tombstoneKey(uid, txId))) === '1';
+}
+
+/** مسح الخروج فشل ← أي مدخلة اتحفظت قبل الوقت ده متتعادش (المستخدم اختار إنها تضيع) */
+export function setOutboxClearedBefore(uid: string, ms: number): Promise<void> {
+  return AsyncStorage.setItem(metaKey(uid, 'cleared'), String(ms));
+}
+export async function getOutboxClearedBefore(uid: string): Promise<number | null> {
+  const n = Number(await AsyncStorage.getItem(metaKey(uid, 'cleared')));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** قراية المفتاح فشلت في الجلسة دي — بيرجّع عدد الجلسات المختلفة اللي فشلت فيها */
+export async function noteOutboxKeyReadFailure(uid: string): Promise<number> {
+  const k = metaKey(uid, 'keyfail');
+  let list: string[] = [];
+  try { const v = JSON.parse((await AsyncStorage.getItem(k)) ?? '[]'); if (Array.isArray(v)) list = v.filter(x => typeof x === 'string'); } catch {}
+  const sid = outboxSessionId();
+  if (!list.includes(sid)) list.push(sid);
+  await AsyncStorage.setItem(k, JSON.stringify(list.slice(-5)));
+  return list.length;
+}
+export function clearOutboxKeyReadFailures(uid: string): Promise<void> {
+  return AsyncStorage.removeItem(metaKey(uid, 'keyfail'));
+}
+
+/**
+ * الخروج اللي المستخدم طلبه (`logOut`) بيعلّم هنا قبل ما فايربيز يخرّجه — `DataContext` بيمسح الطابور بس لو العلامة موجودة.
+ * خروج غصب (التوكن اتلغى…) ← المدخلات بتفضل (الـAAD والكنس بيعزلوا الحسابات).
+ */
+let userSignOut: string | null = null;
+export function markUserSignOut(uid: string | null | undefined) { userSignOut = uid ?? null; }
+export function consumeUserSignOut(uid: string): boolean {
+  const hit = userSignOut === uid;
+  if (hit) userSignOut = null;
+  return hit;
+}
+
+/** حدث Sentry معدود (اسم بس، مفيش بيانات) — مرة لكل سبب في الجلسة */
+const reported = new Set<string>();
+export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached') {
+  if (reported.has(reason)) return;
+  reported.add(reason);
+  Sentry.captureMessage(`outbox: ${reason}`, { level: 'warning', tags: { outbox_reason: reason }, fingerprint: ['outbox', reason] });
 }
 
 export type ListedEntry = { txId: string; stored: StoredEntry | null };
@@ -121,7 +210,8 @@ export async function listOutboxEntries(uid: string): Promise<ListedEntry[]> {
 export async function clearOutboxForUid(uid: string): Promise<void> {
   // حفظ لسه شغال (خروج بعد الحفظ بلحظة) كان هيرجع يكتب مدخلة بعد المسح — نستنى الطابور يفضى الأول
   await Promise.allSettled([...queues.values()]);
-  const keys = await outboxKeys(uid);
+  const all = await AsyncStorage.getAllKeys();
+  const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid);
   if (keys.length) await AsyncStorage.multiRemove(keys);
   await SecureStore.deleteItemAsync(await keyName(uid));
 }
@@ -133,7 +223,8 @@ export async function clearOutboxForUid(uid: string): Promise<void> {
 export async function sweepOtherOutboxes(uid: string): Promise<number> {
   const keys = await AsyncStorage.getAllKeys();
   const stale = keys.filter(k => { const p = parseStorageKey(k); return !!p && p.uid !== uid; });
-  if (stale.length) await AsyncStorage.multiRemove(stale);
+  const staleMeta = keys.filter(k => { const m = metaUid(k); return !!m && m !== uid; });
+  if (stale.length || staleMeta.length) await AsyncStorage.multiRemove([...stale, ...staleMeta]);
   return stale.length;
 }
 
@@ -141,11 +232,19 @@ export async function sweepOtherOutboxes(uid: string): Promise<number> {
  * إعادة مدخلة واحدة في ذرة: المستند موجود على السيرفر ← **مفيش كتابة** (`'exists'` — لو اتعدّل 100 ← 120 من جهاز تاني
  * يفضل 120)؛ مش موجود ← `set` بنفس المعرّف (`'written'`). الانتظار (`waitForPendingWrites`) والسقف عند اللي بينادي.
  */
-export async function replayOutboxDoc(ref: DocumentReference, data: Record<string, unknown>): Promise<'written' | 'exists'> {
-  let result: 'written' | 'exists' = 'exists';
+export async function replayOutboxDoc(uid: string, txId: string, data: Record<string, unknown>): Promise<'written' | 'exists' | 'wallet-gone'> {
+  let result: 'written' | 'exists' | 'wallet-gone' = 'exists';
+  const ref = doc(db, 'users', uid, 'transactions', txId);
   await runTransaction(db, async (t) => {
     const snap = await t.get(ref);
     if (snap.exists()) { result = 'exists'; return; }
+    // المحفظة (والوجهة في التحويل) لازم تكون موجودة ومش مؤرشفة — عملية على محفظة اتقفلت كانت هتغيّر رصيد صفّرناه
+    const walletIds = [data.walletId, data.type === 'withdraw' ? data.toWalletId : undefined].filter((w): w is string => typeof w === 'string' && !!w);
+    if (walletIds.length === 0) { result = 'wallet-gone'; return; }
+    for (const w of walletIds) {
+      const ws = await t.get(doc(db, 'users', uid, 'wallets', w));
+      if (!ws.exists() || ws.data()?.archived === true) { result = 'wallet-gone'; return; }
+    }
     t.set(ref, data);
     result = 'written';
   });

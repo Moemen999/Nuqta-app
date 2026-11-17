@@ -25,6 +25,10 @@ export const OUTBOX_MAX = 500;
 export const OUTBOX_PREFIX = 'nuqta-outbox:v1:';
 export const OUTBOX_KEY_BYTES = 32;
 export const OUTBOX_NONCE_BYTES = 24;
+/** إعادة فشلت بسبب غير الرفض في التلات جلسات دول ← بنقول للمستخدم يسجّلها تاني بدل ما تفضل مستنية للأبد */
+export const OUTBOX_MAX_FAILED_SESSIONS = 3;
+/** قراية المفتاح فشلت في الجلستين دول ← المدخلات بتتعامل "مش مقروءة" */
+export const OUTBOX_KEY_FAIL_SESSIONS = 2;
 
 export type StoredEntry = {
   v: typeof OUTBOX_VERSION;
@@ -37,6 +41,12 @@ export type StoredEntry = {
   n: string;
   /** النص المشفّر + الـtag بالـhex */
   c: string;
+  /** وقت الحفظ (ms) — لعلامة "اتمسح قبل كده" لو مسح الخروج فشل (`clearedBefore`). المدخلات القديمة مالهاش */
+  t?: number;
+  /** جلسة أول رفض `permission-denied` — الرفض بيتحسب نهائي بس لو اتكرر في جلسة تانية (التوكن ممكن يكون لسه ما اتربطش) */
+  rj?: string;
+  /** جلسات فشلت فيها الإعادة بسبب تاني (النت، السقف…) — بعد `OUTBOX_MAX_FAILED_SESSIONS` بنقول للمستخدم */
+  fa?: string[];
 };
 
 export type Rng = (n: number) => Uint8Array;
@@ -64,13 +74,15 @@ function aad(uid: string, txId: string): Uint8Array {
 }
 
 export function sealEntry(p: {
-  uid: string; txId: string; data: Record<string, unknown>; sid: string; savedAt: string; key: Uint8Array; rng: Rng;
+  uid: string; txId: string; data: Record<string, unknown>; sid: string; savedAt: string; key: Uint8Array; rng: Rng; t?: number;
 }): StoredEntry {
   const nonce = p.rng(OUTBOX_NONCE_BYTES);
   if (nonce.length !== OUTBOX_NONCE_BYTES) throw new Error('outbox: bad nonce length');
   const cipher = xchacha20poly1305(p.key, nonce, aad(p.uid, p.txId));
   const c = cipher.encrypt(utf8ToBytes(JSON.stringify(p.data)));
-  return { v: OUTBOX_VERSION, alg: OUTBOX_ALG, sid: p.sid, savedAt: p.savedAt, n: bytesToHex(nonce), c: bytesToHex(c) };
+  const out: StoredEntry = { v: OUTBOX_VERSION, alg: OUTBOX_ALG, sid: p.sid, savedAt: p.savedAt, n: bytesToHex(nonce), c: bytesToHex(c) };
+  if (p.t !== undefined) out.t = p.t;
+  return out;
 }
 
 /** أي فشل (مفتاح ناقص/غلط، uid أو id تاني، تلاعب، JSON بايظ) ← `unreadable` — مفيش تفاصيل تانية تخرج */
@@ -99,12 +111,26 @@ export function parseStored(raw: string | null | undefined): StoredEntry | null 
   if (typeof e.n !== 'string' || e.n.length !== OUTBOX_NONCE_BYTES * 2 || !HEX.test(e.n)) return null;
   // أقل نص مشفّر = الـtag (16 بايت)
   if (typeof e.c !== 'string' || e.c.length < 32 || !HEX.test(e.c)) return null;
-  return { v: OUTBOX_VERSION, alg: OUTBOX_ALG, sid: e.sid, savedAt: e.savedAt, n: e.n, c: e.c };
+  const out: StoredEntry = { v: OUTBOX_VERSION, alg: OUTBOX_ALG, sid: e.sid, savedAt: e.savedAt, n: e.n, c: e.c };
+  // الحقول الاختيارية: شكل غلط ← بتتشال (مش المدخلة كلها)
+  if (typeof e.t === 'number' && Number.isFinite(e.t)) out.t = e.t;
+  if (typeof e.rj === 'string' && e.rj) out.rj = e.rj;
+  if (Array.isArray(e.fa) && e.fa.every(x => typeof x === 'string')) out.fa = e.fa as string[];
+  return out;
 }
 
 /** مدخلات جلسات سابقة بس (الحالية لسه في طابور فايربيز)، بحد `OUTBOX_MAX` */
 export function planReplay<T extends { stored: StoredEntry }>(entries: T[], currentSid: string): T[] {
   return entries.filter(e => e.stored.sid !== currentSid).slice(0, OUTBOX_MAX);
+}
+
+/**
+ * `setDoc` اترفض: المدخلة بتتشال بس لو الرفض نهائي (القواعد أو شكل البيانات). أي كود تاني (طابور اتلغى مع خروج غصب،
+ * سيرفر مش متاح…) ← المدخلة تفضل والإعادة في الفتحة الجاية تحاول تاني.
+ */
+export function isFinalWriteRejection(e: unknown): boolean {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === 'permission-denied' || code === 'invalid-argument';
 }
 
 export function canPersistMore(count: number): boolean {
@@ -130,11 +156,24 @@ export function hasLinkFields(tx: Record<string, unknown>): boolean {
 
 /* ─────────────  النصوص  ───────────── */
 
-export const OUTBOX_UNREADABLE_TITLE = 'ما قدرناش نرجّعها';
+export const OUTBOX_UNREADABLE_TITLE = 'ما قدرناش نرجّع عملياتك';
 
-/** الإعادة اترفضت من السيرفر (القواعد) — العنوان `WRITE_ERROR_TITLE` */
-export function rejectedReplayBody(amount: number, date: string, today: string): string {
-  return `عملية ${fmt(amount)} يوم ${dateText(date, today)} كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".`;
+/** «عملية 150 يوم 12 نوفمبر» — المبلغ أو التاريخ مش سليم ← بيتشال من الجملة بدل NaN */
+function txLabel(amount: unknown, date: unknown, today: string): string {
+  const parts = ['عملية'];
+  if (typeof amount === 'number' && Number.isFinite(amount)) parts.push(`${fmt(amount)}`); // قالب عن قصد عشان جرد الإخفاء (amountsPrivacy) يعدّه
+  if (typeof date === 'string' && date) parts.push(`يوم ${dateText(date, today)}`);
+  return parts.join(' ');
+}
+
+/** الإعادة اترفضت من السيرفر (القواعد) أو فشلت كذا جلسة — العنوان `WRITE_ERROR_TITLE` */
+export function rejectedReplayBody(amount: unknown, date: unknown, today: string): string {
+  return `${txLabel(amount, date, today)} كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".`;
+}
+
+/** المحفظة اتأرشفت أو اتمسحت قبل ما العملية ترفع — مبنكتبهاش على محفظة مقفولة */
+export function walletGoneReplayBody(amount: unknown, date: unknown, today: string): string {
+  return `${txLabel(amount, date, today)} ما اترفعتش لأن المحفظة اتقفلت أو اتمسحت. سجّلها تاني لو لسه محتاجها.`;
 }
 
 export function unreadableReplayBody(n: number, savedAt: string, today: string): string {
@@ -142,6 +181,11 @@ export function unreadableReplayBody(n: number, savedAt: string, today: string):
     ? `كان فيه ${transactionsPhrase(n)} متسجلين على الموبايل وما اترفعوش، ومقدرناش نقراهم تاني.`
     : `كان فيه ${transactionsPhrase(n)} متسجلة على الموبايل وما اترفعتش، ومقدرناش نقراها تاني.`;
   return `${head} بصّ على مصاريفك من يوم ${dateText(savedAt, today)} وسجّل اللي ناقص.`;
+}
+
+/** «لسه فيه عمليتين ما اترفعتش» */
+export function outboxLogoutTitle(n: number): string {
+  return `لسه فيه ${transactionsPhrase(n)} ما اترفعتش`;
 }
 
 /** رسالة الخروج (قرار مؤمن 1): الخروج بيمسح الطابور، فالعدد بيتقال صريح إنه هيضيع */

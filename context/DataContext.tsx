@@ -46,10 +46,14 @@ import {
 } from '@/lib/firstRunSetup';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hapticError } from '@/lib/haptics';
-import { hasLinkFields, OUTBOX_UNREADABLE_TITLE, planReplay, openEntry, rejectedReplayBody, unreadableReplayBody, type StoredEntry } from '@/lib/outbox';
 import {
-  clearOutboxForUid, listOutboxEntries, logOutboxFailure, mergeOutboxEntry, outboxSessionId, putOutboxEntry, readOutboxKey,
-  removeOutboxEntry, replayOutboxDoc, sweepOtherOutboxes,
+  hasLinkFields, isFinalWriteRejection, mergePatch, OUTBOX_KEY_FAIL_SESSIONS, OUTBOX_MAX_FAILED_SESSIONS, OUTBOX_UNREADABLE_TITLE, planReplay, openEntry,
+  rejectedReplayBody, unreadableReplayBody, walletGoneReplayBody, type StoredEntry,
+} from '@/lib/outbox';
+import {
+  clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedBefore, hasOutboxTombstone, listOutboxEntries,
+  logOutboxFailure, mergeOutboxEntry, noteOutboxKeyReadFailure, outboxSessionId, putOutboxEntry, readOutboxKey, removeOutboxEntry,
+  replayOutboxDoc, reportOutboxEvent, rewriteOutboxEntry, setOutboxClearedBefore, sweepOtherOutboxes, updateOutboxMeta, writeOutboxTombstone,
 } from '@/lib/outboxStore';
 
 /**
@@ -728,9 +732,18 @@ const OUTBOX_REPLAY_TIMEOUT_MS = 20000;
 /** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
 /** بيستنى الوعد بحد أقصى `ms` ومبيرميش — بعد السقف الشغل بيكمّل ورا (حفظ الطابور المتشفّر قبل الكتابة) */
 async function waitAtMost(p: Promise<unknown>, ms: number): Promise<void> {
+  await settleWithin(p, ms);
+}
+
+/** زي `waitAtMost` بس بيقول خلص ازاي — مسح العملية محتاج يعرف شيل مدخلتها نجح ولا لأ */
+async function settleWithin(p: Promise<unknown>, ms: number): Promise<'ok' | 'failed' | 'timeout'> {
   let t: ReturnType<typeof setTimeout> | undefined;
-  await Promise.race([p.then(() => {}, () => {}), new Promise<void>(r => { t = setTimeout(r, ms); })]);
+  const r = await Promise.race([
+    p.then(() => 'ok' as const, () => 'failed' as const),
+    new Promise<'timeout'>(res => { t = setTimeout(() => res('timeout'), ms); }),
+  ]);
   if (t) clearTimeout(t);
+  return r;
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -805,8 +818,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   uidNow.current = uid;
   /** إعادة الطابور: مرة لكل حساب في الجلسة لما تخلص؛ لو فضل حاجة (النت وقع) بتتعاد مع رجوع الاتصال */
   const outboxReplay = useRef<{ uid?: string; running: boolean; done: boolean }>({ running: false, done: false });
-  /** مدخلات "مش مقروءة" اتعرضت رسالتها في الجلسة دي ومستنية "تمام" — عشان متتعرضش مرتين */
-  const outboxUnreadableShown = useRef(new Set<string>());
+  /** مدخلات اتعرضت رسالتها (مش مقروءة/اترفضت/المحفظة اتقفلت) ومستنية "تمام" — متتعرضش مرتين ومتتعادش */
+  const outboxNoticeShown = useRef(new Set<string>());
+  /** معرّفات اتشالت في الجلسة دي — قراية متأخرة للطابور متضيفهاش تاني للعدّاد */
+  const outboxDropped = useRef(new Set<string>());
+  const latestTransactions = useRef(transactions);
+  latestTransactions.current = transactions;
   const errorShown = useRef(false);
   const notice = useNotice();
   // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
@@ -1095,8 +1112,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     outboxIds.current = new Set();
     setOutboxCount(0);
     outboxReplay.current = { uid, running: false, done: false };
-    outboxUnreadableShown.current = new Set();
-    if (prev && prev !== uid) clearOutboxForUid(prev).catch(e => logOutboxFailure('clear on sign-out failed', e));
+    outboxNoticeShown.current = new Set();
+    outboxDropped.current = new Set();
+    if (prev && prev !== uid) {
+      if (consumeUserSignOut(prev)) {
+        // علامة "اتمسح قبل كده" الأول: لو المسح فشل، الإعادة مبترجّعش اللي المستخدم اختار إنه يضيع. المسح الناجح بيشيلها
+        const at = Date.now();
+        setOutboxClearedBefore(prev, at)
+          .catch(e => logOutboxFailure('cleared marker failed', e))
+          .then(() => clearOutboxForUid(prev))
+          .catch(e => logOutboxFailure('clear on sign-out failed', e));
+      } else {
+        // خروج من غير ما المستخدم يطلبه (التوكن اتلغى…) ← المدخلات بتفضل لنفس الحساب (الـAAD والكنس بيعزلوا غيره)
+        console.warn('[outbox] unexpected sign-out, entries kept');
+      }
+    }
     if (!uid) return;
     sweepOtherOutboxes(uid)
       .then(n => { if (n > 0) console.warn('[outbox] swept entries of another account', n); })
@@ -1104,7 +1134,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     listOutboxEntries(uid)
       .then(list => {
         if (uidNow.current !== uid) return;
-        list.forEach(e => outboxIds.current.add(e.txId));
+        list.forEach(e => { if (!outboxDropped.current.has(e.txId)) outboxIds.current.add(e.txId); });
         setOutboxCount(outboxIds.current.size);
       })
       .catch(e => logOutboxFailure('list failed', e));
@@ -1413,15 +1443,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     outboxIds.current.add(id);
     setOutboxCount(outboxIds.current.size);
     const put = putOutboxEntry(forUid, id, clean).then(
-      r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); forgetOutboxId(id); } },
-      e => { logOutboxFailure('persist failed', e); forgetOutboxId(id); },
+      r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); reportOutboxEvent('limit-reached'); forgetOutboxId(id); } },
+      e => { logOutboxFailure('persist failed', e); reportOutboxEvent('persist-failed'); forgetOutboxId(id); },
     );
     await waitAtMost(put, OUTBOX_PERSIST_TIMEOUT_MS);
-    track(setDoc(ref, clean).catch(e => { dropOutbox(forUid, id); throw e; }), 'العملية');
+    // رفض نهائي بس (القواعد/شكل البيانات) بيشيل المدخلة — أي كود تاني (طابور اتلغى مع خروج غصب…) ← تفضل للإعادة
+    track(setDoc(ref, clean).catch(e => {
+      if (isFinalWriteRejection(e)) dropOutbox(forUid, id);
+      throw e;
+    }), 'العملية');
     return id;
   }
 
   function forgetOutboxId(id: string) {
+    outboxDropped.current.add(id);
     if (!outboxIds.current.delete(id)) return;
     setOutboxCount(outboxIds.current.size);
   }
@@ -1448,57 +1483,101 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try { listed = await listOutboxEntries(forUid); } catch (e) { logOutboxFailure('list failed', e); return false; }
     if (uidNow.current !== forUid) return false;
     if (listed.length === 0) return true;
+    // اللي اتشال في الجلسة دي أو مستني "تمام" على رسالته ← لا بيتعدّ تاني ولا بيتعاد
+    listed = listed.filter(e => !outboxDropped.current.has(e.txId) && !outboxNoticeShown.current.has(e.txId));
     listed.forEach(e => outboxIds.current.add(e.txId));
     setOutboxCount(outboxIds.current.size);
     const sid = outboxSessionId();
     const broken = listed.filter(e => !e.stored).map(e => ({ txId: e.txId, savedAt: null as string | null }));
-    const plan = planReplay(listed.filter((e): e is { txId: string; stored: StoredEntry } => !!e.stored), sid);
+    let plan = planReplay(listed.filter((e): e is { txId: string; stored: StoredEntry } => !!e.stored), sid);
+    // مسح الخروج فشل قبل كده ← اللي اتحفظ قبل الخروج المستخدم اختار إنه يضيع (قرار مؤمن 1)
+    let clearedBefore: number | null = null;
+    try { clearedBefore = await getOutboxClearedBefore(forUid); } catch (e) { logOutboxFailure('cleared marker read failed', e); return false; }
+    if (clearedBefore !== null) {
+      const cut = clearedBefore;
+      const old = plan.filter(e => (e.stored.t ?? 0) < cut);
+      if (old.length) {
+        console.warn('[outbox] dropped entries saved before a sign-out clear', old.length);
+        await Promise.all(old.map(e => dropOutbox(forUid, e.txId)));
+        plan = plan.filter(e => (e.stored.t ?? 0) >= cut);
+      }
+    }
     if (plan.length === 0 && broken.length === 0) return true;
     let key: Uint8Array | null;
-    try { key = await readOutboxKey(forUid); } catch (e) { logOutboxFailure('key read failed', e); return false; }
-    const readable: { txId: string; data: Record<string, unknown> }[] = [];
+    try {
+      key = await readOutboxKey(forUid);
+      clearOutboxKeyReadFailures(forUid).catch(e => logOutboxFailure('keyfail clear failed', e));
+    } catch (e) {
+      logOutboxFailure('key read failed', e);
+      // فشل مرة ← نستنى الجلسة الجاية؛ فشل في جلستين مختلفتين ← مش هنقدر نقراها، فرسالة «ما قدرناش نرجّع» بدل الاستنى للأبد
+      let sessions = 0;
+      try { sessions = await noteOutboxKeyReadFailure(forUid); } catch (e2) { logOutboxFailure('keyfail note failed', e2); }
+      if (sessions < OUTBOX_KEY_FAIL_SESSIONS) return false;
+      key = null;
+    }
+    const readable: { txId: string; data: Record<string, unknown>; stored: StoredEntry }[] = [];
     const unreadable = [...broken];
     for (const e of plan) {
       const opened = openEntry(e.stored, forUid, e.txId, key);
-      if (opened.ok) readable.push({ txId: e.txId, data: opened.data });
+      if (opened.ok) readable.push({ txId: e.txId, data: opened.data, stored: e.stored });
       else unreadable.push({ txId: e.txId, savedAt: e.stored.savedAt });
     }
-    const fresh = unreadable.filter(u => !outboxUnreadableShown.current.has(u.txId));
-    if (fresh.length > 0) {
-      fresh.forEach(u => outboxUnreadableShown.current.add(u.txId));
-      console.warn('[outbox] unreadable entries', fresh.length);
-      const dates = fresh.map(u => u.savedAt).filter((d): d is string => isDateStr(d)).sort();
+    if (unreadable.length > 0) {
+      unreadable.forEach(u => outboxNoticeShown.current.add(u.txId));
+      console.warn('[outbox] unreadable entries', unreadable.length);
+      const dates = unreadable.map(u => u.savedAt).filter((d): d is string => isDateStr(d)).sort();
       // مفيش مفتاح جديد عليها، ومبتتشالش غير بعد ما المستخدم يشوف الرسالة — قفل التطبيق قبل "تمام" ← بتظهر تاني
-      notice(OUTBOX_UNREADABLE_TITLE, unreadableReplayBody(fresh.length, dates[0] ?? todayStr(), todayStr()), () => {
-        fresh.forEach(u => { outboxUnreadableShown.current.delete(u.txId); void dropOutbox(forUid, u.txId); });
+      notice(OUTBOX_UNREADABLE_TITLE, unreadableReplayBody(unreadable.length, dates[0] ?? todayStr(), todayStr()), () => {
+        unreadable.forEach(u => { outboxNoticeShown.current.delete(u.txId); void dropOutbox(forUid, u.txId); });
       });
     }
     if (readable.length === 0) return true;
     if (deletingRef.current || uidNow.current !== forUid) return false;
     if (!(await waitForOurWritesToLand())) return false;
     let allDone = true;
-    const rejected: Record<string, unknown>[] = [];
+    /** بتتشال بعد "تمام" على رسالتها مش قبل (لو التطبيق اتقفل قبل ما يشوفها بتظهر تاني) */
+    const giveUp: { txId: string; data: Record<string, unknown>; kind: 'rejected' | 'wallet' }[] = [];
     for (const r of readable) {
       if (deletingRef.current || uidNow.current !== forUid || !serverReachableRef.current) { allDone = false; break; }
-      const ref = doc(db, 'users', forUid, 'transactions', r.txId);
+      // العملية اتمسحت وشيل مدخلتها فشل ← علامة المسح بتمنع الإعادة. قراية العلامة فشلت ← منكتبش (المرة الجاية)
       try {
-        await withTimeout(countPending(replayOutboxDoc(ref, r.data)), OUTBOX_REPLAY_TIMEOUT_MS);
+        if (await hasOutboxTombstone(forUid, r.txId)) { await dropOutbox(forUid, r.txId); continue; }
+      } catch (e) { logOutboxFailure('tombstone read failed', e); allDone = false; continue; }
+      try {
+        const res = await withTimeout(countPending(replayOutboxDoc(forUid, r.txId, r.data)), OUTBOX_REPLAY_TIMEOUT_MS);
+        if (res === 'wallet-gone') { giveUp.push({ txId: r.txId, data: r.data, kind: 'wallet' }); continue; }
         await dropOutbox(forUid, r.txId);
       } catch (e) {
         noteAtomicFailure('رفع العمليات المحفوظة', e);
         const code = (e as { code?: string })?.code;
-        if (code === 'permission-denied' || code === 'invalid-argument') {
-          rejected.push(r.data);
-          await dropOutbox(forUid, r.txId);
+        if (code === 'invalid-argument') {
+          giveUp.push({ txId: r.txId, data: r.data, kind: 'rejected' });
+        } else if (code === 'permission-denied') {
+          // أول رفض ممكن يكون التوكن لسه ما اتربطش بعد الدخول ← نعلّم الجلسة ونستنى. اتكرر في جلسة تانية ← رفض حقيقي
+          if (r.stored.rj && r.stored.rj !== sid) giveUp.push({ txId: r.txId, data: r.data, kind: 'rejected' });
+          else {
+            allDone = false;
+            if (!r.stored.rj) await updateOutboxMeta(forUid, r.txId, { rj: sid }).catch(e2 => logOutboxFailure('meta failed', e2));
+          }
         } else {
-          allDone = false;
+          // النت/السقف/تعارض… ← تفضل، بس بعد `OUTBOX_MAX_FAILED_SESSIONS` جلسات مختلفة بنقول للمستخدم بدل ما تستنى للأبد
+          const fa = [...new Set([...(r.stored.fa ?? []), sid])];
+          if (fa.length >= OUTBOX_MAX_FAILED_SESSIONS) giveUp.push({ txId: r.txId, data: r.data, kind: 'rejected' });
+          else {
+            allDone = false;
+            await updateOutboxMeta(forUid, r.txId, { fa }).catch(e2 => logOutboxFailure('meta failed', e2));
+          }
         }
       }
     }
-    if (rejected.length > 0 && uidNow.current === forUid) {
+    if (giveUp.length > 0 && uidNow.current === forUid) {
+      giveUp.forEach(g => outboxNoticeShown.current.add(g.txId));
       hapticError();
       const today = todayStr();
-      notice(WRITE_ERROR_TITLE, rejected.map(d => rejectedReplayBody(Number(d.amount), String(d.date), today)).join('\n\n'));
+      const body = giveUp.map(g => (g.kind === 'wallet' ? walletGoneReplayBody : rejectedReplayBody)(g.data.amount, g.data.date, today)).join('\n\n');
+      notice(WRITE_ERROR_TITLE, body, () => {
+        giveUp.forEach(g => { outboxNoticeShown.current.delete(g.txId); void dropOutbox(forUid, g.txId); });
+      });
     }
     return allDone;
   }
@@ -1508,10 +1587,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
     // لسه في الطابور المتشفّر ← التعديل بيتدمج في المدخلة (قرار مؤمن 4) عشان الإعادة متكتبش الرقم القديم.
     // التسوية (محفظة مؤرشفة) برّه الطابور عن قصد — بتمشي مع الـbatch العادي
+    // من غير سقف: تخزين محلي، ولازم يخلص قبل ما فايربيز تبعت التعديل
     if (outboxIds.current.has(id)) {
       const forUid = uid;
-      const merge = mergeOutboxEntry(forUid, id, clean).catch(e => logOutboxFailure('merge failed', e));
-      await waitAtMost(merge, OUTBOX_PERSIST_TIMEOUT_MS);
+      let merged: 'merged' | 'absent' | 'unreadable' | 'failed';
+      try { merged = await mergeOutboxEntry(forUid, id, clean); } catch (e) { logOutboxFailure('merge failed', e); merged = 'failed'; }
+      if (merged !== 'merged') {
+        // مقدرناش ندمج ← نكتب المدخلة من جديد بالعملية كاملة بعد التعديل؛ فشل ده كمان ← نشيلها (أحسن من رقم قديم يترفع)
+        const base = latestTransactions.current.find(t => t.id === id);
+        if (!base) { console.warn('[outbox] edit merge', merged, 'no base, entry dropped'); await dropOutbox(forUid, id); }
+        else {
+          const { id: _id, ...rest } = base;
+          try { await rewriteOutboxEntry(forUid, id, mergePatch(rest, clean)); }
+          catch (e) { logOutboxFailure('rewrite failed, entry dropped', e); await dropOutbox(forUid, id); }
+        }
+      }
     }
     if (settlements.length === 0) {
       track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean), 'تعديل العملية');
@@ -1815,8 +1905,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function deleteTransaction(id: string, settlements: Settlement[] = []) {
     if (!uid) return;
     // المدخلة الأول: لو التطبيق اتقفل بعد الحذف وقبل شيلها، الإعادة كانت هترجّع العملية اللي اتمسحت
+    // شيلها فشل أو اتأخر ← علامة مسح، والإعادة بتشوفها ومبتكتبش
     if (outboxIds.current.has(id)) {
-      await waitAtMost(dropOutbox(uid, id), OUTBOX_PERSIST_TIMEOUT_MS);
+      forgetOutboxId(id);
+      const removed = await settleWithin(removeOutboxEntry(uid, id), OUTBOX_PERSIST_TIMEOUT_MS);
+      if (removed !== 'ok') {
+        console.warn('[outbox] remove before delete', removed, '- writing tombstone');
+        await waitAtMost(writeOutboxTombstone(uid, id).catch(e => logOutboxFailure('tombstone failed', e)), OUTBOX_PERSIST_TIMEOUT_MS);
+      }
     }
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'transactions', id));
