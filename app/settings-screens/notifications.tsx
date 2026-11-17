@@ -69,6 +69,8 @@ export default function NotificationsScreen() {
   const [showRoutine, setShowRoutine] = useState(false);
   const { busy, run } = useBusy();
   const [showTimeIos, setShowTimeIos] = useState(false);
+  // iOS (spinner): onChange بيتنادى مع كل لفّة، فبنحتفظ بمسوّدة ومبنحفظش غير بـ«تمام»
+  const [iosDraft, setIosDraft] = useState<Date | null>(null);
   const pickerValue = useMemo(() => {
     const d = new Date();
     d.setHours(notifs.dailyHour, notifs.dailyMinute, 0, 0);
@@ -76,16 +78,30 @@ export default function NotificationsScreen() {
   }, [notifs.dailyHour, notifs.dailyMinute]);
 
   function onTimeChange(e: DateTimePickerEvent, picked?: Date) {
-    if (Platform.OS !== 'android') setShowTimeIos(false);
     // "إلغاء" في نافذة النظام ← مفيش تغيير
     if (e.type !== 'set' || !picked) return;
     notifs.setDailyTime(picked.getHours(), picked.getMinutes());
   }
+  function onIosChange(_e: DateTimePickerEvent, picked?: Date) {
+    if (picked) setIosDraft(picked);
+  }
+  function confirmIosTime() {
+    if (iosDraft) notifs.setDailyTime(iosDraft.getHours(), iosDraft.getMinutes());
+    setShowTimeIos(false);
+    setIosDraft(null);
+  }
+  function cancelIosTime() {
+    setShowTimeIos(false);
+    setIosDraft(null);
+  }
   function openTimePicker() {
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({ value: pickerValue, mode: 'time', is24Hour: false, onChange: onTimeChange });
+    } else if (showTimeIos) {
+      cancelIosTime();
     } else {
-      setShowTimeIos(v => !v);
+      setIosDraft(pickerValue);
+      setShowTimeIos(true);
     }
   }
 
@@ -188,18 +204,29 @@ export default function NotificationsScreen() {
       <View style={styles.card}>
         <Text style={styles.switchLabel}>الساعة كام نفكّرك تسجّل مصاريف النهاردة؟</Text>
         <Text style={styles.hint}>
-          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من ساعة المعاد. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
+          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من معاد التذكير. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
         </Text>
         {/* منتقي الوقت بتاع النظام (أي ساعة وأي دقيقة — 9:13، 9:55). أندرويد: نافذة النظام؛ غيره: منتقي جوه الشاشة */}
         <TouchableOpacity testID="notifications_time_button" style={styles.timeBtn}
           onPress={openTimePicker}
-          accessibilityRole="button" accessibilityLabel="معاد التذكير"
-          accessibilityValue={{ text: timeLabel(notifs.dailyHour, notifs.dailyMinute) }}
-          accessibilityHint="بيفتح اختيار الوقت">
+          accessibilityRole="button" accessibilityLabel={`معاد التذكير ${timeLabel(notifs.dailyHour, notifs.dailyMinute)}`}
+          accessibilityHint="بيفتح منتقي الوقت">
           <Text testID="notifications_time_value" style={styles.timeValue}>{timeLabel(notifs.dailyHour, notifs.dailyMinute)}</Text>
         </TouchableOpacity>
         {Platform.OS !== 'android' && showTimeIos && (
-          <DateTimePicker value={pickerValue} mode="time" display="spinner" onChange={onTimeChange} />
+          <>
+            <DateTimePicker value={iosDraft ?? pickerValue} mode="time" display="spinner" onChange={onIosChange} />
+            <View style={styles.row}>
+              <TouchableOpacity testID="notifications_time_confirm" style={styles.graceBtn} onPress={confirmIosTime}
+                accessibilityRole="button" accessibilityLabel="تمام">
+                <Text style={{ color: colors.accentText, fontSize: typeScale.body, fontWeight: '700' }}>تمام</Text>
+              </TouchableOpacity>
+              <TouchableOpacity testID="notifications_time_cancel" style={styles.graceBtn} onPress={cancelIosTime}
+                accessibilityRole="button" accessibilityLabel="إلغاء">
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>إلغاء</Text>
+              </TouchableOpacity>
+            </View>
+          </>
         )}
       </View>
 

@@ -20,6 +20,8 @@ jest.mock('@/context/AppLockContext', () => ({
   ...jest.requireActual('@/context/AppLockContext'),
   useAppLock: () => mockLock,
 }));
+const mockReport = jest.fn();
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: (...a: unknown[]) => mockReport(...a) }));
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => ({ user: mockUser }) }));
 
 const tap = (kind: string, id = 'n1') => ({
@@ -28,7 +30,7 @@ const tap = (kind: string, id = 'n1') => ({
 });
 
 beforeEach(() => {
-  mockNavigate.mockClear(); mockPush.mockClear();
+  mockNavigate.mockClear(); mockPush.mockClear(); mockReport.mockClear();
   mockLock = { enabled: true, isLocked: false, readFailed: false };
   mockUser = { uid: 'u' };
   resetHandledNotification();
@@ -70,4 +72,34 @@ it('من غير مستخدم داخل ← مفيش تنقل', async () => {
   mockUser = null;
   await render(<NotificationTapRouter />);
   expect(mockPush).not.toHaveBeenCalled();
+});
+
+it('دوسة قديمة وانت مش داخل ← مبتنفّذش بعد تسجيل الدخول', async () => {
+  mockResponse = tap('daily'); // date: 1 = قديمة جدًا
+  mockUser = null;
+  const r = await render(<NotificationTapRouter />);
+  mockUser = { uid: 'u' };
+  await r.rerender(<NotificationTapRouter />);
+  expect(mockPush).not.toHaveBeenCalled();
+});
+
+it('دوسة طازجة وانت مش داخل ← بتتنفّذ بعد تسجيل الدخول', async () => {
+  mockResponse = { ...tap('daily'), notification: { ...tap('daily').notification, date: Date.now() } };
+  mockUser = null;
+  const r = await render(<NotificationTapRouter />);
+  expect(mockPush).not.toHaveBeenCalled();
+  mockUser = { uid: 'u' };
+  await r.rerender(<NotificationTapRouter />);
+  expect(mockPush).toHaveBeenCalledTimes(1);
+});
+
+it('التنقل فشل ← بيتبلّغ وبيتعاد بعدين (مش متعلّم اتعالج)', async () => {
+  mockResponse = tap('debt');
+  mockNavigate.mockImplementationOnce(() => { throw new Error('x'); });
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const r = await render(<NotificationTapRouter />);
+  expect(mockReport).toHaveBeenCalledWith('فتح مكان الإشعار', expect.any(Error));
+  expect(mockReport).toHaveBeenCalledTimes(1);
+  await r.rerender(<NotificationTapRouter />);
+  warn.mockRestore();
 });

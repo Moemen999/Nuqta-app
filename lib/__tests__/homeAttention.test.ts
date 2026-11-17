@@ -24,7 +24,7 @@ function input(over: Partial<AttentionInput> = {}): AttentionInput {
     balances: new Map([['w1', 1000]]),
     activeCategories: [], transactions: [exp('t0', 1)] as never, budgets: {}, transfers: new Set(),
     spendKnown: true, nowMonth: currentMonth(), subscriptions: [], gamiyas: [],
-    hasTodayTx: true, offlineEmpty: false, noWallets: false, cold: false, dailyHour: 20, nowHour: 21,
+    hasTodayTx: true, offlineEmpty: false, noWallets: false, cold: false, dailyAt: 20 * 60, nowAt: 21 * 60,
     unverifiedEmail: null, money: plainAmount,
     ...over,
   };
@@ -123,11 +123,17 @@ describe('اشتراك وجمعية جايين', () => {
 
 describe('«لسه ما سجلتش مصاريف النهاردة» (توقعات homeBannerDismiss)', () => {
   const noTx = (over: Partial<AttentionInput> = {}) => input({ hasTodayTx: false, ...over });
+  it('معاد 9:13 ← مخفي 9:12 وظاهر 9:13', () => {
+    const at = 9 * 60 + 13;
+    expect(ids(noTx({ dailyAt: at, nowAt: at - 1 }))).toEqual([]);
+    expect(ids(noTx({ dailyAt: at, nowAt: at }))).toEqual(['no_tx_today']);
+    expect(ids(noTx({ dailyAt: at, nowAt: at + 1 }))).toEqual(['no_tx_today']);
+  });
   it('بعد ساعة التذكير بس، ومعاها نفس الحرّاس القديمة', () => {
     expect(ids(noTx())).toEqual(['no_tx_today']);
-    expect(ids(noTx({ nowHour: 20 }))).toEqual(['no_tx_today']);
-    expect(ids(noTx({ nowHour: 19 }))).toEqual([]);
-    expect(ids(noTx({ dailyHour: null }))).toEqual([]);
+    expect(ids(noTx({ nowAt: 20 * 60 }))).toEqual(['no_tx_today']);
+    expect(ids(noTx({ nowAt: 19 * 60 + 59 }))).toEqual([]);
+    expect(ids(noTx({ dailyAt: null }))).toEqual([]);
     expect(ids(noTx({ offlineEmpty: true }))).toEqual([]);
     expect(ids(noTx({ noWallets: true }))).toEqual([]);
     expect(ids(noTx({ cold: true }))).toEqual([]);

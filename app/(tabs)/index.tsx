@@ -18,11 +18,11 @@ import { monthSummary } from '@/lib/monthSummary';
 import { requestReports } from '@/lib/reportsRequest';
 import MonthSummaryCard, { type MonthCardState } from '@/components/MonthSummaryCard';
 import { AmountsMaskScope, AmountsUnmaskedScope, usePrivacy } from '@/context/PrivacyContext';
-import { useDailyReminderHour } from '@/context/NotificationsContext';
+import { useDailyReminderMinute } from '@/context/NotificationsContext';
 import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
-import { useCurrentHour } from '@/lib/useCurrentHour';
+import { useCurrentMinute } from '@/lib/useCurrentMinute';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { transactionsPhrase } from '@/lib/archiving';
@@ -66,8 +66,8 @@ function HomeScreen() {
   const { walletColors, categoryColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
-  const dailyHour = useDailyReminderHour();
-  const nowHour = useCurrentHour();
+  const dailyAt = useDailyReminderMinute();
+  const nowAt = useCurrentMinute();
 
   // المؤرشفة بتختفي من الرئيسية بالكامل: الشرايح والإجمالي والتنبيهات.
   // شرط الأرشفة إن رصيدها صفر، فشيلها من الإجمالي مبيغيّرش رقم — والتنبيه
@@ -186,7 +186,7 @@ function HomeScreen() {
   const emailVerification = useEmailVerification();
   const attentionItems = buildAttentionItems({
     activeWallets, balances, activeCategories, transactions, budgets, transfers, spendKnown, nowMonth,
-    subscriptions, gamiyas, hasTodayTx, offlineEmpty, noWallets, cold: !!cold, dailyHour, nowHour,
+    subscriptions, gamiyas, hasTodayTx, offlineEmpty, noWallets, cold: !!cold, dailyAt, nowAt,
     unverifiedEmail: emailVerification.unverifiedEmail, money,
   });
 

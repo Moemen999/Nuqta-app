@@ -223,12 +223,13 @@ export function useNotifications() {
 }
 
 /**
- * ساعة التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية — `null` لحد ما الإعداد يتقري
- * (react-reviewer): الافتراضي (8 م) قبل القراية كان بيطلّع البانر للي اختار 10 م، أو
- * يخبّيه عن اللي اختار 2 الضهر. من غير Provider (اختبارات الشاشة) ← الافتراضي.
+ * معاد التذكير اليومي لبانر "لسه ما سجلتش" في الرئيسية، كدقيقة من اليوم (ساعة×60 + دقيقة)
+ * — `null` لحد ما الإعداد يتقري (react-reviewer): الافتراضي (8 م) قبل القراية كان بيطلّع
+ * البانر للي اختار 10 م، أو يخبّيه عن اللي اختار 2 الضهر. من غير Provider (اختبارات
+ * الشاشة) ← الافتراضي.
  */
-export function useDailyReminderHour(): number | null {
+export function useDailyReminderMinute(): number | null {
   const ctx = useContext(NotificationsContext);
-  if (!ctx) return DEFAULT_DAILY_HOUR;
-  return ctx.loading ? null : ctx.dailyHour;
+  if (!ctx) return DEFAULT_DAILY_HOUR * 60;
+  return ctx.loading ? null : ctx.dailyHour * 60 + (ctx.dailyMinute ?? 0);
 }

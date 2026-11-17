@@ -63,9 +63,10 @@ export type AttentionInput = {
   offlineEmpty: boolean;
   noWallets: boolean;
   cold: boolean;
-  /** ساعة التذكير اليومي (`useDailyReminderHour`) — null = التذكير مقفول */
-  dailyHour: number | null;
-  nowHour: number;
+  /** معاد التذكير اليومي كدقيقة من اليوم (ساعة×60 + دقيقة، `useDailyReminderMinute`) — null = لسه بيتقري */
+  dailyAt: number | null;
+  /** الدقيقة دلوقتي من اليوم (`useCurrentMinute`) */
+  nowAt: number;
   /** إيميل وباسورد ولسه مش مأكّد ← الإيميل، غير كده null */
   unverifiedEmail: string | null;
   money: AmountFormatter;
@@ -159,8 +160,8 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
     });
   }
 
-  // بعد الساعة اللي اختارها المستخدم بس (نفس ساعة التذكير اليومي)
-  if (!i.hasTodayTx && !i.offlineEmpty && !i.noWallets && !i.cold && i.dailyHour !== null && i.nowHour >= i.dailyHour) {
+  // من معاد التذكير بالدقيقة (9:13 مش 9:00) — نفس معاد التذكير اليومي
+  if (!i.hasTodayTx && !i.offlineEmpty && !i.noWallets && !i.cold && i.dailyAt !== null && i.nowAt >= i.dailyAt) {
     const text = 'لسه ما سجلتش مصاريف النهاردة';
     items.push({
       id: 'no_tx_today', kind: 'noTxToday', type: 'noTxToday', text, label: text, tone: 'plain',

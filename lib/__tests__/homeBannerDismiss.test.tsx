@@ -285,7 +285,8 @@ it('الساعة اترجعت لورا والمؤقّت اشتغل بدري ← 
   jest.setSystemTime(new Date(n.getFullYear(), n.getMonth(), n.getDate(), 19, 58, 0));
   await advance(57_000); // المؤقّت بيشتغل والساعة 19:58:57 — لسه 7
   expect(noTxShown()).toBe(false);
-  await advance(64_000); // 20:00:01
+  // 20:00:01 — المؤقّت بيتعاد كل دقيقة والإعادة بتحتاج flush لـReact بين كل لفّة، فبنقدّم على دفعات
+  for (let i = 0; i < 64; i++) await advance(1000);
   expect(noTxShown()).toBe(true);
 });
 
