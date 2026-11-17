@@ -7,12 +7,13 @@ import {
   feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
@@ -63,7 +64,7 @@ export default function FeedbackScreen() {
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.headerRow}>
           <BackButton />
-          <Text style={styles.title}>شاركنا رأيك</Text>
+          <ScreenTitle>شاركنا رأيك</ScreenTitle>
         </View>
 
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
@@ -74,7 +75,7 @@ export default function FeedbackScreen() {
               testID={`feedback_type_${t}`}
               onPress={() => setType(t)}
               style={[styles.chip, selectionStyle(colors, type === t)]}>
-              <Text style={{ color: colors.text, fontSize: 13 }}>{FEEDBACK_TYPE_LABEL[t]}</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>{FEEDBACK_TYPE_LABEL[t]}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -120,19 +121,18 @@ export default function FeedbackScreen() {
 function makeStyles(c: ThemeColors, bottomInset: number) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 24 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 8 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 12, minHeight: 150 },
-    counter: { color: c.textMuted, fontSize: 11.5, textAlign: 'left', marginTop: 6 },
-    note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 16, lineHeight: 17 },
-    result: { color: c.incomeText, fontSize: 13, textAlign: 'right', marginTop: 16, fontWeight: '700' },
+    content: { padding: space.xxl, paddingBottom: 24 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.sm },
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.lg, minHeight: 150 },
+    counter: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'left', marginTop: space.xs },
+    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, lineHeight: 17 },
+    result: { color: c.incomeText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxl, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.nav, bottomInset),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    sendBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
+    sendBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },
     btnBusy: { opacity: 0.5 },
   });
 }

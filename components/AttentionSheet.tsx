@@ -4,7 +4,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { ATTENTION_LINE_HINT, ATTENTION_ROUTE_HINT, attentionSummaryPhrase } from '@/lib/attentionSummary';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { visibleAttention, type AttentionItem } from '@/lib/homeAttention';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize } from '@/lib/tokens';
 import {
   VERIFY_RESEND_LABEL, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
 } from '@/lib/useEmailVerification';
@@ -60,6 +60,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
     const announcement = single ? single.label : phrase;
     if (loadWindowPassed && count > lastCount.current && announcement) AccessibilityInfo.announceForAccessibility(announcement);
     lastCount.current = count;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `single?.label` هو اللي بيتقري من `single`؛ إضافة الكائن كله كانت هتعيد الإعلان مع كل إعادة بناء للقايمة
   }, [count, loadWindowPassed, phrase, single?.label]);
 
   if (!phrase) return null;
@@ -185,7 +186,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8, marginTop: space.md,
     },
     lineText: { flex: 1, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
-    chevron: { color: c.textSecondary, fontSize: 20 },
+    chevron: { color: c.textSecondary, fontSize: glyphSize.chevron },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '85%' }), padding: 0, overflow: 'hidden' },
     content: { padding: 20 },
@@ -201,9 +202,9 @@ function makeStyles(c: ThemeColors) {
     actionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
     footer: stickyFooterStyle(c, c.nav),
     closeBtn: {
-      flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10,
+      flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md,
       alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH,
     },
-    closeText: { color: c.text, fontSize: 14, fontWeight: '700' },
+    closeText: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
   });
 }

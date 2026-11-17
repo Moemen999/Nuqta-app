@@ -1,24 +1,31 @@
 import { Money } from '@/components/Money';
+import { ProgressRing } from '@/components/ProgressRing';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, monthSpend, planBudgetCommit, todayStr } from '@/lib/finance';
-import { budgetForecastText, budgetRunOutDay } from '@/lib/budgetForecast';
+import { categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
+import { budgetForecastText, budgetLevel, budgetLevelColor, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_KEY = 'total_budget';
 
 export default function BudgetView() {
+  const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { categoryColors } = useChartColors();
   const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();
   // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا
   const spendLoading = transfersStatus === 'loading';
@@ -59,6 +66,9 @@ export default function BudgetView() {
     () => monthSpendTotal(transactions, nowMonth, transfers),
     [transactions, nowMonth, transfers]
   );
+  // الرقم البطل والدايرة مع بعض، نفس `budgetLevel` بتاع الرئيسية (نص قرش): 'over' (عدّيت) خطر، و'at' (صرفت بالظبط) دهبي
+  // زي الرئيسية — الأحمر للتعدّي بس (قرار مؤمن 2026-11-16)
+  const totalLevel = budgetLevel(totalMonthSpend, totalBudget);
   const spendByCategory = useMemo(() => {
     const map = new Map<string, number>();
     categories.forEach(c => map.set(c.id, monthSpend(transactions, c.id, nowMonth, transfers)));
@@ -77,6 +87,7 @@ export default function BudgetView() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}
+        {...fabScroll.scrollProps}
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <Text style={styles.title}>الميزانية الشهرية</Text>
         {transfersStatus === 'failed' && <TransfersFailedNote testID="budget_transfers_failed" style={{ marginTop: -8, marginBottom: 12 }} />}
@@ -104,13 +115,23 @@ export default function BudgetView() {
                   {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
                 </Text>
               </View>
-              {spendLoading ? <SpendLoading testID="budget_total_loading" style={styles.totalSub} /> : (
+              {spendLoading ? <SpendLoading testID="budget_total_loading" shape="line" style={styles.totalSub} /> : (
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
-                  <View testID="budget_hero" style={styles.heroRow}>
-                    <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalMonthSpend > totalBudget && { color: colors.dangerText }]} />
-                    <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
+                  <View style={styles.heroWithRing}>
+                    {/* دايرة التقدّم: نفس الأرقام والدرجة (`totalLevel` ← `budgetLevelColor`) اللي الرقم البطل جنبها، زينة بس */}
+                    <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={budgetLevelColor(totalLevel, colors, colors.accentText)} trackColor={colors.borderStrong} />
+                    <View testID="budget_hero" style={styles.heroRow}>
+                      <Money value={totalMonthSpend} currency={false} fit style={[styles.hero, totalLevel !== 'under' && { color: budgetLevelColor(totalLevel, colors, colors.text) }]} />
+                      <Text style={styles.heroOf}>اتصرف من <Money value={totalBudget} /></Text>
+                    </View>
                   </View>
+                  {/* الدرجة بالكلام مش باللون بس — نفس نص كارت الشهر في الرئيسية */}
+                  {(totalLevel === 'at' || totalLevel === 'over') && (
+                    <Text testID="budget_total_level" style={[styles.totalSub, { color: budgetLevelColor(totalLevel, colors, colors.accentText) }]}>
+                      {totalLevel === 'at' ? 'الميزانية خلصت' : `عدّيت الميزانية بـ ${money(Math.abs(snapPiastre(totalBudget - totalMonthSpend)))} ج.م`}
+                    </Text>
+                  )}
                   {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
                 </>
               )}
@@ -124,21 +145,27 @@ export default function BudgetView() {
           const cards = group.map(c => {
           const limit = numberFor(c.id, budgets[c.id] || 0);
           const spend = spendByCategory.get(c.id) || 0;
-          const pct = limit > 0 ? Math.min(100, (spend / limit) * 100) : 0;
+          const level = limit > 0 ? budgetLevel(spend, limit) : 'under';
+          // at/over ← الشريط مليان (999.996 من 1000 كانت 99.9996%) — زي كارت الشهر في الرئيسية
+          const pct = limit > 0 ? (level === 'at' || level === 'over' ? 100 : Math.min(100, (spend / limit) * 100)) : 0;
           // لون بس من 80% (دراسة الشكل: الأخضر على كل حاجة سليمة كان دوشة) — الشريط بتوكنز النص (≥ 4.5 على المسار)
-          const color = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
-          const textColor = pct >= 100 ? colors.dangerText : pct >= 80 ? colors.accentText : colors.textSecondary;
+          // الدرجة من `budgetLevel` (نص قرش) زي الإجمالي والرئيسية: 'over' خطر، 'at'/'near' دهبي — العرض (%) زي ما هو
+          const color = budgetLevelColor(level, colors, colors.textSecondary);
+          const textColor = color;
 
           return (
             <View key={c.id} style={styles.card}>
               <View style={styles.head}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={styles.name}>{categoryLabel(c)}</Text>
+                <View style={[categoryInlineRow, { flex: 1, flexShrink: 1 }]}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.row} tint={categoryColors.get(c.id)} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={styles.name}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
                 <TextInput
                   style={styles.input}
                   keyboardType="numeric"
                   placeholder="السقف"
                   placeholderTextColor={colors.textMuted}
-                  accessibilityLabel={`سقف ${categoryLabel(c)}`}
+                  accessibilityLabel={`سقف ${categoryLabel(c, { icon: false })}`}
                   onFocus={gi === 1 ? () => keepInFold(c.id) : undefined}
                   value={valueFor(c.id, budgets[c.id] || 0)}
                   onChangeText={v => onChange(c.id, v)}
@@ -146,14 +173,14 @@ export default function BudgetView() {
                   textAlign="right"
                 />
               </View>
-              {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} style={styles.sub} />}
+              {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} shape="line" style={styles.sub} />}
               {limit > 0 && !spendLoading && (
                 <>
                   <View style={styles.track}>
                     <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
                   </View>
                   {/* 80% و100% بالكلمة كمان — الفرق بين اللونين 1.07–1.34:1 بس (a11y-architect) */}
-                  <Text style={[styles.sub, { color: textColor }]}>{pct >= 100 ? 'خلصت — ' : pct >= 80 ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
+                  <Text style={[styles.sub, { color: textColor }]}>{level === 'over' ? 'عدّيت — ' : level === 'at' ? 'خلصت — ' : level === 'near' ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                   {forecast(c.id, monthRowsToDate.filter(t => t.categoryId === c.id), budgets[c.id] || 0, spend)}
                 </>
               )}
@@ -178,21 +205,22 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xxl },
-    totalCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.xxxl },
+    totalCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.xxxl, ...cardElevation(c) },
     totalLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     totalRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', marginTop: space.md },
     totalSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
-    heroRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.lg },
+    heroWithRing: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xxl, marginTop: space.lg },
+    heroRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, flexShrink: 1 },
     hero: { color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     heroOf: { color: c.textSecondary, fontSize: typeScale.body },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
-    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '500', flexShrink: 1 },
     input: { width: 110, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },
     // المسار نفسه باين (surface2 على الكارت كان 1.1:1 — الشريط كان بيبان شرطة سايبة)
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.lg, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     sub: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     forecast: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
   });

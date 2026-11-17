@@ -107,7 +107,7 @@ describe('عملية جديدة', () => {
     await type(screen.getByTestId('tx_amount_input'), '50');
     expect(checked('باء')).toBe(true);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B', amount: 50 }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B', amount: 50 }), { durable: true });
   });
 
   it('كتابة المبلغ وبعدين البيانات اتغيّرت (آخر محفظة بقت جيم) ← لسه باء، وباء هي اللي بتتحفظ', async () => {
@@ -118,7 +118,7 @@ describe('عملية جديدة', () => {
     expect(checked('باء')).toBe(true);
     expect(checked('جيم')).toBe(false);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }), { durable: true });
   });
 
   it('المستخدم اختار ألف وبعدين الافتراضي اتغيّر ← ألف', async () => {
@@ -129,7 +129,7 @@ describe('عملية جديدة', () => {
     expect(checked('ألف')).toBe(true);
     await type(screen.getByTestId('tx_amount_input'), '5');
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'A' }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'A' }), { durable: true });
   });
 
   // كل خانة إدخال بتثبّت — لو واحدة نسيت، الافتراضي ممكن يتقلب بعد ما المستخدم بدأ
@@ -153,7 +153,7 @@ describe('عملية جديدة', () => {
     await dataChanges(r, ui, { wallets: [A, W('B', 'باء', true), C] });
     expect(checked('باء')).toBe(true);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }), { durable: true });
   });
 
   it('الافتراضي عمره ما يبقى مؤرشفة: آخر محفظة مؤرشفة ← الأحدث بعدها', async () => {
@@ -745,7 +745,7 @@ describe('بنود ناقصة في المراجعة', () => {
     await press(screen.getByTestId('tx_amount_input')); // ضغط من غير كتابة مش إدخال
     await type(screen.getByTestId('tx_amount_input'), '12');
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'C' }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'C' }), { durable: true });
   });
 
   // بيوثّق السلوك الحالي مش بيزكّيه: محفظة اتأرشفت والفورم مفتوح ← الشيب لسه ظاهر ومختار والحفظ بيبعتها.
@@ -758,7 +758,7 @@ describe('بنود ناقصة في المراجعة', () => {
     expect(shown('باء')).toBe(true);
     expect(checked('باء')).toBe(true);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }));
+    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }), { durable: true });
   });
 });
 

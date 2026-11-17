@@ -1,0 +1,8 @@
+{
+  "name": "nuqta-promo-video",
+  "private": true,
+  "description": "فيديو نقطة التسويقي — مشاهد HTML بتتصوّر إطار بإطار",
+  "dependencies": {
+    "@fontsource/ibm-plex-sans-arabic": "^5.3.0"
+  }
+}

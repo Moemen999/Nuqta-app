@@ -8,6 +8,7 @@ import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, space, typeScale } from '@/lib/tokens';
 
 /**
  * بانر فوق كل التابات لما listener من بتوع `DataContext` يترفض ويتقفل.
@@ -60,14 +61,14 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderBottomWidth: 1, borderColor: c.dangerBorder,
       paddingHorizontal: 16, paddingBottom: 12,
     },
-    title: { color: c.dangerText, fontSize: 15, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.dangerText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     titleFlex: { flex: 1 },
-    body: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 4, lineHeight: 20 },
+    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 20 },
     btn: {
-      alignSelf: 'flex-end', marginTop: 8, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10,
+      alignSelf: 'flex-end', marginTop: space.sm, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md,
       paddingVertical: 8, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center',
     },
-    btnText: { color: c.dangerText, fontSize: 14, fontWeight: '700' },
+    btnText: { color: c.dangerText, fontSize: typeScale.body, fontWeight: '700' },
   });
 }

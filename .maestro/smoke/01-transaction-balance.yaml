@@ -42,7 +42,7 @@ appId: host.exp.exponent
 # والسحبة بتقفل الكيبورد (keyboardDismissMode) — فده نفس اللي بيحصل للمستخدم
 - hideKeyboard
 - tapOn: تجربة 1
-# اسم الفئة بيتعرض "🏷️ فئة أ" (أيقونة + مسافة مبتتكسرش)، وMaestro بيطابق النص كله
+# اسم الفئة نص لوحده "فئة أ" بجنب دايرة الأيقونة (CategoryIcon) — الـregex ".*فئة أ" لسه بيطابق
 - tapOn: ".*فئة أ"
 - tapOn:
     id: tx_save_button

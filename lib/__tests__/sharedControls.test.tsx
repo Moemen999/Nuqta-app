@@ -16,7 +16,12 @@ it('SegmentedControl: tablist، كل واحد tab بحالة selected، وطول
   const a = screen.getByTestId('seg_a'), b = screen.getByTestId('seg_b');
   expect([a.props.accessibilityRole, a.props.accessibilityState.selected, b.props.accessibilityState.selected]).toEqual(['tab', true, false]);
   expect(StyleSheet.flatten(a.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
-  // المؤشر مش بالخلفية بس: إطار دهبي على المختار بس (contrast test بيثبّت إنه ≥ 3:1)
+  // المؤشر مش بالخلفية بس: إطار دهبي على طبقة المؤشر الواحدة (contrast test بيثبّت إنه ≥ 3:1)، والشرايح نفسها شفافة
+  const ind = screen.getAllByTestId('segmented_indicator', { includeHiddenElements: true });
+  expect(ind).toHaveLength(1);
+  expect(StyleSheet.flatten(ind[0].props.style).borderColor).not.toBe('transparent');
+  expect(ind[0].props.pointerEvents).toBe('none');
+  // قبل القياس (Jest) المختارة بتاخد الستايل الاحتياطي، وغير المختارة شفافة
   expect(StyleSheet.flatten(a.props.style).borderColor).not.toBe('transparent');
   expect(StyleSheet.flatten(b.props.style).borderColor).toBe('transparent');
   await act(async () => { fireEvent.press(b); });
@@ -33,4 +38,59 @@ it('PeriodChips: testID `{prefix}_{key}` زي القديم، وحالة الاخ
   expect(StyleSheet.flatten(c.props.style).borderColor).not.toBe('transparent');
   await act(async () => { fireEvent.press(screen.getByTestId('x_preset_thisMonth')); });
   expect(onChange).toHaveBeenCalledWith('thisMonth');
+});
+
+it('PeriodChips: سطر واحد بيتسحب (horizontal) من غير flexWrap، وبيطلع لحافة الأب بـbleed', async () => {
+  await render(<ThemeProvider><PeriodChips keys={['thisMonth', 'last7']} value="last7" onChange={() => {}} testIDPrefix="y_preset" bleed={16} /></ThemeProvider>);
+  const row = screen.getByTestId('y_preset_row');
+  expect(row.props.horizontal).toBe(true);
+  expect(row.props.showsHorizontalScrollIndicator).toBe(false);
+  const content = StyleSheet.flatten(row.props.contentContainerStyle);
+  expect(content.flexWrap).toBeUndefined();
+  expect(content.flexDirection).toBe('row-reverse');
+  expect(content.paddingHorizontal).toBe(16);
+  expect(StyleSheet.flatten(row.parent!.props.style).marginHorizontal).toBe(-16);
+  expect(row.props.accessibilityRole).toBe('radiogroup');
+});
+
+describe('PeriodChips: البداية يمين والتدرّج', () => {
+  const setup = async () => {
+    await render(<ThemeProvider><PeriodChips keys={['thisMonth', 'last7', 'lastMonth', 'all', 'custom']} value="thisMonth" onChange={() => {}} testIDPrefix="z_preset" /></ThemeProvider>);
+    const row = screen.getByTestId('z_preset_row');
+    return { row };
+  };
+  it('onContentSizeChange قبل onLayout ← لسه بيبدأ يمين (مرة واحدة)', async () => {
+    const { row } = await setup();
+    await act(async () => { row.props.onContentSizeChange(600, 44); });
+    expect(screen.queryByTestId('z_preset_fade', { includeHiddenElements: true })).toBeNull();
+    await act(async () => { row.props.onLayout({ nativeEvent: { layout: { width: 360, height: 44, x: 0, y: 0 } } }); });
+    // البداية يمين = اتحرّك لآخر الصف (240 = 600 − 360) فالمحتوى المستخبي على الشمال ← التدرّج ظاهر
+    expect(screen.getByTestId('z_preset_fade', { includeHiddenElements: true })).toBeTruthy();
+  });
+  it('التدرّج مش ظاهر لو الشرايح كفّت، ويختفي عند أقصى الشمال', async () => {
+    const { row } = await setup();
+    await act(async () => { row.props.onLayout({ nativeEvent: { layout: { width: 360, height: 44, x: 0, y: 0 } } }); });
+    await act(async () => { row.props.onContentSizeChange(300, 44); });
+    expect(screen.queryByTestId('z_preset_fade', { includeHiddenElements: true })).toBeNull();
+  });
+});
+
+it('SegmentedControl: قبل الجاهزية المختارة بتاخد الستايل الاحتياطي، وبعد القياس بيتشال، وأول رسمة من غير حركة', async () => {
+  const Seg = ({ v }: { v: 'a' | 'b' }) => (
+    <ThemeProvider><SegmentedControl value={v} onChange={() => {}} segments={[
+      { key: 'a', label: 'أ', testID: 'g_a' }, { key: 'b', label: 'ب', testID: 'g_b' },
+    ]} /></ThemeProvider>);
+  const { rerender } = await render(<Seg v="a" />);
+  expect(StyleSheet.flatten(screen.getByTestId('g_a').props.style).borderColor).not.toBe('transparent');
+  expect(StyleSheet.flatten(screen.getByTestId('g_b').props.style).borderColor).toBe('transparent');
+  const lay = (id: string, x: number) => fireEvent(screen.getByTestId(id), 'layout', { nativeEvent: { layout: { x, y: 0, width: 100, height: 44 } } });
+  await act(async () => { lay('g_a', 100); lay('g_b', 0); });
+  expect(StyleSheet.flatten(screen.getByTestId('g_a').props.style).borderColor).toBe('transparent');
+  const ind = screen.getByTestId('segmented_indicator', { includeHiddenElements: true });
+  const st = StyleSheet.flatten(ind.props.style);
+  expect(st.opacity).toBe(1);
+  expect(st.width).toBe(100);
+  expect(JSON.stringify(st.transform)).toContain('100'); // أول رسمة: في مكانه على طول
+  await rerender(<Seg v="b" />);
+  expect(screen.getAllByTestId('segmented_indicator', { includeHiddenElements: true })).toHaveLength(1);
 });

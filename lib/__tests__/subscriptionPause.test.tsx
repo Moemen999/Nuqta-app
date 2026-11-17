@@ -84,7 +84,8 @@ describe('شاشة الاشتراكات', () => {
     await render(wrap());
     expect(screen.getByText('نتفليكس')).toBeTruthy();
     expect(screen.queryByText('سبوتيفاي')).toBeNull();
-    expect(screen.getByText('اشتراكات واقفة (1)')).toBeTruthy();
+    expect(screen.getByText('اشتراكات واقفة')).toBeTruthy();
+    expect(screen.getAllByText('(1)').length).toBeGreaterThan(0);
     expect(screen.getByTestId('subscriptions_stopped_toggle').props.accessibilityLabel).toBe('اشتراكات واقفة، اشتراك واحد');
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_more_s1')); });
     expect(screen.getByTestId('subscription_stop_s1')).toBeTruthy();

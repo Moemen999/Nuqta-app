@@ -125,7 +125,7 @@ export const BANNER_LABELS: Record<BannerType, string> = {
   verifyEmail: 'تأكيد الإيميل',
   noTxToday: 'لسه ما سجلتش مصاريف النهاردة',
   lowBalance: 'رصيد قرب يخلص',
-  budget: 'الميزانية قربت تخلص أو خلصت',
+  budget: 'الميزانية قربت تخلص أو خلصت أو عدّيتها',
   subscriptionDue: 'اشتراك معاده قرب',
   gamiyaDue: 'قسط جمعية معاده قرب',
 };

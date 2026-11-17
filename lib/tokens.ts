@@ -27,6 +27,8 @@ export const typeScale = {
   body: 14,
   /** عنوان الشاشة أو الكارت */
   title: 17,
+  /** مبلغ ثانوي بارز في كارت — مش الرقم البطل */
+  figure: 22,
   /** الرقم البطل — رقم واحد لكل شاشة */
   hero: 34,
 } as const;
@@ -43,6 +45,11 @@ export const space = {
   xxxl: 20,
   huge: 24,
 } as const;
+
+/** مقاس دايرة أيقونة الفئة (`CategoryIcon`): شريحة فلتر / صف قايمة / عمود تقرير */
+export const categoryIconSize = { chip: 22, row: 24, bar: 28 } as const;
+/** داخل دايرة الفئة: الإيموجي/الأيقونة نسبة من القطر، ارتفاع سطره، وشفافية خلفية الـtint (hex 2E ≈ 18%) */
+export const categoryIconGlyph = { fontRatio: 0.55, lineRatio: 0.7, tintAlpha: '2E' } as const;
 
 /** مقاس الخطوط */
 export const font = {
@@ -67,7 +74,18 @@ export const radius = {
   lg: 12,
   xl: 16,
   sheet: 20,
+  /** كبسولة/دايرة كاملة (شريط، نقطة، حبة): أي قيمة أكبر من نص الارتفاع بترسم نفس الشكل */
+  pill: 999,
 } as const;
+
+/** مقاسات رموز مالهاش درجة في `typeScale` (رمز سهم، شعار تسجيل الدخول) */
+export const glyphSize = { chevron: 20, logo: 36 } as const;
+
+/** دايرة الأيقونة الكبيرة (`HeroIcon`) بدل الإيموجي الزخرفي: الترحيب / أول تجهيز / الحالة الفاضية، والأيقونة نسبة من القطر */
+export const heroIconSize = { welcome: 80, setup: 64, empty: 56, inline: 40 } as const;
+export const heroIconGlyphRatio = 0.5;
+/** المسافة تحت الدايرة قبل العنوان — نفسها في الشاشات التلاتة */
+export const heroIconGap = space.xl;
 
 /**
  * أصغر هدف لمس مقبول. أي حاجة بتتدوس لازم توصل للرقم ده — إما بارتفاع/عرض
@@ -75,6 +93,11 @@ export const radius = {
  * ده موجود عشان الحالة دي تبقى ملحوظة بالـ grep مش مستنية حد يشتكي.
  */
 export const MIN_TOUCH = 44;
+
+/** حالات الزرار (`components/Button`): مضغوط، معطّل/مشغول، وتصغير الضغطة */
+export const pressedOpacity = 0.85;
+export const disabledOpacity = 0.6;
+export const pressedScale = 0.98;
 
 /** صف أفقي بترتيب عربي صح (من اليمين للشمال) */
 export function rowRTL(gap?: number): ViewStyle {
@@ -145,4 +168,32 @@ export function stickyFooterStyle(c: ThemeColors, bg: string, extraBottom: numbe
     borderTopColor: c.borderStrong,
     backgroundColor: bg,
   };
+}
+
+/** خانة المبلغ البطل (مودال العملية والاشتراك والجمعية): الرقم هو البطل، وحافة ≥ 3:1 (`controlEdge`) */
+export function bigAmountInputStyle(c: ThemeColors): TextStyle {
+  return {
+    backgroundColor: c.surface2,
+    borderWidth: 1.5,
+    borderColor: c.controlEdge,
+    borderRadius: radius.lg,
+    color: c.text,
+    fontSize: typeScale.hero,
+    fontWeight: '700',
+    paddingHorizontal: space.xxl,
+    paddingVertical: space.md,
+  };
+}
+
+/** دايرة التقدّم (`ProgressRing`، ميزانية التخطيط): القطر وسُمك الخط، و`compact` للكارت الضيق (كارت الشهر في الرئيسية) */
+export const progressRing = { size: 64, stroke: 7, durationMs: 600, compact: { size: 44, stroke: 5 } } as const;
+
+/**
+ * رفعة الكارت (الفاتح بس): ظل خفيف دافي بدل إطار — التباين surface/bg في الفاتح 1.13:1 والكروت كانت مسطّحة.
+ * في الغامق `shadow` = null فمفيش حاجة بتتضاف. ممنوع على صفوف القوايم والشرايح والسيجمنت وأي خلفية شفافة/selectedBg.
+ * الكارت اللي عليه `overflow: 'hidden'` بيتلف بـView برّاني شايل الظل (iOS بيقص الظل).
+ */
+export function cardElevation(c: { shadow: string | null }): ViewStyle {
+  if (!c.shadow) return {};
+  return { shadowColor: c.shadow, shadowOpacity: 0.07, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 2 };
 }

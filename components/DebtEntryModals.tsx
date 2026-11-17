@@ -23,10 +23,13 @@ import {
   increaseLeftoverChoice, leftoverSeen, pinInstallmentAmount, type LeftoverMode,
 } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -59,6 +62,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
+  const { categoryColors } = useChartColors();
   const notice = useNotice();
   const confirm = useConfirm();
   const { busy, run: runBusy } = useBusy();
@@ -189,7 +193,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -201,7 +205,10 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
                 {selectableOptions(categories).map(c => (
                   <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                    <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                    <View style={categoryInlineRow}>
+                      <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
+                      <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -219,12 +226,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_payment_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_payment_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_payment_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="debt_payment_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -340,11 +343,11 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
-              <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة</Text>
+              <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أيوة</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
-              <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل)</Text>
+              <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>لأ (بالأجل)</Text>
             </TouchableOpacity>
           </View>
           {/* الأصل شرا بالأجل بس (react-reviewer): زيادة "بالأجل" على استلاف نقدي تحويل مش شرا */}
@@ -388,7 +391,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
                 {selectableOptions(wallets, walletId).map(w => (
                   <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                    <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                    <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -408,12 +411,8 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         {!!error && <Text testID="debt_increase_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_increase_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_increase_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_increase_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="debt_increase_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -514,11 +513,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'owed_to_me', 'success')]}>
-              <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: 13 }}>ليا (أنا قرضته)</Text>
+              <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: typeScale.body }}>ليا (أنا قرضته)</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(direction === 'i_owe', 'radio')} onPress={() => { freeze(); setDirection('i_owe'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'i_owe', 'danger')]}>
-              <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: 13 }}>عليا (هو قرضني)</Text>
+              <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: typeScale.body }}>عليا (هو قرضني)</Text>
             </TouchableOpacity>
           </View>
 
@@ -526,11 +525,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
-              <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>أيوة، فلوس حقيقية</Text>
+              <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أيوة، فلوس حقيقية</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
-              <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: 13 }}>لأ (بالأجل مثلاً)</Text>
+              <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>لأ (بالأجل مثلاً)</Text>
             </TouchableOpacity>
           </View>
           {linkedToWallet ? (
@@ -571,7 +570,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
                 {selectableOptions(wallets, walletId).map(w => (
                   <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                    <Text style={{ color: colors.text, fontSize: 13 }}>{w.name}</Text>
+                    <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -586,11 +585,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(!isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !isInstallment)]}>
-              <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>مبلغ واحد</Text>
+              <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>مبلغ واحد</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(true); }}
               style={[styles.typeBtn, selectionStyle(colors, isInstallment)]}>
-              <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: 13 }}>أقساط</Text>
+              <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أقساط</Text>
             </TouchableOpacity>
           </View>
 
@@ -619,12 +618,8 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_add_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="debt_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
 
@@ -652,37 +647,36 @@ function makeStyles(c: ThemeColors) {
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     scrollArea: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 17 },
-    installmentText: { color: c.accentText, fontSize: 12.5, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    row: { flexDirection: 'row-reverse', gap: 8, marginTop: 10 },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
-    labelInRow: { color: c.textSecondary, fontSize: 12, textAlign: 'right' },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    installmentText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.xl, marginBottom: space.xs },
+    labelInRow: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     contactBtn: {
-      flexDirection: 'row-reverse', alignItems: 'center', gap: 6, minHeight: 44,
-      paddingHorizontal: 12, paddingVertical: 8,
-      borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
+      flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, minHeight: 44,
+      paddingHorizontal: space.lg, paddingVertical: space.sm,
+      borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, backgroundColor: c.surface2,
     },
-    contactBtnText: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    contactBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    bigInput: bigAmountInputStyle(c),
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     // اختيارين فوق بعض بعرض كامل، كل واحد بشرحه (arabic-copy-reviewer: جنب بعض مش هيكفي الشرح)
-    leftoverQuestion: { color: c.text, fontSize: 13, textAlign: 'right', marginTop: 14, marginBottom: 8, lineHeight: 20 },
-    leftoverOption: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8, minHeight: 44 },
-    leftoverTitle: { fontSize: 13.5, fontWeight: '700', textAlign: 'right' },
-    leftoverCaption: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginTop: 4, lineHeight: 19 },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
-    footerError: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 8, paddingHorizontal: 20 },
+    leftoverQuestion: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xl, marginBottom: space.sm, lineHeight: 20 },
+    leftoverOption: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.sm, minHeight: 44 },
+    leftoverTitle: { fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    leftoverCaption: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    footerError: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.sm, paddingHorizontal: space.xxxl },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    btnBusy: { opacity: 0.6 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

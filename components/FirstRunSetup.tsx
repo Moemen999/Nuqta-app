@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -8,7 +9,9 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { HeroIcon } from '@/components/HeroIcon';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
@@ -184,7 +187,7 @@ export default function FirstRunSetup() {
   if (step === 'welcome') {
     return (
       <View style={[styles.center, { paddingTop: insets.top }]}>
-        <Text style={styles.bigEmoji}>👋</Text>
+        <View style={{ marginBottom: heroIconGap - space.lg }}><HeroIcon name="wallet-outline" size={heroIconSize.setup} testID="setup_icon" /></View>
         <Text style={styles.title}>نبدأ بإيه؟</Text>
         <Text style={styles.centerText}>
           اختار المحافظ اللي بتصرف منها ورصيد كل واحدة دلوقتي، والفئات اللي بتصرف عليها. تقدر تغيّر أي حاجة بعدين من الإعدادات.
@@ -217,7 +220,7 @@ export default function FirstRunSetup() {
                   <TouchableOpacity testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
                     onPress={() => setPickedWallets(p => toggle(p, r.key))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={r.name}>
-                    <Text style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
+                    <Text numberOfLines={2} style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
                       {on ? '✓ ' : ''}{r.name}
                     </Text>
                   </TouchableOpacity>
@@ -236,10 +239,8 @@ export default function FirstRunSetup() {
               <TextInput testID="setup_custom_wallet_input" style={styles.addInput} value={newWallet} onChangeText={setNewWallet}
                 placeholder="محفظة تانية (اكتب اسمها)" placeholderTextColor={colors.textMuted} maxLength={SETUP_NAME_MAX}
                 textAlign="right" onSubmitEditing={addCustomWallet} accessibilityLabel="اسم محفظة تانية" />
-              <TouchableOpacity testID="setup_custom_wallet_add" style={styles.addBtn} onPress={addCustomWallet}
-                accessibilityRole="button" accessibilityLabel="ضيف المحفظة">
-                <Text style={styles.addBtnText}>ضيف</Text>
-              </TouchableOpacity>
+              <Button variant="outline" testID="setup_custom_wallet_add" label="ضيف" style={styles.addBtn} onPress={addCustomWallet}
+                accessibilityLabel="ضيف المحفظة" />
             </View>
           </>
         ) : (
@@ -254,7 +255,10 @@ export default function FirstRunSetup() {
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
-                    <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c, icon: setupCategoryIcon(c) })}</Text>
+                    <View style={categoryInlineRow}>
+                      <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} onSelected={on} />
+                      <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c }, { icon: false })}</Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -263,10 +267,8 @@ export default function FirstRunSetup() {
               <TextInput testID="setup_custom_cat_input" style={styles.addInput} value={newCat} onChangeText={setNewCat}
                 placeholder="فئة تانية (اكتب اسمها)" placeholderTextColor={colors.textMuted} maxLength={SETUP_NAME_MAX}
                 textAlign="right" onSubmitEditing={addCustomCat} accessibilityLabel="اسم فئة تانية" />
-              <TouchableOpacity testID="setup_custom_cat_add" style={styles.addBtn} onPress={addCustomCat}
-                accessibilityRole="button" accessibilityLabel="ضيف الفئة">
-                <Text style={styles.addBtnText}>ضيف</Text>
-              </TouchableOpacity>
+              <Button variant="outline" testID="setup_custom_cat_add" label="ضيف" style={styles.addBtn} onPress={addCustomCat}
+                accessibilityLabel="ضيف الفئة" />
             </View>
           </>
         )}
@@ -295,44 +297,42 @@ export default function FirstRunSetup() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 24 },
-    center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-    bigEmoji: { fontSize: 56 },
-    title: { color: c.text, fontSize: 22, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
-    sub: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6, marginBottom: 14, lineHeight: 20 },
-    centerText: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
-    hint: { color: c.textMuted, fontSize: 12, textAlign: 'center' },
-    failTitle: { color: c.dangerText, fontSize: 18, fontWeight: '700', textAlign: 'center' },
+    content: { padding: space.xxl, paddingBottom: 24 },
+    center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
+    title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
+    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
+    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
+    failTitle: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     row: {
-      flexDirection: 'row-reverse', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderWidth: 1,
-      borderColor: c.border, borderRadius: 12, paddingHorizontal: 12, marginBottom: 8, minHeight: MIN_TOUCH + 8,
+      flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, backgroundColor: c.surface, borderWidth: 1,
+      borderColor: c.border, borderRadius: radius.lg, paddingHorizontal: space.lg, marginBottom: space.sm, minHeight: MIN_TOUCH + 8,
     },
-    rowToggle: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: 10, minHeight: MIN_TOUCH },
-    rowName: { color: c.text, fontSize: 15, textAlign: 'right' },
+    rowToggle: { flex: 1, flexDirection: 'row-reverse', alignItems: 'center', gap: space.md, minHeight: MIN_TOUCH },
+    rowName: { color: c.text, fontSize: typeScale.title, textAlign: 'right', flexShrink: 1 },
     balanceInput: {
-      width: 120, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: 10,
-      color: c.text, backgroundColor: c.bg, paddingHorizontal: 10, fontSize: 15,
+      width: 120, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: radius.md,
+      color: c.text, backgroundColor: c.bg, paddingHorizontal: space.md, fontSize: typeScale.title,
     },
-    chips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
+    chips: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
     chip: {
-      borderWidth: 1, borderColor: c.border, borderRadius: 20, paddingHorizontal: 14, minHeight: MIN_TOUCH,
+      borderWidth: 1, borderColor: c.border, borderRadius: radius.sheet, paddingHorizontal: space.xl, minHeight: MIN_TOUCH,
       justifyContent: 'center', backgroundColor: c.surface,
     },
-    chipText: { fontSize: 14 },
+    chipText: { fontSize: typeScale.body },
     bold: { fontWeight: '700' },
-    addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 12 },
+    addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.lg },
     addInput: {
-      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: 10, color: c.text,
-      backgroundColor: c.surface, paddingHorizontal: 12, fontSize: 14,
+      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, color: c.text,
+      backgroundColor: c.surface, paddingHorizontal: space.lg, fontSize: typeScale.body,
     },
-    addBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH + 16, borderRadius: 10, borderWidth: 1, borderColor: c.accent, alignItems: 'center', justifyContent: 'center' },
-    addBtnText: { color: c.accentText, fontSize: 14, fontWeight: '700' },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'right', marginTop: 12 },
-    primaryBtn: { backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    primaryText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: 12, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    ghostText: { color: c.textSecondary, fontSize: 15 },
-    wideBtn: { alignSelf: 'stretch', marginTop: 4 },
+    addBtn: { minWidth: MIN_TOUCH + 16 },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.lg },
+    primaryBtn: { backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
+    primaryText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
+    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
+    ghostText: { color: c.textSecondary, fontSize: typeScale.title },
+    wideBtn: { alignSelf: 'stretch', marginTop: space.xxs },
     flexBtn: { flex: 1 },
   });
 }

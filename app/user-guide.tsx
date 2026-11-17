@@ -2,9 +2,11 @@ import BackButton from '@/components/BackButton';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
+import { cardElevation, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -15,6 +17,7 @@ const SECTIONS: Section[] = [
     title: 'المحافظ والعمليات',
     body: [
       'أول ما تعمل حساب، التطبيق بيسألك "نبدأ بإيه؟": تختار محافظك ورصيد كل واحدة، والفئات اللي بتصرف عليها. ولو دوست "تخطي" هنعملك محفظة كاش وفئات أساسية (كل فئة بأيقونتها، ما عدا "أخرى")، وتقدر تغيّر كل ده بعدين من الإعدادات.',
+      'لو ضفت مصروف أو إيراد أو تحويل من "+" وانت من غير نت، بيتحفظ على موبايلك (مشفّر) وبيفضل محفوظ حتى لو قفلت التطبيق، وبيترفع لوحده أول ما تفتحه والنت شغال. بس لو سجّلت خروج من الإعدادات وفيه عمليات لسه ما اترفعتش، هتضيع — والتطبيق هيحذّرك ويقولك عددها. و"نسيت الكود؟" مش بيمسحها.',
       'المحافظ هي الأماكن اللي فلوسك فيها (بنك، كاش، محفظة إلكترونية). تقدر تضيف وتعدل أسماءها من الإعدادات.',
       'الرصيد الابتدائي: المبلغ اللي كان موجود في المحفظة قبل ما تبدأ تستخدم التطبيق.',
       'حد التنبيه: لو الرصيد نزل تحت الرقم ده، هيظهرلك تنبيه في الرئيسية.',
@@ -163,7 +166,7 @@ export default function UserGuideScreen() {
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>دليل المستخدم</Text>
+        <ScreenTitle>دليل المستخدم</ScreenTitle>
       </View>
 
       <Text style={styles.intro}>كل حاجة في التطبيق، مشروحة بالتفصيل. دوس على أي قسم عشان تفتحه.</Text>
@@ -171,7 +174,8 @@ export default function UserGuideScreen() {
       {SECTIONS.map(s => {
         const isOpen = openId === s.id;
         return (
-          <View key={s.id} style={styles.card}>
+          <View key={s.id} style={styles.cardShadow}>
+          <View style={styles.card}>
             <TouchableOpacity accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
               <Text style={styles.cardTitle}>{s.icon}  {s.title}</Text>
               <Text style={styles.chevron}>{isOpen ? '−' : '+'}</Text>
@@ -187,6 +191,7 @@ export default function UserGuideScreen() {
               </View>
             )}
           </View>
+          </View>
         );
       })}
 
@@ -200,16 +205,18 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    intro: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', marginBottom: 16, lineHeight: 19 },
-    card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10, overflow: 'hidden' },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: 19 },
+    // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
+    cardShadow: { borderRadius: radius.lg, backgroundColor: c.surface, marginBottom: space.md, ...cardElevation(c) },
+    // الغامق مالوش ظل (shadow = null) فالإطار بيفضل هناك زي ما كان
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, overflow: 'hidden', ...(c.shadow ? null : { borderWidth: 1, borderColor: c.border }) },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
-    cardTitle: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    chevron: { color: c.accentText, fontSize: 20, fontWeight: '700' },
+    cardTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    chevron: { color: c.accentText, fontSize: glyphSize.chevron, fontWeight: '700' },
     cardBody: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
     bulletRow: { flexDirection: 'row-reverse', marginBottom: 10 },
-    bulletDot: { color: c.accentText, fontSize: 14, marginLeft: 8, marginTop: 1 },
-    bulletText: { flex: 1, color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 21 },
-    footer: { color: c.textMuted, fontSize: 12, textAlign: 'center', marginTop: 20 },
+    bulletDot: { color: c.accentText, fontSize: typeScale.body, marginLeft: space.sm, marginTop: 1 },
+    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    footer: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxxl },
   });
 }

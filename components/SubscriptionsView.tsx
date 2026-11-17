@@ -1,4 +1,5 @@
 import { ActionSheet } from '@/components/ActionSheet';
+import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
@@ -10,6 +11,8 @@ import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectabl
 import FoldedSection from '@/components/FoldedSection';
 import { splitDone } from '@/lib/doneSections';
 import { dateText } from '@/lib/dateText';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { categoryLabel, categoryLabelById, daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { defaultWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
@@ -18,11 +21,12 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useEffect, useMemo, useState, useRef } from 'react';
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { EmptyHint } from '@/components/EmptyHint';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
 // الاسم من مكان واحد: "كل 45 يوم" بدل "مخصص" (lib/frequencyLabel.ts)
@@ -181,7 +185,7 @@ export default function SubscriptionsView() {
     const waitingReply = isStopped && subscriptionOpenCharges(s, todayStr()).length > 0;
     const tone = isStopped ? colors.textSecondary : colors.text;
     return (
-      <View key={s.id} style={[styles.card, soon && { borderColor: colors.warnBorder }]}>
+      <View key={s.id} style={[styles.card, soon && { borderWidth: 1, borderColor: colors.warnBorder }]}>
         <View style={styles.cardHead}>
           <Text style={[styles.name, { color: tone }]}>{s.name}</Text>
           <Money value={s.amount} style={[styles.amount, { color: tone }]} />
@@ -189,35 +193,17 @@ export default function SubscriptionsView() {
         <Text style={styles.sub}>
           {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {frequencyLabel(s.frequency, s.customDays)}
         </Text>
-        <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
+        <Text style={[styles.due, { color: soon ? colors.accentText : colors.textSecondary }]}>
           {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
             : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${dateText(s.nextDueDate, todayStr())})`}
         </Text>
         <View style={styles.actionsRow}>
           {isStopped ? (
-            <TouchableOpacity testID={`subscription_resume_${s.id}`} style={[styles.payBtn, resumeBusyKey === `resume_${s.id}` && styles.btnBusy]} onPress={() => confirmResume(s)} disabled={resumeBusyKey === `resume_${s.id}`}
-              accessibilityRole="button" accessibilityLabel={`رجّع اشتراك ${s.name}`} accessibilityState={{ busy: resumeBusyKey === `resume_${s.id}`, disabled: resumeBusyKey === `resume_${s.id}` }}>
-              {resumeBusyKey === `resume_${s.id}` ? (
-                <View style={styles.btnLoading}>
-                  <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنرجّعه</Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>رجّعه</Text>
-              )}
-            </TouchableOpacity>
+            <Button testID={`subscription_resume_${s.id}`} size="sm" label="رجّعه" accessibilityLabel={`رجّع اشتراك ${s.name}`}
+              onPress={() => confirmResume(s)} busy={resumeBusyKey === `resume_${s.id}`} />
           ) : (
-            <TouchableOpacity style={[styles.payBtn, busyKey === `pay_${s.id}` && styles.btnBusy]} onPress={() => confirmPay(s)} disabled={busyKey === `pay_${s.id}`}
-              accessibilityRole="button" accessibilityLabel={`اتخصم اشتراك ${s.name}`} accessibilityState={{ busy: busyKey === `pay_${s.id}`, disabled: busyKey === `pay_${s.id}` }}>
-              {busyKey === `pay_${s.id}` ? (
-                <View style={styles.btnLoading}>
-                  <ActivityIndicator size="small" color={colors.onAccent} />
-                  <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>بنسجّل</Text>
-                </View>
-              ) : (
-                <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>اتخصم</Text>
-              )}
-            </TouchableOpacity>
+            <Button size="sm" label="اتخصم" accessibilityLabel={`اتخصم اشتراك ${s.name}`}
+              onPress={() => confirmPay(s)} busy={busyKey === `pay_${s.id}`} />
           )}
           {/* دراسة الشكل خطوة 3: زرار أساسي واحد (اتخصم/رجّعه) والباقي في "⋯" — نفس كارت الدين */}
           <TouchableOpacity testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
@@ -237,14 +223,12 @@ export default function SubscriptionsView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity accessibilityRole="button" testID="subscription_add_button" style={styles.addBtn} onPress={() => setShowAdd(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ اشتراك جديد</Text>
-        </TouchableOpacity>
+        <Button testID="subscription_add_button" label="+ اشتراك جديد" size="sm" onPress={() => setShowAdd(true)} />
         <Text style={styles.title}>الاشتراكات</Text>
       </View>
 
-      {subscriptions.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات مسجلة</Text>}
-      {subscriptions.length > 0 && active.length === 0 && <Text style={styles.emptyState}>مفيش اشتراكات شغالة دلوقتي</Text>}
+      {subscriptions.length === 0 && <EmptyHint testID="subs_empty" icon="repeat-outline" message="مفيش اشتراكات مسجلة" />}
+      {subscriptions.length > 0 && active.length === 0 && <EmptyHint testID="subs_empty_active" icon="repeat-outline" message="مفيش اشتراكات شغالة دلوقتي" />}
       {active.map(renderSubscription)}
       <FoldedSection testID="subscriptions_stopped" title="اشتراكات واقفة" a11yLabel={`اشتراكات واقفة، ${subscriptionsPhrase(stopped.length)}`} count={stopped.length}>
         {stopped.map(renderSubscription)}
@@ -273,6 +257,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, addSubscription } = useData();
+  const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState('');
@@ -348,7 +333,7 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -358,7 +343,10 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -366,13 +354,13 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => { freeze(); setFrequency('monthly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => { freeze(); setFrequency('yearly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => { freeze(); setFrequency('custom'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
@@ -401,12 +389,8 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_add_cancel" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_add_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="subscription_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
+          <Button testID="subscription_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>
@@ -418,40 +402,36 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 20 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: c.border },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
-    name: { color: c.text, fontSize: 14.5, fontWeight: '700' },
-    amount: { color: c.text, fontSize: 14, fontWeight: '700' },
-    sub: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 4 },
-    due: { fontSize: 12, textAlign: 'right', marginTop: 6, fontWeight: '600' },
-    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-    payBtn: { backgroundColor: c.accent, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    btnLoading: { flexDirection: 'row-reverse', alignItems: 'center', gap: 6 },
+    name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    amount: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
+    sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    due: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, fontWeight: '600' },
+    actionsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.md },
     moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.sm, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
-    moreBtnText: { color: c.text, fontSize: 17, fontWeight: '700' },
+    moreBtnText: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    bigInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 22, fontWeight: '700', paddingHorizontal: 14, paddingVertical: 12 },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    row: { flexDirection: 'row-reverse', gap: 8 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10, justifyContent: 'center', minHeight: MIN_TOUCH },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    bigInput: bigAmountInputStyle(c),
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    row: { flexDirection: 'row-reverse', gap: space.sm },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }
@@ -459,6 +439,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, updateSubscription } = useData();
+  const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
 
   const [name, setName] = useState(sub.name);
@@ -531,7 +512,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             {selectableOptions(wallets, walletId).map(w => (
               <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
-                <Text style={{ color: colors.text, fontSize: 13 }}>{walletHistoryName(wallets, w.id)}</Text>
+                <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -541,7 +522,10 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
             {selectableOptions(categories, categoryId).map(c => (
               <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
-                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: 13 }}>{categoryLabel(c)}</Text>
+                <View style={categoryInlineRow}>
+                  <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
+                  <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -549,13 +533,13 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>شهري</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>سنوي</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
             </TouchableOpacity>
             <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
-              <Text style={{ color: colors.text, fontSize: 12.5 }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
+              <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
             </TouchableOpacity>
           </View>
 
@@ -584,12 +568,8 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="subscription_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ التعديل'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="subscription_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="subscription_edit_save" label="حفظ التعديل" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
       </View>

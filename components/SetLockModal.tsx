@@ -1,9 +1,10 @@
 import { useAppLock, type VerifyResult } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
 import { useEffect, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
@@ -115,10 +116,10 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
                 <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin', 'radio')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>رقم سري (4 أرقام)</Text>
+                  <Text style={{ color: colors.text, fontSize: typeScale.body }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password', 'radio')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
-                  <Text style={{ color: colors.text, fontSize: 13 }}>باسورد نصي</Text>
+                  <Text style={{ color: colors.text, fontSize: typeScale.body }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>
 
@@ -145,12 +146,8 @@ export default function SetLockModal({ visible, mode, onClose }: { visible: bool
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity testID="setlock_cancel" accessibilityRole="button" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity testID="setlock_submit" accessibilityRole="button" accessibilityState={{ busy, disabled: busy }} accessibilityLabel={busy ? 'استنى شوية' : 'تأكيد'} style={styles.saveBtn} onPress={handleSubmit} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'تأكيد'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="setlock_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
+          <Button testID="setlock_submit" label="تأكيد" style={styles.saveBtn} onPress={handleSubmit} busy={busy} />
         </View>
         </View>
       </View>
@@ -167,15 +164,15 @@ function makeStyles(c: ThemeColors) {
     // مفتوح مكانش فيه ولا تمرير احتياطي — الزرار يروح تحت الكيبورد وخلاص.
     sheet: { ...sheetStyle(c), padding: 0, overflow: 'hidden', maxHeight: '90%' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 12, marginBottom: 6 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, padding: 12, fontSize: 15 },
-    row: { flexDirection: 'row-reverse', gap: 8 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10, justifyContent: 'center', minHeight: MIN_TOUCH },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    sheetContent: { padding: space.xxxl },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.lg, marginBottom: space.xs },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, padding: space.lg, fontSize: typeScale.title },
+    row: { flexDirection: 'row-reverse', gap: space.sm },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

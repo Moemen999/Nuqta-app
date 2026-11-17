@@ -1,6 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
+import { budgetLevelColor } from '@/lib/budgetForecast';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ProgressRing } from '@/components/ProgressRing';
 import { HeroAmount } from '@/components/HeroAmount';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -9,7 +11,7 @@ import { PIASTRE_EPS } from '@/lib/finance';
 import { speakable } from '@/lib/money';
 import type { MonthSummary } from '@/lib/monthSummary';
 import { TRANSFERS_FAILED_NOTE } from '@/lib/spending';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, radius, space, typeScale } from '@/lib/tokens';
 
 export const MONTH_CARD_TITLE = 'صرفت الشهر ده';
 export const MONTH_CARD_ERROR = 'مقدرناش نجيب عملياتك';
@@ -56,9 +58,12 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
     const parts: string[] = [`${MONTH_CARD_TITLE} ${money(spent)} جنيه`];
 
     let budgetBlock: ReactNode = null;
+    let ring: ReactNode = null;
     if (budget) {
       const pct = budget.level === 'at' || budget.level === 'over' ? 100 : Math.min(100, (spent / budget.limit) * 100);
-      const barColor = budget.level === 'over' ? colors.dangerText : budget.level === 'under' ? colors.textSecondary : colors.accentText;
+      const barColor = budgetLevelColor(budget.level, colors, colors.textSecondary);
+      // دايرة الميزانية (نفس `spent` و`budget.limit` واللون بتاع الشريط) — نسبة مش مبلغ فبتفضل باينة والمبالغ مخفية، وزينة بس
+      ring = <ProgressRing compact testID="home_month_ring" spent={spent} total={budget.limit} color={barColor} trackColor={colors.borderStrong} />;
       const bar = (
         // زخرفي: الأرقام مكتوبة فوقه (نفس مسار BudgetView)
         <View style={styles.track} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
@@ -85,7 +90,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
           : `عدّيت الميزانية بـ ${money(Math.abs(budget.remaining))} جنيه`);
         budgetBlock = (
           <>
-            <Text testID="home_month_budget_line" style={[styles.sub, { color: budget.level === 'over' ? colors.dangerText : colors.accentText }]}>{text}</Text>
+            <Text testID="home_month_budget_line" style={[styles.sub, { color: budgetLevelColor(budget.level, colors, colors.accentText) }]}>{text}</Text>
             {bar}
           </>
         );
@@ -101,9 +106,13 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
 
     body = (
       <>
-        <HeroAmount unitTestID="home_month_unit" style={styles.valueRow}>
-          <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{money(spent)}</Text>
-        </HeroAmount>
+        {/* الرقم يمين تحت العنوان والدايرة شمال (row-reverse) — الرقم هو اللي بيتقري الأول */}
+        <View style={styles.heroWithRing}>
+          <HeroAmount unitTestID="home_month_unit" style={styles.valueRow}>
+            <Text testID="home_month_value" style={styles.value} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{money(spent)}</Text>
+          </HeroAmount>
+          {ring}
+        </View>
         {budgetBlock}
         {transfersFailed && <TransfersFailedNote testID="home_month_transfers_failed" />}
       </>
@@ -126,16 +135,17 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md },
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.md, ...cardElevation(c) },
     title: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     value: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right', fontVariant: ['tabular-nums'] },
-    valueRow: { marginTop: space.xxs },
+    valueRow: { marginTop: space.xxs, flexShrink: 1 },
+    heroWithRing: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: space.lg },
     loading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },
     splitRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'baseline', gap: space.sm },
     // نفس شريط BudgetView (4 ارتفاع، مسار borderStrong)
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.lg, overflow: 'hidden', flexDirection: 'row-reverse' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden', flexDirection: 'row-reverse' },
+    fill: { height: '100%', borderRadius: radius.track },
   });
 }

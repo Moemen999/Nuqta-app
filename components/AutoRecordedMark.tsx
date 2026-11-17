@@ -1,6 +1,7 @@
 import { useTheme } from '@/context/ThemeContext';
 import { StyleSheet} from 'react-native';
 import { Text } from '@/components/AppText';
+import { typeScale } from '@/lib/tokens';
 
 /**
  * علامة جنب تاريخ العملية معناها إنها **اتسجلت لوحدها** (دخل ثابت أو اشتراك أو
@@ -18,5 +19,5 @@ export default function AutoRecordedMark() {
 }
 
 const styles = StyleSheet.create({
-  mark: { fontSize: 10.5, marginTop: 2 },
+  mark: { fontSize: typeScale.caption, marginTop: 2 },
 });

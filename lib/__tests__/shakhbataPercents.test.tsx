@@ -19,6 +19,7 @@ import { Alert } from 'react-native';
 
 const mockData = {
   categories: [],
+  wallets: [],
   transactions: [],
   shakhbataIncome: {} as Record<string, number>,
   shakhbataPercents: { needs: 50, wants: 30, future: 20 },

@@ -1,21 +1,22 @@
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { ONBOARDING_KEY } from '@/components/OnboardingScreen';
 import { useAppLock } from '@/context/AppLockContext';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
-import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { useTheme, type ThemeColors, type ThemePreference } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
+import { outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActionSheet } from '@/components/ActionSheet';
-import type { ThemePreference } from '@/context/ThemeContext';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
 
@@ -65,7 +66,7 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites, deletionPending } = useData();
+  const { wallets, categories, pendingWrites, outboxCount, deletionPending } = useData();
   const confirm = useConfirm();
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
@@ -89,20 +90,32 @@ export default function SettingsScreen() {
    * المستخدم يعرف قبل ما يخرج، مش يكتشف إن عمليات ناقصة بعدين.
    */
   function confirmLogout() {
+    // الطابور المتشفّر بيتمسح مع الخروج (قرار مؤمن 1) — فالعدد بيتقال صريح إنه هيضيع
+    if (outboxCount > 0) {
+      confirm(
+        outboxLogoutTitle(outboxCount),
+        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها.`,
+        [
+          { text: 'أستنى', style: 'cancel' },
+          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+        ]
+      );
+      return;
+    }
     if (pendingWrites > 0) {
       confirm(
         'لسه فيه بيانات بترفع',
         `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut() },
+          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
         ]
       );
       return;
     }
     confirm('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'خروج', style: 'destructive', onPress: () => logOut() },
+      { text: 'خروج', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
     ]);
   }
 
@@ -198,12 +211,13 @@ export default function SettingsScreen() {
       style={styles.scrollArea}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled">
-      <Text style={styles.title}>الإعدادات</Text>
+      <ScreenTitle style={styles.screenTitle}>الإعدادات</ScreenTitle>
 
       {sections.map(section => (
         <View key={section.key} testID={`settings_section_${section.key}`} style={styles.section}>
           <Text style={styles.sectionTitle}>{section.title}</Text>
           {!!section.subtitle && <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>}
+          <View style={styles.cardShadow}>
           <View style={styles.card}>
             {section.rows.map((row, i) => (
               <TouchableOpacity accessibilityRole="button"
@@ -225,6 +239,7 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
+          </View>
         </View>
       ))}
       <ActionSheet visible={themeMenu} testID="theme_menu" title="الشكل" onClose={() => setThemeMenu(false)}
@@ -240,15 +255,17 @@ export default function SettingsScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    screenTitle: { marginBottom: space.xs },
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
     // 16 فوق زي ما كان (insets.top + 16) — الـinset بقى على الحاوية برّه
     content: { padding: space.xxl, paddingTop: 16, paddingBottom: space.huge * 2 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
     section: { marginTop: space.huge },
     // عناوين الأقسام أصغر وأهدى (دراسة الشكل) — الصفوف هي المهمة
     sectionTitle: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right', marginBottom: space.xs },
     sectionSubtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
+    // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
+    cardShadow: { borderRadius: radius.xl, backgroundColor: c.surface, ...cardElevation(c) },
     card: { backgroundColor: c.surface, borderRadius: radius.xl, overflow: 'hidden' },
     row: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxl, minHeight: MIN_TOUCH + space.md },
     rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },

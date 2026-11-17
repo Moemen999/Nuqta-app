@@ -15,13 +15,17 @@ import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
 import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { CategoryIcon, CategoryIconSpacer, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
 
@@ -42,6 +46,7 @@ export default function ArchiveScreen() {
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer, transfersStatus } = useData();
+  const { categoryColors } = useChartColors();
   // بند 11: الإجماليات مبتظهرش لحد ما الديون والجمعية يوصلوا (السلفة كانت هتتعدّ مصروف والسداد دخل)
   const totalsLoading = transfersStatus === 'loading';
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
@@ -170,12 +175,12 @@ export default function ArchiveScreen() {
     <>
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>أرشيف العمليات</Text>
+        <ScreenTitle>أرشيف العمليات</ScreenTitle>
       </View>
       {/* بند B: العمليات اللي مستندها بايظ — فوق الفلاتر عشان تبان مهما كانت الفترة */}
       <BrokenTransactionsSection />
 
-      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" />
+      <PeriodChips keys={ARCHIVE_PRESETS} value={preset} onChange={setPreset} testIDPrefix="archive_preset" bleed={space.xxl} />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -209,7 +214,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
+          <CountedText title="تصدير إكسيل" count={transactionsPhrase(filtered.length)} style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }} />
         )}
       </TouchableOpacity>
 
@@ -234,7 +239,7 @@ export default function ArchiveScreen() {
         </Text>
       )}
 
-      <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
+      <CountedText title="العمليات" count={filtered.length} style={styles.sectionTitle} boxStyle={styles.sectionTitleBox} accessibilityRole="header" />
     </>
   );
   // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،
@@ -244,7 +249,10 @@ export default function ArchiveScreen() {
   const renderTx = useCallback(({ item: t }: { item: (typeof filtered)[number] }) => (
     <TxRow
       t={t}
-      catLabel={categoryLabelById(categories, t.categoryId)}
+      catLabel={categoryLabelById(categories, t.categoryId, { icon: false })}
+      catIcon={t.type === 'expense' && t.categoryId ? categories.find(c => c.id === t.categoryId)?.icon : undefined}
+      catFound={t.type === 'expense' && !!t.categoryId && categories.some(c => c.id === t.categoryId)}
+      catTint={t.categoryId ? categoryColors.get(t.categoryId) : undefined}
       walletLabel={transactionWalletLabel(t, wallets)}
       pending={pendingTxIds.has(t.id)}
       transfer={transfers.has(t.id)}
@@ -252,7 +260,7 @@ export default function ArchiveScreen() {
       styles={styles}
       colors={colors}
     />
-  ), [categories, wallets, pendingTxIds, transfers, today, styles, colors]);
+  ), [categories, categoryColors, wallets, pendingTxIds, transfers, today, styles, colors]);
   // الصفوف memo: أي تغيير في "بترفع" أو التحويلات (الديون وصلت) لازم يوصلها
   const rowsExtra = useMemo(() => ({ pendingTxIds, transfers, today }), [pendingTxIds, transfers, today]);
 
@@ -292,8 +300,8 @@ type Styles = ReturnType<typeof makeStyles>;
 type Tx = ReturnType<typeof useData>['transactions'][number];
 
 /** صف عملية في الأرشيف — نفس الشكل والمودال اللي قبل `FlatList` بالظبط */
-const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer, today, styles, colors }: {
-  t: Tx; catLabel: string; walletLabel: string; pending: boolean; transfer: boolean; today: string; styles: Styles; colors: ThemeColors;
+const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, walletLabel, pending, transfer, today, styles, colors }: {
+  t: Tx; catLabel: string; catIcon?: string; catFound: boolean; catTint?: string; walletLabel: string; pending: boolean; transfer: boolean; today: string; styles: Styles; colors: ThemeColors;
 }) {
   const T = TYPE_LABELS[t.type];
   return (
@@ -306,7 +314,13 @@ const TxRow = memo(function TxRow({ t, catLabel, walletLabel, pending, transfer,
       accessibilityHint="بيفتح العملية عشان تعدّلها أو تمسحها"
       onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
       <View style={styles.txMid}>
-        <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+        {/* مكان الدايرة محجوز في كل الصفوف — العناوين على نفس الخط (زي الرئيسية) */}
+        <View style={categoryInlineRow}>
+          {catFound
+            ? <CategoryIcon icon={catIcon} size={categoryIconSize.row} tint={catTint} />
+            : <CategoryIconSpacer />}
+          <Text style={[styles.txTitle, { flexShrink: 1 }]}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+        </View>
         <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
       </View>
       <View style={styles.txRight}>
@@ -325,7 +339,6 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
@@ -341,7 +354,8 @@ function makeStyles(c: ThemeColors) {
     fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.md },
     fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
-    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    sectionTitleBox: { marginTop: space.huge, marginBottom: space.xs },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },
     // من غير خطوط بين الصفوف زي الرئيسية (المسافة بتفصل) — كارت واحد مش مناسب لـFlatList متقطّعة
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.md, minHeight: MIN_TOUCH },

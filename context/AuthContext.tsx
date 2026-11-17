@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { markUserSignOut } from '@/lib/outboxStore';
 
 type AuthContextType = {
   user: User | null;
@@ -23,7 +24,11 @@ type AuthContextType = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signInWithGoogleCredential: (idToken: string) => Promise<void>;
-  logOut: () => Promise<void>;
+  /**
+   * `clearOutbox`: الخروج من الإعدادات بس (اللي بيحذّر بعدد العمليات اللي هتضيع). «نسيت الكود؟» بيخرّج من غيره عن قصد —
+   * رسالته بتقول إن البيانات في أمان، فالعمليات اللي مستنية النت بتفضل لنفس الحساب
+   */
+  logOut: (opts?: { clearOutbox?: boolean }) => Promise<void>;
   resendVerificationEmail: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   /** مسح الحساب — قبل أي مسح: فايربيز بتطلب دخول حديث لـ`deleteUser`، فبنعيده **الأول** عشان ميطلعش بعد ما البيانات راحت */
@@ -94,8 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  async function logOut() {
-    await firebaseSignOut(auth);
+  async function logOut(opts?: { clearOutbox?: boolean }) {
+    // خروج الإعدادات (بعد التحذير بالعدد) ← الطابور المتشفّر بيتمسح (قرار مؤمن 1). «نسيت الكود؟» والخروج الغصب ← بيفضل
+    markUserSignOut(opts?.clearOutbox ? auth.currentUser?.uid : null);
+    try { await firebaseSignOut(auth); }
+    catch (e) { markUserSignOut(null); throw e; }
   }
 
   /**

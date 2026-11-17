@@ -1,6 +1,4 @@
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { debtsPhrase } from '@/lib/archiving';
-import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { dayText } from '@/lib/dateText';
 import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
@@ -17,22 +15,25 @@ import { useDeviceContacts } from '@/components/useDeviceContacts';
 import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { LineIcon } from '@/components/LineIcon';
-import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
+import { EmptyHint } from '@/components/EmptyHint';
+import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt, type DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, debtsPhrase, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -262,7 +263,10 @@ function DebtsContent() {
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
                 <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
-                  <Text style={[styles.personName, styles.personNameLink]}>{d.personName} 👤</Text>
+                  <View style={styles.personLinkRow}>
+                    <Text style={[styles.personName, styles.personNameLink, { flexShrink: 1 }]}>{d.personName}</Text>
+                    <LineIcon name="person-circle-outline" size={16} color={colors.accentText} />
+                  </View>
                 </TouchableOpacity>
               ) : (
                 <Text style={styles.personName}>{d.personName}</Text>
@@ -356,10 +360,8 @@ function DebtsContent() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <TouchableOpacity accessibilityRole="button" testID="debt_add_button" style={styles.addBtn} onPress={() => setShowAddDebt(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 13 }}>+ دين جديد</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>الديون والأقساط</Text>
+        <Button testID="debt_add_button" size="sm" label="+ دين جديد" onPress={() => setShowAddDebt(true)} />
+        <ScreenTitle>الديون والأقساط</ScreenTitle>
       </View>
 
       <View style={styles.summaryRow}>
@@ -374,14 +376,14 @@ function DebtsContent() {
       </View>
 
       <Text style={styles.sectionTitle}>فلوس ليا</Text>
-      {owedSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش حد مديون ليك دلوقتي</Text>}
+      {owedSplit.active.length === 0 && <EmptyHint testID="debts_owed_empty" icon="arrow-down-circle-outline" message="مفيش حد مديون ليك دلوقتي" />}
       {owedSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_owed" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس ليا، ${debtsPhrase(owedSplit.done.length)}`} count={owedSplit.done.length}>
         {owedSplit.done.map(renderDebt)}
       </FoldedSection>
 
       <Text style={styles.sectionTitle}>فلوس عليا</Text>
-      {iOweSplit.active.length === 0 && <Text style={styles.emptyState}>مفيش عليك ديون دلوقتي</Text>}
+      {iOweSplit.active.length === 0 && <EmptyHint testID="debts_iowe_empty" icon="arrow-up-circle-outline" message="مفيش عليك ديون دلوقتي" />}
       {iOweSplit.active.map(renderDebt)}
       <FoldedSection testID="debts_settled_iowe" title="ديون اتسددت" a11yLabel={`ديون اتسددت من فلوس عليا، ${debtsPhrase(iOweSplit.done.length)}`} count={iOweSplit.done.length}>
         {iOweSplit.done.map(renderDebt)}
@@ -542,12 +544,8 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity accessibilityRole="button" testID="debt_edit_cancel" style={styles.cancelBtn} onPress={onClose}>
-            <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="debt_edit_save" style={[styles.saveBtn, busy && styles.btnBusy]} onPress={handleSave} disabled={busy}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'حفظ'}</Text>
-          </TouchableOpacity>
+          <Button variant="secondary" testID="debt_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+          <Button testID="debt_edit_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
         </View>
         </View>
 
@@ -594,39 +592,37 @@ function DebtMenu({ debt, busy, ledgerKey, returnFocusTo, onClose, onIncrease, o
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    switcher: { marginHorizontal: 16, marginBottom: 8 },
+    switcher: { marginHorizontal: space.xxl, marginBottom: space.sm },
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700' },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    summaryRow: { flexDirection: 'row-reverse', gap: 10, marginBottom: 10 },
-    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
-    summaryLabel: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right' },
-    summaryValue: { fontSize: 16, fontWeight: '700', textAlign: 'right', marginTop: 4 },
-    sectionTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right', marginTop: 20, marginBottom: 8 },
-    emptyState: { color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 14 },
-    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
-    debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: 10 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
+    summaryRow: { flexDirection: 'row-reverse', gap: space.md, marginBottom: space.md },
+    summaryCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg, ...cardElevation(c) },
+    summaryLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
+    summaryValue: { fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxxl, marginBottom: space.sm },
+    debtCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
+    debtHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', gap: space.md },
     personBlock: { flexShrink: 1, alignItems: 'flex-end' },
     personName: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     personPhone: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
+    personLinkRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, flexShrink: 1, minHeight: MIN_TOUCH },
     personNameLink: { color: c.accentText, textDecorationLine: 'underline' },
     remainingText: { fontSize: typeScale.title, fontWeight: '700' },
     noteText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxs },
     dueText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.sm },
-    track: { height: 4, backgroundColor: c.surface2, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.border, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     progressText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
-    expandedArea: { marginTop: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 10 },
-    paymentsList: { marginBottom: 10 },
-    paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2, gap: 8 },
-    paymentText: { fontSize: 12, flexShrink: 1 },
-    paymentMeta: { flexDirection: 'row-reverse', alignItems: 'center', gap: 2 },
+    expandedArea: { marginTop: space.lg, borderTopWidth: 1, borderTopColor: c.border, paddingTop: space.md },
+    paymentsList: { marginBottom: space.md },
+    paymentRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: space.xxs, gap: space.sm },
+    paymentText: { fontSize: typeScale.caption, flexShrink: 1 },
+    paymentMeta: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xxs },
     // ٣٢ مرئي؛ الـhitSlop مقصوص فوق وتحت عشان ميدخلش على السطر اللي جنبه
-    entryDeleteBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    paymentDate: { color: c.textMuted, fontSize: 11 },
-    actionsRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
+    entryDeleteBtn: { width: 32, height: 32, borderRadius: radius.xl, alignItems: 'center', justifyContent: 'center' },
+    paymentDate: { color: c.textMuted, fontSize: typeScale.caption },
+    actionsRow: { flexDirection: 'row-reverse', gap: space.sm, flexWrap: 'wrap' },
     payBtn: { flex: 1, backgroundColor: c.accent, borderRadius: radius.md, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     payBtnText: { color: c.onAccent, fontWeight: '700', fontSize: typeScale.body },
     moreBtn: { minWidth: MIN_TOUCH + space.lg, minHeight: MIN_TOUCH, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.controlEdge, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
@@ -634,28 +630,28 @@ function makeStyles(c: ThemeColors) {
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetScroll: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 6, lineHeight: 17 },
-    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, marginBottom: 6 },
-    labelInRow: { color: c.textSecondary, fontSize: 12, textAlign: 'right' },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.xl, marginBottom: space.xs },
+    labelInRow: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     contactBtn: {
-      flexDirection: 'row-reverse', alignItems: 'center', gap: 6, minHeight: 44,
-      paddingHorizontal: 12, paddingVertical: 8,
-      borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, backgroundColor: c.surface2,
+      flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, minHeight: 44,
+      paddingHorizontal: space.lg, paddingVertical: space.sm,
+      borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, backgroundColor: c.surface2,
     },
-    contactBtnText: { color: c.accentText, fontSize: 12.5, fontWeight: '700' },
-    linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-    linkedText: { color: c.textMuted, fontSize: 11.5, textAlign: 'right' },
-    unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 4 },
-    unlinkText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    installmentHint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 6, lineHeight: 16 },
-    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, fontSize: 14, paddingHorizontal: 14, paddingVertical: 10 },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 12 },
+    contactBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
+    linkedRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.sm },
+    linkedText: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right' },
+    unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: space.xxs },
+    unlinkText: { color: c.dangerText, fontSize: typeScale.caption, fontWeight: '700' },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: 16 },
+    input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
 }

@@ -300,6 +300,7 @@ describe('جرد الإخفاء في كل الشاشات', () => {
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
       'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
+      'lib/outbox.ts': { count: 1, why: 'txLabel (rejectedReplayBody + walletGoneReplayBody) — عملية مستنية النت اترفضت وهي بتترفع بعد فتحة جديدة؛ المبلغ والتاريخ هما الطريقة الوحيدة يعرف أنهي عملية يسجّلها تاني (مفيش سجل مسمّى زي باقي رسايل الفشل)' },
       'lib/autoCharge.ts': { count: 4, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل؛ وتأكيد دفع الاشتراك وشهر الجمعية (subscriptionPayConfirmBody / gamiyaMarkConfirmBody) — تأكيد قبل الخصم، الرقم هو تمن القرار، زي باقي التأكيدات فوق' },
     };
     const libFiles = fs.readdirSync(path.join(ROOT, 'lib')).filter(n => /\.tsx?$/.test(n));

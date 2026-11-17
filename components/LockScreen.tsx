@@ -8,10 +8,15 @@ import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 import { LineIcon } from '@/components/LineIcon';
+
+// أرقام لوحة القفل (مفتاح 78 ودايرة 18): الدواير نص العرض، وخط الرقم مالوش درجة
+const LOCK_DOT_RADIUS = 9;
+const LOCK_KEY_RADIUS = 39;
+const LOCK_KEY_FONT = 28;
 
 export const FORGOT_LABEL = 'نسيت الكود؟';
 export const FORGOT_TITLE = 'نسيت كود القفل؟';
@@ -118,6 +123,7 @@ export default function LockScreen() {
    * ويدوس "نسيت الكود؟" مرة كمان. بيقع في الاتجاه الآمن.
    */
   async function runForgot() {
+    // من غير `clearOutbox` عن قصد: FORGOT_BODY بيقول إن البيانات في أمان، فالعمليات اللي مستنية النت بتفضل (الطابور المتشفّر)
     await logOut();
     // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter)
     try { await clearLock(); }
@@ -214,7 +220,7 @@ export default function LockScreen() {
           {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_STORAGE_ERROR}</Text>}
           <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>{retrying ? '...' : LOCK_RETRY}</Text>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>{retrying ? '...' : LOCK_RETRY}</Text>
           </TouchableOpacity>
         </View>
       ) : lockType === 'pin' ? (
@@ -267,7 +273,7 @@ export default function LockScreen() {
           {statusLine}
           <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" accessibilityState={{ disabled: waiting }}
             disabled={waiting} style={[styles.submitBtn, waiting && { opacity: 0.6 }]} onPress={() => handleSubmit()}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 16 }}>دخول</Text>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>دخول</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -293,26 +299,26 @@ export default function LockScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     flex: { flex: 1, backgroundColor: c.bg },
-    container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+    container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: space.huge },
     footer: { ...stickyFooterStyle(c, c.bg), justifyContent: 'center' },
-    lockIcon: { marginBottom: 10 },
-    title: { color: c.text, fontSize: 20, fontWeight: '700', marginBottom: 28 },
-    dotsRow: { flexDirection: 'row', gap: 18, marginBottom: 14 },
-    dot: { width: 18, height: 18, borderRadius: 9, borderWidth: 1 },
-    error: { color: c.dangerText, fontSize: 13, marginBottom: 18, minHeight: 18, textAlign: 'center' },
-    status: { marginBottom: 18, gap: 4 },
+    lockIcon: { marginBottom: space.md },
+    title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', marginBottom: 28 },
+    dotsRow: { flexDirection: 'row', gap: 18, marginBottom: space.xl },
+    dot: { width: 18, height: 18, borderRadius: LOCK_DOT_RADIUS, borderWidth: 1 },
+    error: { color: c.dangerText, fontSize: typeScale.body, marginBottom: 18, minHeight: 18, textAlign: 'center' },
+    status: { marginBottom: 18, gap: space.xxs },
     // ارتفاع سطر صريح: سطرين دايمًا × ارتفاع ثابت = اللوحة مبتنطش حتى مع تكبير الخط
-    statusText: { color: c.dangerText, fontSize: 13, lineHeight: 20, textAlign: 'center' },
+    statusText: { color: c.dangerText, fontSize: typeScale.body, lineHeight: 20, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
-    key: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' },
+    key: { width: 78, height: 78, borderRadius: LOCK_KEY_RADIUS, alignItems: 'center', justifyContent: 'center' },
     keyHidden: { backgroundColor: 'transparent' },
-    keyText: { fontSize: 28, fontWeight: '500' },
+    keyText: { fontSize: LOCK_KEY_FONT, fontWeight: '500' },
     passwordArea: { width: '100%', maxWidth: 320 },
-    input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text, padding: 16, fontSize: 17 },
-    submitBtn: { backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 15, marginTop: 4 },
-    readFailed: { color: c.text, fontSize: 14, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
-    forgotBtn: { padding: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    forgotText: { color: c.textSecondary, fontSize: 13, textDecorationLine: 'underline' },
+    input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.lg, color: c.text, padding: space.xxl, fontSize: typeScale.title },
+    submitBtn: { backgroundColor: c.accent, borderRadius: radius.lg, alignItems: 'center', paddingVertical: 15, marginTop: space.xxs },
+    readFailed: { color: c.text, fontSize: typeScale.body, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
+    forgotBtn: { padding: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    forgotText: { color: c.textSecondary, fontSize: typeScale.body, textDecorationLine: 'underline' },
   });
 }

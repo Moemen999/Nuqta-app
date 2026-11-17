@@ -1,4 +1,4 @@
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { PeriodChips } from '@/components/PeriodChips';
 import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
@@ -21,15 +21,24 @@ import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds 
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
+import { CategoryIcon } from '@/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFabScroll } from '@/context/FabScrollContext';
+import { useReduceMotion } from '@/lib/useReduceMotion';
+
+/** مدة نمو الأعمدة من صفر لقيمتها */
+const BAR_GROW_MS = 400;
+const TREND_TRACK_H = 110;
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
 const REPORT_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'last6Months', 'custom'];
 
 export default function ReportsScreen() {
+  const fabScroll = useFabScroll();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -40,6 +49,10 @@ export default function ReportsScreen() {
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money, amountsHidden } = usePrivacy();
   const { categoryColors } = useChartColors();
+  const reduceMotion = useReduceMotion();
+  // 0 ← 1: كل الأعمدة (الأفقية والزمنية) بتكبر بنفس القيمة. الأرقام والارتفاعات مبتتغيّرش — تحويل scale على الرسم بس
+  const grow = useRef(new Animated.Value(1)).current;
+  const playedKey = useRef<string | null>(null);
   const [preset, setPreset] = useState<Preset>('thisMonth');
   const [selectedCats, setCatFilter] = useState<string[]>([]);
   // فئة اتمسحت والشاشة مفتوحة تخرج من الفلتر: الرقم كان هيعدّها والشرايح لأ، فالعمود يبقى من غير جزء يوضّحه
@@ -144,7 +157,28 @@ export default function ReportsScreen() {
   // اللون تبع الفئة مش ترتيبها (`useChartColors`)، فالفلتر مبيغيّرش لون اللي فضل
   const stacked = catFilter.length > 0 && pieSlices.length > 1;
   const columnColor = catFilter.length > 0 && pieSlices.length === 1 ? pieSlices[0].color : colors.accentText;
+  // مرة لما الشاشة تتفتح وكل ما الفترة أو الفلتر يتغيّر (وبعد التحميل). من غير حركة مع «تقليل الحركة»
+  const growKey = `${range.from}|${range.to}|${catFilter.join(',')}`;
+  useEffect(() => {
+    if (reduceMotion) { grow.setValue(1); return; }
+    // مرة لكل growKey: رجوع التحميل بعد أول مرة مبيعيدش الحركة
+    if (playedKey.current === growKey) { grow.setValue(1); return; }
+    if (spendLoading) { grow.setValue(0); return; }
+    playedKey.current = growKey;
+    grow.setValue(0);
+    const anim = Animated.timing(grow, { toValue: 1, duration: BAR_GROW_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [growKey, spendLoading, reduceMotion, grow]);
+  // ارتفاع العمود بالنقط (من نفس قاعدة ارتفاعه) — للإزاحة اللي بتحاكي النمو من تحت
+  const barHeight = (b: TimelineBucket) => Math.max(
+    b.share * TREND_TRACK_H, b.amount > 0 ? TREND_TRACK_H * 0.02 : 0,
+    b.partial && b.amount > 0 ? 6 : 0,
+    stacked && b.segments.length > 1 ? b.segments.length * 4 - 2 + (b.partial ? 4 : 0) : 0,
+  );
   const sliceColors = useMemo(() => new Map(pieSlices.map(s => [s.id, s.color])), [pieSlices]);
+  const catById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
+  const plainName = (id: string) => categoryLabel(catById.get(id), { icon: false });
   const sliceNames = useMemo(() => new Map(pieSlices.map(s => [s.id, s.name])), [pieSlices]);
   // فوق 6 أعمدة العرض حوالي 36 نقطة: القروش بتصغّر الرقم لحد ما يتقص. الرسم للمقارنة، والرقم بالقرش في الرقم البطل
   const roundColumns = timeline.buckets.length > 6;
@@ -211,11 +245,12 @@ export default function ReportsScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}
+      {...fabScroll.scrollProps}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
-      <Text style={styles.title}>التقارير</Text>
+      <ScreenTitle style={styles.screenTitle}>التقارير</ScreenTitle>
 
-      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" />
+      <PeriodChips keys={REPORT_PRESETS} value={preset} onChange={setPreset} testIDPrefix="reports_preset" bleed={space.xxl} />
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
@@ -234,7 +269,7 @@ export default function ReportsScreen() {
         {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
         <View style={styles.changeRow}>
           <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
-          {spendLoading ? <SpendLoading style={styles.changeValue} /> : (
+          {spendLoading ? <SpendLoading announce={false} shape="line" style={styles.changeValue} /> : (
             <Text style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
               {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
             </Text>
@@ -254,7 +289,10 @@ export default function ReportsScreen() {
           return (
             <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
-              <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body }}>{categoryLabel(c)}</Text>
+              <View style={styles.chipInner}>
+                <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
+                <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
+              </View>
             </TouchableOpacity>
           );
         })}
@@ -262,7 +300,7 @@ export default function ReportsScreen() {
       </FoldedSection>
 
       {spendLoading ? (
-        <SpendLoading testID="reports_bars_loading" style={styles.emptyState} />
+        <SpendLoading announce={false} testID="reports_bars_loading" shape="bars" style={styles.emptyState} />
       ) : expenseByCat.length === 0 ? (
         <Text style={styles.emptyState}>مفيش مصاريف في الفترة دي</Text>
       ) : (
@@ -275,13 +313,19 @@ export default function ReportsScreen() {
               // مقفولة. الاسم، والمبلغ (Money أخ مستقل)، والنسبة — كل واحد محطة، بنفس ترتيب العين
               <View key={c.id} testID={`reports_bar_${c.id}`} style={styles.barRow}>
                 <View style={styles.barHead}>
-                  <Text style={styles.barName}>{c.name}</Text>
+                  {catById.has(c.id) ? (
+                    <View style={styles.barNameWrap}>
+                      <CategoryIcon icon={catById.get(c.id)!.icon} tint={c.color} />
+                      {/* بتلف مع تكبير الخط (a11y) — مش شريحة بطول ثابت، فمفيش numberOfLines */}
+                      <Text style={styles.barNameText}>{plainName(c.id)}</Text>
+                    </View>
+                  ) : <Text style={styles.barName}>{c.name}</Text>}
                   <Money value={c.amount} currency={false} style={styles.barValue} />
                   <Text style={styles.barPercent} accessibilityLabel={`${c.percent.replace('%', ' بالمية')} من المصروف`}>{c.percent}</Text>
                 </View>
                 {/* زخرفي: الرقم والنسبة مكتوبين فوقه */}
                 <View style={styles.barTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-                  <View style={[styles.barFill, { width: `${Math.max(c.share * 100, c.amount > 0 ? 2 : 0)}%`, backgroundColor: c.color }]} />
+                  <Animated.View style={[styles.barFill, { width: `${Math.max(c.share * 100, c.amount > 0 ? 2 : 0)}%`, backgroundColor: c.color, opacity: grow }]} />
                 </View>
               </View>
             ))}
@@ -292,18 +336,23 @@ export default function ReportsScreen() {
       <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
       <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
       {spendLoading ? (
-        <SpendLoading testID="reports_trend_loading" style={styles.emptyState} />
+        <SpendLoading announce={false} testID="reports_trend_loading" shape="bars" style={styles.emptyState} />
       ) : timelineEmpty ? (
         <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي</Text>
       ) : (
         <>
-          {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع التاريخ كامل (و"مش فترة كاملة" لو ناقص)
-              وبعده المبلغ — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
+          {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع التاريخ كامل وبعده المبلغ (الشجرة: التاريخ ← المبلغ، و`column-reverse` بيرسم المبلغ فوق) (و"مش فترة كاملة" لو ناقص) — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
           <View testID="reports_trend" style={styles.trendRow}>
             {timeline.buckets.map(b => (
               <View key={b.key} testID={`reports_trend_${b.key}`} style={styles.trendCol}>
+                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                  accessibilityLabel={columnLabel(b)}>{b.label}</Text>
+                {b.sublabel !== '' && (
+                  <Text style={styles.trendSublabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
+                    importantForAccessibility="no" accessibilityElementsHidden>{b.sublabel}</Text>
+                )}
                 <View style={styles.trendTrack} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-                  <View style={[
+                  <Animated.View style={[
                     styles.trendFill,
                     { height: `${Math.max(b.share * 100, b.amount > 0 ? 2 : 0)}%` },
                     barFrameStyle(b, columnColor),
@@ -311,6 +360,8 @@ export default function ReportsScreen() {
                     b.partial && b.amount > 0 && { minHeight: 6 },
                     // كل جزء 2 + فاصل 2، فالعمود القصير مبيقصّش الأجزاء
                     stacked && b.segments.length > 1 && { minHeight: b.segments.length * 4 - 2 + (b.partial ? 4 : 0) },
+                    // scale حوالين المنتصف + إزاحة نص الارتفاع = نمو من تحت من غير `transformOrigin` (مش مضمون مع native driver)
+                    { transform: [{ translateY: grow.interpolate({ inputRange: [0, 1], outputRange: [barHeight(b) / 2, 0] }) }, { scaleY: grow }] },
                   ]}>
                     {/* الملو جوه الإطار: الشفافية عليه هو بس، فالإطار بيفضل بلون العمود كامل */}
                     <View style={[styles.trendInner, barFillStyle(b, stacked, columnColor)]}>
@@ -318,14 +369,8 @@ export default function ReportsScreen() {
                         <View key={s.id} testID={`reports_trend_${b.key}_${s.id}`} style={[styles.trendSegment, { flex: s.amount, backgroundColor: sliceColors.get(s.id) ?? colors.textSecondary }]} />
                       ))}
                     </View>
-                  </View>
+                  </Animated.View>
                 </View>
-                <Text style={styles.trendLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
-                  accessibilityLabel={columnLabel(b)}>{b.label}</Text>
-                {b.sublabel !== '' && (
-                  <Text style={styles.trendSublabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}
-                    importantForAccessibility="no" accessibilityElementsHidden>{b.sublabel}</Text>
-                )}
                 {b.future && b.amount === 0
                   ? <Text style={styles.trendValue} accessibilityLabel="لسه ما جاش">—</Text>
                   : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} />}
@@ -384,15 +429,15 @@ export default function ReportsScreen() {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
+    screenTitle: { marginBottom: space.xl },
     container: { flex: 1, backgroundColor: c.bg },
     scrollArea: { flex: 1 },
-    content: { padding: 16, paddingBottom: 40 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.xl },
+    content: { padding: space.xxl, paddingBottom: 40 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     // نفس زرار التاريخ في الأرشيف (visual-identity-reviewer: كان نفس الزرار بشكلين)
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
-    heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl },
+    heroCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, marginTop: space.xl, ...cardElevation(c) },
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     heroRow: { marginTop: space.xxs },
@@ -405,33 +450,37 @@ function makeStyles(c: ThemeColors) {
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
-    bars: { marginTop: 8, gap: 14 },
+    bars: { marginTop: 8, gap: 14, backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl, paddingVertical: space.xxl, ...cardElevation(c) },
     barRow: { gap: 6 },
     // بيلف مع تكبير الخط بدل ما يقص الاسم (a11y-architect)
     barHead: { flexDirection: 'row-reverse', flexWrap: 'wrap', alignItems: 'baseline', gap: 8 },
     barName: { flex: 1, minWidth: 120, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    barNameWrap: { flex: 1, minWidth: 120, flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
+    barNameText: { flex: 1, color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    chipInner: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     barValue: { color: c.text, fontSize: typeScale.body },
     barPercent: { color: c.textSecondary, fontSize: typeScale.caption, minWidth: 36, textAlign: 'left' },
     // العمود بيبدأ من اليمين (RTL)
-    barTrack: { height: 10, borderRadius: 5, backgroundColor: c.surface2, flexDirection: 'row-reverse', overflow: 'hidden' },
-    barFill: { height: '100%', borderRadius: 5 },
+    barTrack: { height: 6, borderRadius: radius.pill, backgroundColor: c.border, flexDirection: 'row-reverse', overflow: 'hidden' },
+    barFill: { height: '100%', borderRadius: radius.pill },
     trendRow: { flexDirection: 'row-reverse', gap: 6, marginTop: 8, marginBottom: 6 },
-    trendCol: { flex: 1, alignItems: 'center', gap: 4 },
+    trendCol: { flex: 1, alignItems: 'center', gap: 4, flexDirection: 'column-reverse' },
     // العمود بيطلع من تحت
-    trendTrack: { height: 110, width: '70%', justifyContent: 'flex-end', backgroundColor: c.surface2, borderRadius: 6, overflow: 'hidden' },
+    trendTrack: { height: TREND_TRACK_H, width: '70%', justifyContent: 'flex-end', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: c.surface2 },
     // اللون على العمود نفسه: accentText مش accent — الدهبي الفاتح على surface2 في الثيم الفاتح 1.8:1، تحت 3:1 بتاع الرسوم (a11y-architect).
     // العمود الناقص: إطار بلون العمود كامل + ملو أخف جواه (الشفافية على الملو بس، مش على الإطار)، عشان قصره ميتقريش "صرفت أقل" ولا صفر.
     // الأجزاء من تحت لفوق والأكبر تحت، و2 فاصل بلون المسار بين كل جزء والتاني
-    trendFill: { width: '100%', borderRadius: 6, overflow: 'hidden' },
+    trendFill: { width: '100%', borderTopLeftRadius: radius.xxs, borderTopRightRadius: radius.xxs, overflow: 'hidden' },
+    // الفاصل 2 شفاف: بيبان بلون خلفية الشاشة (c.bg) اللي ورا المسار الشفاف (مفيش صندوق)
     trendInner: { flex: 1, flexDirection: 'column-reverse', gap: 2 },
     trendSegment: { minHeight: 2 },
     // alignSelf: من غيره عرض النص بيتحسب على قده والتصغير مبيشتغلش
-    trendLabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
+    trendLabel: { color: c.textSecondary, opacity: 0.85, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
     trendSublabel: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch', marginTop: -space.xxs },
-    trendValue: { color: c.text, fontSize: typeScale.caption, textAlign: 'center', alignSelf: 'stretch' },
+    trendValue: { color: c.text, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'center', alignSelf: 'stretch' },
     legend: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.lg, rowGap: space.xs, marginTop: space.sm, marginBottom: space.sm },
     legendItem: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs, maxWidth: '100%' },
-    legendDot: { width: 10, height: 10, borderRadius: 5 },
+    legendDot: { width: 10, height: 10, borderRadius: radius.pill },
     legendText: { color: c.textSecondary, fontSize: typeScale.caption },
     personCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.sm },
     personHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center' },

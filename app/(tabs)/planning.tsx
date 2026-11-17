@@ -6,6 +6,7 @@ import BudgetView from '@/components/BudgetView';
 import IncomesView from '@/components/IncomesView';
 import ShakhbataView from '@/components/ShakhbataView';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 type Section = 'budget' | 'shakhbata' | 'incomes';
 
@@ -14,10 +15,13 @@ export default function PlanningScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [section, setSection] = useState<Section>('budget');
+  const { show: showFab } = useFabScroll();
+  // التاب الفرعي الجديد بيبدأ من أوله ← الزرار ظاهر (قرار مؤمن 2026-11-16)
+  const changeSection = (s: Section) => { showFab(); setSection(s); };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
-      <SegmentedControl style={styles.switcher} value={section} onChange={setSection} segments={[
+      <SegmentedControl style={styles.switcher} value={section} onChange={changeSection} segments={[
         { key: 'budget', label: 'الميزانية', testID: 'planning_tab_budget' },
         { key: 'shakhbata', label: 'توزيع الدخل', testID: 'planning_tab_shakhbata' },
         { key: 'incomes', label: 'دخل ثابت', testID: 'planning_tab_incomes' },

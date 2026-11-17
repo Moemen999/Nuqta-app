@@ -133,7 +133,7 @@ describe('حالات الكارت', () => {
     setData({ transfersStatus: 'loading', transactions: [exp('a', 123, '2026-11-02')], budgets: { total_budget: 1000 } });
     await mountHome();
     expect(within(card()).queryByText(/\d/)).toBeNull();
-    expect(within(card()).getByText(TRANSFERS_LOADING)).toBeTruthy();
+    expect(within(card()).getByLabelText(TRANSFERS_LOADING)).toBeTruthy();
     expect(card().props.accessibilityLabel).toBe('صرفت الشهر ده: بنحمّل');
   });
 

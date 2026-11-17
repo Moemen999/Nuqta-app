@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { AccessibilityInfo, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { typeScale } from '@/lib/tokens';
 
 /**
  * الـ✕ الواحد في التطبيق — نفس شكل اللي كان على رسايل "سجلنا/ما سجلناش" للدخل الثابت
@@ -33,6 +34,6 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     btn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
     // textSecondary مش textMuted (visual-identity-reviewer): الباهت كان ~2.8:1 في الفاتح، تحت 3:1 لرمز واجهة
-    x: { color: c.textSecondary, fontSize: 14 },
+    x: { color: c.textSecondary, fontSize: typeScale.body },
   });
 }

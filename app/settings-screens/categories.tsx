@@ -11,14 +11,16 @@ import {
   categoryReferences, type ArchiveBlock,
 } from '@/lib/archiving';
 import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } from '@/lib/listenerErrors';
-import { categoryIcon } from '@/lib/finance';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, space, typeScale, radius } from '@/lib/tokens';
+import { CategoryIcon } from '@/components/CategoryIcon';
+import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
@@ -158,7 +160,7 @@ export default function CategoriesScreen() {
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.headerRow}>
           <BackButton />
-          <Text style={styles.title}>الفئات</Text>
+          <ScreenTitle>الفئات</ScreenTitle>
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
 
@@ -171,11 +173,11 @@ export default function CategoriesScreen() {
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
             {/* الإيموجي لوحده كان بيتقري اسمه ("إيدين مضمومين") — دلوقتي بيقول بيعمل إيه (a11y-architect) */}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`} hitSlop={5}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
-              style={[styles.iconBtn, { backgroundColor: categoryColors.get(c.id) }]}>
-              <Text style={styles.iconText}>{categoryIcon(c)}</Text>
+              style={styles.iconBtn}>
+              <CategoryIcon icon={c.icon} size={categoryIconSize.bar} tint={categoryColors.get(c.id)} />
             </TouchableOpacity>
             <TextInput
               testID={`category_name_input_${c.id}`}
@@ -198,17 +200,19 @@ export default function CategoriesScreen() {
         <View style={styles.addRow}>
           <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
             maxLength={NAME_MAX_LENGTH} value={newCategory} onChangeText={setNewCategory} textAlign="right" />
-          <TouchableOpacity accessibilityRole="button"
+          <Button
             testID="category_add_button"
-            style={[styles.addBtn, adding && styles.btnBusy]}
-            disabled={adding}
+            size="sm"
+            icon="add"
+            iconOnly
+            label="إضافة فئة"
+            style={styles.addBtn}
+            busy={adding}
             onPress={() => {
               const name = newCategory.trim();
               if (!name) return;
               runAdd(async () => { await addCategory(name); setNewCategory(''); });
-            }}>
-            <Text style={styles.addBtnText}>{adding ? '...' : '+'}</Text>
-          </TouchableOpacity>
+            }} />
         </View>
 
         <ArchivedList title="الفئات المؤرشفة" items={archivedCategories} onRestore={confirmRestore} />
@@ -245,20 +249,17 @@ export default function CategoriesScreen() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    hint: { color: c.textMuted, fontSize: 11, textAlign: 'right', marginBottom: 10 },
-    iconBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-    iconText: { fontSize: 17 },
-    catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.border },
-    nameInput: { flex: 1, color: c.text, fontSize: 14, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.sm },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
+    iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
+    catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: c.border },
+    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
-    deleteText: { color: c.dangerText, fontSize: 12.5 },
-    addRow: { flexDirection: 'row-reverse', gap: 8, marginTop: 10, marginBottom: 6, alignItems: 'center' },
-    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, color: c.text, paddingHorizontal: 12, paddingVertical: 9, fontSize: 13, minHeight: MIN_TOUCH },
-    addBtn: { backgroundColor: c.accent, borderRadius: 10, width: MIN_TOUCH, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    addBtnText: { color: c.onAccent, fontSize: 20, fontWeight: '700' },
+    deleteText: { color: c.dangerText, fontSize: typeScale.body },
+    addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md, marginBottom: space.xs, alignItems: 'center' },
+    addInput: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, paddingHorizontal: space.lg, paddingVertical: space.sm, fontSize: typeScale.body, minHeight: MIN_TOUCH },
+    addBtn: { width: MIN_TOUCH, paddingHorizontal: 0 },
     btnBusy: { opacity: 0.6 },
   });
 }

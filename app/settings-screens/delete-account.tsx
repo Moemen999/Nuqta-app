@@ -1,5 +1,6 @@
 import BackButton from '@/components/BackButton';
 import { Text, TextInput } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth, type DeleteSignInOutcome, type ReauthOutcome } from '@/context/AuthContext';
 import { useAppLock } from '@/context/AppLockContext';
@@ -8,7 +9,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { setupDoneKey } from '@/lib/firstRunSetup';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REDIRECT_URI, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { cancelAllReminders } from '@/lib/notifications';
-import { MIN_TOUCH, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale } from '@/lib/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import { router } from 'expo-router';
@@ -152,7 +153,7 @@ export default function DeleteAccountScreen() {
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled">
         <View style={styles.headerRow}>
           <BackButton onPress={busy ? () => {} : undefined} />
-          <Text style={styles.title} accessibilityRole="header">مسح الحساب</Text>
+          <ScreenTitle>مسح الحساب</ScreenTitle>
         </View>
 
         <View style={styles.card}>
@@ -208,22 +209,21 @@ export default function DeleteAccountScreen() {
 const makeStyles = (c: ThemeColors, bottomInset: number) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 24 },
+    content: { padding: space.xxl, paddingBottom: 24 },
     // نفس رأس feedback.tsx وlock.tsx (visual-identity-reviewer)
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    card: { backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.dangerBorder, padding: 14, gap: 8 },
-    cardTitle: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: 13.5, lineHeight: 21, textAlign: 'right' },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.dangerBorder, padding: space.xl, gap: space.sm },
+    cardTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 21, textAlign: 'right' },
     danger: { color: c.dangerText, fontWeight: '700' },
-    label: { color: c.text, fontSize: 13.5, textAlign: 'right', marginTop: 18, marginBottom: 6 },
-    input: { backgroundColor: c.surface2, borderRadius: 10, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 12, minHeight: MIN_TOUCH, fontSize: 15 },
+    label: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: 18, marginBottom: space.xs },
+    input: { backgroundColor: c.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, fontSize: typeScale.title },
     reasonWrap: { width: '100%' },
-    hint: { color: c.textSecondary, fontSize: 12.5, lineHeight: 19, textAlign: 'right' },
-    secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: 14, paddingHorizontal: 16 },
-    secondaryText: { color: c.accentText, fontWeight: '700', fontSize: 13.5 },
+    hint: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 19, textAlign: 'right' },
+    secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.xl, paddingHorizontal: space.xxl },
+    secondaryText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     footer: { ...stickyFooterStyle(c, c.bg, bottomInset), flexDirection: 'column' },
     // نفس شكل زرار الخطر في التأكيد (ConfirmProvider): إطار danger ونص dangerText — danger كنص تحت 4.5
-    dangerBtn: { alignSelf: 'stretch', borderWidth: 1.5, borderColor: c.danger, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + 4 },
-    dangerText: { color: c.dangerText, fontWeight: '700', fontSize: 15 },
+    dangerBtn: { alignSelf: 'stretch', borderWidth: 1.5, borderColor: c.danger, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH + 4 },
+    dangerText: { color: c.dangerText, fontWeight: '700', fontSize: typeScale.title },
   });

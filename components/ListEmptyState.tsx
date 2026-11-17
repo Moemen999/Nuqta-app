@@ -3,6 +3,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { radius, typeScale } from '@/lib/tokens';
 
 export const EMPTY_OFFLINE_NOTE =
   'وإحنا مش شايفين نت دلوقتي، فيمكن تكون لسه ما وصلتش — مش ضايعة.';
@@ -36,9 +37,9 @@ export default function ListEmptyState({ testID, message }: { testID: string; me
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     box: {
-      backgroundColor: c.surface2, borderRadius: 12, borderWidth: 1, borderColor: c.border,
+      backgroundColor: c.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border,
       paddingHorizontal: 14, paddingVertical: 16, marginTop: 4,
     },
-    text: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', lineHeight: 19 },
+    text: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 19 },
   });
 }

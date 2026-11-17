@@ -3,7 +3,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { dateText } from '@/lib/dateText';
 import { todayStr } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, typeScale, space, radius } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -58,14 +58,14 @@ export default function DebtReminderFields({
             <TouchableOpacity {...selectionA11y(reminderDaysBefore === null, 'radio')}
               onPress={() => onChangeReminder(null)}
               style={[styles.chip, selectionStyle(colors, reminderDaysBefore === null)]}>
-              <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === null), fontSize: 13 }}>من غير تذكير</Text>
+              <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === null), fontSize: typeScale.body }}>من غير تذكير</Text>
             </TouchableOpacity>
             {DAYS_OPTIONS.map(opt => (
               <TouchableOpacity {...selectionA11y(reminderDaysBefore === opt.days, 'radio')}
                 key={opt.days}
                 onPress={() => onChangeReminder(opt.days)}
                 style={[styles.chip, selectionStyle(colors, reminderDaysBefore === opt.days)]}>
-                <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === opt.days), fontSize: 13 }}>{opt.label}</Text>
+                <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === opt.days), fontSize: typeScale.body }}>{opt.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -90,14 +90,14 @@ export default function DebtReminderFields({
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-    row: { flexDirection: 'row-reverse', gap: 8, alignItems: 'center' },
-    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
-    dateBtnText: { color: c.text, fontSize: 14, textAlign: 'center' },
-    clearBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: 10 },
-    clearText: { color: c.dangerText, fontSize: 12, fontWeight: '700' },
-    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginTop: 8, lineHeight: 17 },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+    row: { flexDirection: 'row-reverse', gap: space.sm, alignItems: 'center' },
+    dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    clearBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: space.md },
+    clearText: { color: c.dangerText, fontSize: typeScale.caption, fontWeight: '700' },
+    chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: 17 },
   });
 }

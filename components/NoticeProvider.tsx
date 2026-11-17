@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, overlayCenteredStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, radius, space, typeScale } from '@/lib/tokens';
 import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { LineIcon } from '@/components/LineIcon';
@@ -193,16 +193,16 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: { ...overlayCenteredStyle, paddingHorizontal: 24 },
     card: {
-      alignSelf: 'stretch', backgroundColor: c.nav, borderRadius: 16, borderWidth: 1, borderColor: c.borderStrong,
+      alignSelf: 'stretch', backgroundColor: c.nav, borderRadius: radius.xl, borderWidth: 1, borderColor: c.borderStrong,
       borderRightWidth: 4, borderRightColor: c.accent, padding: 20, gap: 8,
     },
     textBlock: { gap: 10 },
-    title: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: 14.5, lineHeight: 22, textAlign: 'right' },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 22, textAlign: 'right' },
     okBtn: {
-      marginTop: 8, backgroundColor: c.accent, borderRadius: 10, minHeight: MIN_TOUCH,
+      marginTop: space.sm, backgroundColor: c.accent, borderRadius: radius.md, minHeight: MIN_TOUCH,
       alignItems: 'center', justifyContent: 'center',
     },
-    okText: { color: c.onAccent, fontSize: 15, fontWeight: '700' },
+    okText: { color: c.onAccent, fontSize: typeScale.body, fontWeight: '700' },
   });
 }

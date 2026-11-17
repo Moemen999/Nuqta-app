@@ -4,12 +4,17 @@ import {
 } from '@/lib/emojiIcon';
 import { CATEGORY_ICONS, DEFAULT_CATEGORY_ICON } from '@/lib/finance';
 import { selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+
+// أحجام زينة (إيموجي/مدخل) مالهاش درجة في `typeScale` — ثوابت مسمّاة بدل أرقام حرفية
+const CATEGORY_GLYPH_SIZE = 24;
+const CATEGORY_INPUT_SIZE = 36;
+const CATEGORY_PREVIEW_SIZE = 44;
 
 export const ICON_PICKER_TITLE = 'اختار أيقونة';
 export const ICON_PICKER_HINT = 'الأيقونة بتظهر جنب اسم الفئة في كل مكان — العمليات والتقارير والميزانية.';
@@ -202,43 +207,43 @@ function makeStyles(c: ThemeColors) {
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '80%' }), padding: 0, overflow: 'hidden' },
     scrollArea: { flexShrink: 1 },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     title: sheetTitleStyle(c, 4),
-    hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 6, marginBottom: 14, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 17 },
     noteRow: {
-      flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap', gap: 8,
-      backgroundColor: c.surface2, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14,
+      flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap', gap: space.sm,
+      backgroundColor: c.surface2, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, marginBottom: space.xl,
     },
-    noteText: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', flexShrink: 1 },
+    noteText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', flexShrink: 1 },
     suggestBtn: {
-      minHeight: MIN_TOUCH, paddingHorizontal: 12, borderRadius: radius.xl, borderWidth: 1, borderColor: c.borderStrong,
+      minHeight: MIN_TOUCH, paddingHorizontal: space.lg, borderRadius: radius.xl, borderWidth: 1, borderColor: c.borderStrong,
       alignItems: 'center', justifyContent: 'center',
     },
-    suggestText: { color: c.text, fontSize: 12.5, fontWeight: '600' },
-    grid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 10 },
+    suggestText: { color: c.text, fontSize: typeScale.body, fontWeight: '600' },
+    grid: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.md },
     cell: {
-      width: 56, height: 56, borderWidth: 1.5, borderRadius: 12,
+      width: 56, height: 56, borderWidth: 1.5, borderRadius: radius.lg,
       alignItems: 'center', justifyContent: 'center',
     },
-    wideCell: { width: '100%', height: 52, flexDirection: 'row-reverse', gap: 8 },
-    wideLabel: { color: c.textSecondary, fontSize: 13 },
-    icon: { fontSize: 24 },
-    typingBox: { alignItems: 'center', gap: 12 },
+    wideCell: { width: '100%', height: 52, flexDirection: 'row-reverse', gap: space.sm },
+    wideLabel: { color: c.textSecondary, fontSize: typeScale.body },
+    icon: { fontSize: CATEGORY_GLYPH_SIZE },
+    typingBox: { alignItems: 'center', gap: space.lg },
     emojiInput: {
       width: 96, height: 72, borderWidth: 1.5, borderColor: c.borderStrong, borderRadius: radius.lg,
-      fontSize: 36, color: c.text, backgroundColor: c.surface2,
+      fontSize: CATEGORY_INPUT_SIZE, color: c.text, backgroundColor: c.surface2,
     },
-    previewRow: { alignItems: 'center', gap: 4 },
-    previewIcon: { fontSize: 44 },
-    subtle: { color: c.textMuted, fontSize: 12, textAlign: 'center' },
-    errorText: { color: c.dangerText, fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
+    previewRow: { alignItems: 'center', gap: space.xxs },
+    previewIcon: { fontSize: CATEGORY_PREVIEW_SIZE },
+    subtle: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
+    errorText: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', lineHeight: 18 },
     footer: stickyFooterStyle(c, c.nav),
     closeBtn: {
-      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10,
+      flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md,
       alignItems: 'center', justifyContent: 'center',
     },
     saveBtn: {
-      flex: 1, minHeight: MIN_TOUCH, borderRadius: 10, backgroundColor: c.accent,
+      flex: 1, minHeight: MIN_TOUCH, borderRadius: radius.md, backgroundColor: c.accent,
       alignItems: 'center', justifyContent: 'center',
     },
     saveBtnOff: { opacity: 0.45 },

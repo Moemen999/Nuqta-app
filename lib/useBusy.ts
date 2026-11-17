@@ -9,19 +9,26 @@ export function useBusy() {
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
 
-  const run = useCallback(async (action: () => Promise<any> | any) => {
+  // `keepOnSuccess`: بعد حفظ ناجح القفل والـbusy بيفضلوا زي ما هم (المؤشر يفضل بيلف لحد ما الشاشة تتشال) —
+  // أي تغيير على الزرار وقت الإقفال كان بيكرّش Fabric (NUQTA-3). الشاشة اللي بتتشال بتتفك لوحدها
+  const run = useCallback(async (action: () => Promise<any> | any, keepOnSuccess?: () => boolean) => {
     if (running.current) return;
     running.current = true;
     setBusy(true);
     try {
       await action();
     } finally {
-      running.current = false;
-      setBusy(false);
+      if (!keepOnSuccess?.()) {
+        running.current = false;
+        setBusy(false);
+      }
     }
   }, []);
 
-  return { busy, run };
+  /** فك القفل بإيدك: لما الحفظ فشل بعد ما `keepOnSuccess` كان سايبه مقفول (الزرار كان هيفضل بيلف للأبد) */
+  const release = useCallback(() => { running.current = false; setBusy(false); }, []);
+
+  return { busy, run, release };
 }
 
 /** "فيه عملية تانية شغالة" — لما دوسة بتتسقط عشان كتابة تانية لسه بتلف */

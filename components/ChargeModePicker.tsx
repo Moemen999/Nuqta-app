@@ -3,6 +3,7 @@ import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { radius, space, typeScale } from '@/lib/tokens';
 
 /**
  * "بيسألك الأول" (الافتراضي — أي حاجة بتخصم فلوس) أو "بيتسجل لوحده". نفس شكل اختيار
@@ -35,8 +36,8 @@ export default function ChargeModePicker({ value, onChange, what, verb, testIDPr
 }
 
 const styles = StyleSheet.create({
-  label: { fontSize: 12, textAlign: 'right', marginTop: 14, marginBottom: 6 },
-  card: { borderWidth: 1.5, borderRadius: 12, padding: 14, marginTop: 12 },
-  title: { fontSize: 14, fontWeight: '700', textAlign: 'right' },
-  body: { fontSize: 12, textAlign: 'right', marginTop: 4, lineHeight: 18 },
+  label: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
+  card: { borderWidth: 1.5, borderRadius: radius.lg, padding: space.xl, marginTop: space.lg },
+  title: { fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+  body: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
 });

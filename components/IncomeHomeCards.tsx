@@ -1,3 +1,4 @@
+import { Button } from '@/components/Button';
 import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
@@ -10,13 +11,13 @@ import { MONEY_MASK } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView,
-  StyleSheet, TouchableOpacity, View,
+  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 
@@ -136,33 +137,24 @@ export default function IncomeHomeCards() {
         const more = keys.length - 1;
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
-            <Text style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
+            <Text numberOfLines={2} style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
             <Text style={styles.sub}>
               {incomePeriodLabel(inc, key, today)} · في {walletHistoryName(wallets, inc.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
             </Text>
             <Money value={inc.amount} sign="+" style={styles.amount} />
             <View style={styles.actions}>
-              <TouchableOpacity
+              <Button
                 testID={`income_card_yes_${inc.id}`}
-                style={[styles.yesBtn, busy && { opacity: 0.6 }]}
+                label="نزل"
                 disabled={busyKey !== null}
+                busy={busy}
                 onPress={() => record(inc, key, inc.amount)}
-                accessibilityRole="button"
-                accessibilityLabel={busy ? `بنسجّل "${inc.name}"` : `"${inc.name}" نزل`}
-                accessibilityState={{ busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={styles.yesText}>نزل</Text>}
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                onPress={() => setEditing({ inc, key })} accessibilityRole="button">
-                <Text style={styles.ghostText}>المبلغ مختلف</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.ghostBtn} disabled={busyKey !== null}
-                onPress={() => confirmSkip(inc, key)} accessibilityRole="button">
-                <Text style={styles.ghostText}>ما نزلش</Text>
-              </TouchableOpacity>
+                accessibilityLabel={`"${inc.name}" نزل`} />
+              <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
+                onPress={() => setEditing({ inc, key })} />
+              <Button variant="secondary" size="sm" label="ما نزلش" disabled={busyKey !== null}
+                onPress={() => confirmSkip(inc, key)} />
             </View>
           </View>
         );
@@ -222,17 +214,9 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
               <Text style={styles.hint}>{`ده للفترة دي بس — "${inc.name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={onClose} accessibilityRole="button">
-                <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-              </TouchableOpacity>
-              <TouchableOpacity testID="income_amount_save" style={[styles.saveBtn, (!valid || busy) && { opacity: 0.5 }]}
-                disabled={!valid || busy} onPress={() => onSave(typed)}
-                accessibilityRole="button" accessibilityLabel={busy ? "بنسجّل" : "نزل"}
-                accessibilityState={{ disabled: !valid || busy, busy }}>
-                {busy
-                  ? <ActivityIndicator size="small" color={colors.onAccent} />
-                  : <Text style={{ color: colors.onAccent, fontWeight: '700' }}>نزل</Text>}
-              </TouchableOpacity>
+              <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
+              <Button testID="income_amount_save" label="نزل" style={styles.saveBtn}
+                disabled={!valid} busy={busy} onPress={() => onSave(typed)} />
             </View>
           </View>
         </View>
@@ -243,43 +227,30 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    wrap: { marginBottom: 6 },
+    wrap: { marginBottom: space.xs },
     card: {
-      backgroundColor: c.surface, borderRadius: 14, padding: 14, marginBottom: 10,
+      backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
-    title: { color: c.text, fontSize: 15, fontWeight: '700', textAlign: 'right' },
-    sub: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 4 },
-    amount: { color: c.incomeText, fontSize: 22, fontWeight: '700', textAlign: 'right', marginTop: 8 },
-    actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-    yesBtn: {
-      backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 22, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    yesText: { color: c.onAccent, fontWeight: '700', fontSize: 14 },
-    ghostBtn: {
-      borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14, minHeight: MIN_TOUCH,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    ghostText: { color: c.text, fontSize: 13 },
+    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
+    sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
+    amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
+    actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
-      flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8, backgroundColor: c.surface,
-      borderRadius: 12, borderWidth: 1, borderColor: c.borderStrong, padding: 12, marginBottom: 10,
+      flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
+      borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,
     },
-    noticeText: { flex: 1, color: c.textSecondary, fontSize: 13, textAlign: 'right', lineHeight: 19 },
+    noticeText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 19 },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '70%' }), padding: 0, overflow: 'hidden' },
-    sheetContent: { padding: 20 },
+    sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 14),
-    bigInput: {
-      backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, color: c.text,
-      fontSize: 26, fontWeight: '700', paddingVertical: 14, fontVariant: ['tabular-nums'],
-    },
-    diff: { color: c.textSecondary, fontSize: 13, textAlign: 'center', marginTop: 10 },
-    error: { color: c.dangerText, fontSize: 13, textAlign: 'center', marginTop: 10 },
-    hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'center', marginTop: 10 },
+    bigInput: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
+    diff: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginTop: space.md },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.md },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.md },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

@@ -1,5 +1,4 @@
 import { Money } from '@/components/Money';
-import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
@@ -12,6 +11,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Row = {
@@ -48,7 +48,6 @@ export default function PersonLedgerScreen() {
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
   const { debts, pendingTxIds } = useData();
-  const { money } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
   const personName = group?.displayName || '';
@@ -129,7 +128,7 @@ export default function PersonLedgerScreen() {
       keyboardDismissMode="on-drag">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</Text>
+        <ScreenTitle>{personName ? `كشف حساب — ${personName}` : 'كشف حساب'}</ScreenTitle>
       </View>
 
       {!group ? (
@@ -178,7 +177,7 @@ export default function PersonLedgerScreen() {
         {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
             الشخص، فمفيش اتجاه "عكسي" واحد نحدده تلقائي زي كارت الدين */}
         <TouchableOpacity accessibilityRole="button" style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>+ دين جديد</Text>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ دين جديد</Text>
         </TouchableOpacity>
         <Text style={[styles.sectionTitle, { marginTop: 0 }]}>سجّل حركة</Text>
       </View>
@@ -187,12 +186,12 @@ export default function PersonLedgerScreen() {
           <Text style={styles.hintText}>دين واحد مفتوح بس، فالحركة هتتسجل عليه</Text>
           <View style={styles.actionsRow}>
             <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(soleOpenDebt)}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>
+              <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>
                 تسجيل دفعة على: {debtLabelOf(soleOpenDebt)}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
-              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة</Text>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -215,10 +214,10 @@ export default function PersonLedgerScreen() {
                 </View>
                 <View style={styles.actionsRow}>
                   <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
-                    <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 12.5 }}>تسجيل دفعة</Text>
+                    <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تسجيل دفعة</Text>
                   </TouchableOpacity>
                   <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
-                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12.5 }}>زيادة</Text>
+                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -245,8 +244,7 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: space.huge * 2 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xxl },
     summaryCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, alignItems: 'center', marginBottom: space.xxl },
     summaryLabel: { color: c.textSecondary, fontSize: typeScale.body },
     summaryValue: { fontSize: typeScale.title, fontWeight: '700', marginTop: space.xs },
@@ -261,16 +259,16 @@ function makeStyles(c: ThemeColors) {
     listDelta: { fontSize: typeScale.body, fontWeight: '700' },
     listSub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl },
-    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 24, marginBottom: 6 },
-    sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 6 },
-    addDebtBtn: { backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    hintText: { color: c.textSecondary, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },
-    debtBlock: { backgroundColor: c.surface, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: c.border, marginBottom: 10 },
-    debtBlockHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8 },
-    debtBlockTitle: { color: c.text, fontSize: 13, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
-    debtBlockRemaining: { fontSize: 12.5, fontWeight: '700' },
-    actionsRow: { flexDirection: 'row-reverse', gap: 8, flexWrap: 'wrap' },
-    payBtn: { flexShrink: 1, minHeight: MIN_TOUCH, justifyContent: 'center', backgroundColor: c.accent, borderRadius: 10, paddingHorizontal: 14 },
-    secondaryBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, paddingHorizontal: 14 },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
+    sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.huge, marginBottom: space.xs },
+    addDebtBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: 17 },
+    debtBlock: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, borderWidth: 1, borderColor: c.border, marginBottom: space.md },
+    debtBlockHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.md, gap: space.sm },
+    debtBlockTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
+    debtBlockRemaining: { fontSize: typeScale.body, fontWeight: '700' },
+    actionsRow: { flexDirection: 'row-reverse', gap: space.sm, flexWrap: 'wrap' },
+    payBtn: { flexShrink: 1, minHeight: MIN_TOUCH, justifyContent: 'center', backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.xl },
+    secondaryBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl },
   });
 }

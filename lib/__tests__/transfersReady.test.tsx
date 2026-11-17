@@ -83,7 +83,7 @@ describe('التقارير', () => {
   it('بيحمّل ← "بنحمّل…" مكان الرقم والأعمدة والاتجاه، و2,100 مش ظاهرة', async () => {
     setData('loading');
     await render(wrap(<ReportsTab />));
-    expect(screen.getByTestId('reports_period_loading').props.children).toBe(TRANSFERS_LOADING);
+    expect(screen.getByTestId('reports_period_loading').props.accessibilityLabel).toBe(TRANSFERS_LOADING);
     expect(screen.getByTestId('reports_bars_loading')).toBeTruthy();
     expect(screen.getByTestId('reports_trend_loading')).toBeTruthy();
     expect(screen.queryByTestId('reports_bars')).toBeNull();
@@ -171,7 +171,7 @@ describe('الرئيسية', () => {
     await mount();
     expect(screen.queryByTestId('home_banner_budget_total')).toBeNull();
     expect(screen.getByTestId('home_attention_line')).toBeTruthy();
-    expect(screen.getByText(/ميزانية خروجات خلصت/)).toBeTruthy();
+    expect(screen.getByText(/ميزانية خروجات (خلصت|عدّيت)/)).toBeTruthy();
   });
 });
 
@@ -180,7 +180,7 @@ describe('تصليحات جولة 1', () => {
     setData('loading');
     jest.useFakeTimers();
     await render(wrap(<ReportsTab />));
-    expect(screen.getByTestId('reports_period_loading').props.children).toBe(TRANSFERS_LOADING);
+    expect(screen.getByTestId('reports_period_loading').props.accessibilityLabel).toBe(TRANSFERS_LOADING);
     await act(async () => { jest.advanceTimersByTime(10_000); });
     expect(screen.getByTestId('reports_period_loading').props.children).toBe(TRANSFERS_SLOW);
     jest.useRealTimers();

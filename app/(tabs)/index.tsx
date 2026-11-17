@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -11,6 +11,7 @@ import PendingSyncMark from '@/components/PendingSyncMark';
 import AutoRecordedMark from '@/components/AutoRecordedMark';
 import TransferMark from '@/components/TransferMark';
 import { LineIcon } from '@/components/LineIcon';
+import { HeroIcon } from '@/components/HeroIcon';
 import { useData } from '@/context/DataContext';
 import { transferTransactionIds } from '@/lib/spending';
 import { monthSummary } from '@/lib/monthSummary';
@@ -33,10 +34,13 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
+import { CategoryIcon, CategoryIconSpacer } from '@/components/CategoryIcon';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenArchivedWalletBannerText, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
 
@@ -54,11 +58,12 @@ export default function HomeTab() {
 }
 
 function HomeScreen() {
+  const fabScroll = useFabScroll();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending } = useData();
-  const { walletColors } = useChartColors();
+  const { walletColors, categoryColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
   const dailyHour = useDailyReminderHour();
@@ -243,6 +248,7 @@ function HomeScreen() {
       <ScrollView
         style={styles.scrollArea}
         contentContainerStyle={styles.scrollContent}
+        {...fabScroll.scrollProps}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {/* كارت الشهر: أول حاجة في التمرير تحت الرصيد الثابت. testID مش `home_banner_` (البانرات كلها ليها ✕ — homeBannerOrder). دوسة ← التقارير
@@ -323,7 +329,7 @@ function HomeScreen() {
         ))}
         {noWallets && !cold && (
           <View testID="home_no_wallets" style={styles.noWallets}>
-            <Text style={styles.noWalletsEmoji} accessible={false}>👛</Text>
+            <View style={{ marginBottom: heroIconGap - space.sm }}><HeroIcon name="wallet-outline" size={heroIconSize.empty} testID="home_no_wallets_icon" /></View>
             <Text style={styles.noWalletsTitle} accessibilityRole="header">مفيش ولا محفظة</Text>
             <Text style={styles.noWalletsBody}>
               {onlyArchived
@@ -356,7 +362,8 @@ function HomeScreen() {
         {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
         {cold && recent.length === 0 && cold.recent.map(t => {
           const T = TYPE_LABELS[t.type];
-          const catLabel = categoryLabelById(cold.categories, t.categoryId);
+          const coldCat = !t.kind && t.type === 'expense' && t.categoryId ? cold.categories.find(c => c.id === t.categoryId) : undefined;
+          const catLabel = categoryLabelById(cold.categories, t.categoryId, coldCat ? { icon: false } : {});
           const title = t.kind ? COLD_KIND_LABEL[t.kind] : t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
           const name = (id?: string) => cold.wallets.find(w => w.id === id)?.name ?? '';
           // نفس شكل transactionWalletLabel ("من … إلى …")، بس من محافظ الكاش؛ محفظة مش فيه (مؤرشفة) ← من غير اسم
@@ -367,7 +374,12 @@ function HomeScreen() {
             <View key={t.id} testID={`home_cold_tx_${t.id}`} style={styles.txRow} accessible
               accessibilityLabel={`قديم: ${title}${walletLabel ? '، ' + walletLabel : ''}، ${plainAmount(t.amount)} جنيه، ${dayText(t.date, todayStr())}`}>
               <View style={styles.txMid}>
-                <Text style={styles.txTitle}>{title}</Text>
+                <View style={styles.txTitleRow}>
+                  {coldCat
+                    ? <CategoryIcon icon={coldCat.icon} size={categoryIconSize.row} />
+                    : <CategoryIconSpacer />}
+                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{title}</Text>
+                </View>
                 {!!walletLabel && <Text style={styles.txSub}>{walletLabel}</Text>}
               </View>
               <View style={styles.txRight}>
@@ -384,6 +396,7 @@ function HomeScreen() {
           // الفئة الممسوحة بتطلع باسمها الصريح، مش بتترجع لـ"مصروف" العامة —
           // "مصروف" بتقول إن العملية مالهاش فئة، والحقيقة إن فئتها اتمسحت
           const catLabel = categoryLabelById(categories, t.categoryId);
+          const txCat = t.type === 'expense' && t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
           const walletLabel = transactionWalletLabel(t, wallets);
           return (
             <TouchableOpacity accessibilityRole="button"
@@ -392,7 +405,13 @@ function HomeScreen() {
               style={styles.txRow}
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>
-                <Text style={styles.txTitle}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+                {/* مكان الدايرة محجوز (View فاضي بنفس المقاس) في صفوف من غير فئة — العناوين على نفس الخط */}
+                <View style={styles.txTitleRow}>
+                  {txCat
+                    ? <CategoryIcon icon={txCat.icon} size={categoryIconSize.row} tint={categoryColors.get(txCat.id)} />
+                    : <CategoryIconSpacer />}
+                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+                </View>
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
               <View style={styles.txRight}>
@@ -416,7 +435,7 @@ function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={`شوف كل العمليات، ${transactionsPhrase(transactions.length)}`}
             accessibilityHint="بيفتح الأرشيف بكل عملياتك">
-            <Text style={styles.seeAllText}>شوف كل العمليات ({transactions.length})</Text>
+            <CountedText title="شوف كل العمليات" count={transactions.length} style={styles.seeAllText} />
             <Text style={styles.seeAllChevron} accessible={false}>‹</Text>
           </TouchableOpacity>
         )}
@@ -439,7 +458,7 @@ function makeStyles(c: ThemeColors) {
     // لو المحتوى أقصر من الشاشة، آخره بيقف فوق الزرار
     scrollContent: { paddingHorizontal: 16, paddingBottom: 120 },
     // دراسة الشكل خطوة 2 (قرار مؤمن 2026-11-06): الرصيد رقم بطل واحد، حدود أقل، والمقاسات من `typeScale` بس
-    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl },
+    balanceCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxxl, ...cardElevation(c) },
     balanceHeadRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between' },
     eyeBtn: { padding: 4 },
     balanceLabel: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
@@ -451,7 +470,7 @@ function makeStyles(c: ThemeColors) {
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
     walletChipName: { color: c.text, fontSize: typeScale.caption, fontWeight: '500' },
     walletChipVal: { color: c.textSecondary, fontSize: typeScale.caption },
-    dot: { width: 8, height: 8, borderRadius: 4 },
+    dot: { width: 8, height: 8, borderRadius: radius.pill },
     // البانر من غير إطار حواليه (دراسة الشكل): شريط على البداية بس بلون نوعه — البانرات اللي بتحط `borderColor` (خطر/تحذير)
     // بيبان عليها الشريط، والعادي من غير. قرار مؤمن 2026-10-28 (كل البانرات ظاهرة فوق، كل واحد بـ✕) زي ما هو
     banner: { backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: 'transparent', borderRadius: radius.lg, padding: space.lg, marginTop: space.md },
@@ -470,17 +489,16 @@ function makeStyles(c: ThemeColors) {
     // نفس شكل البانرات الجديدة (دراسة الشكل): من غير إطار، شريط بداية دهبي (دعوة تصرف)
     noWallets: {
       backgroundColor: c.surface, borderWidth: 0, borderRightWidth: 3, borderColor: c.accentText, borderRadius: radius.lg,
-      padding: 16, alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 12,
+      padding: space.xxl, alignItems: 'center', gap: space.sm, marginTop: space.xs, marginBottom: space.lg,
     },
-    noWalletsEmoji: { fontSize: 40 },
-    noWalletsTitle: { color: c.text, fontSize: 17, fontWeight: '700', textAlign: 'center' },
-    noWalletsBody: { color: c.textSecondary, fontSize: 14, textAlign: 'center', lineHeight: 22 },
+    noWalletsTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
+    noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
     noWalletsBtn: {
-      backgroundColor: c.accent, borderRadius: 12, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
+      backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',
     },
-    noWalletsBtnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl },
+    noWalletsBtnText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
+    txCard: { backgroundColor: c.surface, borderRadius: radius.xl, paddingHorizontal: space.xxl, ...cardElevation(c) },
     seeAll: {
       flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', minHeight: MIN_TOUCH,
       paddingVertical: space.lg,
@@ -489,6 +507,7 @@ function makeStyles(c: ThemeColors) {
     seeAllChevron: { color: c.textSecondary, fontSize: typeScale.title },
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.lg, minHeight: MIN_TOUCH },
     txMid: { flex: 1 },
+    txTitleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     txTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right' },
     txSub: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: 2, textAlign: 'right' },
     txRight: { alignItems: 'flex-start' },

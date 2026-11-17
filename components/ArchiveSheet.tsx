@@ -1,8 +1,9 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 
 export type ReassignTarget = { id: string; name: string };
@@ -70,7 +71,7 @@ export default function ArchiveSheet({
                       key={t.id}
                       onPress={() => setAssignments(a => ({ ...a, [item.id]: t.id }))}
                       style={[styles.chip, selectionStyle(colors, assignments[item.id] === t.id)]}>
-                      <Text style={{ color: colors.text, fontSize: 13 }}>{t.name}</Text>
+                      <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -82,16 +83,14 @@ export default function ArchiveSheet({
           </ScrollView>
 
           <View style={styles.footer}>
-            <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={onClose} disabled={busy}>
-              <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-            </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button"
+            <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} disabled={busy} />
+            <Button
               testID="archive_sheet_confirm"
-              style={[styles.saveBtn, (!allAssigned || busy) && styles.btnBusy]}
-              disabled={!allAssigned || busy}
-              onPress={() => onConfirm(assignments)}>
-              <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : confirmText}</Text>
-            </TouchableOpacity>
+              label={confirmText}
+              style={styles.saveBtn}
+              disabled={!allAssigned}
+              busy={busy}
+              onPress={() => onConfirm(assignments)} />
           </View>
         </View>
       </View>
@@ -106,16 +105,15 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    intro: { color: c.textSecondary, fontSize: 12.5, textAlign: 'right', lineHeight: 19, marginTop: 6 },
-    itemCard: { backgroundColor: c.surface2, borderRadius: 12, padding: 12, marginTop: 14, borderWidth: 1, borderColor: c.border },
-    itemName: { color: c.text, fontSize: 13.5, fontWeight: '700', textAlign: 'right' },
-    label: { color: c.textSecondary, fontSize: 12, textAlign: 'right', marginTop: 10, marginBottom: 6 },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 19, marginTop: space.xs },
+    itemCard: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
+    itemName: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, marginBottom: space.xs },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
-    chip: { borderWidth: 1.5, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    note: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginTop: 14, lineHeight: 17 },
+    chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
+    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, lineHeight: 17 },
     footer: stickyFooterStyle(c, c.nav),
-    cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    saveBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 10, alignItems: 'center', paddingVertical: 12 },
-    btnBusy: { opacity: 0.5 },
+    cancelBtn: { flex: 1 },
+    saveBtn: { flex: 2 },
   });
 }

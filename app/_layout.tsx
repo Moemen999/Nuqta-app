@@ -3,10 +3,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@rea
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';
@@ -27,6 +26,7 @@ import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { typeScale } from '@/lib/tokens';
 
 // الـsplash يفضل لحد ما يبقى فيه حاجة تتعرض، والحزام (5 ثواني) بيبدأ من هنا —
 // برّه أي كومبوننت، عشان يشتغل حتى لو الخطوط علّقت (lib/splash.ts)
@@ -43,14 +43,20 @@ function SetupChecking() {
     <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center', gap: 12 }}
       accessibilityLiveRegion="polite">
       <ActivityIndicator color={colors.accent} size="large" />
-      <Text style={{ color: colors.textSecondary, fontSize: 14 }}>بنتأكد من حسابك…</Text>
+      <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>بنتأكد من حسابك…</Text>
     </View>
   );
 }
 
 function RootNavigator() {
   const { user, loading } = useAuth();
-  const { theme } = useTheme();
+  const { theme, colors } = useTheme();
+  // خلفية التنقّل من ثيمنا: الافتراضي بتاع react-navigation (#F2F2F2) كان بيبان شريط رمادي تحت المودال
+  // في الفاتح (اتشاف على 1.0.0.032)
+  const navTheme = useMemo(() => {
+    const base = theme === 'dark' ? DarkTheme : DefaultTheme;
+    return { ...base, colors: { ...base.colors, background: colors.bg } };
+  }, [theme, colors.bg]);
   const { enabled, isLocked, readFailed, loading: lockLoading } = useAppLock();
   const { setupStatus } = useData();
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null);
@@ -74,7 +80,7 @@ function RootNavigator() {
   // شاشة الترحيب بتظهر مرة واحدة بس لأول مستخدم جديد
   if (!onboardingDone) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         <OnboardingScreen onDone={() => setOnboardingDone(true)} />
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -83,7 +89,7 @@ function RootNavigator() {
 
   if (shouldShowLock({ enabled, isLocked, readFailed })) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         <LockScreen />
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -95,7 +101,7 @@ function RootNavigator() {
   // `checking` لمحة قصيرة أول مرة بس — بعدها الحالة متفكرة على الجهاز.
   if (user && (setupStatus === 'needed' || setupStatus === 'checking')) {
     return (
-      <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+      <NavThemeProvider value={navTheme}>
         {setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />}
         <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
       </NavThemeProvider>
@@ -103,7 +109,7 @@ function RootNavigator() {
   }
 
   return (
-    <NavThemeProvider value={theme === 'dark' ? DarkTheme : DefaultTheme}>
+    <NavThemeProvider value={navTheme}>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
       <DataLoadErrorBanner />
       {/* مفيش هيدر النظام لأي شاشة (كل شاشة ليها عنوانها وزرار رجوع بالعربي). شاشة "مسح الحساب" كانت ناسية

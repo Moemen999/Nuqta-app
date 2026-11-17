@@ -15,7 +15,9 @@ import { doc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { radius, space, typeScale } from '@/lib/tokens';
 
 /**
  * تعبئة حساب الاختبار ببيانات وهمية ثابتة — **في نسخ التطوير بس** (`__DEV__`).
@@ -74,7 +76,10 @@ function DevSeed() {
     const ids: SeedIds = { wallets, categories };
     linkedStarted.current = true;
     SEED_WALLETS.forEach(w => data.updateWallet(ids.wallets[w.name], { openingBalance: w.openingBalance, lowAlert: w.lowAlert }));
-    seedTransactions(ids, today).forEach(tx => data.addTransaction(tx));
+    seedTransactions(ids, today).forEach(tx => data.addTransaction(tx).catch(() => {
+      setPhase('failed');
+      setStatus('عملية من عمليات التجربة ما اتسجلتش.');
+    }));
     // `addDebt` بيرمي لو المبلغ أو العدد مش صالح — منسيبوش رفض من غير ما حد يمسكه
     seedDebts(ids, today).forEach(d => data.addDebt(d).catch(() => {
       setPhase('failed');
@@ -157,7 +162,7 @@ function DevSeed() {
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}>
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title}>بيانات التجربة (للمطوّر)</Text>
+        <ScreenTitle>بيانات التجربة (للمطوّر)</ScreenTitle>
       </View>
 
       {!uidParam ? (
@@ -207,17 +212,16 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 16, borderWidth: 1, borderColor: c.border, marginBottom: 16 },
-    label: { color: c.textSecondary, fontSize: 13, textAlign: 'right', marginTop: 6 },
-    value: { color: c.text, fontSize: 15, textAlign: 'right' },
-    errorValue: { color: c.dangerText, fontSize: 15, textAlign: 'right' },
-    btn: { backgroundColor: c.accent, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xxl, borderWidth: 1, borderColor: c.border, marginBottom: space.xxl },
+    label: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },
+    value: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
+    errorValue: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right' },
+    btn: { backgroundColor: c.accent, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', marginBottom: space.md },
     btnBusy: { opacity: 0.6 },
-    btnText: { color: c.onAccent, fontSize: 16, fontWeight: '700' },
-    btnDanger: { borderColor: c.dangerBorder, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: 'center', marginBottom: 10 },
-    btnDangerText: { color: c.dangerText, fontSize: 16, fontWeight: '700' },
-    status: { color: c.textSecondary, fontSize: 14, textAlign: 'right', marginTop: 8 },
-    error: { color: c.dangerText, fontSize: 14, textAlign: 'right', marginTop: 8 },
+    btnText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
+    btnDanger: { borderColor: c.dangerBorder, borderWidth: 1, borderRadius: radius.lg, padding: space.xl, alignItems: 'center', marginBottom: space.md },
+    btnDangerText: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700' },
+    status: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
   });
 }

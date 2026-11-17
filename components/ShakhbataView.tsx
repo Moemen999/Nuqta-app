@@ -1,7 +1,10 @@
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
+import { useChartColors } from '@/hooks/use-chart-colors';
+
 import { useNotice } from '@/components/NoticeProvider';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -19,6 +22,8 @@ import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
+import { useFabScroll } from '@/context/FabScrollContext';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -27,9 +32,11 @@ const BUCKET_META = [
 ] as const;
 
 export default function ShakhbataView() {
+  const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { categoryColors } = useChartColors();
   const { categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents, debts, gamiyas, transfersStatus } = useData();
   // بند 11: "اتصرف" مبيظهرش لحد ما الديون والجمعية يوصلوا
   const spendLoading = transfersStatus === 'loading';
@@ -124,7 +131,7 @@ export default function ShakhbataView() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} {...fabScroll.scrollProps} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       {/* «توزيع الدخل» (دراسة الشكل، قرار مؤمن 2026-11-06): الاسم بيقول هي إيه؛ «شخبطة» فاضلة في السطر عشان اللي متعوّد عليها */}
       <Text style={styles.title}>توزيع الدخل</Text>
       <Text style={styles.subtitle}>قسّم دخلك الشهري على حسب النسب اللي انت حددتها (الشاشة دي كان اسمها شخبطة)</Text>
@@ -146,13 +153,13 @@ export default function ShakhbataView() {
       <View style={styles.percentHead}>
         {percentDrafts ? (
           <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={savePercents} disabled={savingPercents}>
-            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
+            <Text style={{ color: colors.accentText, fontSize: typeScale.caption, fontWeight: '700', opacity: savingPercents ? 0.6 : 1 }}>
               {savingPercents ? '...' : 'حفظ النسب'}
             </Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={startEditingPercents}>
-            <Text style={{ color: colors.accentText, fontSize: 12.5, fontWeight: '700' }}>عدّل النسب</Text>
+            <Text style={{ color: colors.accentText, fontSize: typeScale.caption, fontWeight: '700' }}>عدّل النسب</Text>
           </TouchableOpacity>
         )}
         <Text style={styles.label}>نسبك الحالية</Text>
@@ -193,10 +200,10 @@ export default function ShakhbataView() {
             return (
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
-                  <Text style={styles.bucketLabel}>{b.label} ({percents[b.key]}%)</Text>
+                  <CountedText title={b.label} count={percents[b.key]} suffix="%" style={styles.bucketLabel} />
                   <Money value={target} style={styles.bucketTarget} />
                 </View>
-                {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} style={styles.bucketSpend} /> : (
+                {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} shape="line" style={styles.bucketSpend} /> : (
                   <>
                     <View style={styles.track}>
                       <View style={[styles.fill, { width: `${usagePct}%`, backgroundColor: color }]} />
@@ -222,7 +229,10 @@ export default function ShakhbataView() {
         <Text style={styles.hint}>حدد كل فئة تبع أنهي قسم من التلاتة (دوس تاني عشان تشيل التصنيف)</Text>
         {categories.map(c => (
           <View key={c.id} style={styles.catRow}>
-            <Text numberOfLines={1} ellipsizeMode="middle" style={styles.catName}>{categoryLabel(c)}</Text>
+            <View style={[categoryInlineRow, { marginBottom: space.sm }]}>
+              <CategoryIcon icon={c.icon} size={categoryIconSize.row} tint={categoryColors.get(c.id)} />
+              <Text numberOfLines={1} ellipsizeMode="middle" style={[styles.catName, { flexShrink: 1, marginBottom: 0 }]}>{categoryLabel(c, { icon: false })}</Text>
+            </View>
             <View style={styles.catBtns}>
               {BUCKET_META.map(b => {
                 const active = c.bucket === b.key;
@@ -267,12 +277,12 @@ function makeStyles(c: ThemeColors) {
     percentInput: { backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, minHeight: MIN_TOUCH, fontSize: typeScale.body, fontWeight: '700' },
     warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: 17 },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
-    bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md },
+    bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     bucketLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     bucketTarget: { color: c.textSecondary, fontSize: typeScale.body },
-    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: 2, marginTop: space.md, overflow: 'hidden' },
-    fill: { height: '100%', borderRadius: 2 },
+    track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.md, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: radius.track },
     bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
     hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },

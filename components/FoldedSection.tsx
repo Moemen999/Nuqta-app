@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, space } from '@/lib/tokens';
+import { MIN_TOUCH, space, radius, typeScale } from '@/lib/tokens';
 import { useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -48,7 +48,14 @@ export default function FoldedSection({ title, count, children, testID, framed =
       testID={testID ? `${testID}_toggle` : undefined}
       accessibilityRole="button" accessibilityState={{ expanded: open }}
       accessibilityLabel={a11yLabel ?? label}>
-      <Text style={[styles.title, action && styles.titleShrink]}>{label}</Text>
+      {/* العدد (والحالة) نص لوحده جنب العنوان مش آخر سطر العنوان: أندرويد/Fabric على الجهاز قاس
+          «ديون اتسددت (5)» أضيق من المرسوم وقصّ «(5)» في الثيم الفاتح (2026-11-16). العدد بقى عنصر
+          flexShrink:0 فمبيتقصّش، والعنوان هو اللي بيتقلّص. بيتقري كله بـ`accessibilityLabel` فوق. */}
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, styles.titleShrink]} textBreakStrategy="simple">{showCount || !status ? title : base + ' — ' + status}</Text>
+        {showCount && <Text style={[styles.title, styles.fixed]}>({count})</Text>}
+        {showCount && status ? <Text style={[styles.title, styles.fixed]}>{`— ${status}`}</Text> : null}
+      </View>
       {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
       <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
     </TouchableOpacity>
@@ -72,15 +79,18 @@ export default function FoldedSection({ title, count, children, testID, framed =
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
-    framed: { marginTop: space.xl, borderWidth: 1, borderColor: c.border, borderRadius: 12, overflow: 'hidden' },
+    // الإطار باقي هنا عن قصد (مراجعة 9c2a5ab): القسم المطوي جواه صفوف على الصفحة، وخلفية للغلاف كانت هتسطّحها
+    framed: { marginTop: space.xl, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, overflow: 'hidden' },
     plain: { marginTop: space.xl },
-    head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.surface2, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: MIN_TOUCH },
-    headAlone: { borderRadius: 12, borderWidth: 1, borderColor: c.border },
+    head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.controlBg, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: MIN_TOUCH },
+    headAlone: { borderRadius: radius.lg, borderWidth: 1, borderColor: c.border },
     headOpen: { marginBottom: space.md },
     headRow: { flexDirection: 'row-reverse', alignItems: 'stretch', gap: space.sm },
     headGrow: { flex: 1 },
-    title: { color: c.textSecondary, fontSize: 12.5, fontWeight: '700', textAlign: 'right' },
+    title: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', flexShrink: 1, gap: space.xs },
     titleShrink: { flexShrink: 1 },
-    chevron: { color: c.textMuted, fontSize: 12 },
+    fixed: { flexShrink: 0 },
+    chevron: { color: c.textMuted, fontSize: typeScale.caption },
   });
 }

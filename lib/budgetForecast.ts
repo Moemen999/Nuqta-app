@@ -34,6 +34,14 @@ export function budgetLevel(spent: number, limit: number): BudgetLevel {
   return spent / limit >= BUDGET_NEAR_RATIO ? 'near' : 'under';
 }
 
+/**
+ * لون درجة الميزانية — **مصدر واحد** للرئيسية و`BudgetView` (قرار مؤمن 2026-11-16): 'over' خطر بس، و'at'/'near' دهبي
+ * (صرفت الميزانية بالظبط مش تعدّي). 'under' بياخد `calm` (لون الهدوء عند كل شاشة).
+ */
+export function budgetLevelColor<C extends { dangerText: string; accentText: string }>(level: BudgetLevel, colors: C, calm: string): string {
+  return level === 'over' ? colors.dangerText : level === 'under' ? calm : colors.accentText;
+}
+
 type Row = { amount: number; autoRecorded?: boolean };
 
 /**

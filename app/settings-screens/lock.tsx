@@ -3,10 +3,12 @@ import SetLockModal from '@/components/SetLockModal';
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
+import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,7 +57,7 @@ export default function LockScreen_Settings() {
       keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
         <BackButton />
-        <Text style={styles.title} accessibilityRole="header">قفل التطبيق</Text>
+        <ScreenTitle>قفل التطبيق</ScreenTitle>
       </View>
 
       {!enabled ? (
@@ -64,13 +66,7 @@ export default function LockScreen_Settings() {
             القفل بيطلب منك رقم سري أو باسورد قبل ما تفتح التطبيق. بياناتك محمية بحسابك أصلاً —
             ده بيمنع أي حد ماسك موبايلك إنه يشوفها.
           </Text>
-          <TouchableOpacity
-            testID="lock_enable_button"
-            accessibilityRole="button"
-            style={styles.primaryBtn}
-            onPress={() => setModalMode('enable')}>
-            <Text style={styles.primaryBtnText}>تفعيل قفل التطبيق</Text>
-          </TouchableOpacity>
+          <Button testID="lock_enable_button" variant="secondary" label="تفعيل قفل التطبيق" onPress={() => setModalMode('enable')} />
         </>
       ) : (
         <View style={styles.card}>
@@ -98,7 +94,7 @@ export default function LockScreen_Settings() {
 
           {frequency === 'everyResume' && (
             <>
-              <Text style={[styles.hint, { marginTop: 14 }]}>يقفل بعد قد إيه من خروجك من التطبيق؟</Text>
+              <Text style={[styles.hint, { marginTop: space.xl }]}>يقفل بعد قد إيه من خروجك من التطبيق؟</Text>
               <View style={styles.row}>
                 {GRACE_OPTIONS.map(opt => (
                   <TouchableOpacity
@@ -114,7 +110,7 @@ export default function LockScreen_Settings() {
             </>
           )}
 
-          <View style={[styles.row, { marginTop: 16 }]}>
+          <View style={[styles.row, { marginTop: space.xxl }]}>
             <TouchableOpacity
               testID="lock_change_button"
               accessibilityRole="button"
@@ -127,7 +123,7 @@ export default function LockScreen_Settings() {
               accessibilityRole="button"
               style={styles.disableBtn}
               onPress={() => setModalMode('disable')}>
-              <Text style={{ color: colors.dangerText, fontSize: 12.5 }}>إلغاء القفل</Text>
+              <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>إلغاء القفل</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -143,20 +139,17 @@ export default function LockScreen_Settings() {
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
-    content: { padding: 16, paddingBottom: 40 },
-    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    title: { color: c.text, fontSize: 18, fontWeight: '700', textAlign: 'right' },
-    hint: { color: c.textMuted, fontSize: 11.5, textAlign: 'right', marginBottom: 10, lineHeight: 17 },
-    card: { backgroundColor: c.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: c.border },
-    status: { color: c.incomeText, fontSize: 13, fontWeight: '700', textAlign: 'right', marginBottom: 10 },
-    row: { flexDirection: 'row-reverse', gap: 8 },
-    btnLabel: { color: c.text, fontSize: 12.5 },
-    graceLabel: { color: c.text, fontSize: 11.5 },
-    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', paddingVertical: 10, justifyContent: 'center', minHeight: MIN_TOUCH },
-    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 9, minHeight: MIN_TOUCH },
-    changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
-    disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: 10, alignItems: 'center', paddingVertical: 10 },
-    primaryBtn: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, alignItems: 'center', paddingVertical: 13 },
-    primaryBtnText: { color: c.text, fontWeight: '700', fontSize: 13.5 },
+    content: { padding: space.xxl, paddingBottom: 40 },
+    headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: 17 },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, ...cardElevation(c) },
+    status: { color: c.incomeText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
+    row: { flexDirection: 'row-reverse', gap: space.sm },
+    btnLabel: { color: c.text, fontSize: typeScale.body },
+    graceLabel: { color: c.text, fontSize: typeScale.caption },
+    typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
+    graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: MIN_TOUCH },
+    changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
+    disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
   });
 }

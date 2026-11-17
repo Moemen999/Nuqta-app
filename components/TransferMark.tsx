@@ -1,6 +1,7 @@
 import { useTheme } from '@/context/ThemeContext';
 import { StyleSheet } from 'react-native';
 import { Text } from '@/components/AppText';
+import { typeScale } from '@/lib/tokens';
 
 /** نص العلامة (قرار مؤمن 2026-11-06 على الترشيح) — مصدر واحد للرئيسية والأرشيف */
 export const TRANSFER_MARK = '↔️ تحويل — مش محسوب';
@@ -20,5 +21,5 @@ export default function TransferMark() {
 }
 
 const styles = StyleSheet.create({
-  mark: { fontSize: 10.5, marginTop: 2 },
+  mark: { fontSize: typeScale.caption, marginTop: 2 },
 });

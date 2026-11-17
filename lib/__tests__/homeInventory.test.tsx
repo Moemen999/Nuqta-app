@@ -282,7 +282,7 @@ describe('شوف كل العمليات', () => {
     await mountHome();
     const row = screen.getByTestId('home_see_all');
     expect(within(row).getByText(/شوف كل العمليات/)).toBeTruthy();
-    expect(within(row).getByText('شوف كل العمليات (11)')).toBeTruthy();
+    expect(within(row).getByText('(11)')).toBeTruthy();
     expect(row.props.accessibilityRole).toBe('button');
     expect(row.props.accessibilityLabel).toBe('شوف كل العمليات، 11 عملية');
     fireEvent.press(row);
@@ -293,7 +293,7 @@ describe('شوف كل العمليات', () => {
     setData({ transactions: makeTxs(25) });
     await mountHome();
     const row = screen.getByTestId('home_see_all');
-    expect(within(row).getByText('شوف كل العمليات (25)')).toBeTruthy();
+    expect(within(row).getByText('(25)')).toBeTruthy();
     expect(row.props.accessibilityLabel).toBe('شوف كل العمليات، 25 عملية');
   });
 

@@ -1,4 +1,6 @@
-import { MIN_TOUCH } from '@/lib/tokens';
+import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { HeroIcon } from '@/components/HeroIcon';
+import type { LineIconName } from '@/components/LineIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -8,29 +10,29 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 
 export const ONBOARDING_KEY = 'nuqta_onboarding_done';
 
-const SLIDES = [
+const SLIDES: { icon: LineIconName; title: string; body: string }[] = [
   {
-    emoji: '👋',
+    icon: 'hand-left-outline',
     title: 'أهلًا بيك في نقطة',
     body: 'تطبيق مصاريفك الشخصي — عربي بالكامل، ومبني عشان يفهم طريقتك في الصرف فعلاً.',
   },
   {
-    emoji: '🏠',
+    icon: 'home-outline',
     title: 'الرئيسية والتقارير',
     body: 'الرئيسية بتوريك رصيدك في كل محافظك وآخر عملياتك.\nوالتقارير بتقولك فلوسك راحت فين بالظبط، في أي فترة تختارها.',
   },
   {
-    emoji: '📊',
+    icon: 'layers-outline',
     title: 'التخطيط',
     body: 'جواه حاجتين:\n• الميزانية — تحدد سقف لصرفك كل شهر\n• توزيع الدخل (شخبطة) — تقسّم دخلك بالنسب اللي انت تحددها (احتياجات، رفاهيات، خطط مستقبلية)',
   },
   {
-    emoji: '👥',
+    icon: 'people-outline',
     title: 'الالتزامات',
     body: 'جواه تلات حاجات:\n• الديون — مين عليه فلوس ليك ومين ليه عندك\n• الاشتراكات — بتذكّرك قبل كل خصم\n• الجمعية — بتتابع أقساطك وشهر استلامك',
   },
   {
-    emoji: '➕',
+    icon: 'add',
     title: 'الزرار الذهبي',
     body: 'أهم زرار في التطبيق. اضغطه في أي وقت عشان تسجّل مصروف أو إيراد أو تحويل بين محافظك.',
   },
@@ -62,7 +64,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.slideArea}>
-        <Text style={styles.emoji}>{slide.emoji}</Text>
+        <View style={styles.iconWrap}><HeroIcon name={slide.icon} size={heroIconSize.welcome} animateKey={index} testID="onboarding_icon" /></View>
         <Text style={styles.title}>{slide.title}</Text>
         <Text style={styles.body}>{slide.body}</Text>
       </ScrollView>
@@ -79,13 +81,13 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
       <View style={styles.actions}>
         {index > 0 && (
           <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={() => setIndex(i => i - 1)}>
-            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>السابق</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>السابق</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity accessibilityRole="button"
           style={styles.nextBtn}
           onPress={() => (isLast ? finish() : setIndex(i => i + 1))}>
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: 15 }}>
+          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>
             {isLast ? 'يلا نبدأ' : 'التالي'}
           </Text>
         </TouchableOpacity>
@@ -98,15 +100,15 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg, paddingHorizontal: 24 },
     skipBtn: { alignSelf: 'flex-start', padding: 8, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    skipText: { color: c.textMuted, fontSize: 13 },
+    skipText: { color: c.textMuted, fontSize: typeScale.body },
     slideArea: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
-    emoji: { fontSize: 64, marginBottom: 24 },
-    title: { color: c.text, fontSize: 22, fontWeight: '700', textAlign: 'center', marginBottom: 14 },
-    body: { color: c.textSecondary, fontSize: 15, textAlign: 'center', lineHeight: 26 },
+    iconWrap: { marginBottom: heroIconGap },
+    title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'center', marginBottom: space.xl },
+    body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 26 },
     dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 24 },
-    dot: { height: 8, borderRadius: 4 },
+    dot: { height: 8, borderRadius: radius.pill },
     actions: { flexDirection: 'row-reverse', gap: 10 },
-    backBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 12, alignItems: 'center', paddingVertical: 14 },
-    nextBtn: { flex: 2, backgroundColor: c.accent, borderRadius: 12, alignItems: 'center', paddingVertical: 14 },
+    backBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.lg, alignItems: 'center', paddingVertical: space.xl },
+    nextBtn: { flex: 2, backgroundColor: c.accent, borderRadius: radius.lg, alignItems: 'center', paddingVertical: space.xl },
   });
 }
