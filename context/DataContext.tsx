@@ -52,7 +52,7 @@ import {
   walletGoneReplayBody, type StoredEntry,
 } from '@/lib/outbox';
 import {
-  clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
+  OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
   logOutboxFailure, mergeOrRewriteOutboxEntry, noteOutboxKeyReadFailure, outboxIdsAfterPendingSaves, outboxSessionId, putOutboxEntry,
   readOutboxKey, removeOutboxEntry, replayOutboxDoc, reportOutboxEvent, serverTxStatus, setOutboxClearedIds, sweepOtherOutboxes, updateOutboxMeta,
   writeOutboxTombstone,
@@ -3106,7 +3106,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
           // الطابور المتشفّر ومفتاحه — من غيره الإعادة كانت هترجّع عمليات على حساب اتمسح
           outboxIds.current.clear();
           setOutboxCount(0);
-          try { await clearOutboxForUid(uid); } catch (e) { logOutboxFailure('clear on delete failed', e); }
+          try { await clearOutboxForUid(uid); } catch (e) {
+            logOutboxFailure('clear on delete failed', e);
+            // المفتاح فضل في SecureStore بعد مسح الحساب — Sentry بالاسم بس (الكنس الجاي بيحاول تاني من السجل)
+            if (e instanceof OutboxKeyDeleteError) reportOutboxEvent('account-delete-key-failed');
+          }
           return { outcome: 'done' };
         }
         await deleteRefs(refs);

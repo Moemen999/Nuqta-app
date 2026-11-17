@@ -193,7 +193,7 @@ export default function SubscriptionsView() {
         <Text style={styles.sub}>
           {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {frequencyLabel(s.frequency, s.customDays)}
         </Text>
-        <Text style={[styles.due, { color: soon ? colors.accent : colors.textSecondary }]}>
+        <Text style={[styles.due, { color: soon ? colors.accentText : colors.textSecondary }]}>
           {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
             : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${dateText(s.nextDueDate, todayStr())})`}
         </Text>

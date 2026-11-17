@@ -80,12 +80,18 @@ function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
     <Animated.View
       testID="tx_add_fab_wrap"
       pointerEvents={visible ? 'box-none' : 'none'}
+      // مستخبي = مش موجود لقارئ الشاشة كمان (كان بيتقري زرار مش باين ومبيتدوسش). مع قارئ الشاشة
+      // `visible` دايمًا true فده مبيغيّرش حاجة هناك. `collapsable={false}`: الغلاف ثابت non-flattenable
+      // مهما الخصايص اتغيّرت — تبديل flatten وقت التشغيل كان بيكرّش Fabric (NUQTA-3)
+      importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
+      accessibilityElementsHidden={!visible}
+      collapsable={false}
       style={[styles.fabWrap, {
         bottom,
         opacity: progress,
         transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [FAB_HIDE_DISTANCE, 0] }) }],
       }]}>
-      <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent }]} onPress={() => router.push('/modal')}>
+      <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.shadow ?? colors.bg }]} onPress={() => router.push('/modal')}>
         <LineIcon name="add" size={30} color={colors.onAccent} />
       </TouchableOpacity>
     </Animated.View>
@@ -170,7 +176,8 @@ const styles = StyleSheet.create({
   fab: {
     width: 54, height: 54, borderRadius: radius.pill,
     alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+    // `shadowColor` من الثيم (فوق): الفاتح `shadow`، والغامق `bg` (قريب من الأسود، و`shadow` هناك null)
+    shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   iconPill: { width: 52, height: 28, borderRadius: radius.pill, borderWidth: 1.5, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
 });

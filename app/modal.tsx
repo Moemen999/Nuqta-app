@@ -22,7 +22,8 @@ import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScal
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { NavigationContext, usePreventRemove } from '@react-navigation/native';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -150,8 +151,24 @@ export default function AddTransactionModal() {
    */
   function afterSave() {
     try { hapticSuccess(); } catch { /* زينة */ }
-    try { router.back(); } catch (e) { console.warn('[tx] الرجوع بعد الحفظ فشل'); reportAtomicFailure('حفظ العملية', e); }
+    leave();
   }
+
+  // الرجوع (زرار أندرويد / سحب المودال) ممنوع طول ما الحفظ شغال — قبل كده المودال كان بيتقفل والحفظ
+  // مكمّل (لحد ~800ms مستنيين نسخة الـoutbox)، وبعدين `router.back()` بتاع الحفظ يشيل الشاشة اللي ورا
+  // (money-reviewer). الرجوع بتاعنا بعد الحفظ بيعدّي من `leaving`: بيتعلّم الأول، والرجوع بيحصل في
+  // effect بعد ما المنع يتشال — وبس لو الشاشة لسه متركّبة ومركّزة
+  const nav = useContext(NavigationContext);
+  const [leaving, setLeaving] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  function leave() { if (mounted.current) setLeaving(true); }
+  useEffect(() => {
+    if (!leaving || !mounted.current) return;
+    if (nav && !nav.isFocused()) return;
+    try { router.back(); } catch (e) { console.warn('[tx] الرجوع بعد الحفظ فشل'); reportAtomicFailure('حفظ العملية', e); }
+  }, [leaving]);
+  const blockLeave = (saveGuard || busy || syncing) && !leaving;
 
   async function saveTransaction() {
     if (saved.current) return;
@@ -264,7 +281,7 @@ export default function AddTransactionModal() {
         const alert = TX_EDIT_OUTCOME_ALERT[result.outcome];
         notice(alert.title, alert.body);
         // "اتغيّرت من جهاز تاني" — الفورم قدامه أرقام قديمة، "جرب تاني" مش هتنفع
-        if (result.outcome === 'gone') router.back();
+        if (result.outcome === 'gone') leave(); // `router.back()` هنا كان هيتمنع: `syncing` لسه true
         return;
       }
       saved.current = true;
@@ -388,6 +405,7 @@ export default function AddTransactionModal() {
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    {nav && <BlockLeave when={blockLeave} />}
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <ScreenTitle style={styles.screenTitle}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</ScreenTitle>
 
@@ -527,4 +545,14 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     saveBtn: { flex: 2 },
     btnBusy: { opacity: 0.6 },
   });
+}
+
+/**
+ * `usePreventRemove` جوه كومبوننت لوحده: بيحتاج navigator (بيرمي من غيره)، والمودال بيترسم في اختبارات
+ * من غير navigator. بيرجّع `null` فمبيغيّرش شكل الشجرة (NUQTA-3)، ووجوده مبيتغيّرش وقت التشغيل.
+ * بيغطي زرار أندرويد والسحب على iOS (native-stack بيقرا المنع من `PreventRemoveContext`)
+ */
+function BlockLeave({ when }: { when: boolean }) {
+  usePreventRemove(when, () => { /* الرجوع اتمنع والحفظ لسه شغال — الزرار بيلف، ومفيش حاجة تتعمل */ });
+  return null;
 }

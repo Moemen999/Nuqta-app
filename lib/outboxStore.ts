@@ -61,12 +61,60 @@ export async function readOutboxKey(uid: string): Promise<Uint8Array | null> {
  */
 function keyForWrite(uid: string): Promise<Uint8Array> {
   return serial(`key:${uid}`, async () => {
+    // في السجل قبل أي كتابة للمفتاح: مفتاح موجود من غير ما يتسجّل (اتعمل قبل السجل) بيتسجّل هنا كمان
+    // فشل السجل مبيوقّفش الحفظ: أسوأ حاجة المفتاح يفضل يتيم (زي قبل السجل)
+    try { await registerKeyName(await keyName(uid)); } catch (e) { logOutboxFailure('key registry write failed', e); }
     const existing = await readOutboxKey(uid);
     if (existing) return existing;
     const k = rng(OUTBOX_KEY_BYTES);
     await SecureStore.setItemAsync(await keyName(uid), bytesToHex(k));
     return k;
   });
+}
+
+/*
+ * ─── سجل أسامي المفاتيح (security-reviewer قبل الدمج) ───
+ * SecureStore مالوش "هات كل المفاتيح"، فمفتاح حساب خرج غصب أو بـ«نسيت الكود؟» كان بيفضل يتيم للأبد (مدخلاته بتتكنس، هو
+ * لأ). السجل في AsyncStorage فيه **أسامي** المفاتيح بس (`nuqta_outbox_k_<sha256(uid)>` — مفيش uid خام ولا مفتاح)، والكنس
+ * بيمسح أي مفتاح في السجل مش بتاع الحساب الحالي. بره بادئة المدخلات والعلامات عشان `parseStorageKey`/`metaUid` ميشوفوهوش.
+ */
+export const OUTBOX_KEY_REGISTRY = 'nuqta-outbox-keys:v1';
+const registered = new Set<string>();
+
+async function readRegistry(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(OUTBOX_KEY_REGISTRY);
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch (e) {
+    logOutboxFailure('key registry unreadable', e);
+    return [];
+  }
+}
+
+function registerKeyName(name: string): Promise<void> {
+  if (registered.has(name)) return Promise.resolve();
+  return serial('key-registry', async () => {
+    const list = await readRegistry();
+    if (!list.includes(name)) await AsyncStorage.setItem(OUTBOX_KEY_REGISTRY, JSON.stringify([...list, name]));
+    registered.add(name);
+  });
+}
+
+function unregisterKeyNames(names: string[]): Promise<void> {
+  if (names.length === 0) return Promise.resolve();
+  names.forEach(n => registered.delete(n));
+  return serial('key-registry', async () => {
+    const list = await readRegistry();
+    const next = list.filter(n => !names.includes(n));
+    if (next.length !== list.length) await AsyncStorage.setItem(OUTBOX_KEY_REGISTRY, JSON.stringify(next));
+  });
+}
+
+/** مسح مفتاح الحساب من SecureStore فشل — اسم بس؛ الاسم بيفضل في السجل والكنس الجاي بيحاول تاني */
+export class OutboxKeyDeleteError extends Error {
+  constructor() { super('outbox key delete failed'); this.name = 'OutboxKeyDeleteError'; }
 }
 
 const queues = new Map<string, Promise<unknown>>();
@@ -218,7 +266,7 @@ export function consumeUserSignOut(uid: string): boolean {
 
 /** حدث Sentry معدود (اسم بس، مفيش بيانات) — مرة لكل سبب في الجلسة */
 const reported = new Set<string>();
-export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed') {
+export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed' | 'account-delete-key-failed') {
   if (reported.has(reason)) return;
   reported.add(reason);
   Sentry.captureMessage(`outbox: ${reason}`, { level: 'warning', tags: { outbox_reason: reason }, fingerprint: ['outbox', reason] });
@@ -241,7 +289,10 @@ export async function clearOutboxForUid(uid: string): Promise<void> {
   const all = await AsyncStorage.getAllKeys();
   const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid);
   if (keys.length) await AsyncStorage.multiRemove(keys);
-  await SecureStore.deleteItemAsync(await keyName(uid));
+  const name = await keyName(uid);
+  try { await SecureStore.deleteItemAsync(name); }
+  catch (e) { logOutboxFailure('key delete failed', e); throw new OutboxKeyDeleteError(); }
+  await unregisterKeyNames([name]);
 }
 
 /**
@@ -253,7 +304,20 @@ export async function sweepOtherOutboxes(uid: string): Promise<number> {
   const stale = keys.filter(k => { const p = parseStorageKey(k); return !!p && p.uid !== uid; });
   const staleMeta = keys.filter(k => { const m = metaUid(k); return !!m && m !== uid; });
   if (stale.length || staleMeta.length) await AsyncStorage.multiRemove([...stale, ...staleMeta]);
+  await sweepOtherKeys(uid);
   return stale.length;
+}
+
+/** مفاتيح SecureStore لحسابات تانية (من السجل) — مدخلاتها اتكنست فوق، فملهاش لازمة. فشل واحد مبيوقّفش الباقي */
+async function sweepOtherKeys(uid: string): Promise<void> {
+  const own = await keyName(uid);
+  const others = (await readRegistry()).filter(n => n !== own);
+  const gone: string[] = [];
+  for (const n of others) {
+    try { await SecureStore.deleteItemAsync(n); gone.push(n); }
+    catch (e) { logOutboxFailure('stale key delete failed', e); }
+  }
+  await unregisterKeyNames(gone);
 }
 
 /**

@@ -93,6 +93,18 @@ describe('الزرار العايم "+" بيختفي وانت بتمرّر لت�
     mockPath = '/';
   });
 
+  it('مستخبي ← مخفي عن قارئ الشاشة كمان، وظاهر ← بيتقري (a11y قبل الدمج)، والغلاف مبيتفلطحش', async () => {
+    await mount();
+    await prime();
+    const wrap = () => screen.getByTestId('tx_add_fab_wrap', { includeHiddenElements: true }).props;
+    expect(wrap()).toMatchObject({ importantForAccessibility: 'auto', accessibilityElementsHidden: false, collapsable: false });
+    expect(screen.getByTestId('tx_add_button')).toBeTruthy();
+    await scrollTo(200);
+    expect(wrap()).toMatchObject({ importantForAccessibility: 'no-hide-descendants', accessibilityElementsHidden: true, collapsable: false });
+    // RNTL بيعامل الاتنين زي قارئ الشاشة: من غير includeHiddenElements الزرار مش موجود
+    expect(screen.queryByTestId('tx_add_button')).toBeNull();
+  });
+
   it('ظاهر عند الفتح، ومستخبي بعد تمرير لتحت، ويرجع فورًا بتمرير لفوق', async () => {
     await mount();
     await prime();
