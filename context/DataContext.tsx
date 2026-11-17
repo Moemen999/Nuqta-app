@@ -304,7 +304,7 @@ export const PAY_OUTCOME_ALERT_DEBT: Record<Exclude<DebtPayOutcome, 'done'>, { t
   gone: DEBT_GONE_ALERT,
   uncertain: {
     title: 'مش متأكدين اتسجلت ولا لأ',
-    body: 'النت قطع واحنا بنسجّل، فمش عارفين وصلت ولا لأ. افتح الدين وبص على تاريخه الأول، ولو مش موجودة فيه جرّب تاني — عشان متتسجلش مرتين.',
+    body: 'النت قطع واحنا بنسجّل، فمش عارفين وصلت ولا لأ. افتح الدين وبص على تاريخه الأول، ولو العملية مش موجودة فيه جرّب تاني — عشان متتسجلش مرتين.',
   },
 };
 
@@ -453,7 +453,7 @@ export const TX_DELETE_OUTCOME_ALERT: Record<Exclude<TxDeleteOutcome, 'done'>, {
   },
   uncertain: {
     title: 'مش متأكدين اتمسحت ولا لأ',
-    body: 'النت قطع واحنا بنمسح، فمش عارفين وصلت ولا لأ. افتح الدين وبص على تاريخه، ولو العملية لسه فيه امسحها تاني.',
+    body: 'النت قطع واحنا بنمسح، فمش عارفين المسح وصل ولا لأ. افتح الدين وبص على تاريخه، ولو العملية لسه فيه امسحها تاني.',
   },
 };
 export type DebtIncreaseResult = { outcome: DebtPayOutcome | 'leftover-changed'; note?: string | null; dueNote?: string | null };
