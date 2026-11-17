@@ -197,7 +197,7 @@ describe('DataContext: الفحص لحظة الدوسة بيقرا آخر حال
   });
 
   it('وcascadeInputs بيتحدّث كل render', () => {
-    expect(src).toContain('cascadeInputs.current = { wallets, transactions, loadErrors };');
+    expect(src).toContain('cascadeInputs.current = { wallets, transactions, loadErrors, debts };');
   });
 
   it('والفحص قبل أي كتابة', () => {

@@ -1,5 +1,5 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
-import { dueDateAfterIncreaseRemoval, dueRestoreLine } from '@/lib/reopenDue';
+import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine } from '@/lib/reopenDue';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -1216,6 +1216,11 @@ export type TransactionDeleteDebtPlan = {
   kind: 'payment' | 'increase';
   payments?: Debt['payments'];
   increases?: Debt['increases'];
+  /**
+   * السطور اللي بتتشال بالظبط — الكاتب بيشيلها بـ`arrayRemove` مش بكتابة المصفوفة كلها من حالة الرياكت
+   * (بند 8): دفعة/زيادة نزلت من جهاز تاني ولسه ما وصلتناش كانت هتتمسح
+   */
+  removed: Debt['payments'] | Debt['increases'];
   residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
   countBefore: number | undefined;
   countAfter: number | null;
@@ -1226,8 +1231,13 @@ export type TransactionDeleteDebtPlan = {
 export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDeleteDebtPlan | null {
   if ((d.payments || []).some(p => p.transactionId === txId)) {
     // الفرق مبيتغيّرش مع الدفعات (الخطة هي هي)
+    const removed = (d.payments || []).filter(p => p.transactionId === txId);
     const payments = (d.payments || []).filter(p => p.transactionId !== txId);
-    return { kind: 'payment', payments, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }) };
+    return {
+      kind: 'payment', payments, removed, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }),
+      // الدفعة قدّمت المعاد ← بيرجع (بند 3) — نفس `deleteDebtPayment`
+      dueRestore: dueDateAfterPaymentRemoval(d, removed, payments),
+    };
   }
   if ((d.increases || []).some(e => e.transactionId === txId)) {
     const removed = (d.increases || []).filter(e => e.transactionId === txId);
@@ -1239,7 +1249,7 @@ export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDel
     }
     const forCount = residue === null ? {} : { installmentResidue: residue.op === 'set' ? residue.value : undefined };
     return {
-      kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }),
+      kind: 'increase', increases, removed, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }),
       dueRestore: dueDateAfterIncreaseRemoval(d, removed, increases),
     };
   }
@@ -1338,7 +1348,9 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
     walletId: linked ? entry.walletId! : null,
     countBefore: moves ? before : null,
     countAfter: moves ? recount : null,
-    dueRestore: kind === 'increase' ? dueDateAfterIncreaseRemoval(d, [entry], increases.filter(e => e.id !== entryId)) : null,
+    dueRestore: kind === 'increase'
+      ? dueDateAfterIncreaseRemoval(d, [entry], increases.filter(e => e.id !== entryId))
+      : dueDateAfterPaymentRemoval(d, [entry as Debt['payments'][number]], payments.filter(e => e.id !== entryId)),
   };
 }
 

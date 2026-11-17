@@ -23,6 +23,8 @@ jest.mock('@/components/useDeviceContacts', () => ({
 }));
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 
 const base = {
   id: 'd1', direction: 'i_owe', personName: 'المحل', totalAmount: 1000, isInstallment: false,
@@ -51,7 +53,7 @@ const wrap = (ui: React.ReactElement) => <ThemeProvider><NoticeProvider><Privacy
 describe('مودال دفعة الدين', () => {
   it('استلاف من محفظة ← مفيش "الفئة"، والدفعة من غير فئة', async () => {
     mockData.debts = [borrowed];
-    await render(wrap(<DebtPaymentModal debt={borrowed} onClose={jest.fn()} />));
+    await render(wrap(<DebtPaymentModal debtId={withDebt(borrowed)} onClose={jest.fn()} />));
     expect(screen.queryByText('الفئة (اختياري)')).toBeNull();
     await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '100'); });
     await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
@@ -60,7 +62,7 @@ describe('مودال دفعة الدين', () => {
 
   it('شرا بالأجل ← "الفئة" موجودة والفئة المختارة بتتبعت', async () => {
     mockData.debts = [credit];
-    await render(wrap(<DebtPaymentModal debt={credit} onClose={jest.fn()} />));
+    await render(wrap(<DebtPaymentModal debtId={withDebt(credit)} onClose={jest.fn()} />));
     expect(screen.getByText('الفئة (اختياري)')).toBeTruthy();
     await act(async () => { fireEvent.press(screen.getByText(/أكل/)); });
     await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '100'); });

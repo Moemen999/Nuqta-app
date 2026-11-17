@@ -6,7 +6,13 @@
  */
 
 export type ContactEntry = {
+  /** مفتاح القايمة — المعرّف الحقيقي لو موجود، وإلا مفتاح محلي **مبيتخزّنش** مع الدين */
   id: string;
+  /**
+   * معرّف جهة الاتصال على الموبايل — ده اللي بيتخزّن (`personContactId`). `undefined` لو النظام ما ادّاهاش
+   * معرّف: معرّف عشوائي كان بيتخزّن ويخلّي اسم الشخص لينك بيفتح كارت مش موجود (بند 11)
+   */
+  contactId?: string;
   name: string;
   /** أول رقم محفوظ — ده اللي بيتعرض وبيتحفظ مع الدين */
   phone: string;
@@ -61,10 +67,11 @@ function phoneMatches(storedDigits: string, queryDigits: string): boolean {
 }
 
 /** بتبني سطر جهة اتصال جاهز للبحث — التطبيع بيحصل هنا مرة واحدة */
-export function makeContactEntry(id: string, name: string, phones: string[]): ContactEntry {
+export function makeContactEntry(contactId: string | undefined, name: string, phones: string[], fallbackKey?: string): ContactEntry {
   const clean = phones.filter(Boolean);
   return {
-    id,
+    id: contactId || fallbackKey || `${name}|${clean[0] || ''}`,
+    ...(contactId ? { contactId } : {}),
     name,
     phone: clean[0] || '',
     searchName: normalizeName(name),
@@ -95,4 +102,21 @@ export function filterContacts<T extends ContactEntry>(list: T[], query: string)
  */
 export function phoneForDisplay(phone: string): string {
   return phone ? `\u200E${phone}` : '';
+}
+
+/**
+ * الاسم اللي بيتعرض لجهة اتصال (بند 11): الاسم الموحّد، وإلا الأول+الأوسط+الأخير (أسامي عربي كتير مالهاش
+ * `name`)، وإلا الشركة، وإلا الرقم — بدل ما جهة الاتصال تختفي من القايمة. `''` لو مفيش أي حاجة خالص.
+ */
+export function contactDisplayName(c: {
+  name?: string | null; firstName?: string | null; middleName?: string | null; lastName?: string | null;
+  company?: string | null; phones?: string[];
+}): string {
+  const name = (c.name || '').trim();
+  if (name) return name;
+  const composed = [c.firstName, c.middleName, c.lastName].map(x => (x || '').trim()).filter(Boolean).join(' ');
+  if (composed) return composed;
+  const company = (c.company || '').trim();
+  if (company) return company;
+  return (c.phones || []).map(p => (p || '').trim()).find(Boolean) || '';
 }

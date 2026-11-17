@@ -30,6 +30,8 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: false }) }));
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 
 const W = (id: string, name: string, archived = false) => ({ id, name, openingBalance: 0, lowAlert: 0, ...(archived ? { archived: true } : {}) });
 const A = W('A', 'ألف'), B = W('B', 'باء'), C = W('C', 'جيم');
@@ -54,7 +56,7 @@ function seed(over: Record<string, unknown> = {}) {
     addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(),
     addDebtPayment: jest.fn(async () => ({ outcome: 'done', note: null })),
     addDebtIncrease: jest.fn(async () => ({ outcome: 'done' })),
-    addDebt: jest.fn(),
+    addDebt: jest.fn(async () => ({ outcome: 'done' })),
     addSubscription: jest.fn(async () => ({ outcome: 'done' })),
     addGamiya: jest.fn(async () => ({ outcome: 'done' })),
     addIncome: jest.fn(),
@@ -284,7 +286,7 @@ const debtOf = (over: Record<string, unknown> = {}) => ({
 }) as unknown as Debt;
 
 describe('سداد دين', () => {
-  const mount = (d: Debt) => { const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />); return { ui, r: render(ui()) }; };
+  const mount = (d: Debt) => { const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />); return { ui, r: render(ui()) }; };
 
   it('الدين على باء وآخر محفظة ألف ← باء، وهي اللي بتتبعت', async () => {
     seed({ transactions: [T('A', at(2))] });
@@ -347,7 +349,7 @@ describe('سداد دين', () => {
 });
 
 describe('زيادة على دين', () => {
-  const mount = (d: Debt) => { const ui = () => wrap(<DebtIncreaseModal debt={d} onClose={jest.fn()} />); return { ui, r: render(ui()) }; };
+  const mount = (d: Debt) => { const ui = () => wrap(<DebtIncreaseModal debtId={withDebt(d)} onClose={jest.fn()} />); return { ui, r: render(ui()) }; };
 
   it('الدين على باء وآخر محفظة ألف ← باء، وهي اللي بتتبعت', async () => {
     seed({ transactions: [T('A', at(2))] });
@@ -659,7 +661,7 @@ describe('سداد دين من غير أي إدخال (المبلغ متعبّي
   it('الدين على باء، وبعدين البيانات اتغيّرت وبقى الافتراضي المحسوب جيم ← الحفظ من غير إدخال بيروح باء، وهو الشيب المختار', async () => {
     seed({ transactions: [] });
     let d = instDebt({ initialWalletId: 'B' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     expect(chipsChecked()).toEqual(['باء']);
     d = instDebt({ initialWalletId: 'C' });
@@ -672,7 +674,7 @@ describe('سداد دين من غير أي إدخال (المبلغ متعبّي
   it('شرا بالأجل: آخر محفظة ألف وبعدين بقت جيم ← الحفظ من غير إدخال بيروح ألف', async () => {
     seed({ transactions: [T('A', at(1))] });
     const d = instDebt({ direction: 'i_owe' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     await dataChanges(r, ui, { transactions: [T('A', at(1)), T('C', at(8))] });
     expect(chipsChecked()).toEqual(['ألف']);
@@ -683,7 +685,7 @@ describe('سداد دين من غير أي إدخال (المبلغ متعبّي
   it('أول رسمة من غير محافظ ← المحفظة بتظهر لما توصل، وبعدها بتتثبّت', async () => {
     seed({ wallets: [], transactions: [] });
     const d = instDebt({ direction: 'i_owe' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     expect(chipsChecked()).toEqual([]);
     await dataChanges(r, ui, { wallets: [A, B, C], transactions: [T('B', at(2))] });
@@ -697,7 +699,7 @@ describe('سداد دين من غير أي إدخال (المبلغ متعبّي
   it('المستخدم اختار محفظة وبعدين البيانات اتغيّرت ← فاضل على اختياره', async () => {
     seed({ transactions: [T('A', at(1))] });
     const d = instDebt({ direction: 'i_owe' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     await press(screen.getByRole('radio', { name: 'جيم' }));
     await dataChanges(r, ui, { transactions: [T('A', at(1)), T('B', at(8))] });
@@ -709,7 +711,7 @@ describe('سداد دين من غير أي إدخال (المبلغ متعبّي
   it('مسار تأكيد الزيادة: البيانات بتتغيّر والتأكيد مفتوح ← بيتحفظ نفس محفظة الشيب', async () => {
     seed({ transactions: [T('A', at(1))] });
     const d = debtOf({ direction: 'i_owe' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     await type(screen.getByTestId('debt_payment_amount'), '5000'); // أكتر من المتبقي ← تأكيد
     await press(screen.getByTestId('debt_payment_save'));
@@ -769,7 +771,7 @@ describe('سداد دين — العمليات لسه ما وصلتش وقت ا�
   it('العمليات لسه ← أول محفظة شغّالة، وبعدين تيجي قبل أي إدخال ← تتحوّل لآخر محفظة وبعدها تتثبّت', async () => {
     seed({ transactions: [], figuresPending: ['transactions'] });
     const d = credit();
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     expect(chipsChecked()).toEqual(['ألف']);
     await dataChanges(r, ui, { transactions: [T('C', at(3))], figuresPending: [] });
@@ -783,7 +785,7 @@ describe('سداد دين — العمليات لسه ما وصلتش وقت ا�
   it('دوسة الحفظ والعمليات لسه ← بيتحفظ اللي ظاهر (مفيش إدخال غيرها)', async () => {
     seed({ transactions: [], figuresPending: ['transactions'] });
     const d = credit();
-    await render(wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />));
+    await render(wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />));
     expect(chipsChecked()).toEqual(['ألف']);
     await press(screen.getByTestId('debt_payment_save'));
     expect(mockData.addDebtPayment).toHaveBeenCalledWith('d1', 250, 'A', expect.any(String), undefined);
@@ -792,7 +794,7 @@ describe('سداد دين — العمليات لسه ما وصلتش وقت ا�
   it('تأكيد زيادة عن المتبقي مفتوح والعمليات بتوصل ← الشيب ما بيتغيّرش والمحفظة المتحفظة هي هي', async () => {
     seed({ transactions: [], figuresPending: ['transactions'] });
     const d = debtOf({ direction: 'i_owe' });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     await press(screen.getByTestId('debt_payment_amount')); // مش إدخال
     await type(screen.getByTestId('debt_payment_amount'), '5000');
@@ -806,7 +808,7 @@ describe('سداد دين — العمليات لسه ما وصلتش وقت ا�
   it('محفظة الدين نفسه بتتثبّت على طول حتى والعمليات لسه', async () => {
     seed({ transactions: [], figuresPending: ['transactions'] });
     let d = debtOf({ initialWalletId: 'B', isInstallment: true, installmentCount: 4, installmentAmount: 250 });
-    const ui = () => wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />);
+    const ui = () => wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />);
     const r = await render(ui());
     expect(chipsChecked()).toEqual(['باء']);
     d = debtOf({ initialWalletId: 'C', isInstallment: true, installmentCount: 4, installmentAmount: 250 });

@@ -198,3 +198,24 @@ export function installmentEditMessage(beforeCount: number | undefined, afterCou
   if (beforeCount === afterCount) return null;
   return `بعد التعديل، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
 }
+
+/**
+ * بند 6: التعديل ده متطبّق خلاص على العملية **وعلى** سطرها في الدين؟ فايرستور بتعيد الـcallback لما الرد يضيع،
+ * واللفة التانية بتلاقي العملية بالأرقام الجديدة (مش `expected`) — من غير الفحص ده كانت بترجع "العملية اتغيّرت"
+ * على تعديل اتحفظ فعلاً. `current` = العملية زي ما اتقرت من السيرفر، `clean` = اللي هيتكتب عليها.
+ */
+export function linkedEditAlreadyApplied(
+  d: Debt, txId: string, current: Record<string, unknown>, clean: Record<string, unknown>,
+): boolean {
+  if (!Object.entries(clean).every(([k, v]) => current[k] === v)) return false;
+  const role = debtRoleOf(d, txId);
+  if (!role) return false;
+  const amount = roundMoney(Number(clean.amount));
+  if (role === 'initial') {
+    return roundMoney(Number(d.totalAmount)) === amount && d.initialWalletId === clean.walletId && d.date === clean.date;
+  }
+  const entry = role === 'payment'
+    ? (d.payments || []).find(p => p.transactionId === txId)
+    : (d.increases || []).find(e => e.transactionId === txId);
+  return !!entry && roundMoney(Number(entry.amount)) === amount && entry.walletId === clean.walletId && entry.date === clean.date;
+}

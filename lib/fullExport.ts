@@ -81,7 +81,7 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     })) },
     { name: 'Debts', rows: d.debts.map(x => ({
       Id: x.id, Direction: x.direction, Person: x.personName, Phone: s(x.personPhone), ContactId: s(x.personContactId),
-      TotalAmount: x.totalAmount, Date: x.date, IsInstallment: x.isInstallment,
+      TotalAmount: n(x.totalAmount), Date: x.date, IsInstallment: x.isInstallment,
       InstallmentCount: n(x.installmentCount), InstallmentAmount: n(x.installmentAmount),
       // الباقي اللي بيحدد آخر قسط (بند 8) — من غيره القسط الأخير في الملف مبيتحسبش صح
       ResidueAmount: n(x.installmentResidue?.amount), ResidueForInstallment: n(x.installmentResidue?.forInstallment),
@@ -91,12 +91,12 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
       InitialWalletId: s(x.initialWalletId), InitialTransactionId: s(x.initialTransactionId),
     })) },
     { name: 'DebtPayments', rows: d.debts.flatMap(x => byDate(x.payments || []).map(p => ({
-      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: p.amount,
+      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: n(p.amount),
       WalletId: p.walletId, Wallet: walletName(p.walletId), CategoryId: s(p.categoryId), Category: categoryName(p.categoryId),
       TransactionId: s(p.transactionId),
     }))) },
     { name: 'DebtIncreases', rows: d.debts.flatMap(x => byDate(x.increases || []).map(p => ({
-      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: p.amount,
+      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: n(p.amount),
       WalletId: s(p.walletId), Wallet: walletName(p.walletId), TransactionId: s(p.transactionId),
     }))) },
     { name: 'Subscriptions', rows: d.subscriptions.map(x => ({

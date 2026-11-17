@@ -1,4 +1,4 @@
-import { filterContacts, makeContactEntry, normalizePhone, phoneForDisplay } from '@/lib/contacts';
+import { contactDisplayName, filterContacts, makeContactEntry, normalizePhone, phoneForDisplay } from '@/lib/contacts';
 
 const LIST = [
   makeContactEntry('1', 'أحمد محمد', ['01001234567']),
@@ -117,5 +117,23 @@ describe('phoneForDisplay', () => {
 
   it('الرقم الفاضي بيرجع فاضي من غير علامة', () => {
     expect(phoneForDisplay('')).toBe('');
+  });
+});
+
+describe('بند 11: جهات الاتصال من غير اسم أو معرّف', () => {
+  it('من غير معرّف ← مفيش contactId يتخزّن (مش معرّف عشوائي)، والمفتاح ثابت', () => {
+    const a = makeContactEntry(undefined, 'أحمد', ['0100'], 'local-3');
+    expect(a.contactId).toBeUndefined();
+    expect(a.id).toBe('local-3');
+    expect(makeContactEntry(undefined, 'أحمد', ['0100'], 'local-3').id).toBe(a.id);
+    expect(makeContactEntry('42', 'أحمد', []).contactId).toBe('42');
+  });
+
+  it('الاسم: الموحّد ← الأول+الأوسط+الأخير ← الشركة ← الرقم', () => {
+    expect(contactDisplayName({ name: ' أحمد ', firstName: 'x' })).toBe('أحمد');
+    expect(contactDisplayName({ name: '', firstName: 'محمد', middleName: 'علي', lastName: 'حسن' })).toBe('محمد علي حسن');
+    expect(contactDisplayName({ name: '', company: 'شركة النور' })).toBe('شركة النور');
+    expect(contactDisplayName({ name: '', phones: ['', '0100 123'] })).toBe('0100 123');
+    expect(contactDisplayName({})).toBe('');
   });
 });

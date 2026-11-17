@@ -81,7 +81,11 @@ function DevSeed() {
       setStatus('عملية من عمليات التجربة ما اتسجلتش.');
     }));
     // `addDebt` بيرمي لو المبلغ أو العدد مش صالح — منسيبوش رفض من غير ما حد يمسكه
-    seedDebts(ids, today).forEach(d => data.addDebt(d).catch(() => {
+    seedDebts(ids, today).forEach(d => data.addDebt(d).then(r => {
+      if (r.outcome === 'done') return;
+      setPhase('failed');
+      setStatus('دين من ديون التجربة ما اتسجلش — محفظته مش موجودة أو مؤرشفة.');
+    }, () => {
       setPhase('failed');
       setStatus('دين من ديون التجربة ما اتسجلش — المبلغ أو عدد الأقساط مش صالح.');
     }));

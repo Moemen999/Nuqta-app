@@ -221,8 +221,19 @@ function DebtsContent() {
           });
         }
         return;
-      } catch {
-        // الكارت مفتحش (جهة اتصال اتمسحت مثلاً) — بنكمل على البديل تحت
+      } catch (e) {
+        // الكارت مفتحش (جهة اتصال اتمسحت مثلاً). كود الخطأ بس في اللوج — مفيش اسم ولا رقم (sentryScrub)
+        console.warn('[contacts] contact card failed', (e as { code?: string })?.code ?? 'unknown');
+        // قبل ما نروح للرقم بنقول ليه — من غيرها المستخدم بيلاقي شاشة الاتصال قدامه من غير سبب
+        if (d.personPhone) {
+          const phone = d.personPhone;
+          notice('مقدرناش نفتح الكارت', 'جهة الاتصال دي مش بتتفتح من هنا، يمكن اتمسحت من الموبايل.', () => {
+            Linking.openURL(`tel:${phone}`).catch(() => notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.'));
+          });
+          return;
+        }
+        notice('مقدرناش نفتح الكارت', 'جهة الاتصال دي مش بتتفتح من هنا، يمكن اتمسحت من الموبايل.');
+        return;
       }
     }
     if (d.personPhone) {
@@ -396,8 +407,8 @@ function DebtsContent() {
       </FoldedSection>
 
       {showAddDebt && <AddDebtModal onClose={() => setShowAddDebt(false)} />}
-      {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
-      {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {paymentForDebt && <DebtPaymentModal debtId={paymentForDebt.id} onClose={() => setPaymentForDebt(null)} />}
+      {increaseForDebt && <DebtIncreaseModal debtId={increaseForDebt.id} onClose={() => setIncreaseForDebt(null)} />}
       {editDebt && <EditDebtModal debt={editDebt} onClose={() => setEditDebt(null)} />}
       {reverseForDebt && (
         <AddDebtModal onClose={() => setReverseForDebt(null)} prefill={reverseDebtPrefill(reverseForDebt)} />
@@ -440,20 +451,19 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   async function handleSave() {
     if (!personName.trim()) { setError('لازم تسيب اسم للشخص'); return; }
 
-    // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه
-    if (debt.isInstallment && installmentCount.trim()) {
-      const next = Number(installmentCount);
-      // آمن مش صحيح بس: 1e20 "صحيح" بس مبيتخزّنش كعدد بدقته (`storableCount`)
-      if (!storableCount(next)) { setError(INSTALLMENT_COUNT_INVALID); return; }
-      if (next !== debt.installmentCount) {
-        const done = await setInstallmentCount(debt.id, next);
+    // آمن مش صحيح بس: 1e20 "صحيح" بس مبيتخزّنش كعدد بدقته (`storableCount`) — الفحص قبل الزرار ما يلف
+    const nextCount = debt.isInstallment && installmentCount.trim() ? Number(installmentCount) : null;
+    if (nextCount !== null && !storableCount(nextCount)) { setError(INSTALLMENT_COUNT_INVALID); return; }
+    await runBusy(async () => {
+      // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه — **جوه** `runBusy` (بند 10): دوستين
+      // ورا بعض كانوا بيكتبوا العدد مرتين قبل ما الزرار يتقفل
+      if (nextCount !== null && nextCount !== debt.installmentCount) {
+        const done = await setInstallmentCount(debt.id, nextCount);
         // السبب من نفس الحسبة (عدد أقل من الدفعات، دين متسدد، قسط أقل من قرش).
         // ولو الحسبة هنا قابلاه والكتابة اترفضت (الدين اتمسح أو اتغيّر من جهاز
         // تاني) ← "مقدرناش نحفظ"، مش سبب مش حقيقي
-        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
+        if (!done) { setError(installmentCountEditRefusal(debt, nextCount) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
       }
-    }
-    await runBusy(async () => {
       try {
         await updateDebt(debt.id, {
           personName,
@@ -562,7 +572,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           onPick={ct => {
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
-            setPersonContactId(ct.id);
+            setPersonContactId(ct.contactId ?? '');
             picker.close();
           }}
           onCreateContact={picker.createContact}

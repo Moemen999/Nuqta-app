@@ -226,8 +226,8 @@ export default function PersonLedgerScreen() {
         </>
       )}
 
-      {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
-      {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {paymentForDebt && <DebtPaymentModal debtId={paymentForDebt.id} onClose={() => setPaymentForDebt(null)} />}
+      {increaseForDebt && <DebtIncreaseModal debtId={increaseForDebt.id} onClose={() => setIncreaseForDebt(null)} />}
       {showAddDebt && (
         <AddDebtModal
           onClose={() => setShowAddDebt(false)}

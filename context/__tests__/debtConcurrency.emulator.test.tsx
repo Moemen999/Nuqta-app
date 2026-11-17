@@ -209,7 +209,7 @@ describe('الدفع الزيادة ما اتغيرش', () => {
 });
 
 describe('الدين مش موجود', () => {
-  it('الدفع لدين اتمسح بيرجّع "ما اتسجلش" ومبيكتبش عملية يتيمة', async () => {
+  it('الدفع لدين اتمسح بيرجّع "الدين اتمسح" (gone، بند 5) ومبيكتبش عملية يتيمة', async () => {
     const { walletId, debtId } = await makeDebt();
     const txCountBefore = harness.api().transactions.length;
 
@@ -217,7 +217,7 @@ describe('الدين مش موجود', () => {
     await harness.waitForData(api => api.debts.length === 0);
 
     const { outcome } = await harness.api().addDebtPayment(debtId, 500, walletId, '2026-02-01');
-    expect(outcome).toBe('failed');
+    expect(outcome).toBe('gone');
     expect(harness.api().transactions.length).toBe(txCountBefore - 1);
   });
 });

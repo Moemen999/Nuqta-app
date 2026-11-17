@@ -8,7 +8,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { LineIcon } from '@/components/LineIcon';
-import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
+import { ADD_DEBT_WALLET_MISSING_ALERT, DEBT_GONE_ALERT, LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt, type DebtPayOutcome } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
@@ -27,7 +27,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -58,7 +58,42 @@ export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
 export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" تحت قايمة الديون، ودوس عليه عشان تفتحه.';
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
-export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+
+/**
+ * بند 7: المودال بيقرا الدين **حي** من `useData().debts` بالمعرّف، مش نسخة اتاخدت وقت الفتح — فحص "أكبر
+ * من المتبقي" والاقتراح والسؤال كانوا بيتحسبوا على متبقي قديم لو دفعة نزلت من جهاز تاني والمودال مفتوح.
+ * الدين اختفى ← المودال بيتقفل برسالة (مرة واحدة). `null` = اتمسح.
+ */
+function useLiveDebt(debtId: string, onClose: () => void): Debt | null {
+  const { debts } = useData();
+  const notice = useNotice();
+  const live = debts.find(d => d.id === debtId) ?? null;
+  const gone = live === null;
+  // آخر `onClose` — مرة لما يختفي، مش مع كل render جديد للأب
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (!gone) return;
+    notice(DEBT_GONE_ALERT.title, DEBT_GONE_ALERT.body);
+    closeRef.current();
+  }, [gone, notice]);
+  return live;
+}
+
+/** نتايج الدفعة/الزيادة اللي بعدها المودال بيتقفل: الدين مش موجود، أو مش عارفين اتسجلت ولا لأ (إعادة = ممكن مرتين) */
+const CLOSES_MODAL: DebtPayOutcome[] = ['gone', 'uncertain'];
+
+export function DebtPaymentModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
+  const debt = useLiveDebt(debtId, onClose);
+  return debt ? <DebtPaymentForm debt={debt} onClose={onClose} /> : null;
+}
+
+export function DebtIncreaseModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
+  const debt = useLiveDebt(debtId, onClose);
+  return debt ? <DebtIncreaseForm debt={debt} onClose={onClose} /> : null;
+}
+
+function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
@@ -157,6 +192,8 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       if (result.outcome !== 'done') {
         const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
         notice(alert.title, alert.body);
+        // الدين اتمسح، أو مش عارفين اتسجلت (المستخدم لازم يبص على الدين قبل ما يعيد) ← المودال بيتقفل
+        if (CLOSES_MODAL.includes(result.outcome)) onClose();
         return;
       }
       // الدفعة دي سددت الدين ← الكارت بيروح "ديون اتسددت" المطوي، فبيتقال بدل ما يختفي من
@@ -236,7 +273,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   );
 }
 
-export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addDebtIncrease } = useData();
@@ -311,6 +348,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
       if (result.outcome !== 'done') {
         const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
         notice(alert.title, alert.body);
+        if (CLOSES_MODAL.includes(result.outcome)) onClose();
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
@@ -433,6 +471,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { addDebt, wallets, transactions } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
   const picker = useDeviceContacts();
 
@@ -479,8 +518,9 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     // قسط أقل من قرش (0.05 على 10) كان بيتسجل من غير قيمة قسط خالص
     if (isInstallment && !planInstallments(amt, count)) { setError(INSTALLMENT_VALUE_TOO_SMALL); return; }
     await runBusy(async () => {
+      let added: Awaited<ReturnType<typeof addDebt>>;
       try {
-        await addDebt({
+        added = await addDebt({
           direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
           isInstallment,
           installmentCount: isInstallment ? count : undefined,
@@ -496,6 +536,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
         // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
         setError('حصل خطأ، جرب تاني');
+        return;
+      }
+      // المحفظة اتمسحت/اتأرشفت (جهاز تاني) ← مفيش حاجة اتكتبت، والمودال بيفضل مفتوح عشان يختار غيرها
+      if (added.outcome === 'wallet-missing') {
+        notice(ADD_DEBT_WALLET_MISSING_ALERT.title, ADD_DEBT_WALLET_MISSING_ALERT.body);
         return;
       }
       onClose();
@@ -631,7 +676,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
             freeze();
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
-            setPersonContactId(ct.id);
+            setPersonContactId(ct.contactId ?? '');
             picker.close();
           }}
           onCreateContact={picker.createContact}

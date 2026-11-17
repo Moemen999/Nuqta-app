@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { figuresFresh } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
 import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, splitTransactions, subscriptionFromDoc, walletFromDoc, withId, type BrokenTransaction } from '@/lib/fromDoc';
-import { dueDateAfterIncreaseRemoval, reopenedDueMessage } from '@/lib/reopenDue';
+import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
@@ -14,7 +14,7 @@ import {
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
-import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
+import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, linkedEditAlreadyApplied, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
 import {
   gamiyaEntryProblem, invalidEntry, subscriptionEntryProblem, validReminderDays, type EntrySaveResult,
 } from '@/lib/entryValidation';
@@ -268,13 +268,40 @@ export const PAY_OUTCOME_ALERT_GAMIYA: typeof PAY_OUTCOME_ALERT = {
  * نفس الرسايل بس للدين: المحفظة هنا بتتختار في مودال الدفعة نفسه، فالكلام
  * لازم يوجّه على المودال اللي المستخدم واقف فيه مش على تعديل السجل.
  */
-export const PAY_OUTCOME_ALERT_DEBT: typeof PAY_OUTCOME_ALERT = {
+/**
+ * نتيجة دفعة/زيادة الدين. فوق `PayOutcome`:
+ * - `gone`: الدين نفسه اتمسح (من جهاز تاني) — "جرب تاني" مش هتنفع.
+ * - `uncertain`: الذرة فشلت بعد ما ممكن تكون وصلت (الرد ضاع)، وسؤال السيرفر بعدها كمان فشل — مش
+ *   عارفين اتسجلت ولا لأ، فممنوع نقول "مفيش حاجة اتسجلت" (المستخدم هيعيد ← مرتين).
+ */
+export type DebtPayOutcome = PayOutcome | 'gone' | 'uncertain';
+/** مسح دفعة/زيادة: `gone` = الدين نفسه اتمسح */
+export type DebtEntryDeleteOutcome = PayOutcome | 'gone';
+
+export const DEBT_GONE_ALERT = {
+  title: 'الدين اتمسح',
+  body: 'الدين ده اتمسح (يمكن من جهاز تاني)، فمفيش حاجة اتسجلت.',
+};
+
+export const PAY_OUTCOME_ALERT_DEBT: Record<Exclude<DebtPayOutcome, 'done'>, { title: string; body: string }> = {
   ...PAY_OUTCOME_ALERT,
   'wallet-missing': {
     title: 'محتاج محفظة تانية',
     body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فما اتسجلش أي خصم. اختار محفظة شغالة وجرب تاني.',
   },
+  gone: DEBT_GONE_ALERT,
+  uncertain: {
+    title: 'مش متأكدين اتسجلت ولا لأ',
+    body: 'النت قطع واحنا بنسجّل، فمش عارفين وصلت ولا لأ. افتح الدين وبص على تاريخه الأول، ولو مش موجودة فيه جرّب تاني — عشان متتسجلش مرتين.',
+  },
 };
+
+/** دين جديد: المحفظة المختارة اتمسحت أو اتأرشفت (من جهاز تاني) — مفيش حاجة اتكتبت */
+export const ADD_DEBT_WALLET_MISSING_ALERT = {
+  title: 'محتاج محفظة تانية',
+  body: 'المحفظة اللي اخترتها اتمسحت أو اتأرشفت، فالدين ما اتسجلش. اختار محفظة شغالة وجرب تاني.',
+};
+export type AddDebtResult = { outcome: 'done' | 'wallet-missing' };
 
 /**
  * `amount-changed`: المبلغ اللي في التأكيد اتعدّل من جهاز تاني قبل "تأكيد". نفس قالب رسالة "الدين اتغيّر" في زيادة الدين
@@ -359,7 +386,8 @@ export const INCOME_DELETE_ALERT: Record<Exclude<IncomeDeleteOutcome, 'done'>, {
  * زي ما هو ورصيد المحفظة ما اتلمسش. `wallet-missing` هنا معناه إن المحفظة
  * المربوطة اتأرشفت من جهاز تاني بين الدوسة والمسح (`WalletArchivedError`).
  */
-export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
+export const DEBT_ENTRY_DELETE_ALERT: Record<Exclude<DebtEntryDeleteOutcome, 'done'>, { title: string; body: string }> = {
+  gone: DEBT_GONE_ALERT,
   'no-connection': {
     title: 'مفيش نت دلوقتي',
     body: 'ما اتمسحش حاجة، والرصيد زي ما هو. المسح لازم يتأكد من السيرفر عشان العدد والمحفظة يتظبطوا صح — جرب تاني أول ما النت يرجع.',
@@ -380,7 +408,7 @@ export const DEBT_ENTRY_DELETE_ALERT: typeof PAY_OUTCOME_ALERT = {
  * عشان الشاشة تعرف تقول "اتسجلت" و"الأقساط بقت 7" في نفس اللحظة. و`settledNow` = الدفعة
  * دي هي اللي سددت الدين، محسوبة جوه الذرة على الدين اللي اتقرا من السيرفر.
  */
-export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settledNow?: boolean };
+export type DebtPayResult = { outcome: DebtPayOutcome; note?: string | null; settledNow?: boolean };
 /**
  * الزيادة (D1، 2026-10-30): `leftover-changed` = اللي المستخدم اختاره للباقي ("يتضاف على آخر
  * قسط" / "قسط منفصل") مابقاش هو الباقي على السيرفر — ما اتسجلش حاجة، والشيت بتسأل تاني.
@@ -388,7 +416,7 @@ export type DebtPayResult = { outcome: PayOutcome; note?: string | null; settled
  */
 /** `dueNote`: "المعاد الجاي بقى …" لما الزيادة فتحت دين أقساط متسدد (بند 12) */
 export type DebtIncreaseDeleteOut = { dueRestored?: string | null; entryGone?: boolean };
-export type DebtIncreaseResult = { outcome: PayOutcome | 'leftover-changed'; note?: string | null; dueNote?: string | null };
+export type DebtIncreaseResult = { outcome: DebtPayOutcome | 'leftover-changed'; note?: string | null; dueNote?: string | null };
 export const LEFTOVER_CHANGED_ALERT = {
   title: 'الدين اتغيّر',
   body: 'الدين اتغيّر من جهاز تاني، فمفيش أي زيادة اتسجلت ولا فلوس اتحركت. شوف الباقي الجديد واختار تاني.',
@@ -401,7 +429,14 @@ export type Budgets = Record<string, number>;
 export type ShakhbataIncome = Record<string, number>;
 export type ShakhbataPercents = { needs: number; wants: number; future: number };
 
-export type DebtPayment = { id: string; date: string; amount: number; walletId: string; categoryId?: string; transactionId?: string };
+/**
+ * `advancedFrom`/`advancedTo` (بند 3): الدفعة قدّمت معاد القسط الجاي من→لـ. مسحها بيرجّع `advancedFrom`
+ * لو المعاد لسه `advancedTo` (`dueDateAfterPaymentRemoval`) — نفس فكرة `reopenedFrom` في الزيادة.
+ */
+export type DebtPayment = {
+  id: string; date: string; amount: number; walletId: string; categoryId?: string; transactionId?: string;
+  advancedFrom?: string; advancedTo?: string;
+};
 export type DebtEntry = {
   id: string; date: string; amount: number; walletId?: string; transactionId?: string;
   /** زيادة فتحت دين أقساط متسدد (بند 12): المعاد قبلها، واللي هي حطّته — مسحها بيرجّع القديم (`lib/reopenDue.ts`) */
@@ -642,18 +677,18 @@ type DataContextType = {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
     dueDate?: string; reminderDaysBefore?: number;
-  }) => Promise<void>;
+  }) => Promise<AddDebtResult>;
   updateDebt: (id: string, data: DebtMetadata) => Promise<void>;
   deleteDebt: (id: string) => Promise<CascadeDeleteResult>;
   addDebtPayment: (debtId: string, amount: number, walletId: string, date: string, categoryId?: string) => Promise<DebtPayResult>;
   setInstallmentCount: (debtId: string, nextTotal: number) => Promise<boolean>;
-  deleteDebtPayment: (debtId: string, paymentId: string) => Promise<PayOutcome>;
+  deleteDebtPayment: (debtId: string, paymentId: string) => Promise<DebtEntryDeleteOutcome>;
   addDebtIncrease: (debtId: string, amount: number, date: string, walletId?: string, leftover?: LeftoverSeen) => Promise<DebtIncreaseResult>;
   /**
    * `out.dueRestored`: المعاد اللي رجع فعلاً من الذرة (بند 12) — الشاشة بتقارنه باللي التأكيد وعد بيه.
    * `out.entryGone`: الزيادة كانت اتمسحت قبل كده (جهاز تاني) — مفيش حاجة تتقارن
    */
-  deleteDebtIncrease: (debtId: string, entryId: string, out?: DebtIncreaseDeleteOut) => Promise<PayOutcome>;
+  deleteDebtIncrease: (debtId: string, entryId: string, out?: DebtIncreaseDeleteOut) => Promise<DebtEntryDeleteOutcome>;
   addSubscription: (data: {
     name: string; amount: number; walletId: string; categoryId?: string;
     frequency: 'monthly' | 'yearly' | 'custom'; customDays?: number; nextDueDate: string; reminderDaysBefore: number;
@@ -748,6 +783,26 @@ async function settleWithin(p: Promise<unknown>, ms: number): Promise<'ok' | 'fa
   ]);
   if (t) clearTimeout(t);
   return r;
+}
+
+/** سقف سؤال السيرفر "الدفعة/الزيادة وصلت ولا لأ؟" بعد ما الذرة فشلت (بند 1) */
+const LANDED_CHECK_TIMEOUT_MS = 8000;
+
+/**
+ * معرّف سطر دفعة/زيادة في الدين. بيتعمل **برّه** الذرة (زي `txRef`): فايرستور بتعيد الـcallback لما الرد
+ * يضيع (`unavailable`/`deadline-exceeded`) والـcommit اللي قبله ممكن يكون وصل — المعرّف الثابت هو اللي
+ * بيخلي اللفة التانية تعرف إنها اتكتبت خلاص ومتضيفهاش تاني.
+ */
+function newDebtEntryId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+/** السطر ده موجود في مصفوفة الدين؟ بالمعرّف، أو (للدفعة) بالعملية المربوطة */
+function debtHasEntry(data: unknown, key: 'payments' | 'increases', entryId: string, txId?: string): boolean {
+  const list = (data as Record<string, unknown> | undefined)?.[key];
+  if (!Array.isArray(list)) return false;
+  return list.some(e => !!e && typeof e === 'object'
+    && ((e as { id?: unknown }).id === entryId || (!!txId && (e as { transactionId?: unknown }).transactionId === txId)));
 }
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -1692,6 +1747,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // اتعدّلت من جهاز تاني بعد ما المودال اتفتح: التسوية (`settlements`)
         // اتحسبت على الأرقام القديمة، فالكتابة كانت هتسوّي برقم غلط
         if (current.amount !== expected.amount || current.walletId !== expected.walletId || current.type !== expected.type) {
+          // **إلا** لو ده تعديلنا نفسه: الـcommit وصل والرد ضاع واللفة دي إعادة (بند 6) ← تمام من غير كتابة
+          const cleanEdit = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+          if (linkedEditAlreadyApplied(debt, txId, current as unknown as Record<string, unknown>, cleanEdit)) {
+            return;
+          }
           throw new LinkedTxMissingError();
         }
         const plan = debtLinkedEditPlan(debt, txId, tx, todayStr());
@@ -1751,8 +1811,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * مباشرة كان هيشوف نفس اللي الشاشة شافته قبل التأكيد — والفحص التاني
    * مبيعملش حاجة (money-reviewer + silent-failure-hunter).
    */
-  const cascadeInputs = useRef({ wallets, transactions, loadErrors });
-  cascadeInputs.current = { wallets, transactions, loadErrors };
+  const cascadeInputs = useRef({ wallets, transactions, loadErrors, debts });
+  cascadeInputs.current = { wallets, transactions, loadErrors, debts };
 
   function deleteWithTransactions(
     kind: CascadeKind, name: string, recordRef: DocumentReference, txIds: string[], label?: string,
@@ -1834,7 +1894,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (plan) {
         // فرق متجاهَل (نسخة قديمة غيّرت الزيادات — D2) بيتسجّل زي باقي مسارات الدين
         if (plan.kind === 'increase') noteIgnoredResidue(d);
-        const patch: Record<string, unknown> = plan.kind === 'payment' ? { payments: plan.payments } : { increases: plan.increases };
+        // arrayRemove للسطور دي بالظبط مش المصفوفة كلها من حالة الرياكت (بند 8، زي الاشتراك تحت): دفعة/زيادة
+        // نزلت من جهاز تاني ولسه ما وصلتناش كانت هتتمسح. **متبقّي مقبول (نفس الاشتراك):** لو السطر هنا مش مطابق
+        // حرفيًا للي على السيرفر (اتعدّل من جهاز تاني ولسه ما وصلناش)، arrayRemove مبيعملش حاجة — السطر يفضل
+        // بعملية اتمسحت. العدد والفرق لسه محسوبين من حالة الرياكت زي ما هما
+        const patch: Record<string, unknown> = { [plan.kind === 'payment' ? 'payments' : 'increases']: arrayRemove(...plan.removed) };
         if (plan.residue?.op === 'set') patch.installmentResidue = plan.residue.value;
         if (plan.residue?.op === 'clear') {
           patch.installmentResidue = deleteField();
@@ -2056,8 +2120,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
     dueDate?: string; reminderDaysBefore?: number;
-  }) {
-    if (!uid) return;
+  }): Promise<AddDebtResult> {
+    if (!uid) return { outcome: 'done' };
     // مبلغ الدين بالقرش ولازم رقم حقيقي (2026-09-30): "1e999" كان بيعدّي من المودال
     // ويتكتب دين وعملية Infinity. الرفض بيوصل المودال كخطأ ("حصل خطأ، جرب تاني")
     const total = toMoneyAmount(data.totalAmount);
@@ -2069,13 +2133,28 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (data.isInstallment && (!storableCount(data.installmentCount) || !plan)) {
       throw new Error('invalid installment plan');
     }
+    // المحفظة المختارة لازم تكون شغالة — زي الدفعة (`walletUsable`)، بس من آخر حالة معروفة مش من السيرفر:
+    // الدين الجديد بيتكتب أوفلاين عن قصد. مؤرشفة أو مش موجودة ← رفض صريح قبل أي كتابة (بند 2)
+    if (data.walletId) {
+      const w = cascadeInputs.current.wallets.find(x => x.id === data.walletId);
+      if (!w || w.archived) {
+        console.warn('[debt] add refused, wallet missing or archived');
+        return { outcome: 'wallet-missing' };
+      }
+    }
+    // العملية الافتتاحية والدين في **دفعة واحدة** (بند 2): قبل كده كانوا كتابتين، فلو الدين اترفض (القواعد)
+    // كانت العملية بتفضل يتيمة في المحفظة. المعرّف بيتعمل هنا عشان الدين يتربط بيه في نفس الكتابة
+    const batch = writeBatch(db);
     let initialTransactionId: string | undefined;
     if (data.walletId) {
       const type = data.direction === 'owed_to_me' ? 'expense' : 'income';
-      initialTransactionId = await addTransaction({
+      const txRef = doc(collection(db, 'users', uid, 'transactions'));
+      batch.set(txRef, {
+        createdAt: new Date().toISOString(),
         type, amount: data.totalAmount, walletId: data.walletId, date: data.date,
         note: `${data.direction === 'owed_to_me' ? 'قرض لـ' : 'استلاف من'} ${data.personName}`,
       });
+      initialTransactionId = txRef.id;
     }
     /**
      * قيمة القسط بتتحسب مرة واحدة هنا وبتتخزّن. لو سبناها تتحسب كل مرة
@@ -2097,7 +2176,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       initialWalletId: data.walletId, initialTransactionId,
       dueDate: data.dueDate, reminderDaysBefore: data.reminderDaysBefore,
     }).filter(([, v]) => v !== undefined));
-    addDocNoWait('debts', { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() }, namedLabel('الدين', data.personName));
+    batch.set(doc(collection(db, 'users', uid, 'debts')), { ...clean, payments: [], increases: [], createdAt: new Date().toISOString() });
+    // من غير انتظار (قاعدة 7): الدفعة بتتكتب محليًا على طول وبتترفع لوحدها لما النت يرجع
+    track(batch.commit(), namedLabel('الدين', data.personName));
+    return { outcome: 'done' };
   }
   /**
    * تعديل بيانات الشخص أو الملاحظة على دين موجود.
@@ -2131,7 +2213,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   async function deleteDebt(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
-    const debt = debts.find(d => d.id === id);
+    // من آخر render مش من الـclosure (بند 4): التأكيد اتفتح على نسخة قديمة، ودفعة نزلت وهو مفتوح كانت
+    // عمليتها هتفضل يتيمة بعد مسح الدين
+    const debt = cascadeInputs.current.debts.find(d => d.id === id);
     return deleteWithTransactions('debt', debt?.personName ?? '', doc(db, 'users', uid, 'debts', id),
       debtTransactionIds(debt), namedLabel('حذف الدين', debt?.personName));
   }
@@ -2168,15 +2252,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    // برّه الذرة زي `txRef` (بند 1): اللفة اللي بتتعاد بعد commit وصل بتلاقيه وبتقف
+    const paymentId = newDebtEntryId();
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
     // الجملة بتتحسب جوه العملية الذرية (على الدين اللي اتقرا من السيرفر) وبتتقري
     // من بره بعد ما تنجح. الحامل ده مش ترف: الـcallback ممكن تتعاد لما العملية
-    // تتصادم، والقيمة اللي تهمنا هي بتاعة اللفة اللي نجحت
+    // تتصادم، والقيمة اللي تهمنا هي بتاعة آخر لفة كتبت — لفة لقت الدفعة متسجلة خلاص مبتلمسهوش
     const result: { note: string | null; settledNow: boolean } = { note: null, settledNow: false };
     try {
       await countPending(runTransaction(db, async (t) => {
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
+        // الـcommit اللي قبل كده وصل والرد ضاع ← مفيش كتابة تانية (كانت هتعمل دفعة مكررة على نفس العملية)
+        if (debtHasEntry(snap.data(), 'payments', paymentId, txRef.id)) return;
         const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // كل القرايات قبل كل الكتابات — شرط من فايربيز نفسها
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', walletId)))) throw new WalletMissingError();
@@ -2191,11 +2279,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         t.set(txRef, Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
 
         const payment: DebtPayment = {
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          id: paymentId,
           date, amount, walletId, transactionId: txRef.id,
           ...(categoryId ? { categoryId } : {}),
         };
-        const patch: Record<string, unknown> = { payments: [...(debt.payments || []), payment] };
+        const patch: Record<string, unknown> = {};
 
         /**
          * دفعة بغير قيمة القسط بتغيّر **عدد** الأقساط، مش قيمتها. اللي دفع نص
@@ -2223,8 +2311,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
          */
         if (debt.isInstallment && debt.dueDate) {
           const remainingAfter = debtGrandTotal(debt) - (debtPaid(debt) + amount);
-          if (remainingAfter > PIASTRE_EPS) patch.dueDate = addMonths(debt.dueDate, 1);
+          if (remainingAfter > PIASTRE_EPS) {
+            patch.dueDate = addMonths(debt.dueDate, 1);
+            // بند 3: مسح الدفعة بيرجّع المعاد ده لو لسه هو اللي هي حطّته (`dueDateAfterPaymentRemoval`)
+            if (isDateStr(debt.dueDate)) { payment.advancedFrom = debt.dueDate; payment.advancedTo = patch.dueDate as string; }
+          }
         }
+        patch.payments = [...(debt.payments || []), payment];
 
         t.update(debtRef, patch);
 
@@ -2244,10 +2337,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return { outcome: 'done', note: result.note, settledNow: result.settledNow };
     } catch (e) {
-      // ذرية يعني كله أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل، والشاشة
-      // بتقول كده صريح بدل ما المستخدم يفضل يتخمّن
+      // الدين اتمسح (جهاز تاني) — مش فشل يتبلغ، و"جرب تاني" مش هتنفع (بند 5). المعرّف بس (sentryScrub)
+      if (e instanceof DebtMissingError) {
+        console.warn('[debt] payment refused, debt gone', debtId);
+        return { outcome: 'gone' };
+      }
       noteAtomicFailure('دفعة الدين', e);
-      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
+      if (e instanceof WalletMissingError) return { outcome: 'wallet-missing' };
+      // ذرية يعني كله أو مفيش — **بس** الـcommit ممكن يكون وصل والرد ضاع. فقبل "مفيش أي خصم اتسجل" بنسأل السيرفر
+      const landed = await debtEntryLanded(debtRef, 'payments', paymentId, txRef.id);
+      if (landed === 'landed') return { outcome: 'done', note: result.note, settledNow: result.settledNow };
+      if (landed === 'gone') return { outcome: 'gone' };
+      return { outcome: landed === 'unknown' ? 'uncertain' : 'failed' };
+    }
+  }
+
+  /**
+   * الذرة فشلت — السطر ده وصل السيرفر ولا لأ؟ (بند 1) `unknown` = السؤال نفسه فشل أو عدّى السقف، فالشاشة
+   * مبتجزمش بـ"مفيش حاجة اتسجلت".
+   */
+  async function debtEntryLanded(
+    debtRef: DocumentReference, key: 'payments' | 'increases', entryId: string, txId?: string,
+  ): Promise<'landed' | 'missing' | 'gone' | 'unknown'> {
+    try {
+      const snap = await withTimeout(getDocFromServer(debtRef), LANDED_CHECK_TIMEOUT_MS);
+      if (!snap.exists()) return 'gone';
+      return debtHasEntry(snap.data(), key, entryId, txId) ? 'landed' : 'missing';
+    } catch (e) {
+      // كود الخطأ بس — مفيش بيانات (sentryScrub)
+      console.warn('[debt] landed check failed', (e as { code?: string })?.code ?? 'timeout');
+      return 'unknown';
     }
   }
   /**
@@ -2297,7 +2416,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بتمنعها لو المحفظة المربوطة مؤرشفة (`debtEntryArchivedWalletBlock`) —
    * المسح هنا مبيعملش تسوية، فكان هيسيب رصيد المؤرشفة مش صفر.
    */
-  async function deleteDebtPayment(debtId: string, paymentId: string): Promise<PayOutcome> {
+  async function deleteDebtPayment(debtId: string, paymentId: string): Promise<DebtEntryDeleteOutcome> {
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
@@ -2325,11 +2444,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const recount = installmentCountFor({ ...debt, ...pin, payments });
         const count = countToWrite(recount, debt.installmentCount, debtId);
         if (count !== undefined) patch.installmentCount = count;
+        // الدفعة دي قدّمت المعاد وهو لسه زي ما حطّته ← بيرجع (بند 3)، من الدين اللي اتقرا جوه الذرة
+        const restore = dueDateAfterPaymentRemoval(debt, [payment], payments);
+        if (restore) patch.dueDate = restore;
         if (payment.transactionId) t.delete(doc(db, 'users', uid!, 'transactions', payment.transactionId));
         t.update(debtRef, patch);
       }));
       return 'done';
     } catch (e) {
+      if (e instanceof DebtMissingError) {
+        console.warn('[debt] payment delete refused, debt gone', debtId);
+        return 'gone';
+      }
       noteAtomicFailure('حذف دفعة الدين', e);
       return e instanceof WalletArchivedError ? 'wallet-missing' : 'failed';
     }
@@ -2357,15 +2483,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!serverReachableRef.current) return { outcome: 'no-connection' };
     const debtRef = doc(db, 'users', uid, 'debts', debtId);
     const txRef = doc(collection(db, 'users', uid, 'transactions'));
+    // برّه الذرة (بند 1) — زي `addDebtPayment`. الزيادة اللي على الورق مالهاش `txRef`، فالمعرّف ده لوحده اللي بيمنع التكرار
+    const entryId = newDebtEntryId();
     if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
-    // نفس حامل `addDebtPayment`: الـcallback ممكن تتعاد، والجملة بتاعة اللفة اللي نجحت
+    // نفس حامل `addDebtPayment`: الـcallback ممكن تتعاد، والجملة بتاعة آخر لفة كتبت
     const result: { note: string | null; dueNote: string | null } = { note: null, dueNote: null };
     try {
       await countPending(runTransaction(db, async (t) => {
-        result.note = null;
-        result.dueNote = null;
         const snap = await t.get(debtRef);
         if (!snap.exists()) throw new DebtMissingError();
+        // الـcommit اللي قبل كده وصل ← مفيش كتابة تانية. **قبل** فحص الباقي (D1): الدين بعد الزيادة باقيه
+        // مختلف، فالفحص كان هيقول "الدين اتغيّر" على زيادة اتسجلت فعلاً
+        if (debtHasEntry(snap.data(), 'increases', entryId, walletId ? txRef.id : undefined)) return;
+        result.note = null;
+        result.dueNote = null;
         const debt = debtFromDoc<Debt>(debtId, snap.data(), true);
         // الزيادة ممكن تكون من غير محفظة (تسجيل على الورق)، وساعتها مفيش عملية
         // مالية أصلاً ومفيش محفظة تتفحص
@@ -2394,7 +2525,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // عشان مسحها يرجّعه، والرسالة بتقول الجديد (بند 12، قرار مؤمن 2026-11-05)
         const nextDue = reopenedDueDate(debt, amount, date, todayStr());
         const entry: DebtEntry = {
-          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          id: entryId,
           date, amount,
           ...(walletId ? { walletId, transactionId } : {}),
           ...(nextDue && debt.dueDate ? { reopenedFrom: debt.dueDate, reopenedTo: nextDue } : {}),
@@ -2439,15 +2570,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
         console.warn('[debt] increase leftover changed since shown, nothing written', debtId);
         return { outcome: 'leftover-changed' };
       }
+      if (e instanceof DebtMissingError) {
+        console.warn('[debt] increase refused, debt gone', debtId);
+        return { outcome: 'gone' };
+      }
       noteAtomicFailure('زيادة الدين', e);
-      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed' };
+      if (e instanceof WalletMissingError) return { outcome: 'wallet-missing' };
+      // نفس `addDebtPayment`: قبل "مفيش حاجة اتسجلت" بنسأل السيرفر (بند 1)
+      const landed = await debtEntryLanded(debtRef, 'increases', entryId, walletId ? txRef.id : undefined);
+      if (landed === 'landed') return { outcome: 'done', note: result.note, dueNote: result.dueNote };
+      if (landed === 'gone') return { outcome: 'gone' };
+      return { outcome: landed === 'unknown' ? 'uncertain' : 'failed' };
     }
   }
   /**
    * حذف الزيادة — ذري زي حذف الدفعة بالظبط، وبيتنادى من نفس المكان وبنفس
    * منع المحفظة المؤرشفة (شوف الملحوظة اللي فوق `deleteDebtPayment`)
    */
-  async function deleteDebtIncrease(debtId: string, entryId: string, out?: DebtIncreaseDeleteOut): Promise<PayOutcome> {
+  async function deleteDebtIncrease(debtId: string, entryId: string, out?: DebtIncreaseDeleteOut): Promise<DebtEntryDeleteOutcome> {
     if (out) { out.dueRestored = undefined; out.entryGone = false; }
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
@@ -2486,6 +2626,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return 'done';
     } catch (e) {
+      if (e instanceof DebtMissingError) {
+        console.warn('[debt] increase delete refused, debt gone', debtId);
+        return 'gone';
+      }
       noteAtomicFailure('حذف زيادة الدين', e);
       return e instanceof WalletArchivedError ? 'wallet-missing' : 'failed';
     }

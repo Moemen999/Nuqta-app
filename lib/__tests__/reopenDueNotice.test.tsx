@@ -11,6 +11,8 @@ import { DUE_MOVED_TITLE } from '@/lib/reopenDue';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/components/useDeviceContacts', () => ({
   useDeviceContacts: () => ({ contacts: [], visible: false, open: jest.fn(), close: jest.fn(), createContact: jest.fn() }),
 }));
@@ -29,7 +31,7 @@ function seed(result: Record<string, unknown>) {
 }
 
 async function increase() {
-  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={debt} onClose={jest.fn()} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
+  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debtId={withDebt(debt)} onClose={jest.fn()} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   await act(async () => { fireEvent.changeText(screen.getByTestId('debt_increase_amount'), '500'); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_increase_save')); });
 }

@@ -44,3 +44,20 @@ export function dueDateAfterIncreaseRemoval(d: Debt, removed: DebtEntry[], incre
   if (debtRemaining({ ...d, increases: increasesAfter }) > PIASTRE_EPS) return null;
   return opener.reopenedFrom!;
 }
+
+/**
+ * بند 3: المعاد اللي بيرجع لما دفعات تتشال، أو `null`. دفعة قسط مخلّصتش الدين بتقدّم المعاد شهر
+ * (`addDebtPayment`) وبتخزّن من→لـ (`advancedFrom`/`advancedTo`). بيرجع بس لو:
+ * - دفعة من اللي اتشالوا هي اللي قدّمته، **والمعاد لسه هو اللي هي حطّته** — غيّره المستخدم أو دفعة بعدها
+ *   قدّمته تاني ← مبنلمسوش (مسح دفعات بالترتيب من الأحدث بيرجّعه خطوة خطوة)،
+ * - والدين بعد المسح **مفتوح** — متسدد ملوش "قسط جاي".
+ */
+export function dueDateAfterPaymentRemoval(
+  d: Debt, removed: { advancedFrom?: string; advancedTo?: string }[], paymentsAfter: Debt['payments'],
+): string | null {
+  if (!d.isInstallment || !d.dueDate) return null;
+  const mover = removed.find(p => isDateStr(p.advancedFrom) && p.advancedTo === d.dueDate);
+  if (!mover) return null;
+  if (debtRemaining({ ...d, payments: paymentsAfter }) <= PIASTRE_EPS) return null;
+  return mover.advancedFrom!;
+}
