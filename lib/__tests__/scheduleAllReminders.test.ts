@@ -3,7 +3,7 @@ import { addDays, todayStr } from '@/lib/finance';
 // jest.mock بيتنقل لفوق تلقائيًا، فالاستيراد ده بياخد النسخة المقلّدة
 import { REMINDER_LIMITS, scheduleAllReminders } from '@/lib/scheduleAllReminders';
 
-const scheduled: { title: string; body: string; date: string }[] = [];
+const scheduled: { title: string; body: string; date: string; kind?: string }[] = [];
 let dailyCount = 0;
 let cancelCount = 0;
 
@@ -185,5 +185,48 @@ describe('الاشتراكات والجمعية لسه شغالين زي ما ه
     await run({ gamiyas: [gamiya] });
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0].body).toContain('الاستلام');
+  });
+});
+
+describe('نص "امتى" ونوع الإشعار (2026-11-17)', () => {
+  const sub = (n: number) => ({
+    id: 's1', name: 'نتفليكس', amount: 250, walletId: 'w1', frequency: 'monthly',
+    nextDueDate: soon(30), reminderDaysBefore: n, active: true, createdAt: '', history: [],
+  }) as Subscription;
+  const gam = (n: number, payout = false) => ({
+    id: 'g1', name: 'جمعية الشغل', monthlyAmount: 1000, totalMonths: 1, payoutMonthIndex: 0,
+    payoutAmount: 1000, walletId: 'w1', startDate: soon(1), reminderDaysBefore: n, createdAt: '',
+    months: [{ id: 'm1', monthIndex: 0, dueDate: soon(30), isPayoutMonth: payout, amount: 1000, status: 'pending' }],
+  }) as unknown as Gamiya;
+
+  it('الاشتراك: بكرة / بعد يومين / بعد 3 أيام / النهاردة', async () => {
+    const bodies: string[] = [];
+    for (const n of [1, 2, 3, 0]) { scheduled.length = 0; await run({ subscriptions: [sub(n)] }); bodies.push(scheduled[0].body); }
+    expect(bodies).toEqual(['مستحق بكرة — 250 ج.م', 'مستحق بعد يومين — 250 ج.م', 'مستحق بعد 3 أيام — 250 ج.م', 'مستحق النهاردة — 250 ج.م']);
+    expect(scheduled[0].kind).toBe('subscription');
+  });
+
+  it('الدين: المعاد بعد يومين — متبقي', async () => {
+    await run({ debts: [debt({ personName: 'كريم', dueDate: soon(10), reminderDaysBefore: 2 })] });
+    expect(scheduled[0].body).toBe('المعاد بعد يومين — متبقي 1,000 ج.م');
+    expect(scheduled[0].kind).toBe('debt');
+  });
+
+  it('الجمعية: القسط والاستلام بيقولوا امتى، والمبالغ المخفية بتتشال', async () => {
+    await run({ gamiyas: [gam(3)] });
+    expect(scheduled[0].body).toBe('قسط الشهر بعد 3 أيام — 1,000 ج.م');
+    expect(scheduled[0].kind).toBe('gamiya');
+    scheduled.length = 0;
+    await run({ gamiyas: [gam(1, true)], hideAmounts: true });
+    expect(scheduled[0].body).toBe('شهر الاستلام بكرة');
+    scheduled.length = 0;
+    await run({ gamiyas: [gam(0)] });
+    expect(scheduled[0].body).toBe('قسط الشهر النهاردة — 1,000 ج.م');
+  });
+
+  it('التذكير اليومي بيتجدول بالدقيقة', async () => {
+    const { scheduleDailyReminder } = jest.requireMock('@/lib/notifications');
+    await run({ dailyReminderEnabled: true, dailyHour: 21, dailyMinute: 13 });
+    expect(scheduleDailyReminder).toHaveBeenCalledWith(21, 13);
   });
 });

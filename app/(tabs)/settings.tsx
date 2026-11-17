@@ -154,6 +154,7 @@ export default function SettingsScreen() {
             enabled: notifs.enabled,
             dailyEnabled: notifs.dailyEnabled,
             dailyHour: notifs.dailyHour,
+            dailyMinute: notifs.dailyMinute,
           }),
           onPress: () => router.push('/settings-screens/notifications'),
         },
@@ -202,7 +203,7 @@ export default function SettingsScreen() {
       ],
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour,
+  ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour, notifs.dailyMinute,
       lockEnabled, preference, user?.email, pendingWrites, deletionPending]);
 
   return (

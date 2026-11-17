@@ -28,8 +28,9 @@ jest.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
   Stack.Protected = ({ children }: { children: unknown }) => children;
-  return { Stack };
+  return { Stack, router: {}, useRootNavigationState: () => ({}) };
 });
+jest.mock('expo-notifications', () => ({ DEFAULT_ACTION_IDENTIFIER: 'x', useLastNotificationResponse: () => null }));
 jest.mock('@/lib/sentry', () => ({ initSentry: jest.fn() }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(() => Promise.resolve('1')),

@@ -21,6 +21,7 @@ import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
 import FirstRunSetup from '@/components/FirstRunSetup';
 import { NoticeProvider, useClearNoticesOnAccountChange, useHoldNotices } from '@/components/NoticeProvider';
+import NotificationTapRouter from '@/components/NotificationTapRouter';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { DataProvider, useData } from '@/context/DataContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
@@ -112,6 +113,8 @@ function RootNavigator() {
     <NavThemeProvider value={navTheme}>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
       <DataLoadErrorBanner />
+      {/* الدوس على إشعار ← المكان المناسب. هنا (بعد القفل والـonboarding) مش فوق: الدوسة بتستنى لحد ما التطبيق يتفتح */}
+      <NotificationTapRouter />
       {/* مفيش هيدر النظام لأي شاشة (كل شاشة ليها عنوانها وزرار رجوع بالعربي). شاشة "مسح الحساب" كانت ناسية
           سطرها تحت فطلع فوقها اسم المسار بالإنجليزي وسهم إنجليزي (اتلقى على الجهاز 2026-11-06) */}
       <Stack screenOptions={{ headerShown: false }}>

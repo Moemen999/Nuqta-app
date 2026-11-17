@@ -98,7 +98,7 @@ export function useIncomeAutoRecord() {
             const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)));
             found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', text });
             if (notificationsOn) {
-              notifyNow(`"${inc.name}" اتسجل لوحده`, incomeRecordedNotification(text, inc.amount * r.recorded.length, amountsHidden))
+              notifyNow(`"${inc.name}" اتسجل لوحده`, incomeRecordedNotification(text, inc.amount * r.recorded.length, amountsHidden), 'income')
                 .catch(() => {});
             }
           } else if (r.outcome === 'wallet-missing' || r.outcome === 'failed') {

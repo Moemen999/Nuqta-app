@@ -28,7 +28,7 @@ import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleS
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
@@ -66,12 +66,18 @@ function debtDate(d: Debt) {
 }
 
 type Tab = 'debts' | 'subscriptions' | 'gamiya';
+const isTab = (v: unknown): v is Tab => v === 'debts' || v === 'subscriptions' || v === 'gamiya';
 
 export default function DebtsTabScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [tab, setTab] = useState<Tab>('debts');
+  // `tab` جاي من الدوس على إشعار (lib/notificationRoute.ts)، و`at` عشان الدوسة التانية على نفس التاب تتنفّذ
+  const params = useLocalSearchParams<{ tab?: string; at?: string }>();
+  const [tab, setTab] = useState<Tab>(isTab(params.tab) ? params.tab : 'debts');
+  useEffect(() => {
+    if (isTab(params.tab)) setTab(params.tab);
+  }, [params.tab, params.at]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>

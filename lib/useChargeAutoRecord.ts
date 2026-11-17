@@ -91,7 +91,7 @@ export function useChargeAutoRecord() {
             // "تلقائي" معناه إن المستخدم مش هيفتح يتأكد — فالفشل لازم يوصله زي النجاح
             // (مرة في اليوم، زي الرسالة). من غير مبلغ، فمش محتاج قناع
             if (notificationsOn) {
-              notifyNow(`ما سجلناش ${what}`, 'ومفيش أي خصم اتسجل. افتح التطبيق وشوف السبب في الرئيسية.')
+              notifyNow(`ما سجلناش ${what}`, 'ومفيش أي خصم اتسجل. افتح التطبيق وشوف السبب في الرئيسية.', 'charge')
                 .catch(e => console.warn('[charge] notify failed', e));
             }
             found.push({
@@ -107,7 +107,7 @@ export function useChargeAutoRecord() {
           const text = chargeRecordedMessage(parts);
           found.unshift({ id: `rec:${recordedIds.join(';')}`, kind: 'recorded', text });
           if (notificationsOn) {
-            notifyNow('اتسجل لوحده', chargeRecordedNotification(text, total, amountsHidden))
+            notifyNow('اتسجل لوحده', chargeRecordedNotification(text, total, amountsHidden), 'charge')
               .catch(e => console.warn('[charge] notify failed', e));
           }
         }

@@ -14,7 +14,7 @@ import { DUE_NOT_RESTORED } from '@/lib/reopenDue';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useLocalSearchParams: () => ({}) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: false }) }));

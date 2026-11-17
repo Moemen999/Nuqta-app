@@ -3,7 +3,8 @@ import { useConfirm } from '@/components/ConfirmProvider';
 import BackButton from '@/components/BackButton';
 import { useNotifications } from '@/context/NotificationsContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { hourLabel } from '@/lib/notificationStatus';
+import { timeLabel } from '@/lib/notificationStatus';
+import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { useBusy } from '@/lib/useBusy';
 import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptions } from '@/lib/bannerDismiss';
@@ -15,7 +16,6 @@ import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LineIcon } from '@/components/LineIcon';
 import { cardElevation, typeScale, radius, space } from '@/lib/tokens';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
@@ -68,6 +68,26 @@ export default function NotificationsScreen() {
   const alarmStatus = exactAlarmStatus({ os: Platform.OS, apiLevel: Platform.Version });
   const [showRoutine, setShowRoutine] = useState(false);
   const { busy, run } = useBusy();
+  const [showTimeIos, setShowTimeIos] = useState(false);
+  const pickerValue = useMemo(() => {
+    const d = new Date();
+    d.setHours(notifs.dailyHour, notifs.dailyMinute, 0, 0);
+    return d;
+  }, [notifs.dailyHour, notifs.dailyMinute]);
+
+  function onTimeChange(e: DateTimePickerEvent, picked?: Date) {
+    if (Platform.OS !== 'android') setShowTimeIos(false);
+    // "إلغاء" في نافذة النظام ← مفيش تغيير
+    if (e.type !== 'set' || !picked) return;
+    notifs.setDailyTime(picked.getHours(), picked.getMinutes());
+  }
+  function openTimePicker() {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({ value: pickerValue, mode: 'time', is24Hour: false, onChange: onTimeChange });
+    } else {
+      setShowTimeIos(v => !v);
+    }
+  }
 
   function toggle(next: boolean) {
     if (busy) return;
@@ -168,27 +188,19 @@ export default function NotificationsScreen() {
       <View style={styles.card}>
         <Text style={styles.switchLabel}>الساعة كام نفكّرك تسجّل مصاريف النهاردة؟</Text>
         <Text style={styles.hint}>
-          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من الساعة دي. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
+          {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من ساعة المعاد. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
         </Text>
-        <View style={[styles.row, { alignItems: 'center' }]}>
-          <TouchableOpacity testID="notifications_hour_later" style={styles.stepBtn}
-            onPress={() => notifs.setDailyHour((notifs.dailyHour + 1) % 24)}
-            accessibilityRole="button" accessibilityLabel="زوّد ساعة التذكير">
-            <LineIcon name="add" size={22} color={colors.text} />
-          </TouchableOpacity>
-          <Text testID="notifications_hour_value" style={styles.hourValue}
-            accessibilityRole="adjustable" accessibilityLabel="ساعة التذكير"
-            accessibilityValue={{ text: hourLabel(notifs.dailyHour) }} accessibilityLiveRegion="polite"
-            accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-            onAccessibilityAction={e => notifs.setDailyHour((notifs.dailyHour + (e.nativeEvent.actionName === 'increment' ? 1 : 23)) % 24)}>
-            {hourLabel(notifs.dailyHour)}
-          </Text>
-          <TouchableOpacity testID="notifications_hour_earlier" style={styles.stepBtn}
-            onPress={() => notifs.setDailyHour((notifs.dailyHour + 23) % 24)}
-            accessibilityRole="button" accessibilityLabel="نقّص ساعة التذكير">
-            <LineIcon name="remove" size={22} color={colors.text} />
-          </TouchableOpacity>
-        </View>
+        {/* منتقي الوقت بتاع النظام (أي ساعة وأي دقيقة — 9:13، 9:55). أندرويد: نافذة النظام؛ غيره: منتقي جوه الشاشة */}
+        <TouchableOpacity testID="notifications_time_button" style={styles.timeBtn}
+          onPress={openTimePicker}
+          accessibilityRole="button" accessibilityLabel="معاد التذكير"
+          accessibilityValue={{ text: timeLabel(notifs.dailyHour, notifs.dailyMinute) }}
+          accessibilityHint="بيفتح اختيار الوقت">
+          <Text testID="notifications_time_value" style={styles.timeValue}>{timeLabel(notifs.dailyHour, notifs.dailyMinute)}</Text>
+        </TouchableOpacity>
+        {Platform.OS !== 'android' && showTimeIos && (
+          <DateTimePicker value={pickerValue} mode="time" display="spinner" onChange={onTimeChange} />
+        )}
       </View>
 
       {/* مدة رجوع كل بانر بعد الـ✕ (قرار مؤمن 2026-10-28) — على الجهاز ده بس */}
@@ -243,8 +255,8 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, ...cardElevation(c) },
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
-    stepBtn: { width: 44, height: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
-    hourValue: { flex: 1, color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
+    timeBtn: { minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: space.md },
+    timeValue: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
     alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
     alarmBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: space.md, paddingHorizontal: space.lg },

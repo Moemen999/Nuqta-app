@@ -131,7 +131,7 @@ describe('شاشة الإشعارات — الجرد', () => {
   it('مفتاح التذكير اليومي، وساعة التذكير (أي ساعة)', async () => {
     await wrap(<NotificationsScreen />);
     expect(screen.getByTestId('notifications_daily_switch')).toBeTruthy();
-    for (const id of ['notifications_hour_earlier', 'notifications_hour_value', 'notifications_hour_later']) {
+    for (const id of ['notifications_time_button', 'notifications_time_value']) {
       expect(screen.getByTestId(id)).toBeTruthy();
     }
   });
@@ -139,7 +139,7 @@ describe('شاشة الإشعارات — الجرد', () => {
   it('ساعة التذكير ظاهرة حتى والإشعارات مقفولة', async () => {
     mockNotifs.enabled = false;
     await wrap(<NotificationsScreen />);
-    expect(screen.getByTestId('notifications_hour_value')).toBeTruthy();
+    expect(screen.getByTestId('notifications_time_value')).toBeTruthy();
   });
 
   it('مدة رجوع لكل نوع بانر (10 أنواع) — التحذيرات ظاهرة، والباقي ورا "اظهر"', async () => {
