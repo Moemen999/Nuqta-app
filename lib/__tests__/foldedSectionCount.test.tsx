@@ -23,3 +23,28 @@ describe('FoldedSection: العدد', () => {
     expect(screen.getByText('ديون اتسددت — فئتين')).toBeTruthy();
   });
 });
+
+// جرد: عنوان + عدد بين قوسين في نص واحد ممنوع في أي شاشة — استخدم CountedText (أو FoldedSection).
+import { readdirSync, readFileSync } from 'fs';
+import { join } from 'path';
+describe('جرد: العدد بين قوسين نص لوحده', () => {
+  const files: string[] = [];
+  const visit = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== '__tests__') visit(p); } else if (/\.tsx$/.test(e.name)) files.push(p);
+    }
+  };
+  visit('app'); visit('components');
+  const COUNT = /\(\$?\{[^{}:,]*(length|count|Count|percents)[^{}:,]*\}%?\)/;
+  it('مفيش «عنوان ({عدد})» جوه Text واحد', () => {
+    const bad: string[] = [];
+    for (const f of files) {
+      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (/^\s*(return|const|let)\b/.test(line) || line.includes('styles.fixed')) return; // نصوص a11y/دوال مش JSX مرسوم
+        if (COUNT.test(line)) bad.push(`${f}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    expect(bad).toEqual([]);
+  });
+});

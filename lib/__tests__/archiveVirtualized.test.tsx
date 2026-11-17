@@ -35,7 +35,7 @@ it('500 عملية ← القايمة افتراضية: صفوف قليلة مت
   expect(mounted).toBeGreaterThan(0);
   expect(mounted).toBeLessThan(500);
   // الهيدر لسه موجود
-  expect(screen.getByText(/العمليات \(500\)/)).toBeTruthy();
+  expect(screen.getByLabelText("العمليات (500)")).toBeTruthy();
 });
 
 it('مفيش عمليات ← الحالة الفاضية', async () => {
@@ -106,7 +106,7 @@ describe('الفتح على فلتر من باراميتر (شوف كل العم
     await render(ui());
     expect(screen.getByTestId('archive_preset_all').props.accessibilityState).toEqual({ checked: true });
     expect(screen.getByTestId('archive_preset_thisMonth').props.accessibilityState).toEqual({ checked: false });
-    expect(screen.getByText(/العمليات \(3\)/)).toBeTruthy();
+    expect(screen.getByLabelText("العمليات (3)")).toBeTruthy();
     expect(screen.getByTestId('archive_tx_old1')).toBeTruthy();
   });
 

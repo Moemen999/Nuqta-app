@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 import { useFabScroll } from '@/context/FabScrollContext';
 
@@ -214,9 +215,9 @@ export default function IncomesView() {
 
       {stopped.length > 0 && (
         <TouchableOpacity style={styles.stoppedToggle} onPress={() => setShowStopped(s => !s)} accessibilityRole="button">
-          <Text style={styles.stoppedToggleText}>
-            {showStopped ? 'اخفي المتوقف' : `المتوقف (${stopped.length})`}
-          </Text>
+          {showStopped
+            ? <Text style={styles.stoppedToggleText}>اخفي المتوقف</Text>
+            : <CountedText title="المتوقف" count={stopped.length} style={styles.stoppedToggleText} />}
         </TouchableOpacity>
       )}
       {showStopped && stopped.map(inc => (

@@ -12,6 +12,7 @@ import { exactAlarmStatus } from '@/lib/exactAlarm';
 import { useMemo, useState } from 'react';
 import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon } from '@/components/LineIcon';
@@ -221,7 +222,9 @@ export default function NotificationsScreen() {
         })}
         <TouchableOpacity testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
           accessibilityRole="button" accessibilityState={{ expanded: showRoutine }}>
-          <Text style={styles.toggleText}>{showRoutine ? 'اخفي باقي التنبيهات' : `اظهر باقي التنبيهات (${BANNER_TYPES.length - WARNING_BANNERS.length})`}</Text>
+          {showRoutine
+            ? <Text style={styles.toggleText}>اخفي باقي التنبيهات</Text>
+            : <CountedText title="اظهر باقي التنبيهات" count={BANNER_TYPES.length - WARNING_BANNERS.length} style={styles.toggleText} />}
         </TouchableOpacity>
       </View>
     </ScrollView>

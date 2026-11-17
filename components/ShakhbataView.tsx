@@ -22,6 +22,7 @@ import { useBusy } from '@/lib/useBusy';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
 import { useFabScroll } from '@/context/FabScrollContext';
 
 const BUCKET_META = [
@@ -199,7 +200,7 @@ export default function ShakhbataView() {
             return (
               <View key={b.key} style={styles.bucketCard}>
                 <View style={styles.bucketHead}>
-                  <Text style={styles.bucketLabel}>{b.label} ({percents[b.key]}%)</Text>
+                  <CountedText title={b.label} count={percents[b.key]} suffix="%" style={styles.bucketLabel} />
                   <Money value={target} style={styles.bucketTarget} />
                 </View>
                 {spendLoading ? <SpendLoading testID={`shakhbata_loading_${b.key}`} shape="line" style={styles.bucketSpend} /> : (

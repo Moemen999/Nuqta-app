@@ -24,6 +24,7 @@ import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
@@ -213,7 +214,7 @@ export default function ArchiveScreen() {
         onPress={handleExport}
         disabled={filtered.length === 0 || exporting}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تصدير إكسيل ({transactionsPhrase(filtered.length)})</Text>
+          <CountedText title="تصدير إكسيل" count={transactionsPhrase(filtered.length)} style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }} />
         )}
       </TouchableOpacity>
 
@@ -238,7 +239,7 @@ export default function ArchiveScreen() {
         </Text>
       )}
 
-      <Text style={styles.sectionTitle}>العمليات ({filtered.length})</Text>
+      <CountedText title="العمليات" count={filtered.length} style={styles.sectionTitle} boxStyle={styles.sectionTitleBox} />
     </>
   );
   // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،
@@ -353,7 +354,8 @@ function makeStyles(c: ThemeColors) {
     fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.md },
     fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
-    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
+    sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
+    sectionTitleBox: { marginTop: space.huge, marginBottom: space.xs },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },
     // من غير خطوط بين الصفوف زي الرئيسية (المسافة بتفصل) — كارت واحد مش مناسب لـFlatList متقطّعة
     txRow: { flexDirection: 'row-reverse', alignItems: 'center', paddingVertical: space.md, minHeight: MIN_TOUCH },

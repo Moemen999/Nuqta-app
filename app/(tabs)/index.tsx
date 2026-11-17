@@ -34,6 +34,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import CountedText from '@/components/CountedText';
 import { CategoryIcon, CategoryIconSpacer } from '@/components/CategoryIcon';
 import { useNoWallets } from '@/lib/useNoWallets';
 import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
@@ -434,7 +435,7 @@ function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel={`شوف كل العمليات، ${transactionsPhrase(transactions.length)}`}
             accessibilityHint="بيفتح الأرشيف بكل عملياتك">
-            <Text style={styles.seeAllText}>شوف كل العمليات ({transactions.length})</Text>
+            <CountedText title="شوف كل العمليات" count={transactions.length} style={styles.seeAllText} />
             <Text style={styles.seeAllChevron} accessible={false}>‹</Text>
           </TouchableOpacity>
         )}
