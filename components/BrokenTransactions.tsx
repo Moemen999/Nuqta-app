@@ -8,12 +8,15 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import { Text, TextInput } from '@/components/AppText';
-import { useData } from '@/context/DataContext';
+import { TX_DELETE_OUTCOME_ALERT, useData } from '@/context/DataContext';
+import { useNotice } from '@/components/NoticeProvider';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
+import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import {
   BROKEN_MARK, BROKEN_REASON_LABEL, BROKEN_SECTION_TITLE, FIX_BLOCK_TEXT, FIX_DATE_MISSING, FIX_DELETE, FIX_DELETE_CONFIRM_TITLE,
-  FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
+  FIX_DELETE_FAILED, FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
 } from '@/lib/brokenDocs';
 import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, categoryLabelById, todayStr } from '@/lib/finance';
@@ -66,6 +69,7 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const confirm = useConfirm();
+  const notice = useNotice();
   const {
     wallets, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad, updateTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
@@ -103,10 +107,26 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
         text: FIX_DELETE, style: 'destructive',
         onPress: () => {
           setDeleting(true);
-          // فشل الكتابة بيتعرض من `track` جوه `deleteTransaction`
-          void deleteTransaction(t.id);
-          onClose();
-          AccessibilityInfo.announceForAccessibility(FIX_DELETED);
+          // العادي: batch وفشل الكتابة بيتعرض من `track` جوه `deleteTransaction`. عملية دفعة/زيادة دين بقت ذرة من
+          // السيرفر بنتيجة (الجولة 2، بند 1) ← مش `done` = الورقة مفتوحة والرسالة بتقول، مش «اتمسحت» وهي لسه موجودة
+          deleteTransaction(t.id).then(result => {
+            if (result.outcome !== 'done') {
+              setDeleting(false);
+              const alert = TX_DELETE_OUTCOME_ALERT[result.outcome];
+              notice(alert.title, alert.body);
+              return;
+            }
+            if (result.dueNotRestored) {
+              const n = dueNotRestoredNotice(result.dueNotRestored);
+              notice(n.title, n.body);
+            }
+            onClose();
+            AccessibilityInfo.announceForAccessibility(FIX_DELETED);
+          }, e => {
+            setDeleting(false);
+            reportAtomicFailure('حذف العملية', e);
+            fail(FIX_DELETE_FAILED);
+          });
         },
       },
     ]);

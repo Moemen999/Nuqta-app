@@ -19,6 +19,7 @@ const retryLoad = jest.fn();
 function seed(broken: object[], extra: Record<string, unknown> = {}) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   updateTransaction.mockReset(); deleteTransaction.mockReset();
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'done' }));
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }, { id: 'old', name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true }],
     categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
@@ -72,6 +73,31 @@ it('مربوطة بدين ← مفيش تصليح، وتأكيد المسح بي
   expect(screen.queryByTestId('broken_fix_save')).toBeNull();
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
   expect(screen.getByTestId('confirm_body').props.children).toBe('تحذير الدين');
+});
+
+it('الجولة 2 (بند 1): مسح عملية دين بايظة ما اتمسحتش (مفيش نت) ← الورقة مفتوحة والرسالة بتقول، مش «اتمسحت»', async () => {
+  const { TX_DELETE_OUTCOME_ALERT } = jest.requireActual('@/context/DataContext');
+  seed([{ id: 'b3', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }], {
+    debts: [{ id: 'd', personName: 'س', totalAmount: 100, direction: 'i_owe', date: '2026-09-01', payments: [{ id: 'p', amount: 10, walletId: 'w1', date: '2026-09-01', transactionId: 'b3' }], increases: [] }],
+    transactionLinkWarning: () => 'تحذير الدين',
+  });
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'no-connection' }));
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b3')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  await act(async () => {});
+  expect(deleteTransaction).toHaveBeenCalledWith('b3');
+  expect(screen.getByText(TX_DELETE_OUTCOME_ALERT['no-connection'].title)).toBeTruthy();
+  // الورقة لسه مفتوحة، وزرار المسح رجع يشتغل
+  expect(screen.getByTestId('broken_fix_delete')).toBeTruthy();
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'done' }));
+  await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  await act(async () => {});
+  expect(deleteTransaction).toHaveBeenCalledTimes(2);
+  expect(screen.queryByTestId('broken_fix_delete')).toBeNull();
 });
 
 it('التاريخ ناقص ← الخانة فاضية والحفظ بيطلب تاريخ (مش النهارده ساكت)', async () => {

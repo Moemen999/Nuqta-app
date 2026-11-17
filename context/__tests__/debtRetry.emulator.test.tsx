@@ -251,3 +251,171 @@ describe('بند 6: تعديل عملية مربوطة اتعاد بعد ما و
     expect((await serverDebt(id)).payments).toHaveLength(1);
   });
 });
+
+/** الجولة 2 (بند 3): التعديل اترفض من غير رد ← بنسأل السيرفر (العملية + سطر الدين) قبل "ما اتحفظش" */
+describe('تعديل عملية مربوطة: الذرة رفضت ← سؤال السيرفر', () => {
+  async function paymentTx() {
+    const { id, w } = await makeDebt();
+    expect((await harness.api().addDebtPayment(id, 1000, w.id, '2026-02-01')).outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+    const txId = debt().payments[0].transactionId!;
+    await harness.waitForData(api => api.transactions.some(t => t.id === txId));
+    const tx = harness.api().transactions.find(t => t.id === txId)!;
+    return { id, txId, tx };
+  }
+  const edit = (txId: string, tx: { amount: number; walletId: string; date: string; type: 'expense' | 'income' | 'withdraw' }) =>
+    harness.api().updateDebtLinkedTransaction(
+      txId, { amount: 800, walletId: tx.walletId, date: tx.date }, { amount: tx.amount, walletId: tx.walletId, type: tx.type },
+    );
+
+  it('الكتابة وصلت والنتيجة unavailable ← done', async () => {
+    const { id, txId, tx } = await paymentTx();
+    landThenFail();
+    expect((await edit(txId, tx)).outcome).toBe('done');
+    expect((await serverDebt(id)).payments[0]).toMatchObject({ amount: 800 });
+  });
+
+  it('مفيش حاجة وصلت والسيرفر أكّد ← failed', async () => {
+    const { id, txId, tx } = await paymentTx();
+    failWithoutLanding();
+    expect((await edit(txId, tx)).outcome).toBe('failed');
+    expect((await serverDebt(id)).payments[0]).toMatchObject({ amount: 1000 });
+  });
+
+  it('مفيش رد وسؤال السيرفر فشل ← uncertain', async () => {
+    const { txId, tx } = await paymentTx();
+    failWithoutLanding();
+    serverGetMock.mockImplementation(async () => { throw unavailable(); });
+    try {
+      expect((await edit(txId, tx)).outcome).toBe('uncertain');
+    } finally {
+      serverGetMock.mockImplementation((...args: unknown[]) => (actualFs.getDocFromServer as (...a: unknown[]) => unknown)(...args));
+    }
+  });
+});
+
+/** الجولة 2 (بند 4): الكتابة وصلت ← مفيش سطر "عملية ذرية فشلت" (ولا Sentry) لحاجة نجحت */
+describe('noteAtomicFailure بعد سؤال السيرفر', () => {
+  it('الدفعة والزيادة وصلوا والنتيجة unavailable ← مفيش تسجيل فشل', async () => {
+    const { id, w } = await makeDebt();
+    const warn = jest.spyOn(console, 'warn');
+    try {
+      landThenFail();
+      expect((await harness.api().addDebtPayment(id, 1000, w.id, '2026-02-01')).outcome).toBe('done');
+      landThenFail();
+      expect(((await increaseAsBefore(harness.api(), id, 500, '2026-02-01', w.id)) as { outcome: string }).outcome).toBe('done');
+      expect(warn.mock.calls.filter(c => c[0] === 'عملية ذرية فشلت')).toHaveLength(0);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('مفيش حاجة وصلت ← الفشل بيتسجّل', async () => {
+    const { id, w } = await makeDebt();
+    const warn = jest.spyOn(console, 'warn');
+    try {
+      failWithoutLanding();
+      expect((await harness.api().addDebtPayment(id, 1000, w.id, '2026-02-01')).outcome).toBe('failed');
+      expect(warn.mock.calls.filter(c => c[0] === 'عملية ذرية فشلت')).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+/**
+ * الجولة 2 (بند 1): مسح عملية دفعة/زيادة من الأرشيف كان batch بـ`arrayRemove` للسطر **زي ما الرياكت شايفه** — لو اتعدّل من جهاز
+ * تاني ولسه ما وصلناش، العملية بتتمسح والسطر يفضل (المدفوع والباقي غلط). دلوقتي ذرة بتقرا الدين من السيرفر.
+ * `staleDelete` = الدالة من render قبل التعديل التاني (بالظبط اللي التأكيد المفتوح بيناديه).
+ */
+describe('مسح عملية الدين من الأرشيف ← من نسخة السيرفر', () => {
+  async function paidOnce() {
+    const made = await makeDebt({ dueDate: '2026-01-15', reminderDaysBefore: 1 });
+    expect((await harness.api().addDebtPayment(made.id, 1000, made.w.id, '2026-02-01')).outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+    const txId = debt().payments[0].transactionId!;
+    await harness.waitForData(api => api.transactions.some(t => t.id === txId));
+    return { ...made, txId };
+  }
+
+  it('السطر اتعدّل من جهاز تاني ولسه ما وصلناش ← بيتشال برضه، والمعاد يرجع', async () => {
+    const { id, txId } = await paidOnce();
+    const staleDelete = harness.api().deleteTransaction;
+    const ref = doc(db, 'users', getMockUid(), 'debts', id);
+    const stored = (await actualFs.getDocFromServer(ref)).data();
+    await updateDoc(ref, { payments: stored.payments.map((p: Record<string, unknown>) => ({ ...p, date: '2026-02-03' })) });
+    const res = await staleDelete(txId);
+    expect(res.outcome).toBe('done');
+    const after = await serverDebt(id);
+    expect(after.payments).toHaveLength(0);
+    expect(after.dueDate).toBe('2026-01-15');
+    expect((await actualFs.getDocFromServer(doc(db, 'users', getMockUid(), 'transactions', txId))).exists()).toBe(false);
+  });
+
+  it('التأكيد وعد إن المعاد يرجع والسيرفر اتغيّر ← dueNotRestored', async () => {
+    const { id, txId } = await paidOnce();
+    const staleDelete = harness.api().deleteTransaction;
+    await updateDoc(doc(db, 'users', getMockUid(), 'debts', id), { dueDate: '2030-06-01' });
+    const res = await staleDelete(txId);
+    expect(res).toMatchObject({ outcome: 'done', dueNotRestored: 'payment' });
+    expect((await serverDebt(id)).dueDate).toBe('2030-06-01');
+  });
+
+  it('المعاد رجع زي ما اتوعد ← مفيش dueNotRestored', async () => {
+    const { txId } = await paidOnce();
+    const res = await harness.api().deleteTransaction(txId);
+    expect(res).toEqual({ outcome: 'done' });
+  });
+
+  it('الكتابة وصلت والنتيجة unavailable ← done', async () => {
+    const { id, txId } = await paidOnce();
+    landThenFail();
+    expect((await harness.api().deleteTransaction(txId)).outcome).toBe('done');
+    expect((await serverDebt(id)).payments).toHaveLength(0);
+  });
+
+  it('مفيش حاجة وصلت والسيرفر أكّد ← failed، والدفعة وعمليتها زي ما هما', async () => {
+    const { id, txId } = await paidOnce();
+    failWithoutLanding();
+    expect((await harness.api().deleteTransaction(txId)).outcome).toBe('failed');
+    expect((await serverDebt(id)).payments).toHaveLength(1);
+    expect((await actualFs.getDocFromServer(doc(db, 'users', getMockUid(), 'transactions', txId))).exists()).toBe(true);
+  });
+
+  it('مفيش رد وسؤال السيرفر فشل ← uncertain', async () => {
+    const { txId } = await paidOnce();
+    failWithoutLanding();
+    serverGetMock.mockImplementation(async () => { throw unavailable(); });
+    try {
+      expect((await harness.api().deleteTransaction(txId)).outcome).toBe('uncertain');
+    } finally {
+      serverGetMock.mockImplementation((...args: unknown[]) => (actualFs.getDocFromServer as (...a: unknown[]) => unknown)(...args));
+    }
+  });
+});
+
+/** الجولة 2 (بند 2): مسح الدفعة من شاشة الدين بيقول المعاد رجع ولا لأ — زي الزيادة */
+describe('deleteDebtPayment ← out.dueRestored', () => {
+  async function paidOnce() {
+    const made = await makeDebt({ dueDate: '2026-01-15', reminderDaysBefore: 1 });
+    expect((await harness.api().addDebtPayment(made.id, 1000, made.w.id, '2026-02-01')).outcome).toBe('done');
+    await harness.waitForData(api => (api.debts[0].payments || []).length === 1);
+    return made;
+  }
+
+  it('رجع', async () => {
+    const { id } = await paidOnce();
+    const out: { dueRestored?: string | null; entryGone?: boolean } = {};
+    expect(await harness.api().deleteDebtPayment(id, debt().payments[0].id, out)).toBe('done');
+    expect(out).toEqual({ dueRestored: '2026-01-15', entryGone: false });
+  });
+
+  it('المعاد اتغيّر ← null', async () => {
+    const { id } = await paidOnce();
+    const pid = debt().payments[0].id;
+    await updateDoc(doc(db, 'users', getMockUid(), 'debts', id), { dueDate: '2030-06-01' });
+    const out: { dueRestored?: string | null; entryGone?: boolean } = {};
+    expect(await harness.api().deleteDebtPayment(id, pid, out)).toBe('done');
+    expect(out.dueRestored).toBeNull();
+  });
+});

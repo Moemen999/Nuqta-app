@@ -31,6 +31,7 @@ beforeEach(() => {
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [], transactions: [],
     addDebtPayment: jest.fn(async () => ({ outcome: 'done', note: null })),
+    debtsReady: true, loadErrors: [],
   });
 });
 
@@ -107,6 +108,41 @@ describe('بند 7: المودال بيقرا الدين حي', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(screen.getByText('الدين اتمسح')).toBeTruthy();
     expect(screen.queryByTestId('debt_payment_save')).toBeNull();
+  });
+
+  it('الجولة 2 (بند 5): الديون فاضية والـlistener لسه بيحمّل/اترفض ← مفيش «اتمسح» ومفيش قفل', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    const r = await render(live(debt, onClose));
+    mockData.debts = [];
+    mockData.debtsReady = false;
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByText('الدين اتمسح')).toBeNull();
+    // رجعت وصلت والدين موجود ← الفورم تاني
+    mockData.debts = [debt];
+    mockData.debtsReady = true;
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    expect(screen.getByTestId('debt_payment_save')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('الجولة 2 (بند 5): الذرة رجّعت gone والدين اختفى من الـlistener كمان ← رسالة «اتمسح» مرة واحدة', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    let finish!: (v: unknown) => void;
+    mockData.addDebtPayment = jest.fn(() => new Promise(r => { finish = r; }));
+    const r = await render(live(debt, onClose));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '100'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
+    mockData.debts = [];
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    await act(async () => { finish({ outcome: 'gone' }); });
+    await act(async () => {});
+    expect(screen.getAllByText('الدين اتمسح')).toHaveLength(1);
+    // الرسالة الأولى اتقفلت ← مفيش تانية في الطابور
+    await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
+    expect(screen.queryByText('الدين اتمسح')).toBeNull();
   });
 
   it('النتيجة "uncertain" ← الرسالة والمودال بيتقفل (منعيدش من غير ما نبص)', async () => {

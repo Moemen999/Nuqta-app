@@ -1,6 +1,6 @@
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { dayText } from '@/lib/dateText';
-import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
+import { dueDateLabel, dueNotRestoredNotice } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
@@ -181,14 +181,16 @@ function DebtsContent() {
         style: 'destructive',
         onPress: () => runBusy(entryId, async () => {
           const out: DebtIncreaseDeleteOut = {};
-          const outcome = kind === 'payment' ? await deleteDebtPayment(d.id, entryId) : await deleteDebtIncrease(d.id, entryId, out);
+          const outcome = kind === 'payment' ? await deleteDebtPayment(d.id, entryId, out) : await deleteDebtIncrease(d.id, entryId, out);
           if (outcome !== 'done') {
             notice(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
             return;
           }
           // التأكيد وعد إن المعاد هيرجع والذرة (من السيرفر) ما رجّعتوش ← بنقول، مش بنسيب الوعد ساكت (بند 12)
-          if (kind === 'increase' && plan.dueRestore && !out.entryGone && out.dueRestored !== plan.dueRestore) {
-            notice(DUE_NOT_RESTORED.title, DUE_NOT_RESTORED.body);
+          // الدفعة كمان (الجولة 2، بند 2): التأكيد بيوعد بالمعاد في الاتنين (`debtEntryDeletePlan.dueRestore`)
+          if (plan.dueRestore && !out.entryGone && out.dueRestored !== plan.dueRestore) {
+            const n = dueNotRestoredNotice(kind);
+            notice(n.title, n.body);
           }
           // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال
           AccessibilityInfo.announceForAccessibility(kind === 'payment' ? 'اتمسحت الدفعة' : 'اتمسحت الزيادة');

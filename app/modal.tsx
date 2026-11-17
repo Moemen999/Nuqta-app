@@ -4,7 +4,8 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
+import { TX_DELETE_OUTCOME_ALERT, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
+import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
   debtLinkedEditPlan, debtRoleOf, storableAmount, storedEditChange, transactionLinkKind, type LinkKind, type LinkedEditNext,
@@ -353,7 +354,24 @@ export default function AddTransactionModal() {
       deleting.current = true;
       setBusy(true);
       return Promise.resolve().then(() => deleteTransaction(existing.id, settlements))
-        .then(() => { saved.current = true; leave(); })
+        .then(result => {
+          // عملية دفعة/زيادة دين ذرة من السيرفر (الجولة 2، بند 1): مفيش نت / ما اتمسحتش / مش متأكدين ← المودال
+          // بيفضل مفتوح والرسالة بتقول الحالة. الإعادة آمنة: لو المسح كان وصل، الذرة بتلاقي العملية مش موجودة ومبتكتبش تاني
+          if (result.outcome !== 'done') {
+            deleting.current = false;
+            setBusy(false);
+            const alert = TX_DELETE_OUTCOME_ALERT[result.outcome];
+            notice(alert.title, alert.body);
+            return;
+          }
+          // التأكيد وعد إن المعاد هيرجع والسيرفر ما رجّعوش ← بنقول، مش بنسيب الوعد ساكت (زي شاشة الدين)
+          if (result.dueNotRestored) {
+            const n = dueNotRestoredNotice(result.dueNotRestored);
+            notice(n.title, n.body);
+          }
+          saved.current = true;
+          leave();
+        })
         .catch(e => {
           deleting.current = false;
           setBusy(false);

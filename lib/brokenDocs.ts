@@ -48,6 +48,8 @@ export const FIX_RETRY = 'جرّب تاني';
 export const FIX_WAITING = 'لسه بنجيب الديون والاشتراكات والجمعيات — استنى لحظة عشان نعرف العملية دي مربوطة بحاجة ولا لأ.';
 export const FIX_SAVED = 'العملية اتحفظت';
 export const FIX_DELETED = 'العملية اتمسحت';
+/** المسح رمى (مش نتيجة) — حاجة مش متوقعة؛ وصلت Sentry باسم العملية */
+export const FIX_DELETE_FAILED = 'العملية ما اتمسحتش وهي لسه موجودة. جرّب تاني.';
 
 export type FixBlock = 'type' | 'linked' | 'wallet';
 export const FIX_BLOCK_TEXT: Record<FixBlock, string> = {

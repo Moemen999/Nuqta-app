@@ -27,7 +27,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -64,36 +64,59 @@ export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — ر
  * من المتبقي" والاقتراح والسؤال كانوا بيتحسبوا على متبقي قديم لو دفعة نزلت من جهاز تاني والمودال مفتوح.
  * الدين اختفى ← المودال بيتقفل برسالة (مرة واحدة). `null` = اتمسح.
  */
-function useLiveDebt(debtId: string, onClose: () => void): Debt | null {
-  const { debts } = useData();
+function useLiveDebt(debtId: string, onClose: () => void): { debt: Debt | null; goneShown: MutableRefObject<boolean> } {
+  const { debts, debtsReady } = useData();
   const notice = useNotice();
   const live = debts.find(d => d.id === debtId) ?? null;
-  const gone = live === null;
+  // الجولة 2 (بند 5): `debts` فاضية/ناقصة والـlistener لسه بيحمّل أو اترفض ≠ «اتمسح» — المودال بيستنى (الفورم مش
+  // مرسوم من غير دين)، والذرة نفسها بتقول `gone` من السيرفر لو اتمسح فعلاً
+  const gone = live === null && debtsReady;
+  // رسالة «الدين اتمسح» مرة واحدة: الفحص الحي ونتيجة `gone` من الذرة ممكن ييجوا الاتنين لنفس المسح
+  const goneShown = useRef(false);
   // آخر `onClose` — مرة لما يختفي، مش مع كل render جديد للأب
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!gone) return;
-    notice(DEBT_GONE_ALERT.title, DEBT_GONE_ALERT.body);
+    if (!goneShown.current) {
+      goneShown.current = true;
+      notice(DEBT_GONE_ALERT.title, DEBT_GONE_ALERT.body);
+    }
     closeRef.current();
   }, [gone, notice]);
-  return live;
+  return { debt: live, goneShown };
+}
+
+/** نتيجة مش `done` من الذرة: الرسالة (و`gone` مرة واحدة مع الفحص الحي)، وبعدين يتقفل لو لازم */
+function showOutcome(
+  outcome: Exclude<DebtPayOutcome, 'done'>, notice: (title: string, body: string) => void, goneShown: MutableRefObject<boolean>,
+  onClose: () => void,
+) {
+  if (outcome !== 'gone' || !goneShown.current) {
+    if (outcome === 'gone') goneShown.current = true;
+    const alert = PAY_OUTCOME_ALERT_DEBT[outcome];
+    notice(alert.title, alert.body);
+  }
+  // الدين اتمسح، أو مش عارفين اتسجلت (المستخدم لازم يبص على الدين قبل ما يعيد) ← المودال بيتقفل
+  if (CLOSES_MODAL.includes(outcome)) onClose();
 }
 
 /** نتايج الدفعة/الزيادة اللي بعدها المودال بيتقفل: الدين مش موجود، أو مش عارفين اتسجلت ولا لأ (إعادة = ممكن مرتين) */
 const CLOSES_MODAL: DebtPayOutcome[] = ['gone', 'uncertain'];
 
 export function DebtPaymentModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
-  const debt = useLiveDebt(debtId, onClose);
-  return debt ? <DebtPaymentForm debt={debt} onClose={onClose} /> : null;
+  const { debt, goneShown } = useLiveDebt(debtId, onClose);
+  return debt ? <DebtPaymentForm debt={debt} onClose={onClose} goneShown={goneShown} /> : null;
 }
 
 export function DebtIncreaseModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
-  const debt = useLiveDebt(debtId, onClose);
-  return debt ? <DebtIncreaseForm debt={debt} onClose={onClose} /> : null;
+  const { debt, goneShown } = useLiveDebt(debtId, onClose);
+  return debt ? <DebtIncreaseForm debt={debt} onClose={onClose} goneShown={goneShown} /> : null;
 }
 
-function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+type FormProps = { debt: Debt; onClose: () => void; goneShown: MutableRefObject<boolean> };
+
+function DebtPaymentForm({ debt, onClose, goneShown }: FormProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
@@ -190,10 +213,7 @@ function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void })
       // لو ما اتسجلتش، عشان يقدر يغيّر المحفظة أو يجرب تاني من غير ما يعيد
       // كتابة كل حاجة
       if (result.outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        notice(alert.title, alert.body);
-        // الدين اتمسح، أو مش عارفين اتسجلت (المستخدم لازم يبص على الدين قبل ما يعيد) ← المودال بيتقفل
-        if (CLOSES_MODAL.includes(result.outcome)) onClose();
+        showOutcome(result.outcome, notice, goneShown, onClose);
         return;
       }
       // الدفعة دي سددت الدين ← الكارت بيروح "ديون اتسددت" المطوي، فبيتقال بدل ما يختفي من
@@ -273,7 +293,7 @@ function DebtPaymentForm({ debt, onClose }: { debt: Debt; onClose: () => void })
   );
 }
 
-function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addDebtIncrease } = useData();
@@ -346,9 +366,7 @@ function DebtIncreaseForm({ debt, onClose }: { debt: Debt; onClose: () => void }
         return;
       }
       if (result.outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        notice(alert.title, alert.body);
-        if (CLOSES_MODAL.includes(result.outcome)) onClose();
+        showOutcome(result.outcome, notice, goneShown, onClose);
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد

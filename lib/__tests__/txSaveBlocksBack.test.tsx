@@ -188,7 +188,7 @@ describe('الحذف', () => {
     let resolveDelete!: () => void;
     mockData.deleteTransaction = jest.fn(() => {
       mockData.transactions = []; // الكتابة المحلية بترد فورًا: العملية بتختفي والحذف لسه ما رجعش
-      return new Promise<void>(r => { resolveDelete = r; });
+      return new Promise<{ outcome: 'done' }>(r => { resolveDelete = () => r({ outcome: 'done' }); });
     });
     await openEdit();
     await act(async () => { fireEvent.press(screen.getByText('حذف')); });

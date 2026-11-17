@@ -1,5 +1,5 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
-import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine } from '@/lib/reopenDue';
+import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine, paymentsAfterRemoval } from '@/lib/reopenDue';
 import { installmentsPhrase } from '@/lib/archiving';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
@@ -1204,11 +1204,11 @@ export function installmentCountBackLine(before: number | null | undefined, afte
 }
 
 /**
- * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): بالظبط اللي
- * `stageReconcile` بيكتبه — نفس الدالة بتبني الكتابة والتحذير، فالرقم في الرسالة هو
- * الرقم اللي بيتكتب. **مختلف عن `debtEntryDeletePlan` عن قصد:** المسار ده من حالة
- * الرياكت مش ذرة، فمبيثبّتش قسط الدين القديم (قيمة اتعدّلت من جهاز تاني كانت هتتكتب
- * فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
+ * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): نفس الدالة بتبني التحذير (من حالة الرياكت)
+ * والكتابة — والكتابة من الجولة 2 (بند 1) ذرة بتنادي الدالة دي على **الدين اللي اتقرا من السيرفر**
+ * (`deleteDebtLinkedTransaction`)، فالرقم في الرسالة هو اللي بيتكتب لو الدين ما اتغيّرش. **مختلف عن
+ * `debtEntryDeletePlan` عن قصد:** مبيثبّتش قسط الدين القديم (التحذير اتحسب من غيره، وقيمة اتعدّلت من جهاز تاني
+ * كانت هتتكتب فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
  *
  * `residue`: `set` = الفرق بعد الطيّ (مبصوم)، `clear` = كان معروف والطيّ فشل (الكاتب
  * بيشيله صريح ويسجّل)، `null` = مفيش حاجة تتكتب في الفرق.
@@ -1217,10 +1217,7 @@ export type TransactionDeleteDebtPlan = {
   kind: 'payment' | 'increase';
   payments?: Debt['payments'];
   increases?: Debt['increases'];
-  /**
-   * السطور اللي بتتشال بالظبط — الكاتب بيشيلها بـ`arrayRemove` مش بكتابة المصفوفة كلها من حالة الرياكت
-   * (بند 8): دفعة/زيادة نزلت من جهاز تاني ولسه ما وصلتناش كانت هتتمسح
-   */
+  /** السطور اللي بتتشال بالظبط (الكاتب بيكتب `payments`/`increases` من نسخة السيرفر جوه الذرة) */
   removed: Debt['payments'] | Debt['increases'];
   residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
   countBefore: number | undefined;
@@ -1233,7 +1230,8 @@ export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDel
   if ((d.payments || []).some(p => p.transactionId === txId)) {
     // الفرق مبيتغيّرش مع الدفعات (الخطة هي هي)
     const removed = (d.payments || []).filter(p => p.transactionId === txId);
-    const payments = (d.payments || []).filter(p => p.transactionId !== txId);
+    // السلسلة متوصّلة (الجولة 2، بند 6) — نفس `deleteDebtPayment`
+    const payments = paymentsAfterRemoval(removed, (d.payments || []).filter(p => p.transactionId !== txId));
     return {
       kind: 'payment', payments, removed, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }),
       // الدفعة قدّمت المعاد ← بيرجع (بند 3) — نفس `deleteDebtPayment`

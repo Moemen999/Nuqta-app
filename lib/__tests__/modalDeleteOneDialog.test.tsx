@@ -3,6 +3,7 @@ import { Alert } from 'react-native';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
 import AddTransactionModal from '@/app/modal';
 import { PrivacyProvider } from '@/context/PrivacyContext';
+import { NoticeProvider } from '@/components/NoticeProvider';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { warmUp } from '@/test-utils/warmUp';
 
@@ -43,7 +44,7 @@ function seed(wallets: unknown[], txWallet: string) {
     wallets, categories: [],
     transactions: [{ id: 'tx_p', type: 'income', amount: 300, walletId: txWallet, date: '2026-03-20' }],
     debts: [debt], subscriptions: [], gamiyas: [], incomes: [], linkSourcesReady: true, loadErrors: [], retryLoad: jest.fn(),
-    addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(),
+    addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(async () => ({ outcome: 'done' })),
     transactionLinkWarning: () => WARNING,
     updateDebtLinkedTransaction: jest.fn(async () => ({ outcome: 'done', note: null })),
   });
@@ -203,5 +204,64 @@ describe('الجولة 2 على D3', () => {
     expect(screen.getByTestId('tx_error')).toBeTruthy();
     await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
     expect(screen.queryByTestId('tx_error')).toBeNull();
+  });
+});
+
+/**
+ * الجولة 2 (بند 1): مسح عملية دفعة/زيادة دين بقى ذرة من السيرفر بنتيجة — المودال لازم يقرا النتيجة:
+ * مش `done` ← بيفضل مفتوح والرسالة بتقول الحالة؛ `dueNotRestored` ← "المعاد ما رجعش" بكلام الدفعة، والمودال بيقفل.
+ */
+describe('نتيجة مسح عملية الدين', () => {
+  const { TX_DELETE_OUTCOME_ALERT } = jest.requireActual('@/context/DataContext');
+  const { DUE_NOT_RESTORED_PAYMENT } = jest.requireActual('@/lib/reopenDue');
+  async function pressDeleteViaAlert() {
+    await openAndPressDelete();
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => {});
+  }
+  const ui2 = () => <ThemeProvider><NoticeProvider><PrivacyProvider><AddTransactionModal /></PrivacyProvider></NoticeProvider></ThemeProvider>;
+  async function openWithNotice() {
+    await render(ui2());
+    await act(async () => {});
+    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  }
+
+  it.each(['no-connection', 'failed', 'uncertain'] as const)('%s ← المودال مفتوح والرسالة بتاعة الحالة', async (outcome) => {
+    seed([active], 'w');
+    mockData.deleteTransaction = jest.fn(async () => ({ outcome }));
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await openWithNotice();
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => {});
+    expect(router.back).not.toHaveBeenCalled();
+    expect(screen.getByText(TX_DELETE_OUTCOME_ALERT[outcome].title)).toBeTruthy();
+    // الزرار رجع يشتغل: محاولة تانية بتنادي تاني
+    alertSpy.mockClear();
+    await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('done + dueNotRestored ← "المعاد ما رجعش" والمودال بيقفل', async () => {
+    seed([active], 'w');
+    mockData.deleteTransaction = jest.fn(async () => ({ outcome: 'done', dueNotRestored: 'payment' }));
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await openWithNotice();
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => {});
+    expect(screen.getByText(DUE_NOT_RESTORED_PAYMENT.body)).toBeTruthy();
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('done من غير dueNotRestored ← مفيش رسالة والمودال بيقفل', async () => {
+    seed([active], 'w');
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await pressDeleteViaAlert();
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 });

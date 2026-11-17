@@ -1,6 +1,6 @@
 import type { Debt } from '@/context/DataContext';
 import { debtEntryDeleteMessage, debtEntryDeletePlan, debtLinkWarning, transactionDeleteDebtPlan } from '@/lib/finance';
-import { dueDateAfterIncreaseRemoval, dueDateLabel, dueRestoreLine, reopenedDueMessage } from '@/lib/reopenDue';
+import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueDateLabel, dueRestoreLine, paymentsAfterRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 
 /**
  * بند 12 (قرار مؤمن 2026-11-05): زيادة فتحت دين أقساط متسدد ← رسالة "المعاد الجاي بقى …"، والمعاد القديم
@@ -87,5 +87,47 @@ describe('تأكيد المسح بيقول إن المعاد هيرجع — من
   it('دفعة ← مفيش سطر معاد', () => {
     const d = reopened();
     expect(debtEntryDeletePlan(d, 'payment', 'p1')!.dueRestore).toBeNull();
+  });
+});
+
+/**
+ * الجولة 2 (بند 6): دفعتين قدّموا المعاد 01-15 ← 02-15 (أ) ← 03-15 (ب). المسح بالترتيب (ب ثم أ) بيرجّعه خطوة خطوة.
+ * المسح بالعكس (أ الأول): المعاد مش بتاع أ فمبيتلمسش — بس السلسلة بتتوصل (ب بقت 01-15 ← 03-15)، فمسح ب بعدها
+ * بيرجّع 01-15 مش 02-15 (معاد مكانش هيبقى صح بعد ما الدفعتين اتشالوا).
+ */
+describe('سلسلة المعاد مع مسح الدفعات (paymentsAfterRemoval)', () => {
+  const A = { id: 'a', date: '2026-01-10', amount: 1000, walletId: 'w', transactionId: 'ta', advancedFrom: '2026-01-15', advancedTo: '2026-02-15' };
+  const B = { id: 'b', date: '2026-02-10', amount: 1000, walletId: 'w', transactionId: 'tb', advancedFrom: '2026-02-15', advancedTo: '2026-03-15' };
+  const base = {
+    id: 'd', direction: 'i_owe', personName: 'س', totalAmount: 4000, date: '2026-01-01', isInstallment: true, installmentCount: 4,
+    dueDate: '2026-03-15', payments: [A, B], increases: [],
+  } as unknown as Debt;
+  function remove(d: Debt, id: string): Debt {
+    const removed = d.payments.filter(p => p.id === id);
+    const after = paymentsAfterRemoval(removed, d.payments.filter(p => p.id !== id));
+    const restore = dueDateAfterPaymentRemoval(d, removed, after);
+    return { ...d, payments: after, ...(restore ? { dueDate: restore } : {}) };
+  }
+
+  it('بالترتيب: ب ثم أ ← 02-15 ثم 01-15', () => {
+    const afterB = remove(base, 'b');
+    expect(afterB.dueDate).toBe('2026-02-15');
+    expect(remove(afterB, 'a').dueDate).toBe('2026-01-15');
+  });
+
+  it('بالعكس: أ ثم ب ← المعاد زي ما هو، وبعدين 01-15', () => {
+    const afterA = remove(base, 'a');
+    expect(afterA.dueDate).toBe('2026-03-15');
+    expect(afterA.payments).toEqual([{ ...B, advancedFrom: '2026-01-15' }]);
+    expect(remove(afterA, 'b').dueDate).toBe('2026-01-15');
+  });
+
+  it('دفعة من غير سلسلة (قديمة) ← الباقي زي ما هو', () => {
+    const plainA: { advancedFrom?: string; advancedTo?: string } = { advancedFrom: undefined, advancedTo: undefined };
+    expect(paymentsAfterRemoval([plainA], [B as { advancedFrom?: string; advancedTo?: string }])).toEqual([B]);
+  });
+
+  it('مسح العملية من الأرشيف (transactionDeleteDebtPlan) بيوصّل نفس السلسلة', () => {
+    expect(transactionDeleteDebtPlan(base, 'ta')!.payments).toEqual([{ ...B, advancedFrom: '2026-01-15' }]);
   });
 });

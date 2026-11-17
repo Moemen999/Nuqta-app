@@ -5,7 +5,7 @@ import { NoticeProvider } from '@/components/NoticeProvider';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { DUE_NOT_RESTORED } from '@/lib/reopenDue';
+import { DUE_NOT_RESTORED, DUE_NOT_RESTORED_PAYMENT } from '@/lib/reopenDue';
 
 /**
  * بند 12 (جولة 1): تأكيد مسح الزيادة اتحسب من حالة الرياكت ووعد إن المعاد هيرجع؛ الذرة بتقرا من السيرفر.
@@ -71,6 +71,42 @@ it('الزيادة كانت اتمسحت من جهاز تاني ← مفيش "ا
   seed(null, true);
   await deleteIncrease();
   expect(screen.queryByText(DUE_NOT_RESTORED.title)).toBeNull();
+});
+
+/** الجولة 2 (بند 2): تأكيد مسح **الدفعة** كمان بيوعد بالمعاد — والذرة لو ما رجّعتوش الشاشة بتقول */
+describe('مسح دفعة قدّمت المعاد', () => {
+  const paid = {
+    id: 'd3', direction: 'i_owe', personName: 'زميلي', totalAmount: 3000, isInstallment: true, installmentCount: 3,
+    installmentAmount: 1000, date: '2026-01-01', createdAt: 'x', dueDate: '2026-02-15', initialTransactionId: 't0', initialWalletId: 'w1',
+    payments: [{ id: 'p9', date: '2026-02-01', amount: 1000, walletId: 'w1', transactionId: 'tp9', advancedFrom: '2026-01-15', advancedTo: '2026-02-15' }],
+    increases: [],
+  };
+  async function deletePayment(restored: string | null | undefined, entryGone = false) {
+    seed(null);
+    mockData.debts = [paid];
+    mockData.deleteDebtPayment = jest.fn(async (_d: string, _e: string, out?: { dueRestored?: string | null; entryGone?: boolean }) => {
+      if (out) { out.dueRestored = restored; out.entryGone = entryGone; }
+      return 'done';
+    });
+    await render(<ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtsTabScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByText('زميلي')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_entry_delete_p9')); });
+    expect(screen.getByText(/معاد القسط الجاي هيرجع 15 يناير/)).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+    expect(mockData.deleteDebtPayment).toHaveBeenCalledWith('d3', 'p9', expect.any(Object));
+  }
+  it('رجع زي ما اتوعد ← مفيش رسالة', async () => {
+    await deletePayment('2026-01-15');
+    expect(screen.queryByText(DUE_NOT_RESTORED_PAYMENT.body)).toBeNull();
+  });
+  it('ما رجعش ← "المعاد ما رجعش" بكلام الدفعة', async () => {
+    await deletePayment(null);
+    expect(screen.getByText(DUE_NOT_RESTORED_PAYMENT.body)).toBeTruthy();
+  });
+  it('الدفعة كانت اتمسحت من جهاز تاني ← مفيش رسالة', async () => {
+    await deletePayment(undefined, true);
+    expect(screen.queryByText(DUE_NOT_RESTORED_PAYMENT.body)).toBeNull();
+  });
 });
 
 describe('سطر الدين المتأخر: «معاده …» من غير سنة لو السنة دي (13 نوفمبر 2026)', () => {
