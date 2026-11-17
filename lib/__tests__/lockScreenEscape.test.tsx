@@ -86,6 +86,8 @@ describe('مخرج "نسيت الكود؟"', () => {
 
     expect(mockLock.clearLock).toHaveBeenCalled();
     expect(mockAuth.logOut).toHaveBeenCalled();
+    // الطابور المتشفّر بيفضل: «نسيت الكود؟» بيقول إن البيانات في أمان (مراجعة silent-failure جولة 2)
+    expect(mockAuth.logOut.mock.calls.every((c: unknown[]) => !(c[0] as { clearOutbox?: boolean } | undefined)?.clearOutbox)).toBe(true);
   });
 
   it('الإلغاء مبيعملش حاجة', async () => {

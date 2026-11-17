@@ -98,7 +98,7 @@ export default function SettingsScreen() {
         `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut() },
+          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
         ]
       );
       return;
@@ -109,14 +109,14 @@ export default function SettingsScreen() {
         `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut() },
+          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
         ]
       );
       return;
     }
     confirm('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'خروج', style: 'destructive', onPress: () => logOut() },
+      { text: 'خروج', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
     ]);
   }
 

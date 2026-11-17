@@ -123,6 +123,7 @@ export default function LockScreen() {
    * ويدوس "نسيت الكود؟" مرة كمان. بيقع في الاتجاه الآمن.
    */
   async function runForgot() {
+    // من غير `clearOutbox` عن قصد: FORGOT_BODY بيقول إن البيانات في أمان، فالعمليات اللي مستنية النت بتفضل (الطابور المتشفّر)
     await logOut();
     // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter)
     try { await clearLock(); }

@@ -171,6 +171,15 @@ export function rejectedReplayBody(amount: unknown, date: unknown, today: string
   return `${txLabel(amount, date, today)} كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".`;
 }
 
+/** الإعادة فشلت كذا جلسة (مش رفض) والعملية **اتأكد** إنها مش على السيرفر — العنوان `WRITE_ERROR_TITLE` */
+export function repeatedFailReplayBody(amount: unknown, date: unknown, today: string): string {
+  return `${txLabel(amount, date, today)} حاولنا نرفعها كذا مرة ومعرفناش. لو مش ظاهرة في عملياتك، سجّلها تاني من "+".`;
+}
+
+/** تعديل عملية لسه مستنية النت ومقدرناش نحميه على الموبايل (التخزين فشل) */
+export const OUTBOX_EDIT_UNPROTECTED_TITLE = 'خلّي بالك';
+export const OUTBOX_EDIT_UNPROTECTED_BODY = 'التعديل اتحفظ، بس لو قفلت التطبيق قبل ما النت يرجع ممكن العملية دي ما تترفعش.';
+
 /** المحفظة اتأرشفت أو اتمسحت قبل ما العملية ترفع — مبنكتبهاش على محفظة مقفولة */
 export function walletGoneReplayBody(amount: unknown, date: unknown, today: string): string {
   return `${txLabel(amount, date, today)} ما اترفعتش لأن المحفظة اتقفلت أو اتمسحت. سجّلها تاني لو لسه محتاجها.`;

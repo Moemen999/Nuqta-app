@@ -216,3 +216,15 @@ describe('رفض setDoc النهائي (مراجعة 2026-11-17)', () => {
     expect(src).toMatch(/setDoc\(ref, clean\)\.catch\(e => \{\s*if \(isFinalWriteRejection\(e\)\) dropOutbox/);
   });
 });
+
+describe('مين بيمسح الطابور عند الخروج (silent-failure جولة 2)', () => {
+  const read = (f: string) => fs.readFileSync(path.resolve(__dirname, '../..', f), 'utf8');
+  it('AuthContext بيعلّم الخروج بس لو clearOutbox', () => {
+    expect(read('context/AuthContext.tsx')).toMatch(/markUserSignOut\(opts\?\.clearOutbox \? auth\.currentUser\?\.uid : null\)/);
+  });
+  it('الإعدادات بتطلب المسح في كل أزرار الخروج، وشاشة القفل لأ', () => {
+    const settings = read('app/(tabs)/settings.tsx');
+    expect(settings.match(/logOut\(/g)?.length).toBe(settings.match(/logOut\(\{ clearOutbox: true \}\)/g)?.length);
+    expect(read('components/LockScreen.tsx')).not.toMatch(/clearOutbox: true/);
+  });
+});

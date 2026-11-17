@@ -3,7 +3,7 @@ import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { bytesToHex, hexToBytes } from '@noble/ciphers/utils';
 import * as Sentry from '@sentry/react-native';
-import { doc, runTransaction } from 'firebase/firestore';
+import { doc, getDocFromServer, runTransaction } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { todayStr } from '@/lib/finance';
 import {
@@ -94,18 +94,6 @@ export function putOutboxEntry(uid: string, txId: string, data: Record<string, u
   });
 }
 
-/**
- * تعديل مقدرناش ندمجه (المدخلة مش موجودة أو مش مقروءة): بنكتب المدخلة من جديد بالعملية كاملة بعد التعديل — عشان الإعادة
- * متكتبش الرقم القديم. الجلسة الحالية (مش هتتعاد في الجلسة دي، وفايربيز شايلة التعديل).
- */
-export function rewriteOutboxEntry(uid: string, txId: string, data: Record<string, unknown>): Promise<void> {
-  return serial(outboxStorageKey(uid, txId), async () => {
-    const key = await keyForWrite(uid);
-    const stored = sealEntry({ uid, txId, data, sid: outboxSessionId(), savedAt: todayStr(), key, rng, t: Date.now() });
-    await AsyncStorage.setItem(outboxStorageKey(uid, txId), JSON.stringify(stored));
-  });
-}
-
 /** علامات المحاولات (`rj`، `fa`) — مش سرية (مفيهاش بيانات)، فبتتكتب بره التشفير. مدخلة مش موجودة ← مفيش حاجة */
 export function updateOutboxMeta(uid: string, txId: string, patch: Pick<StoredEntry, 'rj' | 'fa'>): Promise<void> {
   const sk = outboxStorageKey(uid, txId);
@@ -116,18 +104,41 @@ export function updateOutboxMeta(uid: string, txId: string, patch: Pick<StoredEn
   });
 }
 
-/** تعديل عملية لسه في الطابور — الـsid والتاريخ بيفضلوا زي ما هما. مفيش مدخلة أو مش مقروءة ← مبنعملش حاجة */
-export function mergeOutboxEntry(uid: string, txId: string, patch: Record<string, unknown>): Promise<'merged' | 'absent' | 'unreadable'> {
+/**
+ * تعديل عملية لسه في الطابور — كله جوه نفس طابور الـid (الدمج والبديل ورا بعض من غير ما شيل يدخل في النص):
+ * - `merged`: اتدمج في المدخلة (الـsid والتاريخ زي ما هما).
+ * - `absent`: مفيش مدخلة — **مبنعملش واحدة** (كانت اتأكدت واتشالت؛ إحياها كان هيرجّع عملية).
+ * - مش مقروءة أو الدمج فشل ← `fallback()` (اللي بينادي بيرجّع العملية كاملة بعد التعديل، أو `null` لو اتشالت) بتتكتب
+ *   مدخلة جديدة (`rewritten`)؛ مفيش بديل أو الكتابة فشلت ← `unprotected`.
+ */
+export function mergeOrRewriteOutboxEntry(
+  uid: string, txId: string, patch: Record<string, unknown>, fallback: () => Record<string, unknown> | null,
+): Promise<'merged' | 'absent' | 'rewritten' | 'unprotected'> {
   const sk = outboxStorageKey(uid, txId);
   return serial(sk, async () => {
-    const stored = parseStored(await AsyncStorage.getItem(sk));
+    let stored: StoredEntry | null;
+    try { stored = parseStored(await AsyncStorage.getItem(sk)); } catch (e) { logOutboxFailure('merge read failed', e); return 'unprotected'; }
     if (!stored) return 'absent';
-    const key = await readOutboxKey(uid);
-    const opened = openEntry(stored, uid, txId, key);
-    if (!opened.ok || !key) return 'unreadable';
-    const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch), sid: stored.sid, savedAt: stored.savedAt, key, rng, t: stored.t });
-    await AsyncStorage.setItem(sk, JSON.stringify(next));
-    return 'merged';
+    try {
+      const key = await readOutboxKey(uid);
+      const opened = openEntry(stored, uid, txId, key);
+      if (opened.ok && key) {
+        const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch), sid: stored.sid, savedAt: stored.savedAt, key, rng, t: stored.t });
+        await AsyncStorage.setItem(sk, JSON.stringify(next));
+        return 'merged';
+      }
+    } catch (e) { logOutboxFailure('merge failed', e); }
+    const data = fallback();
+    if (!data) return 'unprotected';
+    try {
+      const key = await keyForWrite(uid);
+      const fresh = sealEntry({ uid, txId, data, sid: outboxSessionId(), savedAt: todayStr(), key, rng, t: Date.now() });
+      await AsyncStorage.setItem(sk, JSON.stringify(fresh));
+      return 'rewritten';
+    } catch (e) {
+      logOutboxFailure('rewrite failed', e);
+      return 'unprotected';
+    }
   });
 }
 
@@ -153,20 +164,37 @@ export async function hasOutboxTombstone(uid: string, txId: string): Promise<boo
   return (await AsyncStorage.getItem(tombstoneKey(uid, txId))) === '1';
 }
 
-/** مسح الخروج فشل ← أي مدخلة اتحفظت قبل الوقت ده متتعادش (المستخدم اختار إنها تضيع) */
-export function setOutboxClearedBefore(uid: string, ms: number): Promise<void> {
-  return AsyncStorage.setItem(metaKey(uid, 'cleared'), String(ms));
+/**
+ * مسح الخروج فشل ← المدخلات اللي كانت موجودة وقت الخروج (بالمعرّف، مش بالساعة — ساعة الموبايل ممكن ترجع لورا)
+ * متتعادش: المستخدم اختار إنها تضيع
+ */
+export function setOutboxClearedIds(uid: string, ids: string[]): Promise<void> {
+  return AsyncStorage.setItem(metaKey(uid, 'cleared'), JSON.stringify(ids));
 }
-export async function getOutboxClearedBefore(uid: string): Promise<number | null> {
-  const n = Number(await AsyncStorage.getItem(metaKey(uid, 'cleared')));
-  return Number.isFinite(n) && n > 0 ? n : null;
+export async function getOutboxClearedIds(uid: string): Promise<Set<string>> {
+  const raw = await AsyncStorage.getItem(metaKey(uid, 'cleared'));
+  if (!raw) return new Set();
+  try {
+    const v = JSON.parse(raw);
+    return new Set(Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  } catch (e) {
+    logOutboxFailure('cleared marker unreadable', e);
+    return new Set();
+  }
+}
+
+/** معرّفات مدخلات الحساب دلوقتي — بعد ما أي حفظ لسه شغال يخلص */
+export async function outboxIdsAfterPendingSaves(uid: string): Promise<string[]> {
+  await Promise.allSettled([...queues.values()]);
+  return (await outboxKeys(uid)).map(k => parseStorageKey(k)!.txId);
 }
 
 /** قراية المفتاح فشلت في الجلسة دي — بيرجّع عدد الجلسات المختلفة اللي فشلت فيها */
 export async function noteOutboxKeyReadFailure(uid: string): Promise<number> {
   const k = metaKey(uid, 'keyfail');
   let list: string[] = [];
-  try { const v = JSON.parse((await AsyncStorage.getItem(k)) ?? '[]'); if (Array.isArray(v)) list = v.filter(x => typeof x === 'string'); } catch {}
+  try { const v = JSON.parse((await AsyncStorage.getItem(k)) ?? '[]'); if (Array.isArray(v)) list = v.filter(x => typeof x === 'string'); }
+  catch (e) { logOutboxFailure('keyfail marker unreadable', e); }
   const sid = outboxSessionId();
   if (!list.includes(sid)) list.push(sid);
   await AsyncStorage.setItem(k, JSON.stringify(list.slice(-5)));
@@ -190,7 +218,7 @@ export function consumeUserSignOut(uid: string): boolean {
 
 /** حدث Sentry معدود (اسم بس، مفيش بيانات) — مرة لكل سبب في الجلسة */
 const reported = new Set<string>();
-export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached') {
+export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed') {
   if (reported.has(reason)) return;
   reported.add(reason);
   Sentry.captureMessage(`outbox: ${reason}`, { level: 'warning', tags: { outbox_reason: reason }, fingerprint: ['outbox', reason] });
@@ -249,6 +277,24 @@ export async function replayOutboxDoc(uid: string, txId: string, data: Record<st
     result = 'written';
   });
   return result;
+}
+
+/**
+ * قبل أي "سجّلها تاني": العملية دي على السيرفر ولا لأ؟ محاولة قديمة عدّت السقف ممكن تكون وصلت — `present` اترفعت (تتشال من
+ * غير رسالة)، `missing` اتأكد إنها مش هناك، `unknown` القراية فشلت (تفضل للمرة الجاية بدل رسالة ممكن تعمل نسخة تانية).
+ */
+export async function serverTxStatus(uid: string, txId: string, timeoutMs: number): Promise<'present' | 'missing' | 'unknown'> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const snap = await Promise.race([
+      getDocFromServer(doc(db, 'users', uid, 'transactions', txId)),
+      new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error('timeout')), timeoutMs); }),
+    ]);
+    return snap.exists() ? 'present' : 'missing';
+  } catch (e) {
+    logOutboxFailure('give-up check failed', e);
+    return 'unknown';
+  } finally { if (t) clearTimeout(t); }
 }
 
 export function logOutboxFailure(step: string, e: unknown) {
