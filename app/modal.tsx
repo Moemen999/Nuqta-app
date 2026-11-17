@@ -197,9 +197,9 @@ export default function AddTransactionModal() {
   const blockLeave = (saveGuard || busy || syncing) && !leaving;
 
   /** فشل بعد ما الشاشة ممكن تكون اتشالت (رد شيت التسوية، الحذف): على الشاشة لو لسه موجودة، وإلا رسالة التطبيق */
-  function showFailure(title: string) {
+  function showFailure(title: string, body: string) {
     if (mounted.current) setError('حصل خطأ، جرب تاني');
-    else notice(title, 'حصل خطأ، جرّب تاني.');
+    else notice(title, body);
   }
 
   async function saveTransaction() {
@@ -266,7 +266,7 @@ export default function AddTransactionModal() {
             setBusy(false);
             console.warn('[tx] تعديل العملية فشل');
             reportAtomicFailure('حفظ العملية', e);
-            showFailure('التعديل ما اتحفظش');
+            showFailure('التعديل ما اتحفظش', 'العملية زي ما كانت. افتحها تاني وعدّل.');
             return;
           }
           afterSave();
@@ -356,7 +356,7 @@ export default function AddTransactionModal() {
           deleting.current = false;
           setBusy(false);
           reportAtomicFailure('حذف العملية', e);
-          showFailure('العملية ما اتمسحتش');
+          showFailure('العملية ما اتمسحتش', 'هي لسه موجودة زي ما هي. افتحها تاني وامسحها.');
         });
     };
     // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
