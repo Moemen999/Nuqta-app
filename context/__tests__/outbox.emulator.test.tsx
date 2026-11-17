@@ -293,6 +293,23 @@ it('8. مسح الحساب بيمسح الطابور ومفتاحه', async () =
   expect(h.api().outboxCount).toBe(0);
 });
 
+it('8ب. مسح الحساب: شيل مدخلات الطابور فشل ← سبب Sentry لوحده (account-delete-entries-failed)، والمفتاح ما اتلمسش', async () => {
+  h = await renderDataProvider();
+  await h.waitForReady();
+  const w = h.api().wallets[0].id;
+  const id = newTxId();
+  await putOutboxEntry(uid, id, { type: 'expense', amount: 5, walletId: w, date: todayStr() });
+  const capture = Sentry.captureMessage as jest.Mock;
+  capture.mockClear();
+  const restore = failStorage('multiRemove', (keys: string[]) => keys.includes(outboxStorageKey(uid, id)));
+  try {
+    expect(await h.api().deleteAllMyData()).toEqual({ outcome: 'done' });
+  } finally { restore(); }
+  expect(capture).toHaveBeenCalledWith('outbox: account-delete-entries-failed', expect.anything());
+  expect(capture).not.toHaveBeenCalledWith('outbox: account-delete-key-failed', expect.anything());
+  expect(secure[keyNameFor(uid)]).toBeDefined();
+});
+
 it('9. الخروج بيمسح الطابور ومفتاحه (قرار مؤمن 1)', async () => {
   h = await renderDataProvider();
   await h.waitForReady();

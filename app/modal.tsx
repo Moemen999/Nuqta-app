@@ -66,6 +66,7 @@ export default function AddTransactionModal() {
   const isTransfer = useMemo(() => !!existing && transferTransactionIds(debts, gamiyas).has(existing.id), [existing, debts, gamiyas]);
   // ضد الدوسة المزدوجة قبل ما `syncing` يترسم: كل لفة ذرية بتعمل تسوية بمعرّف جديد
   const inFlight = useRef(false);
+  const deleting = useRef(false);
   const opened = useRef<Pick<Transaction, 'amount' | 'walletId' | 'type'> | null>(null);
   // الزرار "+" ظاهر دايمًا حتى من غير محفظة (2026-09-29)، فالشاشة دي هي اللي
   // لازم توصّله لمحفظة — رسالة من غير طريق قدامها طريق مسدود
@@ -143,7 +144,11 @@ export default function AddTransactionModal() {
 
   // الضمان: بعد حفظ ناجح مفيش تغيير في شكل شجرة الـviews وقت الإقفال (المؤشر متركّب دايمًا، والـbusy
   // بيفضل true لحد ما الشاشة تتشال) — mount/unmount للزرار وقتها كان بيكرّش Fabric (NUQTA-3)
-  function handleSave() { if (saved.current) return; return runSave(saveTransaction, () => saved.current); }
+  // اتحفظت والرجوع بعدها فشل (`leaveFailed`) ← "حفظ" تاني بيحاول الرجوع بس، مش حفظ تاني
+  function handleSave() {
+    if (saved.current) { if (leaveFailed.current) { leaveFailed.current = false; leave(); } return; }
+    return runSave(saveTransaction, () => saved.current);
+  }
 
   /**
    * بعد حفظ **نجح** (`saved` اتعلّم قبلها). الهابتك والرجوع برّه أي `catch` بيقول «ما اتحفظش»:
@@ -162,13 +167,40 @@ export default function AddTransactionModal() {
   const [leaving, setLeaving] = useState(false);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  // الرجوع بعد النجاح رمى ← المنع اتشال والزرار بيرجع، و"حفظ" تاني بيحاول الرجوع بس (`saved` لسه متعلّم)
+  const leaveFailed = useRef(false);
   function leave() { if (mounted.current) setLeaving(true); }
   useEffect(() => {
     if (!leaving || !mounted.current) return;
-    if (nav && !nav.isFocused()) return;
-    try { router.back(); } catch (e) { console.warn('[tx] الرجوع بعد الحفظ فشل'); reportAtomicFailure('حفظ العملية', e); }
+    let done = false;
+    const goBack = () => {
+      if (done || !mounted.current) return;
+      done = true;
+      try { router.back(); } catch (e) {
+        console.warn('[tx] الرجوع بعد الحفظ فشل');
+        reportAtomicFailure('حفظ العملية', e);
+        // العملية اتحفظت (أو اتمسحت) — المنع يتشال عشان رجوع أندرويد/السحب/"إلغاء" يشتغلوا، من غير ما يفتح حفظ تاني
+        leaveFailed.current = true;
+        setLeaving(false);
+        setBusy(false);
+        setSyncing(false);
+        releaseSave();
+      }
+    };
+    if (nav && !nav.isFocused()) {
+      // شاشة تانية فوقها (شيت، رابط) — الرجوع دلوقتي كان هيشيل اللي فوق. أول ما ترجع قدام بنرجع مرة واحدة
+      console.warn('[tx] الرجوع بعد الحفظ مستني الشاشة ترجع قدام');
+      return nav.addListener('focus', goBack);
+    }
+    goBack();
   }, [leaving]);
   const blockLeave = (saveGuard || busy || syncing) && !leaving;
+
+  /** فشل بعد ما الشاشة ممكن تكون اتشالت (رد شيت التسوية، الحذف): على الشاشة لو لسه موجودة، وإلا رسالة التطبيق */
+  function showFailure(title: string) {
+    if (mounted.current) setError('حصل خطأ، جرب تاني');
+    else notice(title, 'حصل خطأ، جرّب تاني.');
+  }
 
   async function saveTransaction() {
     if (saved.current) return;
@@ -222,6 +254,8 @@ export default function AddTransactionModal() {
         settle.request(changes, async settlements => {
           if (saved.current) return;
           saved.current = true;
+          // الشيت ممكن ترد بعد ما `busy` والحارس اتفكوا — من غير ده الرجوع كان مفتوح طول الانتظار
+          setBusy(true);
           try {
             // بترجع بعد الكتابة المحلية (`track`) مش بعد السيرفر — قاعدة 7
             await updateTransaction(existing.id, payload, settlements);
@@ -232,7 +266,7 @@ export default function AddTransactionModal() {
             setBusy(false);
             console.warn('[tx] تعديل العملية فشل');
             reportAtomicFailure('حفظ العملية', e);
-            setError('حصل خطأ، جرب تاني');
+            showFailure('التعديل ما اتحفظش');
             return;
           }
           afterSave();
@@ -310,11 +344,21 @@ export default function AddTransactionModal() {
     // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
     // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
     // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز
-    const run = (settlements: Settlement[]) =>
-      Promise.resolve().then(() => deleteTransaction(existing.id, settlements))
-        .then(() => router.back())
-        // `.catch` مش التاني في `.then`: رمية من `router.back` نفسها كانت هتبقى unhandled
-        .catch(e => { reportAtomicFailure('حذف العملية', e); setError('حصل خطأ، جرب تاني'); });
+    // الرجوع مقفول (`busy`) لحد ما `deleteTransaction` ترجع، والخروج بعدها من `leave()` (مرة واحدة، والشاشة قدام) —
+    // `router.back()` مباشرة كانت هتشيل الشاشة اللي ورا لو المستخدم رجع وهي شغالة
+    const run = (settlements: Settlement[]) => {
+      if (deleting.current) return Promise.resolve();
+      deleting.current = true;
+      setBusy(true);
+      return Promise.resolve().then(() => deleteTransaction(existing.id, settlements))
+        .then(() => { saved.current = true; leave(); })
+        .catch(e => {
+          deleting.current = false;
+          setBusy(false);
+          reportAtomicFailure('حذف العملية', e);
+          showFailure('العملية ما اتمسحتش');
+        });
+    };
     // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
     // السؤال نفسه (فيها "متأكد؟" والتحذير وزرار "حذف") — مش Alert وبعده شيت فوق بعض
     if (settle.needsSettlement(changes)) {
@@ -324,18 +368,16 @@ export default function AddTransactionModal() {
     confirm('حذف العملية', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'حذف', style: 'destructive', onPress: async () => {
-          if (busy) return;
-          setBusy(true);
+        text: 'حذف', style: 'destructive', onPress: () => {
+          if (deleting.current) return;
           try {
+            // `run` بتمسك الرجوع (`busy`) لحد ما الحذف يرجع — مفيش `setBusy(false)` هنا (كان بيفك المنع والحذف شغال)
             settle.request(changes, run);
           } catch {
             // فشل التجهيز (stageReconcile) بيتمسك جوه `run` نفسها (الـpromise بتاع
             // `deleteTransaction`)؛ فشل الكتابة بيعدي من `track` وبيتعرض مسمّى بالسجل.
             // فاضل هنا للأخطاء المتزامنة في `settle.request` نفسها.
             setError('حصل خطأ، جرب تاني');
-          } finally {
-            setBusy(false);
           }
         }
       },
@@ -345,6 +387,7 @@ export default function AddTransactionModal() {
   if (waiting) {
     return (
       <View testID="tx_waiting" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
+        {nav && <BlockLeave when={blockLeave} />}
         <ScreenTitle style={styles.screenTitle}>تعديل عملية</ScreenTitle>
         <View style={styles.noWallets}>
           {/* قراية اترفضت (مش نت بطيء): "اتأكد من النت" كانت هتبقى كدب، والاستنى مش هيخلص لوحده */}
@@ -368,6 +411,7 @@ export default function AddTransactionModal() {
   if (linkChanged) {
     return (
       <View testID="tx_link_changed" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
+        {nav && <BlockLeave when={blockLeave} />}
         <ScreenTitle style={styles.screenTitle}>{TX_EDIT_OUTCOME_ALERT.gone.title}</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>{TX_EDIT_OUTCOME_ALERT.gone.body}</Text>
@@ -380,6 +424,7 @@ export default function AddTransactionModal() {
   if (missing) {
     return (
       <View testID="tx_missing" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
+        {nav && <BlockLeave when={blockLeave} />}
         <ScreenTitle style={styles.screenTitle}>تعديل عملية</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>العملية دي مبقتش موجودة، غالبًا اتمسحت. ومفيش تعديل اتحفظ.</Text>
@@ -394,6 +439,7 @@ export default function AddTransactionModal() {
   if (existing?.isSettlement) {
     return (
       <View testID="tx_settlement_locked" style={[styles.container, styles.content, { paddingTop: insets.top + 16 }]}>
+        {nav && <BlockLeave when={blockLeave} />}
         <ScreenTitle style={styles.screenTitle}>تسوية محفظة مؤرشفة</ScreenTitle>
         <View style={styles.noWallets}>
           <Text style={styles.noWalletsText}>دي اتعملت لوحدها عشان رصيد المحفظة المؤرشفة يرجع صفر، فمبتتعدّلش ولا تتمسح. لو عايز تصلّح حاجة، عدّل العملية الأصلية اللي على المحفظة دي.</Text>

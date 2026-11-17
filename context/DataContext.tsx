@@ -52,7 +52,7 @@ import {
   walletGoneReplayBody, type StoredEntry,
 } from '@/lib/outbox';
 import {
-  OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
+  OutboxEntriesClearError, OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
   logOutboxFailure, mergeOrRewriteOutboxEntry, noteOutboxKeyReadFailure, outboxIdsAfterPendingSaves, outboxSessionId, putOutboxEntry,
   readOutboxKey, removeOutboxEntry, replayOutboxDoc, reportOutboxEvent, serverTxStatus, setOutboxClearedIds, sweepOtherOutboxes, updateOutboxMeta,
   writeOutboxTombstone,
@@ -1126,7 +1126,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           let marked = true;
           try { await setOutboxClearedIds(prev, await outboxIdsAfterPendingSaves(prev)); }
           catch (e) { marked = false; logOutboxFailure('cleared marker failed', e); }
-          try { await clearOutboxForUid(prev); return true; }
+          try { await clearOutboxForUid(prev, () => uidNow.current); return true; }
           catch (e) { logOutboxFailure('clear on sign-out failed', e); return marked; }
         };
         void clearSignedOut()
@@ -1138,7 +1138,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     if (!uid) return;
-    sweepOtherOutboxes(uid)
+    sweepOtherOutboxes(uid, () => uidNow.current)
       .then(n => { if (n > 0) console.warn('[outbox] swept entries of another account', n); })
       .catch(e => logOutboxFailure('sweep failed', e));
     listOutboxEntries(uid)
@@ -3110,6 +3110,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             logOutboxFailure('clear on delete failed', e);
             // المفتاح فضل في SecureStore بعد مسح الحساب — Sentry بالاسم بس (الكنس الجاي بيحاول تاني من السجل)
             if (e instanceof OutboxKeyDeleteError) reportOutboxEvent('account-delete-key-failed');
+            // المدخلات نفسها ما اتمسحتش (والمفتاح ما اتلمسش) — سبب لوحده عشان الاتنين ميتلخبطوش في Sentry
+            else if (e instanceof OutboxEntriesClearError) reportOutboxEvent('account-delete-entries-failed');
           }
           return { outcome: 'done' };
         }

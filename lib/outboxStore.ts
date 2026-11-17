@@ -59,16 +59,36 @@ export async function readOutboxKey(uid: string): Promise<Uint8Array | null> {
  * قفل لكل حساب: حفظين في نفس اللحظة على حساب مالوش مفتاح كانوا هيعملوا مفتاحين، والتاني يكتب فوق الأول — فالمدخلة
  * الأولى تبقى مش مقروءة.
  */
-function keyForWrite(uid: string): Promise<Uint8Array> {
-  return serial(`key:${uid}`, async () => {
+async function keyForWrite(uid: string): Promise<Uint8Array> {
+  const name = await keyName(uid);
+  // نفس طابور المسح (`deleteKeyUnlessCurrent`) — بالاسم: مسح ومفتاح جديد لنفس الحساب ميتداخلوش
+  return serial(keyQueueId(name), async () => {
     // في السجل قبل أي كتابة للمفتاح: مفتاح موجود من غير ما يتسجّل (اتعمل قبل السجل) بيتسجّل هنا كمان
     // فشل السجل مبيوقّفش الحفظ: أسوأ حاجة المفتاح يفضل يتيم (زي قبل السجل)
-    try { await registerKeyName(await keyName(uid)); } catch (e) { logOutboxFailure('key registry write failed', e); }
+    try { await registerKeyName(name); } catch (e) { logOutboxFailure('key registry write failed', e); }
     const existing = await readOutboxKey(uid);
     if (existing) return existing;
     const k = rng(OUTBOX_KEY_BYTES);
-    await SecureStore.setItemAsync(await keyName(uid), bytesToHex(k));
+    await SecureStore.setItemAsync(name, bytesToHex(k));
     return k;
+  });
+}
+
+const keyQueueId = (name: string) => `key:${name}`;
+
+/**
+ * مسح مفتاح من SecureStore — في طابور المفتاح نفسه، و**الحساب الحالي بيتسأل وقت المسح** (مش وقت ما الكنس بدأ): تبديل
+ * حساب في نص الكنس، أو إعادة مسح الخروج بعد ما نفس الحساب رجع دخل، كانوا هيمسحوا مفتاح الحساب اللي شغال دلوقتي فكل
+ * مدخلاته تبقى مش مقروءة. `'kept'` = ده مفتاح الحساب الحالي فمتلمسش. المسح نجح ← الاسم بيتشال من السجل في نفس الطابور
+ * (قبل أي `keyForWrite` جاي يسجّله تاني).
+ */
+function deleteKeyUnlessCurrent(name: string, currentUid: () => string | null | undefined): Promise<'deleted' | 'kept'> {
+  return serial(keyQueueId(name), async () => {
+    const cur = currentUid();
+    if (cur && (await keyName(cur)) === name) return 'kept';
+    await SecureStore.deleteItemAsync(name);
+    try { await unregisterKeyNames([name]); } catch (e) { logOutboxFailure('key registry write failed', e); }
+    return 'deleted';
   });
 }
 
@@ -79,24 +99,38 @@ function keyForWrite(uid: string): Promise<Uint8Array> {
  * بيمسح أي مفتاح في السجل مش بتاع الحساب الحالي. بره بادئة المدخلات والعلامات عشان `parseStorageKey`/`metaUid` ميشوفوهوش.
  */
 export const OUTBOX_KEY_REGISTRY = 'nuqta-outbox-keys:v1';
+/**
+ * السجل في AsyncStorage (مش محمي) — فأي اسم مش بشكل مفتاح الطابور بالظبط بيتجاهل: من غير الفلتر ده الكنس كان ممكن يمسح
+ * أي مفتاح SecureStore تاني اتكتب اسمه في السجل (قفل التطبيق مثلاً، security-reviewer)
+ */
+const KEY_NAME_RE = /^nuqta_outbox_k_[0-9a-f]{64}$/;
 const registered = new Set<string>();
+/** للاختبارات بس: `AsyncStorage.clear()` بين الاختبارات مبيفضّيش الكاش ده */
+export function __resetOutboxKeyRegistryCacheForTests() { registered.clear(); }
 
-async function readRegistry(): Promise<string[]> {
+/**
+ * `null` = السجل موجود بس مش مقروء — **منكتبش فوقه** (كان هيمسح أسامي مفاتيح لسه في SecureStore فتفضل يتيمة للأبد)؛
+ * بلاغ Sentry بالاسم بس، والحفظ بيكمّل من غير تسجيل
+ */
+async function readRegistry(): Promise<string[] | null> {
   const raw = await AsyncStorage.getItem(OUTBOX_KEY_REGISTRY);
   if (!raw) return [];
-  try {
-    const v = JSON.parse(raw);
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-  } catch (e) {
-    logOutboxFailure('key registry unreadable', e);
-    return [];
+  let v: unknown;
+  try { v = JSON.parse(raw); } catch (e) { v = undefined; logOutboxFailure('key registry unreadable', e); }
+  if (!Array.isArray(v)) {
+    if (v !== undefined) console.warn('[outbox]', 'key registry unreadable', 'shape');
+    reportOutboxEvent('key-registry-unreadable');
+    return null;
   }
+  return v.filter((x): x is string => typeof x === 'string' && KEY_NAME_RE.test(x));
 }
 
 function registerKeyName(name: string): Promise<void> {
-  if (registered.has(name)) return Promise.resolve();
+  // الـ`has` جوه الطابور: برّه كان ممكن يسبق `unregisterKeyNames` لسه مستني ويرجع من غير ما يسجّل
   return serial('key-registry', async () => {
+    if (registered.has(name)) return;
     const list = await readRegistry();
+    if (!list) return; // مش مقروء ← منكتبش فوقه، والمرة الجاية بتحاول تاني
     if (!list.includes(name)) await AsyncStorage.setItem(OUTBOX_KEY_REGISTRY, JSON.stringify([...list, name]));
     registered.add(name);
   });
@@ -104,9 +138,10 @@ function registerKeyName(name: string): Promise<void> {
 
 function unregisterKeyNames(names: string[]): Promise<void> {
   if (names.length === 0) return Promise.resolve();
-  names.forEach(n => registered.delete(n));
   return serial('key-registry', async () => {
+    names.forEach(n => registered.delete(n));
     const list = await readRegistry();
+    if (!list) return;
     const next = list.filter(n => !names.includes(n));
     if (next.length !== list.length) await AsyncStorage.setItem(OUTBOX_KEY_REGISTRY, JSON.stringify(next));
   });
@@ -115,6 +150,11 @@ function unregisterKeyNames(names: string[]): Promise<void> {
 /** مسح مفتاح الحساب من SecureStore فشل — اسم بس؛ الاسم بيفضل في السجل والكنس الجاي بيحاول تاني */
 export class OutboxKeyDeleteError extends Error {
   constructor() { super('outbox key delete failed'); this.name = 'OutboxKeyDeleteError'; }
+}
+
+/** مسح مدخلات الحساب نفسها (`getAllKeys`/`multiRemove`) فشل — المفتاح ما اتلمسش (المدخلات من غيره كانت هتبقى مش مقروءة) */
+export class OutboxEntriesClearError extends Error {
+  constructor() { super('outbox entries clear failed'); this.name = 'OutboxEntriesClearError'; }
 }
 
 const queues = new Map<string, Promise<unknown>>();
@@ -266,7 +306,10 @@ export function consumeUserSignOut(uid: string): boolean {
 
 /** حدث Sentry معدود (اسم بس، مفيش بيانات) — مرة لكل سبب في الجلسة */
 const reported = new Set<string>();
-export function reportOutboxEvent(reason: 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed' | 'account-delete-key-failed') {
+export type OutboxEventReason =
+  | 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed' | 'account-delete-key-failed'
+  | 'account-delete-entries-failed' | 'key-registry-unreadable';
+export function reportOutboxEvent(reason: OutboxEventReason) {
   if (reported.has(reason)) return;
   reported.add(reason);
   Sentry.captureMessage(`outbox: ${reason}`, { level: 'warning', tags: { outbox_reason: reason }, fingerprint: ['outbox', reason] });
@@ -282,42 +325,50 @@ export async function listOutboxEntries(uid: string): Promise<ListedEntry[]> {
   return pairs.map(([k, raw]) => ({ txId: parseStorageKey(k)!.txId, stored: parseStored(raw) }));
 }
 
-/** الخروج ومسح الحساب: كل مدخلات الحساب **والمفتاح** */
-export async function clearOutboxForUid(uid: string): Promise<void> {
+/**
+ * الخروج ومسح الحساب: كل مدخلات الحساب **والمفتاح**. `currentUid` (الخروج بس): الحساب اللي داخل **دلوقتي** — لو نفس الحساب
+ * رجع دخل قبل ما المسح (أو إعادته) يوصل، مفيش مسح: كان هيمسح مدخلات الجلسة الجديدة ومفتاحها. مسح الحساب مبيبعتهوش (الحساب
+ * الحالي هو اللي بيتمسح).
+ */
+export async function clearOutboxForUid(uid: string, currentUid?: () => string | null | undefined): Promise<void> {
   // حفظ لسه شغال (خروج بعد الحفظ بلحظة) كان هيرجع يكتب مدخلة بعد المسح — نستنى الطابور يفضى الأول
   await Promise.allSettled([...queues.values()]);
-  const all = await AsyncStorage.getAllKeys();
-  const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid);
-  if (keys.length) await AsyncStorage.multiRemove(keys);
+  if (currentUid && currentUid() === uid) { console.warn('[outbox]', 'clear skipped: same account signed back in'); return; }
+  try {
+    const all = await AsyncStorage.getAllKeys();
+    const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid);
+    if (keys.length) await AsyncStorage.multiRemove(keys);
+  } catch (e) { logOutboxFailure('entries clear failed', e); throw new OutboxEntriesClearError(); }
   const name = await keyName(uid);
-  try { await SecureStore.deleteItemAsync(name); }
+  let r: 'deleted' | 'kept';
+  try { r = await deleteKeyUnlessCurrent(name, currentUid ?? (() => null)); }
   catch (e) { logOutboxFailure('key delete failed', e); throw new OutboxKeyDeleteError(); }
-  await unregisterKeyNames([name]);
+  if (r === 'kept') console.warn('[outbox]', 'key kept: same account signed back in');
 }
 
 /**
  * الدخول: أي مدخلات لحساب تاني (التطبيق اتقفل بين الخروج والمسح، أو المسح فشل) بتتمسح — عمرها ما بتتعاد على الحساب
- * ده (والـAAD كان هيرفضها أصلاً). مفتاحها في SecureStore مبيتلاقاش من غير الـuid، ومن غير مدخلات ملوش لازمة.
+ * ده (والـAAD كان هيرفضها أصلاً). مفاتيحها من السجل بتتمسح كمان. `currentUid`: الحساب الداخل **وقت كل مسح مفتاح**
+ * (تبديل حساب في نص الكنس ميمسحش مفتاح الحساب الجديد) — الافتراضي `uid`.
  */
-export async function sweepOtherOutboxes(uid: string): Promise<number> {
+export async function sweepOtherOutboxes(uid: string, currentUid: () => string | null | undefined = () => uid): Promise<number> {
   const keys = await AsyncStorage.getAllKeys();
   const stale = keys.filter(k => { const p = parseStorageKey(k); return !!p && p.uid !== uid; });
   const staleMeta = keys.filter(k => { const m = metaUid(k); return !!m && m !== uid; });
   if (stale.length || staleMeta.length) await AsyncStorage.multiRemove([...stale, ...staleMeta]);
-  await sweepOtherKeys(uid);
+  await sweepOtherKeys(uid, currentUid);
   return stale.length;
 }
 
-/** مفاتيح SecureStore لحسابات تانية (من السجل) — مدخلاتها اتكنست فوق، فملهاش لازمة. فشل واحد مبيوقّفش الباقي */
-async function sweepOtherKeys(uid: string): Promise<void> {
+/** مفاتيح SecureStore لحسابات تانية (من السجل، بشكل الاسم بس) — مدخلاتها اتكنست فوق. فشل واحد مبيوقّفش الباقي */
+async function sweepOtherKeys(uid: string, currentUid: () => string | null | undefined): Promise<void> {
   const own = await keyName(uid);
-  const others = (await readRegistry()).filter(n => n !== own);
-  const gone: string[] = [];
-  for (const n of others) {
-    try { await SecureStore.deleteItemAsync(n); gone.push(n); }
+  const list = await readRegistry();
+  if (!list) return;
+  for (const n of list.filter(x => x !== own)) {
+    try { await deleteKeyUnlessCurrent(n, currentUid); }
     catch (e) { logOutboxFailure('stale key delete failed', e); }
   }
-  await unregisterKeyNames(gone);
 }
 
 /**
