@@ -73,6 +73,7 @@ export default function AuthScreen() {
         setError('حصل خطأ في تسجيل الدخول بجوجل');
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- يتشغّل لما response يتغيّر بس؛ signInWithGoogleCredential بتتعمل من جديد كل render وإضافتها كانت هتكرر تسجيل الدخول
   }, [response]);
 
   async function handleSubmit() {

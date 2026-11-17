@@ -1,6 +1,4 @@
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { debtsPhrase } from '@/lib/archiving';
-import type { DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { dayText } from '@/lib/dateText';
 import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
@@ -18,9 +16,9 @@ import GamiyaView from '@/components/GamiyaView';
 import SubscriptionsView from '@/components/SubscriptionsView';
 import { LineIcon } from '@/components/LineIcon';
 import { EmptyHint } from '@/components/EmptyHint';
-import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt } from '@/context/DataContext';
+import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt, type DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, debtsPhrase, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,

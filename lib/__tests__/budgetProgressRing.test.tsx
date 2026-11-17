@@ -10,7 +10,7 @@ import { progressRing } from '@/lib/tokens';
 /** دايرة تقدّم الميزانية الإجمالية: نفس أرقام الكارت، ومن غير ميزانية مفيش دايرة */
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true }));
+jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true, useReduceMotionKnown: () => true }));
 
 const CIRC = 2 * Math.PI * ((progressRing.size - progressRing.stroke) / 2);
 

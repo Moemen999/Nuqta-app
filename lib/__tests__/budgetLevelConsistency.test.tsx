@@ -12,7 +12,7 @@ import { snapPiastre } from '@/lib/finance';
 /** نفس الأرقام ← نفس الكلمة ونفس اللون في الأربع أماكن: كارت الشهر، بانر الفئة، كارت الفئة، الإجمالي + الدايرة */
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true }));
+jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true, useReduceMotionKnown: () => true }));
 
 const today = new Date();
 const d = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;

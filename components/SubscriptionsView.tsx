@@ -23,7 +23,7 @@ import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey, subscriptionResumeDate, type ChargeMode } from '@/lib/autoCharge';
 import { cardElevation, MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { EmptyHint } from '@/components/EmptyHint';

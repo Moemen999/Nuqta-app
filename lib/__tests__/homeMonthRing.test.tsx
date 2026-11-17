@@ -10,7 +10,7 @@ import { progressRing } from '@/lib/tokens';
 import { snapPiastre } from '@/lib/finance';
 
 /** دايرة الميزانية في كارت الشهر: نفس `spent`/`limit` بتوع الكارت، من غير ميزانية/تحميل ما تظهرش، وتفضل والمبالغ مخفية */
-jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true }));
+jest.mock('@/lib/useReduceMotion', () => ({ useReduceMotion: () => true, useReduceMotionKnown: () => true }));
 
 let colors: ReturnType<typeof useTheme>['colors'];
 function Probe() { colors = useTheme().colors; return null; }

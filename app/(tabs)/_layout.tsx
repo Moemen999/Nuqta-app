@@ -1,7 +1,6 @@
 import { router, Tabs, usePathname } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Text } from '@/components/AppText';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { LineIcon, type LineIconName } from '@/components/LineIcon';

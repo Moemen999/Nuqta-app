@@ -239,7 +239,7 @@ export default function ArchiveScreen() {
         </Text>
       )}
 
-      <CountedText title="العمليات" count={filtered.length} style={styles.sectionTitle} boxStyle={styles.sectionTitleBox} />
+      <CountedText title="العمليات" count={filtered.length} style={styles.sectionTitle} boxStyle={styles.sectionTitleBox} accessibilityRole="header" />
     </>
   );
   // الصف `React.memo` و`renderItem` ثابت (performance-optimizer): من غيرهم كل render للشاشة (تاريخ، علامة "بترفع"،

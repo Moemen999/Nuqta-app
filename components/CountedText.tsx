@@ -10,12 +10,14 @@ import { space } from '@/lib/tokens';
  * والعنوان هو اللي بيتقلّص. بيتقري كله «عنوان (5)» لقارئ الشاشة.
  * `boxStyle` للهوامش/المحاذاة، و`style` للخط واللون.
  */
-export default function CountedText({ title, count, suffix = '', style, boxStyle, testID }: {
+export default function CountedText({ title, count, suffix = '', style, boxStyle, testID, accessibilityRole }: {
   title: string; count: number | string; suffix?: string;
   style?: StyleProp<TextStyle>; boxStyle?: StyleProp<ViewStyle>; testID?: string;
+  /** `header` لما بيكون عنوان قسم؛ مبنحطهوش على نص جوه زرار (الأب هو صاحب الدور) */
+  accessibilityRole?: 'header';
 }) {
   return (
-    <View style={[s.row, boxStyle]} testID={testID} accessible accessibilityLabel={`${title} (${count}${suffix})`}>
+    <View style={[s.row, boxStyle]} testID={testID} accessible accessibilityRole={accessibilityRole} accessibilityLabel={`${title} (${count}${suffix})`}>
       <Text style={[style, s.shrink]} textBreakStrategy="simple" importantForAccessibility="no">{title}</Text>
       <Text style={[style, s.fixed]} importantForAccessibility="no">({count}{suffix})</Text>
     </View>

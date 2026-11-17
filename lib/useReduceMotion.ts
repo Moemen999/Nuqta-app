@@ -7,12 +7,22 @@ import { AccessibilityInfo } from 'react-native';
  * ← بالحركة (زينة بس).
  */
 export function useReduceMotion(): boolean {
-  const [reduceMotion, setReduceMotion] = useState(false);
+  return useReduceMotionKnown() ?? false;
+}
+
+/**
+ * نفس الإعداد بس بيفرّق «لسه ما عرفناش» (`null`) عن false — لمين الأول رسمة بتفرق معاه (`ProgressRing`: مع «تقليل الحركة»
+ * ممنوع أول ملء من صفر). الباقي يستخدم `useReduceMotion`.
+ */
+export function useReduceMotionKnown(): boolean | null {
+  const [reduceMotion, setReduceMotion] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
     try {
-      AccessibilityInfo.isReduceMotionEnabled?.()?.then((v) => { if (alive) setReduceMotion(!!v); }).catch(() => {});
-    } catch { /* مفيش إعداد ← بالحركة */ }
+      const asked = AccessibilityInfo.isReduceMotionEnabled?.();
+      if (asked && typeof asked.then === 'function') asked.then((v) => { if (alive) setReduceMotion(!!v); }).catch(() => { if (alive) setReduceMotion(false); });
+      else setReduceMotion(false);
+    } catch { setReduceMotion(false); /* مفيش إعداد ← بالحركة */ }
     let sub: { remove: () => void } | undefined;
     try { sub = AccessibilityInfo.addEventListener?.('reduceMotionChanged', (v: boolean) => { if (alive) setReduceMotion(!!v); }); } catch { /* زي فوق */ }
     return () => { alive = false; sub?.remove?.(); };

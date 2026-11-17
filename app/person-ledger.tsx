@@ -1,5 +1,4 @@
 import { Money } from '@/components/Money';
-import { usePrivacy } from '@/context/PrivacyContext';
 import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
@@ -49,7 +48,6 @@ export default function PersonLedgerScreen() {
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
   const { debts, pendingTxIds } = useData();
-  const { money } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
   const personName = group?.displayName || '';

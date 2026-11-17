@@ -3,10 +3,9 @@ import { DarkTheme, DefaultTheme, ThemeProvider as NavThemeProvider } from '@rea
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import OnboardingScreen, { ONBOARDING_KEY } from '@/components/OnboardingScreen';

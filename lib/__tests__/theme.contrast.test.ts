@@ -254,3 +254,17 @@ describe.each([
     expect(contrast(colors.accentText, circle)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
   });
 });
+
+/** حدود `Button`: `secondary` بـ`controlEdge` و`outline` بـ`accentText` — حد المكوّن غير النصي 3:1 ضد السطح والخلفية */
+describe.each([
+  ['الفاتح', LIGHT],
+  ['الغامق', DARK],
+])('تباين حدود Button — الوضع %s', (_label, colors) => {
+  it.each([
+    ['secondary', 'controlEdge'],
+    ['outline', 'accentText'],
+  ] as const)('حد %s (%s) ≥ 3:1 على surface و bg', (_variant, token) => {
+    expect(contrast(colors[token], colors.surface)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+    expect(contrast(colors[token], colors.bg)).toBeGreaterThanOrEqual(NON_TEXT_MIN);
+  });
+});

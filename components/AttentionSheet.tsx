@@ -60,6 +60,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
     const announcement = single ? single.label : phrase;
     if (loadWindowPassed && count > lastCount.current && announcement) AccessibilityInfo.announceForAccessibility(announcement);
     lastCount.current = count;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `single?.label` هو اللي بيتقري من `single`؛ إضافة الكائن كله كانت هتعيد الإعلان مع كل إعادة بناء للقايمة
   }, [count, loadWindowPassed, phrase, single?.label]);
 
   if (!phrase) return null;

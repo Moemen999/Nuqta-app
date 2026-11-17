@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { useReduceMotion } from '@/lib/useReduceMotion';
+import { useReduceMotionKnown } from '@/lib/useReduceMotion';
 import { progressRing } from '@/lib/tokens';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -24,11 +24,13 @@ export function ProgressRing({ spent, total, color, trackColor, testID, compact 
   const r = (size - stroke) / 2;
   const circumference = 2 * Math.PI * r;
   const fraction = ringFraction(spent, total);
-  const reduceMotion = useReduceMotion();
-  const progress = useRef(new Animated.Value(reduceMotion ? fraction : 0)).current;
+  // null = لسه الإعداد ما وصلش: مبنبدأش حركة لحد ما نعرف، عشان «تقليل الحركة» ميشوفش أول ملء من صفر
+  const reduceMotion = useReduceMotionKnown();
+  const progress = useRef(new Animated.Value(0)).current;
 
   // أول رسمة من صفر، وأي تغيّر بعدها من القيمة الحالية للجديدة (مش من صفر)
   useEffect(() => {
+    if (reduceMotion === null) return;
     if (reduceMotion) { progress.setValue(fraction); return; }
     const anim = Animated.timing(progress, { toValue: fraction, duration: durationMs, easing: Easing.out(Easing.cubic), useNativeDriver: false });
     anim.start();

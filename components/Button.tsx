@@ -40,8 +40,8 @@ export function Button({
 
   const look = {
     primary: { bg: colors.accent, fg: colors.onAccent, border: 'transparent' },
-    secondary: { bg: colors.surface, fg: colors.text, border: colors.borderStrong },
-    outline: { bg: 'transparent', fg: colors.accentText, border: colors.accent },
+    secondary: { bg: colors.surface, fg: colors.text, border: colors.controlEdge },
+    outline: { bg: 'transparent', fg: colors.accentText, border: colors.accentText },
     danger: { bg: 'transparent', fg: colors.dangerText, border: colors.dangerBorder },
     ghost: { bg: 'transparent', fg: colors.textSecondary, border: 'transparent' },
   }[variant];

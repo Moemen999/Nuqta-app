@@ -124,6 +124,7 @@ export default function AddTransactionModal() {
       categoryInit.current = true;
       setCategoryId(categories.filter(c => !c.archived)[0]?.id);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- التعبئة من العملية القديمة مرة واحدة (`loaded`)؛ إضافة fromW/toW/liveLinkKind كانت هتعيدها فوق اللي المستخدم كتبه
   }, [existing, wallets, categories, linkSourcesReady]);
 
   // الرصيد رايح فين لو حفظنا. لازم نستثني العملية اللي بنعدّلها: رصيدها
@@ -193,6 +194,7 @@ export default function AddTransactionModal() {
       return nav.addListener('focus', goBack);
     }
     goBack();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- الرجوع مرة واحدة لما `leaving` يبقى true؛ nav/releaseSave مش لازم يعيدوه
   }, [leaving]);
   const blockLeave = (saveGuard || busy || syncing) && !leaving;
 
