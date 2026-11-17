@@ -173,7 +173,7 @@ export function rejectedReplayBody(amount: unknown, date: unknown, today: string
 
 /** الإعادة فشلت كذا جلسة (مش رفض) والعملية **اتأكد** إنها مش على السيرفر — العنوان `WRITE_ERROR_TITLE` */
 export function repeatedFailReplayBody(amount: unknown, date: unknown, today: string): string {
-  return `${txLabel(amount, date, today)} حاولنا نرفعها كذا مرة ومعرفناش. لو مش ظاهرة في عملياتك، سجّلها تاني من "+".`;
+  return `${txLabel(amount, date, today)} حاولنا نرفعها كذا مرة وما نفعش، ومفيش منها حاجة اتسجلت. سجّلها تاني من "+".`;
 }
 
 /** تعديل عملية لسه مستنية النت ومقدرناش نحميه على الموبايل (التخزين فشل) */
@@ -182,7 +182,7 @@ export const OUTBOX_EDIT_UNPROTECTED_BODY = 'التعديل اتحفظ، بس ل
 
 /** المحفظة اتأرشفت أو اتمسحت قبل ما العملية ترفع — مبنكتبهاش على محفظة مقفولة */
 export function walletGoneReplayBody(amount: unknown, date: unknown, today: string): string {
-  return `${txLabel(amount, date, today)} ما اترفعتش لأن المحفظة اتقفلت أو اتمسحت. سجّلها تاني لو لسه محتاجها.`;
+  return `${txLabel(amount, date, today)} ما اترفعتش لأن المحفظة اتأرشفت أو اتمسحت. سجّلها تاني على محفظة تانية لو لسه محتاجها.`;
 }
 
 export function unreadableReplayBody(n: number, savedAt: string, today: string): string {
