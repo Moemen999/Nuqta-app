@@ -1,6 +1,8 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
 import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine, paymentsAfterRemoval } from '@/lib/reopenDue';
 import { installmentsPhrase } from '@/lib/archiving';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
+import { namedLabel } from '@/lib/writeError';
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -521,11 +523,31 @@ export function projectBalances(opts: {
   return out;
 }
 
+/**
+ * سقف ميزانية أو دخل شهر من خانة. «٢٠٠٠» و«1,500» و«١٬٥٠٠٫٥» بيتقروا زي أول شاشة (`normalizeAmountInput`) —
+ * قبل كده كانوا بيترفضوا والخانة ترجع للمحفوظ ساكت (مراجعة التطبيق كله، الميزة 6). مقرّب للقرش: الرقم اللي بيتخزّن هو
+ * اللي بيتعرض، والفحص **بعد** التقريب (1e307 بيطلع Infinity). الفاضي صفر (= مسح السقف)؛ السالب والكلام `null`.
+ */
 export function parseBudgetInput(raw: string): number | null {
-  const num = Number(raw);
+  const clean = normalizeAmountInput(raw).trim();
+  if (clean === '') return 0;
+  const num = roundMoney(Number(clean));
   if (!isFinite(num) || num < 0) return null;
   return num;
 }
+
+/** رسالة الرقم المرفوض في الميزانية وتوزيع الدخل — بتتقال عند الخروج من الخانة أو من الشاشة، مش رجوع ساكت */
+export const AMOUNT_REJECT_TITLE = 'الرقم ده ما اتحفظش';
+/** `field`: «سقف "أكل"»، «الميزانية الإجمالية»، «الدخل» */
+export function amountRejectBody(field: string) {
+  return `${field} لازم يكون رقم من صفر وطالع، فاللي اتكتب ما اتحفظش ورجّعنا الرقم اللي كان محفوظ.`;
+}
+export const budgetFieldName = (categoryName?: string) => (categoryName === undefined ? 'السقف الإجمالي' : namedLabel('سقف', categoryName));
+export const INCOME_FIELD_NAME = 'الدخل';
+/** خانة بتتحفظ لوحدها — قارئ الشاشة لازم يعرف إن مفيش زرار حفظ (a11y-architect، الميزة 6) */
+export const AUTOSAVE_HINT = 'بيتحفظ لوحده';
+/** الميزانية وتوزيع الدخل من غير ولا فئة — جملة بتقول تعمل إيه بدل قسم فاضي */
+export const NO_CATEGORIES_TEXT = 'مفيش فئات لسه — ضيف فئة من الإعدادات ← الفئات';
 
 /**
  * بيقرا رقم فلوس من خانة محفظة (الرصيد الابتدائي أو حد التنبيه).
@@ -650,11 +672,28 @@ export const PERCENT_MAX = 100;
  * ناعم زي ما كان.
  */
 export function parsePercentInput(raw: string): number | null {
-  const num = Number(String(raw ?? '').trim());
+  // الفاضي **غلط** مش صفر (الميزة 6): خانة اتمسحت ونسيتها كانت بتتحفظ 0% ساكت
+  const clean = normalizeAmountInput(raw).trim();
+  if (clean === '') return null;
+  const num = Number(clean);
   if (!isFinite(num)) return null;
   if (num < PERCENT_MIN || num > PERCENT_MAX) return null;
-  return num;
+  // رقمين بعد العلامة بالكتير — 33.333333 مبتتخزّنش ولا بتتعرض كده
+  return Math.round(num * 100) / 100;
 }
+
+/** مجموع النسب للعرض: رقمين بعد العلامة بالكتير (10.1+20.2+30.3 = «60.6» مش «60.599999») */
+export function percentSumText(sum: number) {
+  return String(Math.round(sum * 100) / 100);
+}
+
+/** المجموع بعيد عن 100 بأكتر من فرق التقريب */
+export function percentSumOff(sum: number) {
+  return Math.abs(sum - 100) > 0.005;
+}
+
+export const PERCENTS_UNSAVED_TITLE = 'النسب ما اتحفظتش';
+export const PERCENTS_UNSAVED_BODY = 'خرجت من توزيع الدخل والنسب الجديدة لسه ما اتحفظتش، فرجعت زي ما كانت. لو عايزها، عدّلها تاني ودوس «حفظ النسب».';
 
 
 export function percentInvalidTitle(count: number) {

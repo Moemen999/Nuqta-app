@@ -41,9 +41,10 @@ describe('parsePercentInput — النسبة لازم تكون من 0 لـ100', 
     expect(parsePercentInput('33.5')).toBe(33.5);
   });
 
-  it('الفاضي بصفر — ده الطريقة الطبيعية لمسح الخانة', () => {
-    expect(parsePercentInput('')).toBe(0);
-    expect(parsePercentInput('   ')).toBe(0);
+  // الميزة 6 (مراجعة التطبيق كله): الفاضي كان صفر — خانة اتمسحت ونسيتها كانت بتتحفظ 0% ساكت
+  it('الفاضي غلط مش صفر — الحفظ بيقف ويسمّي الخانة', () => {
+    expect(parsePercentInput('')).toBeNull();
+    expect(parsePercentInput('   ')).toBeNull();
   });
 
   it('بيرفض اللي برّه المدى بدل ما يقصّه', () => {

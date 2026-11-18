@@ -38,7 +38,7 @@ it('يوم 10: 500 من 1000 ← "هتخلص يوم 20 نوفمبر" تحت ال
   await render(ui());
   expect(screen.getAllByTestId(/^budget_forecast_/)).toHaveLength(1);
   expect(screen.getByTestId('budget_forecast_c1')).toBeTruthy();
-  expect(screen.getByText('لو كمّلت بنفس المعدل، الميزانية هتخلص يوم 20 نوفمبر')).toBeTruthy();
+  expect(screen.getByText('لو كمّلت بنفس المعدل، ميزانية الفئة دي هتخلص يوم 20 نوفمبر')).toBeTruthy();
 });
 
 it('عملية بتاريخ قدام جوه الشهر مبتنفخش المعدل بس بتتخصم من الفاضل', async () => {
@@ -46,7 +46,7 @@ it('عملية بتاريخ قدام جوه الشهر مبتنفخش المعد
   // 500 لحد النهارده + 200 يوم 28: المعدل من الـ500 بس (50/يوم — لو دخلت كانت 70)، والـ200 محجوزة من الفاضل (300) ← 10 + 6 = يوم 16
   setup('2026-11-03', [{ id: 't2', type: 'expense', amount: 200, date: '2026-11-28', walletId: 'w', categoryId: 'c1' }]);
   await render(ui());
-  expect(screen.getByText('لو كمّلت بنفس المعدل، الميزانية هتخلص يوم 16 نوفمبر')).toBeTruthy();
+  expect(screen.getByText('لو كمّلت بنفس المعدل، ميزانية الفئة دي هتخلص يوم 16 نوفمبر')).toBeTruthy();
 });
 
 it('عملية واحدة (500) مفيهاش سطر — 3 عالأقل (قرار مؤمن)', async () => {

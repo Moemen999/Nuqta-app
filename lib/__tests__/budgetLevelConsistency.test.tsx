@@ -25,7 +25,7 @@ const wrap = (c: React.ReactNode) => <ThemeProvider><PrivacyProvider><Probe />{c
 const CASES: [number, 'at' | 'over', RegExp, RegExp, RegExp, 'accentText' | 'dangerText'][] = [
   [999.996, 'at', /^الميزانية خلصت$/, / خلصت \(/, /^خلصت — /, 'accentText'],
   [1000, 'at', /^الميزانية خلصت$/, / خلصت \(/, /^خلصت — /, 'accentText'],
-  [1000.01, 'over', /^عدّيت الميزانية بـ /, / عدّيت \(/, /^عدّيت — /, 'dangerText'],
+  [1000.01, 'over', /^عدّيت الميزانية بـ /, /^عدّيت ميزانية أكل \(/, /^عدّيت — /, 'dangerText'],
 ];
 
 describe.each(CASES)('%s من 1000 (%s)', (spent, level, homeWord, bannerWord, catWord, colorKey) => {

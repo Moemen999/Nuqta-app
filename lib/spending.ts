@@ -100,8 +100,8 @@ export function thisMonthRange(today: string): { from: string; to: string } {
 }
 
 /**
- * مصروف الشهر كله — للميزانية الإجمالية في الرئيسية وفي `BudgetView`. كان
- * متكتوب مرتين جوه الشاشتين (`reduce` مباشرة) بدل دالة مختبَرة.
+ * مصروف الشهر كله — للميزانية الإجمالية في `BudgetView` بس. الرئيسية بقت بتعدّي من `monthSummary` (← `spendInRange`
+ * نفس دالة التقارير)، والاتنين نفس الرقم على عمليات بتاريخ صالح (`spending.test.ts`).
  */
 export function monthSpendTotal(tx: Tx[], month: string, transfers: Set<string>): number {
   return spendingExpenses(tx, transfers)

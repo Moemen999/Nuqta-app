@@ -37,6 +37,15 @@ export type AmountDraftOptions = {
   onDroppedConfirm?: (id: string, value: number) => void;
   /** "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول */
   onStaleConfirm?: (id: string) => void;
+  /**
+   * خانة فاضية تتحفظ لوحدها بعد ثانية؟ الافتراضي أيوه (رصيد المحفظة). الميزانية والدخل بيبعتوا `false` (الميزة 6):
+   * المسح عشان تكتب رقم جديد كان بيحفظ صفر بعد ثانية والكارت ينط للمطوي. الفاضي بيتحفظ بس لما تسيب الخانة أو الشاشة
+   */
+  autosaveBlank?: boolean;
+  /** رقم مرفوض (`reject`) والمستخدم ساب الخانة — الخانة بترجع للمحفوظ، والشاشة **بتقول** بدل الرجوع الساكت */
+  onReject?: (id: string) => void;
+  /** رقم مرفوض والشاشة اتشالت (نفس `onDroppedConfirm`) — مفيش كتابة، والشاشة بتقول برّه */
+  onDroppedReject?: (id: string) => void;
 };
 
 /**
@@ -57,7 +66,8 @@ export type AmountDraftOptions = {
  *    بيبعت كتابة لفايربيز حتى لو مفيش حاجة اتغيرت.
  *
  * 2. **الكلام اللي مش رقم مترفوض مش متحوّل لصفر.** الخانة بترجع لآخر قيمة
- *    محفوظة، والمستخدم يشوف إن اللي كتبه مادخلش.
+ *    محفوظة، والشاشة بتقول (`onReject`/`onDroppedReject`) — الرجوع لوحده كان ساكت
+ *    (الميزة 6 من مراجعة التطبيق كله).
  *
  * 3. **القاعدة نفسها بارامتر.** المحفظة بتسمح بالسالب بتأكيد
  *    (`planWalletAmountCommit`)، والميزانية والدخل بيرفضوا السالب من أصله
@@ -90,8 +100,13 @@ export function useAmountDrafts(
   // `plan` داخل الـref كمان: الاستدعاءات الحالية كلها بتبعت دوال ثابتة من
   // `lib/finance.ts`، بس لو حد بعدين بعت دالة متعرّفة جوه الكومبوننت،
   // المؤقّت وflush الخروج كانوا هيمسكوا نسخة قديمة منها من غير ما حد ياخد باله.
-  const latest = useRef({ storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm });
-  useEffect(() => { latest.current = { storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm }; });
+  const autosaveBlank = opts.autosaveBlank ?? true;
+  const pick = () => ({
+    storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm,
+    onReject: opts.onReject, onDroppedReject: opts.onDroppedReject, autosaveBlank,
+  });
+  const latest = useRef(pick());
+  useEffect(() => { latest.current = pick(); });
 
   function clearDraft(id: string) {
     setDrafts(d => {
@@ -110,6 +125,7 @@ export function useAmountDrafts(
 
   /** الحفظ التلقائي. بيرجّع true لو خلص الموضوع فعلاً */
   function autoCommit(id: string, raw: string): boolean {
+    if (!latest.current.autosaveBlank && raw.trim() === '') return false;
     const p = latest.current.plan(raw, latest.current.storedFor(id));
     if (p.action !== 'write') return false;
     commitWrite(id, p.value);
@@ -136,6 +152,7 @@ export function useAmountDrafts(
         const p = latest.current.plan(raw, latest.current.storedFor(id));
         if (p.action === 'write') latest.current.write(id, p.value);
         else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
+        else if (p.action === 'reject') latest.current.onDroppedReject?.(id);
       });
       held.current = {};
     };
@@ -175,7 +192,8 @@ export function useAmountDrafts(
     if (raw === undefined) return;
 
     const p = plan(raw, latest.current.storedFor(id));
-    if (p.action === 'none' || p.action === 'reject') { clearDraft(id); return; }
+    if (p.action === 'none') { clearDraft(id); return; }
+    if (p.action === 'reject') { clearDraft(id); latest.current.onReject?.(id); return; }
     if (p.action === 'write') { commitWrite(id, p.value); return; }
 
     const confirmed = p.value;

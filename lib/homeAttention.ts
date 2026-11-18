@@ -84,8 +84,11 @@ const RANK = { budget: 0, low: 1, due: 2, verifyEmail: 3, noTxToday: 4 } as cons
 /**
  * مفتاح الـ✕ للميزانية: لكل درجة مفتاحها (near / at / over). الانتقال من «خلصت» لـ«عدّيت» معلومة جديدة فالبانر
  * اللي اتقفل بـ✕ على «خلصت» بيرجع (قرار الجلسة 2026-11-16؛ كانوا at/over مفتاح واحد).
+ * **والشهر جوّه المفتاح** (مراجعة التطبيق كله، الميزة 6): ✕ على تعدّي نوفمبر كان بيخبّي تعدّي ديسمبر لو مدة الرجوع
+ * لسه ما خلصتش — شهر جديد = حالة جديدة. (الـ✕ القديم من غير شهر بيسقط مرة واحدة والبانر بيرجع — مقبول)
  */
-export const budgetDismissKey = (catId: string, level: string) => `${catId}:${level === 'near' ? 'near' : level === 'at' ? 'at' : 'over'}`;
+export const budgetDismissKey = (catId: string, month: string, level: string) =>
+  `${catId}:${month}:${level === 'near' ? 'near' : level === 'at' ? 'at' : 'over'}`;
 
 /**
  * كل العناصر اللي **حالتها موجودة دلوقتي** (قبل أي ✕)، مرتّبة: ميزانيات الفئات (خلصت قبل قربت)
@@ -102,11 +105,15 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
     .map(b => ({ ...b, level: budgetLevel(b.spend, b.limit) }))
     .filter(b => b.level !== 'under')
     .forEach(b => {
-      const word = b.level === 'near' ? 'قربت تخلص' : b.level === 'over' ? 'عدّيت' : 'خلصت';
+      // «عدّيت ميزانية الأكل (1,200 من 1,000)» — من غير شرطة مايلة (arabic-copy-reviewer، الميزة 6)
+      const figures = `(${i.money(b.spend)} من ${i.money(b.limit)})`;
+      const text = b.level === 'over'
+        ? `عدّيت ميزانية ${b.cat.name} ${figures}`
+        : `ميزانية ${b.cat.name} ${b.level === 'near' ? 'قربت تخلص' : 'خلصت'} ${figures}`;
       items.push({
-        id: `budget_${b.cat.id}`, kind: 'budget', type: 'budget', instance: budgetDismissKey(b.cat.id, b.level),
-        text: `ميزانية ${b.cat.name} ${word} (${i.money(b.spend)}/${i.money(b.limit)})`,
-        label: speakable(`ميزانية ${b.cat.name} ${word} (${i.money(b.spend)} من ${i.money(b.limit)})`),
+        id: `budget_${b.cat.id}`, kind: 'budget', type: 'budget', instance: budgetDismissKey(b.cat.id, i.nowMonth, b.level),
+        text,
+        label: speakable(text),
         dismissName: b.cat.name, tone: b.level === 'over' ? 'danger' : 'warn', route: ATTENTION_ROUTE.budget,
         rank: RANK.budget, sort: b.level === 'near' ? 1 : 0,
       });

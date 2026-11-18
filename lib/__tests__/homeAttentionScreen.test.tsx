@@ -9,6 +9,8 @@ import { HIDE_AMOUNTS_KEY, PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { dismissLabel } from '@/lib/bannerDismiss';
 import { MONEY_MASK } from '@/lib/money';
+import { currentMonth } from '@/lib/finance';
+import { takePlanningRequest } from '@/lib/planningRequest';
 import { DISMISS_KEY, resetBannerDismissForTests } from '@/lib/useBannerDismiss';
 import { VERIFY_SPAM_HINT } from '@/lib/useEmailVerification';
 
@@ -285,7 +287,7 @@ describe('المبالغ مخفية (العين مقفولة)', () => {
     await mount();
     await openSheet();
     const sheet = within(screen.getByTestId('attention_sheet'));
-    expect(sheet.getByText(`ميزانية أكل قربت تخلص (${MONEY_MASK}/${MONEY_MASK})`)).toBeTruthy();
+    expect(sheet.getByText(`ميزانية أكل قربت تخلص (${MONEY_MASK} من ${MONEY_MASK})`)).toBeTruthy();
     expect(sheet.getByText(`رصيد كاش قرب يخلص (${MONEY_MASK} ج.م)`)).toBeTruthy();
     expect(sheet.getByText(`اشتراك نتفليكس بعد 2 يوم (${MONEY_MASK} ج.م)`)).toBeTruthy();
     expect(sheet.queryByText(/85|15 ج|\b100\b/)).toBeNull();
@@ -325,18 +327,19 @@ describe('الشيت بيتقفل لما العدد يوصل صفر', () => {
 
 /**
  * جرد: كل بانر قديم من صفوف 10–17 (الإيميل، لسه ما سجلتش، رصيد قرب يخلص، ميزانية فئة، اشتراك، جمعية + سطر «التحويلات فشلت»)
+ * (الميزانية بس اتغيّرت عن قصد في الميزة 6 من مراجعة التطبيق كله: «من» بدل الشرطة المايلة، و«عدّيت ميزانية …» في الأول، والشهر في المفتاح)
  * لسه موجود في الهيكل الجديد بنفس النص ومفتاح الـ✕ (والوجهة القديمة للاشتراك والجمعية؛ الرصيد والميزانية وجهتهم جديدة). النصوص دي مكتوبة بإيد من JSX الرئيسية القديم (مش من الكود الجديد).
  */
 describe('جرد البانرات اللي اتلمّت', () => {
   const TEXT = {
-    budget: 'ميزانية أكل قربت تخلص (85/100)',
+    budget: 'ميزانية أكل قربت تخلص (85 من 100)',
     low: 'رصيد كاش قرب يخلص (15 ج.م)',
     sub: 'اشتراك نتفليكس بعد 2 يوم (100 ج.م)',
     gamiya: 'جمعية العيلة — القسط بعد 2 يوم (500 ج.م)',
     verify: 'إيميلك (a@b.c) لسه مش مأكّد — أكّده عشان تأمّن حسابك',
   };
   const ROWS: { row: string; type: 'budget' | 'lowBalance' | 'subscriptionDue' | 'gamiyaDue' | 'verifyEmail' | 'noTxToday'; name?: string; key: string; route?: string; label: string }[] = [
-    { row: 'budget_c1', type: 'budget', name: 'أكل', key: 'budget:c1:near', route: '/(tabs)/planning', label: 'ميزانية أكل قربت تخلص (85 من 100)' },
+    { row: 'budget_c1', type: 'budget', name: 'أكل', key: `budget:c1:${currentMonth()}:near`, route: '/(tabs)/planning', label: 'ميزانية أكل قربت تخلص (85 من 100)' },
     { row: 'low_w1', type: 'lowBalance', name: 'كاش', key: 'lowBalance:w1', route: '/settings-screens/wallets', label: TEXT.low },
     { row: 'gamiya_m2', type: 'gamiyaDue', name: 'العيلة', key: 'gamiyaDue:m2', route: '/(tabs)/debts', label: TEXT.gamiya },
     { row: 'sub_s1', type: 'subscriptionDue', name: 'نتفليكس', key: `subscriptionDue:s1@${IN2}`, route: '/(tabs)/debts', label: TEXT.sub },
@@ -390,6 +393,8 @@ describe('جرد البانرات اللي اتلمّت', () => {
       const target = within(screen.getByTestId(`attention_row_${r.row}`)).getAllByLabelText(r.label)[0];
       await act(async () => { fireEvent.press(target); });
       expect(router.push).toHaveBeenCalledWith(r.route);
+      // الميزانية ← تاب «الميزانية» الفرعي نفسه (الميزة 6)، مش آخر تاب فرعي اتفتح؛ الباقي مبيطلبوش حاجة من التخطيط
+      expect({ row: r.row, planning: takePlanningRequest() }).toEqual({ row: r.row, planning: r.row === 'budget_c1' ? 'budget' : null });
       expect({ row: r.row, sheetOpen: shown('attention_sheet') }).toEqual({ row: r.row, sheetOpen: false });
     }
   });
@@ -494,19 +499,19 @@ describe('✕ والحالة اللي بتتغيّر', () => {
   it('قربت اتقفلت ← الإنفاق وصل 100 (خلصت) ← الصف بيرجع، والمفتاح القديم متخزّن؛ وخلصت اتقفلت ثم عدّت (120) ← الصف بيرجع «عدّيت»', async () => {
     setData(budgetData(85));
     const r = await mount();
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85 من 100)')).toBeTruthy();
     await press('attention_dismiss_budget_c1');
     expect(shown('home_attention_line')).toBe(false);
-    expect(Object.keys(await stored())).toEqual(['budget:c1:near']);
+    expect(Object.keys(await stored())).toEqual([`budget:c1:${currentMonth()}:near`]);
     setData(budgetData(100));
     await r.rerender(ui());
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (100/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل خلصت (100 من 100)')).toBeTruthy();
     await press('attention_dismiss_budget_c1');
     expect(shown('home_attention_line')).toBe(false);
     // «خلصت» ← «عدّيت» معلومة جديدة: الصف بيرجع بمفتاحه (قرار 2026-11-16)
     setData(budgetData(120));
     await r.rerender(ui());
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل عدّيت (120/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('عدّيت ميزانية أكل (120 من 100)')).toBeTruthy();
   });
 
   it('قربت اتقفلت ← الإنفاق عدّى الحد (120) ← الصف بيرجع', async () => {
@@ -516,7 +521,7 @@ describe('✕ والحالة اللي بتتغيّر', () => {
     expect(shown('home_attention_line')).toBe(false);
     setData(budgetData(120));
     await r.rerender(ui());
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل عدّيت (120/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('عدّيت ميزانية أكل (120 من 100)')).toBeTruthy();
   });
 
   it('العكس: خلصت (120/100) اتقفلت ← الإنفاق نزل لـ85 (قربت) ← الصف بيظهر بمفتاح «near» الجديد', async () => {
@@ -524,10 +529,10 @@ describe('✕ والحالة اللي بتتغيّر', () => {
     const r = await mount();
     await press('attention_dismiss_budget_c1');
     expect(shown('home_attention_line')).toBe(false);
-    expect(Object.keys(await stored())).toEqual(['budget:c1:over']);
+    expect(Object.keys(await stored())).toEqual([`budget:c1:${currentMonth()}:over`]);
     setData(budgetData(85));
     await r.rerender(ui());
-    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85/100)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('ميزانية أكل قربت تخلص (85 من 100)')).toBeTruthy();
   });
 
   it('رصيد w1 اتقفل ← محفظة تانية w2 نزلت تحت حدها ← صف w2 بيظهر وw1 فاضل مخفي (على الشاشة)', async () => {

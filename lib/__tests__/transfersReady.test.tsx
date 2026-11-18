@@ -171,7 +171,7 @@ describe('الرئيسية', () => {
     await mount();
     expect(screen.queryByTestId('home_banner_budget_total')).toBeNull();
     expect(screen.getByTestId('home_attention_line')).toBeTruthy();
-    expect(screen.getByText(/ميزانية خروجات (خلصت|عدّيت)/)).toBeTruthy();
+    expect(screen.getByText(/(ميزانية خروجات خلصت|عدّيت ميزانية خروجات)/)).toBeTruthy();
   });
 });
 

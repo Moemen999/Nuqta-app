@@ -3,7 +3,8 @@ import { TransfersFailedNote } from '@/components/SpendStatus';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { ATTENTION_LINE_HINT, ATTENTION_ROUTE_HINT, attentionSummaryPhrase } from '@/lib/attentionSummary';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
-import { visibleAttention, type AttentionItem } from '@/lib/homeAttention';
+import { ATTENTION_ROUTE, visibleAttention, type AttentionItem } from '@/lib/homeAttention';
+import { requestPlanning } from '@/lib/planningRequest';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize } from '@/lib/tokens';
 import {
   VERIFY_RESEND_LABEL, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
@@ -70,6 +71,8 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
 
   const go = (route: NonNullable<AttentionItem['route']>) => {
     setOpen(false);
+    // الميزانية ← تاب «الميزانية» الفرعي نفسه، مش آخر تاب فرعي اتفتح في التخطيط
+    if (route === ATTENTION_ROUTE.budget) requestPlanning('budget');
     router.push(route);
   };
 

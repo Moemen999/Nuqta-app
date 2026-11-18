@@ -953,9 +953,15 @@ type DataContextType = {
    */
   deleteTransaction: (id: string, settlements?: Settlement[], opts?: { expectedTxs?: ExpectedTx[] }) => Promise<TxDeleteResult>;
   transactionLinkWarning: (id: string) => string | null;
-  setBudget: (categoryId: string, limit: number) => Promise<void>;
-  setMonthlyIncome: (month: string, income: number) => Promise<void>;
-  setShakhbataPercents: (p: ShakhbataPercents) => Promise<void>;
+  /**
+   * `false` = **ما اتبعتش** (مفيش حساب) — والرسالة اتقالت خلاص؛ الشاشة متمسحش المسوّدة كأنها اتحفظت. `true` = اتبعتت
+   * (من غير تأكيد السيرفر — قاعدة 7؛ الرفض بعدين بيتقال من `track`)
+   */
+  setBudget: (categoryId: string, limit: number) => Promise<boolean>;
+  setMonthlyIncome: (month: string, income: number) => Promise<boolean>;
+  setShakhbataPercents: (p: ShakhbataPercents) => Promise<boolean>;
+  /** مستند النسب وصل من السيرفر ومش مرفوض — قبلها النسب المعروضة هي الافتراضي 50/30/20 مش المحفوظة، فالتعديل مقفول */
+  percentsReady: boolean;
   addDebt: (data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
@@ -1770,8 +1776,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   /**
    * الميزانية بتتمسح مع الفئة. مستند الميزانية مفتاحه هو معرّف الفئة، فلو
-   * سبناه بيفضل سقف يتيم في فايرستور بيدخل في حسبة "المتبقي للتوزيع" من
-   * غير أي صف يفسّره — المستخدم بيشوف فلوس موزّعة على فئة مش موجودة.
+   * سبناه بيفضل سقف يتيم في فايرستور مالوش فئة. "المتبقي للتوزيع" في
+   * `BudgetView` مبيعدّهوش (بيجمع على الفئات الموجودة بس)، فالمسح هنا نضافة
+   * للبيانات مش تصليح رقم على الشاشة.
    */
   async function deleteCategory(id: string) {
     if (!uid) return;
@@ -2633,17 +2640,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     return null;
   }
+  // الميزة 6 (مراجعة التطبيق كله): مفيش حساب كان `return` ساكت والشاشة بتمسح المسوّدة كأنها اتحفظت. دلوقتي الرسالة
+  // العامة باسم السجل، و`false` للي بيستنى. والسقف باسم فئته («سقف "أكل"») مش «سقف الميزانية» لأي فئة
   async function setBudget(categoryId: string, limit: number) {
-    if (!uid) return;
-    track(setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit }), 'سقف الميزانية');
+    const label = categoryId === 'total_budget'
+      ? 'الميزانية الإجمالية'
+      : namedLabel('سقف', categories.find(c => c.id === categoryId)?.name);
+    if (!uid) { reportWriteError(new Error('no-account'), label); return false; }
+    track(setDoc(doc(db, 'users', uid, 'budgets', categoryId), { limit }), label);
+    return true;
   }
   async function setMonthlyIncome(month: string, income: number) {
-    if (!uid) return;
+    if (!uid) { reportWriteError(new Error('no-account'), 'دخل الشهر'); return false; }
     track(setDoc(doc(db, 'users', uid, 'shakhbata_income', month), { income }), 'دخل الشهر');
+    return true;
   }
   async function setShakhbataPercents(p: ShakhbataPercents) {
-    if (!uid) return;
+    if (!uid) { reportWriteError(new Error('no-account'), 'نسب توزيع الدخل'); return false; }
     track(setDoc(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), p), 'نسب توزيع الدخل');
+    return true;
   }
 
   /**
@@ -4480,6 +4495,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),
         transfersStatus: transfersStatusFrom(delivered, loadErrors),
+        percentsReady: delivered.has('shakhbata_settings') && !loadErrors.includes('shakhbata_settings'),
         readAllFromServer, deleteAllMyData, deletionPending,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

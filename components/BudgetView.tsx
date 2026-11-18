@@ -10,27 +10,36 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
+import { AMOUNT_REJECT_TITLE, AUTOSAVE_HINT, NO_CATEGORIES_TEXT, amountRejectBody, budgetFieldName, categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
+import { moneyText, speakable } from '@/lib/money';
+import { useNotice } from '@/components/NoticeProvider';
 import { budgetForecastText, budgetLevel, budgetLevelColor, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_KEY = 'total_budget';
+
+const BUDGETS_LOAD_ERROR = 'السقوف المحفوظة ما وصلتش من السيرفر، فممكن تبان فاضية وهي مش فاضية. التعديل مقفول لحد ما توصل — دوس «جرّب تاني» فوق.';
+const LEVEL_WORD = { under: '', near: 'قرّبت تخلص', at: 'خلصت', over: 'عدّيت' } as const;
 
 export default function BudgetView() {
   const fabScroll = useFabScroll();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categoryColors } = useChartColors();
-  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus } = useData();
-  // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا
-  const spendLoading = transfersStatus === 'loading';
+  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus, loadErrors = [], figuresPending = [] } = useData();
+  const notice = useNotice();
+  // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا — **والعمليات نفسها** زي الرئيسية (الميزة 6):
+  // قبلها «0 اتصرف» كان بيتعرض رقم حقيقي. لو مبتوصلش، `SpendLoading` بيقول بعد المهلة إن النت هو السبب
+  const spendLoading = transfersStatus === 'loading' || figuresPending.includes('transactions');
+  // الميزانيات اترفضت ← السقوف المعروضة فاضية مش حقيقية؛ الكتابة كانت هتكتب فوق سقف المستخدم مش شايفه
+  const budgetsFailed = loadErrors.includes('budgets');
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
-  const { money } = usePrivacy();
+  const { money, amountsHidden } = usePrivacy();
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
   // كان هيبقى صف فاضي بيزوّد الزحمة ويدخل في حسبة "المتبقي للتوزيع" بصفر
   const categories = useMemo(() => allCategories.filter(c => !c.archived), [allCategories]);
@@ -46,23 +55,36 @@ export default function BudgetView() {
   // السقف المحفوظ مش المسوّدة: السطر ميظهرش ويختفي مع كل رقم بيتكتب
   const forecast = (id: string, rows: typeof monthRowsToDate, savedLimit: number, shownSpend: number) => {
     const day = budgetRunOutDay(rows, savedLimit, today, shownSpend);
-    return day === null ? null : <Text testID={`budget_forecast_${id}`} style={styles.forecast}>{budgetForecastText(day, today)}</Text>;
+    return day === null ? null : <Text testID={`budget_forecast_${id}`} style={styles.forecast}>{budgetForecastText(day, today, id === 'total' ? 'total' : 'category')}</Text>;
   };
+
+  // اسم الخانة في الرسايل: «سقف "أكل"» أو «السقف الإجمالي»
+  const fieldName = (key: string) => (key === TOTAL_KEY ? budgetFieldName() : budgetFieldName(allCategories.find(c => c.id === key)?.name ?? ''));
+  // رقم مرفوض (سالب، كلام) كان بيرجع للمحفوظ ساكت — دلوقتي بيتقال، حتى لو الشاشة اتشالت (الرسالة برّه الشاشة)
+  const sayRejected = (key: string) => notice(AMOUNT_REJECT_TITLE, amountRejectBody(fieldName(key)));
 
   // المسوّدة والحفظ التلقائي وflush الخروج كلهم في `useAmountDrafts` دلوقتي.
   // كانت النسخة المحلية هنا نسخة تالتة من نفس الكود (مع المحافظ وشخبطة)،
   // والفرق الوحيد الحقيقي إن السقف مبيقبلش سالب — وده بقى `planBudgetCommit`.
+  // الفاضي مبيتحفظش لوحده (`autosaveBlank: false`): مسح السقف عشان تكتب رقم جديد كان بيحفظ صفر بعد ثانية والكارت ينط
+  // للمطوي — الصفر بيتحفظ لما تسيب الخانة بس
   const { valueFor, numberFor, onChange, onBlur } = useAmountDrafts(
     key => budgets[key] || 0,
-    (key, value) => setBudget(key, value),
-    { plan: planBudgetCommit, blankWhenZero: true },
+    (key, value) => {
+      void Promise.resolve(setBudget(key, value)).then(ok => {
+        if (ok) AccessibilityInfo.announceForAccessibility(speakable(`اتحفظ ${fieldName(key)}`));
+      });
+    },
+    { plan: planBudgetCommit, blankWhenZero: true, autosaveBlank: false, onReject: sayRejected, onDroppedReject: sayRejected },
   );
 
   const totalBudget = budgets[TOTAL_KEY] || 0;
   const allocated = categories.reduce((s, c) => s + (budgets[c.id] || 0), 0);
-  const remaining = totalBudget - allocated;
+  // نص قرش زي أي رصيد: كسور الجمع (0.1+0.2) مكانتش تبقى «زوّدت بـ 0.00»
+  const remaining = snapPiastre(totalBudget - allocated);
   const totalMonthSpend = useMemo(
-    // من غير السلفة وقسط الجمعية (خطوة 8)، بنفس الدالة اللي الرئيسية بتستخدمها
+    // من غير السلفة وقسط الجمعية (خطوة 8). الرئيسية بتعدّي من `monthSummary` (← `spendInRange`)، والاتنين نفس الرقم
+    // على عمليات بتاريخ صالح (`spending.test.ts`)
     () => monthSpendTotal(transactions, nowMonth, transfers),
     [transactions, nowMonth, transfers]
   );
@@ -77,10 +99,13 @@ export default function BudgetView() {
 
   // الكارت اللي اتكتب فيه وهو في المطوي **بيفضل فيه** لحد ما تسيب الشاشة (a11y-architect BLOCKER): الحفظ التلقائي بعد
   // ثانية كان بينقله للقايمة اللي فوق، فالخانة بتتشال والكيبورد بيقع في نص الرقم ("5000" تتحفظ "5")
-  const [stickyFold, setStickyFold] = useState<Set<string>>(() => new Set());
-  const keepInFold = (id: string) => setStickyFold(prev => (prev.has(id) ? prev : new Set(prev).add(id)));
-  const withLimit = categories.filter(c => (budgets[c.id] || 0) > 0 && !stickyFold.has(c.id));
-  const withoutLimit = categories.filter(c => !((budgets[c.id] || 0) > 0) || stickyFold.has(c.id));
+  // والعكس كمان (الميزة 6): كارت فوق اتمسح سقفه وانت فيه مبينزلش المطوي. المجموعة بتتثبّت أول ما الخانة تاخد الفوكس
+  const [pinned, setPinned] = useState<Record<string, 0 | 1>>({});
+  const pinGroup = (id: string, group: 0 | 1) => setPinned(prev => (id in prev ? prev : { ...prev, [id]: group }));
+  const groupOf = (id: string): 0 | 1 => pinned[id] ?? ((budgets[id] || 0) > 0 ? 0 : 1);
+  const withLimit = categories.filter(c => groupOf(c.id) === 0);
+  const withoutLimit = categories.filter(c => groupOf(c.id) === 1);
+  const noCategories = categories.length === 0 && !loadErrors.includes('categories');
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -89,8 +114,9 @@ export default function BudgetView() {
         contentContainerStyle={styles.content}
         {...fabScroll.scrollProps}
         keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-        <Text style={styles.title}>الميزانية الشهرية</Text>
+        <Text style={styles.title} accessibilityRole="header">الميزانية الشهرية</Text>
         {transfersStatus === 'failed' && <TransfersFailedNote testID="budget_transfers_failed" style={{ marginTop: -8, marginBottom: 12 }} />}
+        {budgetsFailed && <Text testID="budget_load_error" style={styles.loadError}>{BUDGETS_LOAD_ERROR}</Text>}
 
         <View style={styles.totalCard}>
           <View style={styles.head}>
@@ -98,6 +124,8 @@ export default function BudgetView() {
             <TextInput
               style={styles.input}
               accessibilityLabel="الميزانية الإجمالية الشهرية"
+              accessibilityHint={AUTOSAVE_HINT}
+              editable={!budgetsFailed}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={colors.textSecondary}
@@ -110,15 +138,18 @@ export default function BudgetView() {
           {totalBudget > 0 && (
             <>
               <View style={styles.totalRow}>
-                <Text style={styles.totalSub}>موزّع على الفئات: <Money value={allocated} currency={false} /></Text>
+                <Text style={styles.totalSub} accessible accessibilityLabel={speakable(`موزّع على الفئات: ${moneyText(allocated, amountsHidden)}`)}>
+                  موزّع على الفئات: <Money value={allocated} currency={false} />
+                </Text>
                 <Text style={[styles.totalSub, { color: remaining < 0 ? colors.dangerText : colors.incomeText }]}>
-                  {remaining < 0 ? 'تجاوزت الإجمالي بـ ' + money(Math.abs(remaining)) : 'متبقي للتوزيع: ' + money(remaining)}
+                  {remaining < 0 ? `الفئات زوّدت عن الإجمالي بـ ${money(Math.abs(remaining))} ج.م` : `متبقي للتوزيع: ${money(remaining)} ج.م`}
                 </Text>
               </View>
               {spendLoading ? <SpendLoading testID="budget_total_loading" shape="line" style={styles.totalSub} /> : (
                 <>
                   {/* دراسة الشكل خطوة 4: رقم بطل واحد للشاشة — اتصرف كام من الإجمالي */}
-                  <View style={styles.heroWithRing}>
+                  <View style={styles.heroWithRing} accessible
+                    accessibilityLabel={speakable(`اتصرف ${moneyText(totalMonthSpend, amountsHidden)} من ${moneyText(totalBudget, amountsHidden)}`)}>
                     {/* دايرة التقدّم: نفس الأرقام والدرجة (`totalLevel` ← `budgetLevelColor`) اللي الرقم البطل جنبها، زينة بس */}
                     <ProgressRing testID="budget_ring" spent={totalMonthSpend} total={totalBudget} color={budgetLevelColor(totalLevel, colors, colors.accentText)} trackColor={colors.borderStrong} />
                     <View testID="budget_hero" style={styles.heroRow}>
@@ -127,9 +158,11 @@ export default function BudgetView() {
                     </View>
                   </View>
                   {/* الدرجة بالكلام مش باللون بس — نفس نص كارت الشهر في الرئيسية */}
-                  {(totalLevel === 'at' || totalLevel === 'over') && (
+                  {totalLevel !== 'under' && (
                     <Text testID="budget_total_level" style={[styles.totalSub, { color: budgetLevelColor(totalLevel, colors, colors.accentText) }]}>
-                      {totalLevel === 'at' ? 'الميزانية خلصت' : `عدّيت الميزانية بـ ${money(Math.abs(snapPiastre(totalBudget - totalMonthSpend)))} ج.م`}
+                      {totalLevel === 'at' ? 'الميزانية خلصت'
+                        : totalLevel === 'near' ? `فاضل ${money(snapPiastre(totalBudget - totalMonthSpend))} ج.م — قربت تخلص`
+                          : `عدّيت الميزانية بـ ${money(Math.abs(snapPiastre(totalBudget - totalMonthSpend)))} ج.م`}
                     </Text>
                   )}
                   {forecast('total', monthRowsToDate, totalBudget, totalMonthSpend)}
@@ -139,7 +172,8 @@ export default function BudgetView() {
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>توزيع الميزانية على الفئات</Text>
+        <Text style={styles.sectionTitle} accessibilityRole="header">توزيع الميزانية على الفئات</Text>
+        {noCategories && <Text testID="budget_no_categories" style={styles.empty}>{NO_CATEGORIES_TEXT}</Text>}
         {/* الفئات من غير سقف مطوية في سطر (دراسة الشكل) — التقسيم على المتخزّن مش المسوّدة، عشان الكارت ميتنقلش وانت بتكتب */}
         {[withLimit, withoutLimit].map((group, gi) => {
           const cards = group.map(c => {
@@ -152,9 +186,12 @@ export default function BudgetView() {
           // الدرجة من `budgetLevel` (نص قرش) زي الإجمالي والرئيسية: 'over' خطر، 'at'/'near' دهبي — العرض (%) زي ما هو
           const color = budgetLevelColor(level, colors, colors.textSecondary);
           const textColor = color;
+          const name = categoryLabel(c, { icon: false });
+          // وصف واحد للحالة: «فئة أكل: صرفت 500 ج.م من 1,000 ج.م، قرّبت تخلص» (a11y-architect)
+          const statusLabel = speakable(`فئة ${name}: صرفت ${moneyText(spend, amountsHidden)} من ${moneyText(limit, amountsHidden)}${level === 'under' ? '' : `، ${LEVEL_WORD[level]}`}`);
 
           return (
-            <View key={c.id} style={styles.card}>
+            <View key={c.id} testID={`budget_card_${c.id}`} style={styles.card}>
               <View style={styles.head}>
                 <View style={[categoryInlineRow, { flex: 1, flexShrink: 1 }]}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.row} tint={categoryColors.get(c.id)} />
@@ -165,8 +202,10 @@ export default function BudgetView() {
                   keyboardType="numeric"
                   placeholder="السقف"
                   placeholderTextColor={colors.textMuted}
-                  accessibilityLabel={`سقف ${categoryLabel(c, { icon: false })}`}
-                  onFocus={gi === 1 ? () => keepInFold(c.id) : undefined}
+                  accessibilityLabel={`سقف ${name}`}
+                  accessibilityHint={AUTOSAVE_HINT}
+                  editable={!budgetsFailed}
+                  onFocus={() => pinGroup(c.id, gi === 0 ? 0 : 1)}
                   value={valueFor(c.id, budgets[c.id] || 0)}
                   onChangeText={v => onChange(c.id, v)}
                   onBlur={() => onBlur(c.id)}
@@ -176,17 +215,21 @@ export default function BudgetView() {
               {limit > 0 && spendLoading && <SpendLoading testID={`budget_loading_${c.id}`} shape="line" style={styles.sub} />}
               {limit > 0 && !spendLoading && (
                 <>
-                  <View style={styles.track}>
-                    <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+                  <View testID={`budget_status_${c.id}`} accessible accessibilityLabel={statusLabel}>
+                    {/* الشريط زينة — الحالة كلها في الوصف فوق */}
+                    <View style={styles.track} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+                      <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
+                    </View>
+                    {/* 80% و100% بالكلمة كمان — الفرق بين اللونين 1.07–1.34:1 بس (a11y-architect) */}
+                    <Text style={[styles.sub, { color: textColor }]}>{level === 'under' ? '' : `${LEVEL_WORD[level]} — `}<Money value={spend} currency={false} /> من <Money value={limit} /></Text>
                   </View>
-                  {/* 80% و100% بالكلمة كمان — الفرق بين اللونين 1.07–1.34:1 بس (a11y-architect) */}
-                  <Text style={[styles.sub, { color: textColor }]}>{level === 'over' ? 'عدّيت — ' : level === 'at' ? 'خلصت — ' : level === 'near' ? 'قرّبت تخلص — ' : ''}<Money value={spend} currency={false} /> / <Money value={limit} /></Text>
                   {forecast(c.id, monthRowsToDate.filter(t => t.categoryId === c.id), budgets[c.id] || 0, spend)}
                 </>
               )}
             </View>
           );
           });
+          if (noCategories) return null;
           return gi === 0 ? cards : (
             // مفتوح من الأول لو مفيش ولا فئة ليها سقف (مستخدم جديد) — غير كده الشاشة كلها سطر مقفول
             <FoldedSection key="nolimit" testID="budget_no_limit" title="فئات من غير سقف" count={group.length} defaultOpen={withLimit.length === 0}
@@ -217,11 +260,14 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     head: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '500', flexShrink: 1 },
-    input: { width: 110, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },
+    // عرض أدنى مش ثابت (a11y-architect): الخط الكبير كان بيقص الرقم في 110
+    input: { minWidth: 110, maxWidth: '50%', flexShrink: 1, minHeight: MIN_TOUCH, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, fontSize: typeScale.body },
     // المسار نفسه باين (surface2 على الكارت كان 1.1:1 — الشريط كان بيبان شرطة سايبة)
     track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: radius.track },
     sub: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
+    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.lg, lineHeight: 18 },
+    empty: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm, lineHeight: 22 },
     forecast: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
   });
 }
