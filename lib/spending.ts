@@ -41,7 +41,8 @@ export function transferTransactionIds(
     if (isCreditPurchase(d)) continue; // سداد الشرا بالأجل مصروف
     (d.payments || []).forEach(p => add(p.transactionId));
   }
-  for (const g of gamiyas ?? []) (g.months || []).forEach(m => add(m.transactionId));
+  // شهر الاستلام: الاستلام وقسطك فيه (اختيار أ، 2026-11-18) — القسط تحويل زي باقي الأقساط
+  for (const g of gamiyas ?? []) (g.months || []).forEach(m => { add(m.transactionId); add(m.installmentTransactionId); });
   return ids;
 }
 

@@ -83,10 +83,10 @@ describe('حذف السجل بيمسح كل عملياته', () => {
     const g = harness.api().gamiyas[0];
     await harness.api().markGamiyaMonthDone(g.id, g.months[0].id);
     await harness.waitForData(api => api.transactions.length === 1);
-    // شهر الاستلام: بيدخل فلوس
+    // شهر الاستلام: بيدخل الجمعية كلها، وبيتسجل قسطك في الشهر ده كمان (اختيار أ، 2026-11-18)
     await harness.api().markGamiyaMonthDone(g.id, harness.api().gamiyas[0].months[1].id);
-    await harness.waitForData(api => api.transactions.length === 2);
-    expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-400 + 1600);
+    await harness.waitForData(api => api.transactions.length === 3);
+    expect(walletBalance(harness.api().transactions, w.id, 0)).toBe(-400 + 1600 - 400);
 
     await harness.api().deleteGamiya(g.id);
     await harness.waitForData(api => api.gamiyas.length === 0 && api.transactions.length === 0);

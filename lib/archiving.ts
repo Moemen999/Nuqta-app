@@ -1,7 +1,7 @@
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 import { fmt, walletBalance } from '@/lib/finance';
-import { gamiyaTxId } from '@/lib/autoCharge';
+import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId } from '@/lib/autoCharge';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
@@ -485,11 +485,25 @@ export function gamiyaTransactionIds(
   if (!g) return [];
   const months = Array.isArray(g.months) ? g.months : [];
   const ids = [
-    ...months.map(m => m?.transactionId),
+    // شهر الاستلام عليه عمليتين: الاستلام وقسطك (`gamiyaInstallmentTxId` — اختيار أ، 2026-11-18)
+    ...months.flatMap(m => gamiyaMonthTxIds(m)),
     ...(g.id ? months.filter(m => typeof m?.id === 'string').map(m => gamiyaTxId(g.id!, m.id)) : []),
+    ...(g.id ? months.filter(m => typeof m?.id === 'string' && m.isPayoutMonth).map(m => gamiyaInstallmentTxId(g.id!, m.id)) : []),
     ...(g.id ? transactions.filter(t => t.gamiyaId === g.id).map(t => t.id) : []),
   ].filter((x): x is string => typeof x === 'string' && !!x);
   return [...new Set(ids)];
+}
+
+/**
+ * العمليات التانية في نفس شهر الجمعية (شهر الاستلام: الاستلام ↔ قسطك). مسح واحدة بيمسح التانية في نفس الذرة
+ * (`deleteGamiyaLinkedTransaction`)، فمودال العملية بيحسب تسوية المحفظة المؤرشفة على الاتنين.
+ */
+export function gamiyaPairedTxIds(gamiyas: Pick<Gamiya, 'months'>[], txId: string): string[] {
+  for (const g of gamiyas) {
+    const m = (g.months || []).find(x => gamiyaMonthTxIds(x).includes(txId));
+    if (m) return gamiyaMonthTxIds(m).filter(x => x !== txId);
+  }
+  return [];
 }
 
 /** العمليات المربوطة اللي لسه موجودة فعلاً — المعرّف ممكن يكون لعملية اتمسحت قبل كده */

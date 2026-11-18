@@ -38,7 +38,7 @@ import {
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
 import {
-  anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
+  anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
   subscriptionOpenCharges, subscriptionResumeDate, subscriptionTxId, type ChargeClosed, type ChargeMode,
 } from '@/lib/autoCharge';
 import {
@@ -149,6 +149,20 @@ const amountsForDevLog = (e: AmountChangedError & { seen?: number; actual?: numb
  */
 function seenAmountDiffers(seen: number | undefined, actual: number): boolean {
   return seen !== undefined && roundMoney(seen) !== roundMoney(actual);
+}
+
+/**
+ * عملية قسطك في شهر الاستلام (اختيار أ، 2026-11-18 — `gamiyaInstallmentTxId`): مصروف بنفس محفظة وتاريخ وبصمة الاستلام،
+ * ومن غير فئة زي باقي أقساط الجمعية (وفي التقارير تحويل مش مصروف — `transferTransactionIds`). بتتكتب لو مش موجودة بس.
+ */
+function gamiyaInstallmentTxData(
+  g: Pick<Gamiya, 'id' | 'name' | 'walletId'>, m: Pick<GamiyaMonth, 'id' | 'monthIndex' | 'dueDate'>, amount: number, at: string,
+) {
+  return {
+    type: 'expense' as const, amount, walletId: g.walletId, date: m.dueDate,
+    note: `قسط جمعية: ${g.name} (شهر ${m.monthIndex}، شهر الاستلام)`,
+    gamiyaId: g.id, periodKey: m.id, createdAt: at,
+  };
 }
 
 /**
@@ -769,6 +783,11 @@ export type GamiyaMonth = {
   amount: number;
   status: 'pending' | 'done';
   transactionId?: string;
+  /**
+   * شهر الاستلام بس: عملية قسطك في الشهر ده (`gamiyaInstallmentTxId`، مصروف) — بتتكتب مع الاستلام في نفس الذرة
+   * (قرار مؤمن، اختيار أ، 2026-11-18). مش موجود على شهر استلام مقفول = اتقفل قبل التغيير (الاستلام بس، مفيش هجرة)
+   */
+  installmentTransactionId?: string;
   /** اتسجل لوحده */
   auto?: boolean;
   /** عمليته اتمسحت ← بيسأل، وعمره ما يتسجل لوحده تاني */
@@ -931,7 +950,8 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
-  markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number) => Promise<GamiyaMarkOutcome>;
+  /** `seenInstallment`: قسطك اللي اتقال في تأكيد شهر الاستلام — اتغيّر ← `amount-changed` */
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number) => Promise<GamiyaMarkOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
   recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<ChargeRecordResult>;
   /** "ما اتخصمش" — الفترة بتتقفل من غير عملية */
@@ -2330,7 +2350,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     // عملية شهر جمعية ← ذرة من السيرفر بتعدّل الشهر ده بس (بند E). الجمعية من الشهر المربوط، ولو مش لاقيينه عندنا من
     // `gamiyaId` على العملية نفسها (التحديث لسه ما وصلناش)
-    const gamiyaId = gamiyas.find(g => (g.months || []).some(m => m.transactionId === id))?.id
+    const gamiyaId = gamiyas.find(g => (g.months || []).some(m => gamiyaMonthTxIds(m).includes(id)))?.id
       ?? transactions.find(x => x.id === id)?.gamiyaId ?? brokenTransactions.find(x => x.id === id)?.gamiyaId;
     if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements);
     const batch = writeBatch(db);
@@ -2362,17 +2382,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const txSnap = await t.get(txRef);
         const gSnap = await t.get(gamiyaRef);
         const g = gSnap.exists() ? gamiyaFromDoc<Gamiya>(gamiyaId, gSnap.data(), true) : null;
+        // شهر الاستلام عليه عمليتين (الاستلام وقسطك — اختيار أ): مسح واحدة بيمسح التانية في نفس الذرة، عشان الشهر
+        // يرجع يسأل من غير ما يفضل نص الحركة في المحفظة. المودال حسب التسوية على الاتنين (`gamiyaPairedTxIds`)
+        const month = g?.months.find(m => gamiyaMonthTxIds(m).includes(txId));
+        const siblingRefs = gamiyaMonthTxIds(month).filter(x => x !== txId).map(x => doc(db, 'users', uid!, 'transactions', x));
+        const siblingSnaps = await Promise.all(siblingRefs.map(r => t.get(r)));
         // كل القرايات خلصت — من هنا كتابات بس
         // العملية اتمسحت قبل كده (جهاز تاني، أو commit وصل والرد ضاع): التسوية اتحسبت على أثرها، فمتتكتبش تاني
         if (txSnap.exists()) {
           t.delete(txRef);
           stageSettlements(t, settlements);
         }
-        if (!g || !g.months.some(m => m.transactionId === txId)) return;
+        siblingSnaps.forEach(snap => { if (snap.exists()) t.delete(snap.ref); });
+        if (!g || !month) return;
         // المصفوفة من نسخة السيرفر اللي اتقرت جوه الذرة، والشهر المربوط بالعملية دي بس هو اللي بيتغيّر
         const months = g.months.map(m => {
-          if (m.transactionId !== txId) return m;
-          const { transactionId: _t, auto: _a, at: _at, ...rest } = m;
+          if (m !== month) return m;
+          const { transactionId: _t, installmentTransactionId: _i, auto: _a, at: _at, ...rest } = m;
           // بيسأل، وعمره ما يتسجل لوحده تاني (`lib/autoCharge.ts`)
           return { ...rest, status: 'pending' as const, reopened: true };
         });
@@ -2396,7 +2422,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const [txSnap, gSnap] = await withTimeout(Promise.all([getDocFromServer(txRef), getDocFromServer(gamiyaRef)]), LANDED_CHECK_TIMEOUT_MS);
       if (txSnap.exists()) return 'missing';
       const raw = gSnap.exists() ? (gSnap.data() as { months?: unknown }).months : undefined;
-      const linked = Array.isArray(raw) && raw.some((m: { transactionId?: unknown } | null) => m?.transactionId === txId);
+      const linked = Array.isArray(raw)
+        && raw.some((m: { transactionId?: unknown; installmentTransactionId?: unknown } | null) => m?.transactionId === txId || m?.installmentTransactionId === txId);
       return linked ? 'missing' : 'landed';
     } catch (e) {
       console.warn('[gamiya] tx delete landed check failed', (e as { code?: string })?.code ?? 'timeout');
@@ -2500,7 +2527,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     for (const g of gamiyas) {
-      if ((g.months || []).some(m => m.transactionId === id)) {
+      const m = (g.months || []).find(x => gamiyaMonthTxIds(x).includes(id));
+      // شهر الاستلام: مسح واحدة بيمسح التانية (`deleteGamiyaLinkedTransaction`) — لازم يتقال قبل التأكيد
+      if (m && gamiyaMonthTxIds(m).length > 1) {
+        const other = m.transactionId === id ? 'قسطك في الشهر ده' : 'استلام الجمعية';
+        return `دي من شهر الاستلام في جمعية "${g.name}" — لو مسحتها هتتمسح معاها عملية ${other} كمان، والشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
+      }
+      if (m) {
         return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
     }
@@ -3549,11 +3582,26 @@ export function DataProvider({ children }: { children: ReactNode }) {
         })) {
           reasons.changed = true;
         }
+        // شهر الاستلام (اختيار أ، 2026-11-18): الاستلام وقسطك في الشهر ده مع بعض — قسط مش مقروء ← الشهر ميتسجلش خالص
+        // (مش استلام من غير قسط)، زي المبلغ البايظ
+        const instOf = new Map<string, number>();
+        if (kind === 'gamiya') {
+          const g = data as Gamiya;
+          for (const e of [...todo]) {
+            if (!g.months?.find(m => m.id === e.key)?.isPayoutMonth) continue;
+            const inst = storableAmount(g.monthlyAmount);
+            if (inst === null) { reasons.badAmount = true; todo.splice(todo.indexOf(e), 1); continue; }
+            instOf.set(e.key, inst);
+          }
+        }
         recorded = [...oursBefore];
         if (todo.length === 0) return;
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
         const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions', txIdOf(e.key)));
         const existing = await Promise.all(txRefs.map(r => t.get(r)));
+        const instKeys = [...instOf.keys()];
+        const instSnaps = await Promise.all(instKeys.map(k => t.get(doc(db, 'users', uid!, 'transactions', gamiyaInstallmentTxId(id, k)))));
+        const instExists = new Map(instKeys.map((k, i) => [k, instSnaps[i].exists()]));
 
         if (kind === 'subscription') {
           const sub = data as Subscription;
@@ -3589,7 +3637,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const months = (g.months || []).map(m => {
           const i = todo.findIndex(e => e.key === m.id);
           if (i === -1) return m;
-          const { reopened: _r, auto: _a, transactionId: _t, at: _at, ...rest } = m;
+          const { reopened: _r, auto: _a, transactionId: _t, installmentTransactionId: _it, at: _at, ...rest } = m;
           if (!existing[i].exists()) {
             t.set(txRefs[i], {
               type: m.isPayoutMonth ? 'income' : 'expense', amount: todo[i].amount, walletId: g.walletId, date: m.dueDate,
@@ -3598,7 +3646,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
             });
             recorded.push(m.id);
           }
-          return { ...rest, status: 'done' as const, transactionId: txRefs[i].id, at, ...(auto ? { auto: true } : {}) };
+          const inst = instOf.get(m.id);
+          const instId = gamiyaInstallmentTxId(id, m.id);
+          // موجودة (اتعدّلت مثلاً) ← الشهر بيتقفل عليها من غير ما نكتب فوقها
+          if (inst !== undefined && !instExists.get(m.id)) t.set(doc(db, 'users', uid!, 'transactions', instId), gamiyaInstallmentTxData(g, m, inst, at));
+          return {
+            ...rest, status: 'done' as const, transactionId: txRefs[i].id,
+            ...(inst !== undefined ? { installmentTransactionId: instId } : {}), at, ...(auto ? { auto: true } : {}),
+          };
         });
         t.update(ref, { months });
       }));
@@ -4224,7 +4279,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * **ليه مش `recordCharges`:** هناك الشهور اللي معادها جه بس (`gamiyaOpenCharges`)، والشاشة بتسجّل أي شهر لسه
    * pending (قسط بدري) — فالمسار ده فاضل لوحده بنفس العقد، والمعرّف الثابت واحد فالشهر عمليته واحدة مهما اتسجل منين.
    */
-  async function markGamiyaMonthDone(gamiyaId: string, monthId: string, seenAmount?: number): Promise<GamiyaMarkOutcome> {
+  async function markGamiyaMonthDone(gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number): Promise<GamiyaMarkOutcome> {
     if (deletingRef.current) return 'failed';
     // مفيش حساب ← مفيش كتابة، فمش "تم"
     if (!uid) return 'failed';
@@ -4234,6 +4289,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const gamiyaRef = doc(db, 'users', uid, 'gamiyas', gamiyaId);
     // نفس معرّف التلقائي وكارت "اتخصم؟" — الشهر عمليته واحدة مهما اتسجل منين
     const txRef = doc(db, 'users', uid, 'transactions', gamiyaTxId(gamiyaId, monthId));
+    // شهر الاستلام: قسطك في الشهر ده (اختيار أ، 2026-11-18)
+    const instRef = doc(db, 'users', uid, 'transactions', gamiyaInstallmentTxId(gamiyaId, monthId));
     if (!(await waitForOurWritesToLand())) return 'no-connection';
     const at = uniqueStamp();
     let result: 'done' | 'already-recorded' = 'done';
@@ -4253,10 +4310,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const amount = storableAmount(month.amount);
         if (amount === null) throw new BadStoredAmountError();
+        // شهر الاستلام بيكتب قسطك كمان — نفس الفحصين على رقمه (التأكيد قال الرقمين)
+        const installment = month.isPayoutMonth ? storableAmount(g.monthlyAmount) : null;
+        if (month.isPayoutMonth && installment === null) throw new BadStoredAmountError();
         if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
+        if (month.isPayoutMonth && seenAmountDiffers(seenInstallment, g.monthlyAmount)) throw amountChanged(seenInstallment, g.monthlyAmount);
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
         const existing = await t.get(txRef);
+        const instExisting = month.isPayoutMonth ? await t.get(instRef) : null;
 
         // موجودة ← الشهر بيتقفل عليها من غير ما نكتب فوقها (تعديل المستخدم يفضل)
         if (!existing.exists()) {
@@ -4266,10 +4328,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
             gamiyaId, periodKey: monthId, createdAt: at,
           });
         }
+        if (installment !== null && instExisting && !instExisting.exists()) t.set(instRef, gamiyaInstallmentTxData(g, month, installment, at));
         const updatedMonths = g.months.map(m => {
           if (m.id !== monthId) return m;
-          const { reopened: _r, auto: _a, at: _at, ...rest } = m;
-          return { ...rest, status: 'done' as const, transactionId: txRef.id, at };
+          const { reopened: _r, auto: _a, at: _at, installmentTransactionId: _i, ...rest } = m;
+          return { ...rest, status: 'done' as const, transactionId: txRef.id, ...(installment !== null ? { installmentTransactionId: instRef.id } : {}), at };
         });
         t.update(gamiyaRef, { months: updatedMonths });
       }));

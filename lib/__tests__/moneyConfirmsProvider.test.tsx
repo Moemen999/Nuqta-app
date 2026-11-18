@@ -105,6 +105,16 @@ it('الجمعية: "اتدفع" للشهر ← تأكيد قبل الكتابة
   expect(screen.queryByTestId('notice_title')).toBeNull();
 });
 
+it('الجمعية: "استلمت" ← التأكيد بيقول الاستلام وقسطك، وبيبعت الرقمين (اختيار أ، 2026-11-18)', async () => {
+  await render(wrap(<GamiyaView />));
+  await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
+  await act(async () => { fireEvent.press(screen.getByText('استلمت')); });
+  expect(screen.getByTestId('confirm_title').props.children).toBe('استلام الجمعية');
+  expect(screen.getByTestId('confirm_body').props.children).toBe('استلام جمعية "جمعية الشغل" (شهر 3، 1 سبتمبر 2099) — نسجّل استلام 3,000 ج.م في الكاش، وخصم قسطك في الشهر ده 1,000 ج.م من نفس المحفظة؟ هيتسجل بتاريخ المعاد مش النهاردة.');
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm3', 3000, 1000);
+});
+
 it('الجمعية: شهرين بنفس القسط ورا بعض بسرعة ← التأكيد التاني مش بيتبلع (المفتاح هو الشهر)', async () => {
   await render(wrap(<GamiyaView />));
   await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });

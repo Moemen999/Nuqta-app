@@ -100,12 +100,13 @@ export function seedIncome(ids: SeedIds, today: string) {
 
 type Named = { id: string; name: string };
 type Linked = { transactionId?: string };
+type GamiyaLinked = Linked & { installmentTransactionId?: string };
 export type SeedScanInput = {
   wallets: (Named & { openingBalance?: number; lowAlert?: number })[];
   categories: Named[];
   debts: { id: string; personName: string; initialTransactionId?: string; payments?: Linked[]; increases?: Linked[] }[];
   subscriptions: (Named & { history?: Linked[] })[];
-  gamiyas: (Named & { months?: Linked[] })[];
+  gamiyas: (Named & { months?: GamiyaLinked[] })[];
   incomes: Named[];
   transactions: { id: string; type?: string; amount?: number; walletId: string; toWalletId?: string; incomeId?: string }[];
   budgets: Record<string, unknown>;
@@ -147,7 +148,7 @@ export function seedDocs(d: SeedScanInput): SeedDocRef[] {
   const linked = new Set<string>([
     ...e.debts.flatMap(x => [x.initialTransactionId, ...(x.payments ?? []).map(p => p.transactionId), ...(x.increases ?? []).map(p => p.transactionId)]),
     ...e.subscriptions.flatMap(x => (x.history ?? []).map(p => p.transactionId)),
-    ...e.gamiyas.flatMap(x => (x.months ?? []).map(m => m.transactionId)),
+    ...e.gamiyas.flatMap(x => (x.months ?? []).flatMap(m => [m.transactionId, m.installmentTransactionId])),
   ].filter((id): id is string => !!id));
   const txs = d.transactions.filter(t =>
     linked.has(t.id) || walletIds.has(t.walletId) || (!!t.toWalletId && walletIds.has(t.toWalletId)) || (!!t.incomeId && incomeIds.has(t.incomeId)));

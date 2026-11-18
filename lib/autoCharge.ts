@@ -65,6 +65,8 @@ export type GamiyaMonthLike = {
   amount: number;
   status: 'pending' | 'done';
   transactionId?: string;
+  /** شهر الاستلام: عملية قسطك في الشهر ده (`gamiyaInstallmentTxId`) — اختيار أ، 2026-11-18 */
+  installmentTransactionId?: string;
   auto?: boolean;
   reopened?: boolean;
 };
@@ -217,6 +219,25 @@ export function subscriptionTxId(subId: string, key: string) {
 export function gamiyaTxId(gamiyaId: string, monthId: string) {
   return `gamiya_${gamiyaId}_${monthId}`;
 }
+/**
+ * شهر الاستلام (قرار مؤمن، اختيار أ، 2026-11-18): بيتسجل **عمليتين** في نفس الذرة — استلام الجمعية كلها (دخل، `gamiyaTxId`)
+ * وقسطك في الشهر ده (مصروف، المعرّف ده). قبل كده الاستلام لوحده كان بيخلّي المحفظة أعلى من الحقيقة بقسط كامل على طول
+ * الدورة (9 أقساط −9000 + استلام +10000 = +1000، والحقيقة إنك بتدفع قسطك في شهر الاستلام كمان ← صفر).
+ * **ليه عمليتين مش صافي واحد:** الأرشيف بيبيّن الاستلام والقسط زي ما حصلوا، والاستلام يفضل بنفس رقم "مبلغ الاستلام"
+ * اللي المستخدم كتبه، و"المبلغ مختلف" بيغيّر الاستلام بس من غير ما يلخبط القسط.
+ * شهر الاستلام اللي اتقفل قبل التغيير ده عليه الاستلام بس — مبيتعدّلش لوحده (مفيش هجرة ساكتة).
+ */
+export function gamiyaInstallmentTxId(gamiyaId: string, monthId: string) {
+  return `gamiya_${gamiyaId}_${monthId}_inst`;
+}
+/** عمليات الشهر المربوطة: الأساسية، وقسطك لو ده شهر الاستلام */
+export function gamiyaMonthTxIds(m: Pick<GamiyaMonthLike, 'transactionId' | 'installmentTransactionId'> | null | undefined): string[] {
+  if (!m) return [];
+  return [m.transactionId, m.installmentTransactionId].filter((x): x is string => typeof x === 'string' && !!x);
+}
+
+/** سطر توضيح تحت "مبلغ الاستلام" في فورم الجمعية */
+export const gamiyaPayoutHint = 'اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل الاستلام ده، وقسطك في الشهر ده كمصروف لوحده.';
 
 /** «25 سبتمبر» — والسنة لو مش السنة دي */
 export function chargeDateLabel(date: string, today: string) {
@@ -287,18 +308,20 @@ export function subscriptionPayConfirmBody(s: SubscriptionLike, walletName: stri
  * جوه `markGamiyaMonthDone`) مش النهارده، فأي شهر معاده مش النهارده بيتقال له كده.
  */
 export function gamiyaMarkConfirmBody(
-  m: { name: string; monthIndex: number; dueDate: string; amount: number; isPayout: boolean },
+  m: { name: string; monthIndex: number; dueDate: string; amount: number; isPayout: boolean; installment?: number },
   walletName: string,
   today: string,
 ) {
   const named = nameOk(m.name);
   const g = named ? quotedName('جمعية', m.name) : 'الجمعية';
-  if (!isDateStr(m.dueDate) || !Number.isFinite(m.amount) || !Number.isFinite(m.monthIndex)) {
-    const generic = m.isPayout ? 'نسجّل استلام الجمعية؟' : 'نسجّل خصم القسط ده؟';
+  // شهر الاستلام بيكتب رقمين (الاستلام وقسطك — `gamiyaInstallmentTxId`)، فالاتنين لازم يتقالوا (قاعدة 7)
+  const instOk = !m.isPayout || (typeof m.installment === 'number' && Number.isFinite(m.installment));
+  if (!isDateStr(m.dueDate) || !Number.isFinite(m.amount) || !Number.isFinite(m.monthIndex) || !instOk) {
+    const generic = m.isPayout ? 'نسجّل استلام الجمعية وقسطك في الشهر ده؟' : 'نسجّل خصم القسط ده؟';
     return named ? `${g} — ${generic}` : generic;
   }
   const base = m.isPayout
-    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate, today)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}؟`
+    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate, today)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}، وخصم قسطك في الشهر ده ${fmt(m.installment!)} ج.م من نفس المحفظة؟`
     : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate, today)}) — نسجّل خصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
   return m.dueDate === today ? base : `${base} هيتسجل بتاريخ المعاد مش النهاردة.`;
 }

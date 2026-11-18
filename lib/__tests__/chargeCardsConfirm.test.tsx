@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import ChargeHomeCards, { SUB_RECORDS_TODAY_HINT } from '@/components/ChargeHomeCards';
+import ChargeHomeCards, { PAYOUT_INSTALLMENT_LINE, SUB_RECORDS_TODAY_HINT } from '@/components/ChargeHomeCards';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -99,4 +99,27 @@ it('شهر جمعية في شهر فات ← مفيش تلميح (الجمعية
   await render(ui());
   expect(screen.getByTestId('charge_card_g1')).toBeTruthy();
   expect(screen.queryByText(SUB_RECORDS_TODAY_HINT)).toBeNull();
+});
+
+describe('كارت "استلمت؟" (اختيار أ، 2026-11-18): قسطك في الشهر ده بيتسجل مع الاستلام، فالكارت بيقوله', () => {
+  const gam = (isPayoutMonth: boolean) => ({
+    id: 'g1', name: 'جمعية العيلة', monthlyAmount: 500, totalMonths: 6, payoutMonthIndex: 1, payoutAmount: 3000,
+    walletId: 'w1', startDate: today, reminderDaysBefore: 3, createdAt: '2026-01-01',
+    months: [{ id: 'm1', monthIndex: 1, dueDate: today, isPayoutMonth, amount: isPayoutMonth ? 3000 : 500, status: 'pending' }],
+  });
+
+  it('شهر الاستلام ← سطر قسطك بمبلغه، وفي كلام قارئ الشاشة', async () => {
+    mockData.subscriptions = [];
+    mockData.gamiyas = [gam(true)];
+    await render(ui());
+    expect(screen.getByTestId('charge_card_installment_g1')).toHaveTextContent(new RegExp(`${PAYOUT_INSTALLMENT_LINE}.*500`));
+    expect(screen.getByLabelText(new RegExp(`${PAYOUT_INSTALLMENT_LINE} 500`))).toBeTruthy();
+  });
+
+  it('قسط عادي ← مفيش السطر ده', async () => {
+    mockData.subscriptions = [];
+    mockData.gamiyas = [gam(false)];
+    await render(ui());
+    expect(screen.queryByTestId('charge_card_installment_g1')).toBeNull();
+  });
 });

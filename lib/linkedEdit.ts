@@ -61,7 +61,7 @@ export function transactionLinkKind(txId: string, src: {
 }, tx?: { incomeId?: string }): LinkKind | null {
   if (src.debts.some(d => debtRoleOf(d, txId))) return 'debt';
   if (src.subscriptions.some(s => (s.history || []).some(h => h.transactionId === txId))) return 'subscription';
-  if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId))) return 'gamiya';
+  if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId || m.installmentTransactionId === txId))) return 'gamiya';
   if (src.incomes.some(inc => Object.values(inc.closed || {}).some(c => c.txId === txId))) return 'income';
   if (tx?.incomeId && src.incomes.some(inc => inc.id === tx.incomeId)) return 'income';
   return null;

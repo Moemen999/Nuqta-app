@@ -19,7 +19,7 @@ import { useWalletDefault } from '@/lib/useWalletDefault';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import { gamiyaMarkConfirmBody, type ChargeMode } from '@/lib/autoCharge';
+import { gamiyaMarkConfirmBody, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
@@ -90,14 +90,16 @@ export default function GamiyaView() {
     }
     confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
-      gamiyaMarkConfirmBody({ name: g.name, monthIndex, dueDate, amount, isPayout }, walletHistoryName(wallets, g.walletId), todayStr()),
+      // شهر الاستلام بيسجّل قسطك كمان (اختيار أ، 2026-11-18) — الرقمين في الجملة هما اللي هيتكتبوا
+      gamiyaMarkConfirmBody({ name: g.name, monthIndex, dueDate, amount, isPayout, installment: isPayout ? g.monthlyAmount : undefined }, walletHistoryName(wallets, g.walletId), todayStr()),
       [
         { text: 'إلغاء', style: 'cancel' },
         {
           text: isPayout ? 'سجّل الاستلام' : 'سجّل الخصم',
           onPress: () => runBusy(`month_${monthId}`, async () => {
             // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
-            const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
+            // والاستلام: قسطك اللي في الجملة كمان
+            const outcome = await (isPayout ? markGamiyaMonthDone(g.id, monthId, amount, g.monthlyAmount) : markGamiyaMonthDone(g.id, monthId, amount));
             if (outcome === 'done') return;
             const m = outcome === 'amount-changed' ? AMOUNT_CHANGED_ALERT.gamiya
               : outcome === 'missing' ? CHARGE_MISSING_ALERT.gamiya
@@ -301,7 +303,8 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
 
           <Text style={styles.label}>مبلغ الاستلام</Text>
           <TextInput accessibilityLabel="مبلغ الاستلام" style={styles.input} value={payoutAmount} onChangeText={v => { freeze(); setPayoutAmount(v); }}
-            placeholder="عادة = القسط × عدد الأعضاء" keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+            placeholder="عادة = القسط × عدد الأعضاء" accessibilityHint={gamiyaPayoutHint} keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
+          <Text style={[styles.hintNote, { marginTop: space.xs }]} testID="gamiya_payout_hint">{gamiyaPayoutHint}</Text>
 
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>

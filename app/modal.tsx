@@ -12,7 +12,7 @@ import {
 } from '@/lib/linkedEdit';
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { selectableOptions, type TxChange } from '@/lib/archiving';
+import { gamiyaPairedTxIds, selectableOptions, type TxChange } from '@/lib/archiving';
 import { transferTransactionIds } from '@/lib/spending';
 import { dateText } from '@/lib/dateText';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
@@ -343,7 +343,9 @@ export default function AddTransactionModal() {
     // لو العملية مرتبطة بدين أو اشتراك أو جمعية، المستخدم لازم يعرف هيحصل إيه للسجل ده
     const linkWarning = transactionLinkWarning(existing.id);
     const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
-    const changes = [{ before: existing }];
+    // شهر استلام الجمعية: مسح واحدة بيمسح التانية (الاستلام ↔ قسطك، اختيار أ) — التسوية على الاتنين
+    const paired = gamiyaPairedTxIds(gamiyas, existing.id);
+    const changes = [{ before: existing }, ...transactions.filter(t => paired.includes(t.id)).map(t => ({ before: t }))];
     // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
     // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
     // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز

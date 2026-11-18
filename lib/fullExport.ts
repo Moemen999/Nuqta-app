@@ -123,7 +123,7 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     })) },
     { name: 'GamiyaMonths', rows: d.gamiyas.flatMap(x => [...(x.months || [])].sort((a, b) => a.monthIndex - b.monthIndex).map(m => ({
       GamiyaId: x.id, Gamiya: x.name, Id: m.id, MonthIndex: m.monthIndex, DueDate: m.dueDate, Amount: m.amount,
-      IsPayoutMonth: m.isPayoutMonth, Status: m.status, TransactionId: s(m.transactionId), Auto: !!m.auto, Reopened: !!m.reopened,
+      IsPayoutMonth: m.isPayoutMonth, Status: m.status, TransactionId: s(m.transactionId), InstallmentTransactionId: s(m.installmentTransactionId), Auto: !!m.auto, Reopened: !!m.reopened,
     }))) },
     { name: 'FixedIncomes', rows: d.incomes.map(x => ({
       Id: x.id, Name: x.name, Amount: x.amount, WalletId: x.walletId, Wallet: walletName(x.walletId), Frequency: x.frequency,
@@ -175,7 +175,7 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   ResidueAmount: 'فرق القسط الأخير', ResidueForInstallment: 'الفرق متحسب على قسط بقيمة', ResidueOver: 'عدد الأقساط الكاملة',
   ResidueIncreasesTotal: 'مجموع الزيادات وقت حساب الفرق', ResidueLastAbsorbs: 'الفرق متضاف على آخر قسط', DueDate: 'المعاد',
   ReminderDaysBefore: 'التذكير قبل المعاد (أيام)', InitialWalletId: 'معرّف محفظة البداية', InitialTransactionId: 'معرّف عملية البداية',
-  DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
+  DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', InstallmentTransactionId: 'معرّف عملية قسطك (شهر الاستلام)', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
   NextDueDate: 'المعاد الجاي', AnchorDay: 'يوم المعاد الأصلي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
   Auto: 'اتسجلت لوحدها', Skipped: 'اتفوّتت', Reopened: 'رجعت تسأل', At: 'اتقفلت في', MonthlyAmount: 'القسط الشهري',
   TotalMonths: 'عدد الشهور', PayoutMonthIndex: 'رقم شهر الاستلام', PayoutAmount: 'مبلغ الاستلام', StartDate: 'تاريخ البداية',

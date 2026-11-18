@@ -38,8 +38,13 @@ export type PendingCharge = {
   charges: OpenCharge[];
   /** شهر الاستلام: فلوس داخلة مش خصم */
   payout: boolean;
+  /** شهر الاستلام: قسطك في الشهر ده — بيتسجل مصروف مع الاستلام (اختيار أ، 2026-11-18)، فالكارت بيقوله */
+  installment?: number;
   labelOf: (key: string) => string;
 };
+
+/** سطر الكارت تحت مبلغ الاستلام */
+export const PAYOUT_INSTALLMENT_LINE = 'ومعاه هيتسجل قسطك في الشهر ده من نفس المحفظة:';
 
 // "لسه" في الجمعية: الكارت بيستخبّى النهاردة بس (القسط لسه عليك — مش بيتقفل).
 // في الذاكرة بس عن قصد: فتحة التطبيق الجاية بكرة بترجّعه
@@ -76,7 +81,7 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
   const payouts = open.filter(c => monthOf(c.key)?.isPayoutMonth);
   return [
     ...(installments.length ? [{ ...base, charges: installments, payout: false }] : []),
-    ...(payouts.length ? [{ ...base, charges: payouts, payout: true }] : []),
+    ...(payouts.length ? [{ ...base, charges: payouts, payout: true, installment: g.monthlyAmount }] : []),
   ];
 }
 
@@ -282,9 +287,10 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         const charge = p.charges[0];
         const busy = busyKey === busyId(p);
         const more = p.charges.length - 1;
+        const showInst = p.payout && typeof p.installment === 'number' && Number.isFinite(p.installment);
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
-            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}`)}>
+            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(p.installment!, amountsHidden)}` : ''}`)}>
             <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{titleOf(p)}</Text>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
@@ -294,6 +300,11 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               <Text style={styles.sub} testID={`charge_card_today_hint_${p.id}`}>{SUB_RECORDS_TODAY_HINT}</Text>
             )}
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
+            {showInst && (
+              <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>
+                {PAYOUT_INSTALLMENT_LINE} <Money value={p.installment!} sign="−" />
+              </Text>
+            )}
             </View>
             <View style={styles.actions}>
               <Button

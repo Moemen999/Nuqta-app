@@ -1,8 +1,8 @@
 import { collection, deleteDoc, doc, getDocFromServer, getDocsFromServer, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
-import { gamiyaTxId } from '@/lib/autoCharge';
-import { addMonths, todayStr } from '@/lib/finance';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { gamiyaInstallmentTxId, gamiyaTxId } from '@/lib/autoCharge';
+import { addMonths, todayStr, walletBalance } from '@/lib/finance';
+import { clearFirestore, signInTestUser, writeRawDoc } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -328,6 +328,170 @@ describe('E: مسح عملية شهر من الأرشيف', () => {
     const r = await harness.api().deleteTransaction(gamiyaTxId(g.id, m1.id));
     expect(r.outcome).toBe('failed');
     expect(await serverTx(gamiyaTxId(g.id, m1.id))).toBeDefined();
+  });
+});
+
+describe('شهر الاستلام (اختيار أ، 2026-11-18): الاستلام + قسطك في الشهر ده في نفس الذرة', () => {
+  const instId = (gId: string, mId: string) => gamiyaInstallmentTxId(gId, mId);
+  const gamiyaTxsOn = async (gId: string) => (await serverTxs()).filter(t => t.gamiyaId === gId);
+
+  it('"استلمت" من الشاشة ← عمليتين: دخل الجمعية كلها ومصروف القسط، والشهر مربوط بالاتنين', async () => {
+    const { g, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    const txs = await gamiyaTxsOn(g.id);
+    expect(txs).toHaveLength(2);
+    const payout = await serverTx(gamiyaTxId(g.id, m3.id));
+    const inst = await serverTx(instId(g.id, m3.id));
+    expect(payout).toMatchObject({ type: 'income', amount: 3000, walletId: g.walletId, date: m3.dueDate, gamiyaId: g.id, periodKey: m3.id });
+    expect(inst).toMatchObject({ type: 'expense', amount: 1000, walletId: g.walletId, date: m3.dueDate, gamiyaId: g.id, periodKey: m3.id });
+    expect(inst?.createdAt).toBe(payout?.createdAt);
+    const month = (await serverGamiya(g.id)).months.find((m: { id: string }) => m.id === m3.id);
+    expect(month).toMatchObject({ status: 'done', transactionId: gamiyaTxId(g.id, m3.id), installmentTransactionId: instId(g.id, m3.id) });
+    expect(month.at).toBe(payout?.createdAt);
+  });
+
+  it('الدورة كلها: الرصيد بيرجع زي ما كان (3 أقساط − 3000 + استلام 3000 = صفر)', async () => {
+    const { g, walletId, m1, m2, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m1.id, 1000)).toBe('done');
+    expect(await harness.api().markGamiyaMonthDone(g.id, m2.id, 1000)).toBe('done');
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    await harness.waitForData(api => api.transactions.length === 4 && api.pendingWrites === 0);
+    expect(walletBalance(harness.api().transactions, walletId, 0)).toBe(0);
+  });
+
+  it('الذرة اتعادت بعد ما الأولى وصلت ← done ومفيش تكرار (عمليتين بس)', async () => {
+    const { g, m3 } = await makeGamiya();
+    landThenRetry();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(2);
+  });
+
+  it('الكتابة وصلت والرد ضاع (unavailable) ← done وعمليتين', async () => {
+    const { g, m3 } = await makeGamiya();
+    landThenFail();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(2);
+  });
+
+  it('القسط اتغيّر عن اللي في التأكيد ← amount-changed ومفيش أي كتابة', async () => {
+    const { g, m3 } = await makeGamiya();
+    await updateDoc(userDoc('gamiyas', g.id), { monthlyAmount: 1200 });
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('amount-changed');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+  });
+
+  it('القسط المتخزّن مش رقم ← bad-amount ومفيش أي كتابة (مش استلام من غير قسط)', async () => {
+    const { g, m3 } = await makeGamiya();
+    // القواعد بترفض قسط مش رقم دلوقتي — ده بيمثّل بيانات قديمة اتكتبت قبل التشديد (من غير القواعد)
+    await writeRawDoc(`users/${getMockUid()}/gamiyas/${g.id}`, { ...(await serverGamiya(g.id)), monthlyAmount: NaN });
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000)).toBe('bad-amount');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+  });
+
+  it('الكارت والقسط المتخزّن مش رقم ← badAmount ومفيش أي كتابة', async () => {
+    const w = harness.api().wallets[0];
+    await harness.api().addGamiya({
+      name: 'الاستلام الأول', monthlyAmount: 1000, totalMonths: 3, payoutMonthIndex: 1, payoutAmount: 3000,
+      walletId: w.id, startDate: today, reminderDaysBefore: 3,
+    });
+    await harness.waitForData(api => api.gamiyas.length === 1 && api.pendingWrites === 0);
+    const g = harness.api().gamiyas[0];
+    await writeRawDoc(`users/${getMockUid()}/gamiyas/${g.id}`, { ...(await serverGamiya(g.id)), monthlyAmount: NaN });
+    const r = await harness.api().recordCharges('gamiya', g.id, [{ key: g.months[0].id, amount: 3000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [], badAmount: true });
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+    expect((await serverGamiya(g.id)).months[0].status).toBe('pending');
+  });
+
+  it('عملية قسطك موجودة قبل كده (اتعدّلت) ← مبتتكتبش فوقها، والشهر بيتقفل عليها', async () => {
+    const { g, walletId, m3 } = await makeGamiya();
+    await setDoc(userDoc('transactions', instId(g.id, m3.id)), {
+      type: 'expense', amount: 900, walletId, date: m3.dueDate, gamiyaId: g.id, periodKey: m3.id, createdAt: 'edited',
+    });
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    expect((await serverTx(instId(g.id, m3.id)))?.amount).toBe(900);
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(2);
+  });
+
+  it('الكارت ("استلمت؟") ← نفس العمليتين', async () => {
+    const w = harness.api().wallets[0];
+    await harness.api().addGamiya({
+      name: 'الاستلام الأول', monthlyAmount: 1000, totalMonths: 3, payoutMonthIndex: 1, payoutAmount: 3000,
+      walletId: w.id, startDate: today, reminderDaysBefore: 3,
+    });
+    await harness.waitForData(api => api.gamiyas.length === 1 && api.pendingWrites === 0);
+    const g = harness.api().gamiyas[0];
+    const m1 = g.months[0];
+    expect(m1.isPayoutMonth).toBe(true);
+    const r = await harness.api().recordCharges('gamiya', g.id, [{ key: m1.id, amount: 3000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [m1.id] });
+    expect(await serverTx(gamiyaTxId(g.id, m1.id))).toMatchObject({ type: 'income', amount: 3000 });
+    expect(await serverTx(instId(g.id, m1.id))).toMatchObject({ type: 'expense', amount: 1000 });
+    const month = (await serverGamiya(g.id)).months.find((m: { id: string }) => m.id === m1.id);
+    expect(month.installmentTransactionId).toBe(instId(g.id, m1.id));
+    // إعادة الكارت (رد ضاع) مبتكررش
+    landThenRetry();
+    expect((await harness.api().recordCharges('gamiya', g.id, [{ key: m1.id, amount: 3000 }])).outcome).toBe('done');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(2);
+  });
+
+  it.each([
+    ['عملية الاستلام', gamiyaTxId],
+    ['عملية قسطك', gamiyaInstallmentTxId],
+  ])('مسح %s من الأرشيف ← الاتنين بيتمسحوا والشهر بيرجع يسأل', async (_label, pick) => {
+    const { g, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    await harness.waitForData(api => api.transactions.length === 2 && api.pendingWrites === 0);
+    expect(await harness.api().deleteTransaction(pick(g.id, m3.id))).toEqual({ outcome: 'done' });
+    expect(await serverTx(gamiyaTxId(g.id, m3.id))).toBeUndefined();
+    expect(await serverTx(instId(g.id, m3.id))).toBeUndefined();
+    const month = (await serverGamiya(g.id)).months.find((m: { id: string }) => m.id === m3.id);
+    expect(month).toMatchObject({ status: 'pending', reopened: true });
+    expect(month.transactionId).toBeUndefined();
+    expect(month.installmentTransactionId).toBeUndefined();
+  });
+
+  it('مسح فشل والسيرفر أكّد إنه ما وصلش ← failed، والعمليتين لسه موجودين', async () => {
+    const { g, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    await harness.waitForData(api => api.transactions.length === 2 && api.pendingWrites === 0);
+    failWithoutLanding();
+    expect((await harness.api().deleteTransaction(instId(g.id, m3.id))).outcome).toBe('failed');
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(2);
+  });
+
+  it('مسح وصل والرد ضاع ← done (السؤال بيشوف الاتنين اتشالوا)', async () => {
+    const { g, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    await harness.waitForData(api => api.transactions.length === 2 && api.pendingWrites === 0);
+    landThenFail();
+    expect(await harness.api().deleteTransaction(instId(g.id, m3.id))).toEqual({ outcome: 'done' });
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+  });
+
+  it('مسح الجمعية بيمسح العمليتين — حتى لو الشهر عندنا لسه pending (المعرّف الثابت)', async () => {
+    const { g, walletId, m3 } = await makeGamiya();
+    expect(await harness.api().markGamiyaMonthDone(g.id, m3.id, 3000, 1000)).toBe('done');
+    await harness.waitForData(api => api.transactions.length === 2 && api.pendingWrites === 0);
+    expect(await harness.api().deleteGamiya(g.id)).toEqual({ outcome: 'done' });
+    await harness.waitForData(api => api.pendingWrites === 0 && api.transactions.length === 0);
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+    expect(walletBalance(harness.api().transactions, walletId, 0)).toBe(0);
+  });
+
+  it('شهر استلام قديم (قبل التغيير — الاستلام بس) بيتمسح من الأرشيف عادي', async () => {
+    const { g, walletId, m3 } = await makeGamiya();
+    const txId = gamiyaTxId(g.id, m3.id);
+    await setDoc(userDoc('transactions', txId), {
+      type: 'income', amount: 3000, walletId, date: m3.dueDate, gamiyaId: g.id, periodKey: m3.id, createdAt: 'old',
+    });
+    const months = (await serverGamiya(g.id)).months.map((m: { id: string }) => (m.id === m3.id
+      ? { ...m, status: 'done', transactionId: txId, at: 'old' } : m));
+    await updateDoc(userDoc('gamiyas', g.id), { months });
+    await harness.waitForData(api => api.transactions.length === 1 && api.gamiyas[0].months[2].status === 'done' && api.pendingWrites === 0);
+    expect(await harness.api().deleteTransaction(txId)).toEqual({ outcome: 'done' });
+    expect(await gamiyaTxsOn(g.id)).toHaveLength(0);
+    expect((await serverGamiya(g.id)).months.find((m: { id: string }) => m.id === m3.id)).toMatchObject({ status: 'pending', reopened: true });
   });
 });
 
