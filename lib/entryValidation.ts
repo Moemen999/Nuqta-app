@@ -40,7 +40,9 @@ export const ENTRY_MESSAGES = {
 export type EntryField = keyof typeof ENTRY_MESSAGES;
 
 /** نتيجة الحفظ اللي `addSubscription`/`updateSubscription`/`addGamiya` بيرجّعوها */
-export type EntrySaveResult = { outcome: 'done' } | { outcome: 'invalid'; field: EntryField; message: string };
+export type EntrySaveResult = { outcome: 'done' } | { outcome: 'invalid'; field: EntryField; message: string }
+  /** ما اتحفظش ومش بسبب قيمة (مثلاً مفيش حساب مفتوح) — الفورم بتعرض `message` وبتفضل مفتوحة */
+  | { outcome: 'failed'; message: string };
 
 export type EntryInvalid = Extract<EntrySaveResult, { outcome: 'invalid' }>;
 export const invalidEntry = (field: EntryField): EntryInvalid => ({ outcome: 'invalid', field, message: ENTRY_MESSAGES[field] });

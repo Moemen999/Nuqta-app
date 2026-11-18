@@ -8,7 +8,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import { Text, TextInput } from '@/components/AppText';
-import { TX_DELETE_OUTCOME_ALERT, useData } from '@/context/DataContext';
+import { txDeleteOutcomeAlert, useData } from '@/context/DataContext';
 import { useNotice } from '@/components/NoticeProvider';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { dueNotRestoredNotice } from '@/lib/reopenDue';
@@ -112,7 +112,7 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
           deleteTransaction(t.id).then(result => {
             if (result.outcome !== 'done') {
               setDeleting(false);
-              const alert = TX_DELETE_OUTCOME_ALERT[result.outcome];
+              const alert = txDeleteOutcomeAlert(result.outcome, result.subject);
               notice(alert.title, alert.body);
               return;
             }

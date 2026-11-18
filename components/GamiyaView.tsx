@@ -3,7 +3,10 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, GAMIYA_PAYOUT_WALLET_MISSING_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type Gamiya } from '@/context/DataContext';
+import {
+  AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, GAMIYA_ALREADY_RECORDED_ALERT, GAMIYA_BAD_AMOUNT_ALERT,
+  PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, useData, type Gamiya,
+} from '@/context/DataContext';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
@@ -30,8 +33,9 @@ export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
   return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
 }
 
-/** شهر الاستلام ما اتسجلش فيه "خصم" — الرسالة بتقول استلام */
-const walletMissingAlert = (isPayout: boolean) => (isPayout ? GAMIYA_PAYOUT_WALLET_MISSING_ALERT : PAY_OUTCOME_ALERT_GAMIYA['wallet-missing']);
+/** شهر الاستلام ما اتسجلش فيه "خصم" — الرسايل بتقول استلام (مراجعة 2026-11-18: مش المحفظة بس، كل نتايج الفشل) */
+const payAlerts = (isPayout: boolean) => (isPayout ? PAY_OUTCOME_ALERT_GAMIYA_PAYOUT : PAY_OUTCOME_ALERT_GAMIYA);
+const walletMissingAlert = (isPayout: boolean) => payAlerts(isPayout)['wallet-missing'];
 
 export default function GamiyaView() {
   const { colors } = useTheme();
@@ -48,7 +52,8 @@ export default function GamiyaView() {
 
   /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
-    const txIds = gamiyaTransactionIds(g);
+    // نفس قايمة المسح (بند C): المربوطة في الشهور + المعرّف الثابت + أي عملية عليها gamiyaId — فالعدّ والحظر عن نفس العمليات
+    const txIds = gamiyaTransactionIds(g, transactions);
     const blocked = cascadeDeleteBlock({ kind: 'gamiya', name: g.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // الشهور المتسددة والاستلام بيتمسحوا معاها والرصيد بيتحرك — التأكيد لازم يقول كده
@@ -84,15 +89,15 @@ export default function GamiyaView() {
           onPress: () => runBusy(`month_${monthId}`, async () => {
             // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
             const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
-            if (outcome === 'amount-changed') {
-              notice(AMOUNT_CHANGED_ALERT.gamiya.title, AMOUNT_CHANGED_ALERT.gamiya.body);
-            } else if (outcome === 'wallet-missing') {
-              const m = walletMissingAlert(isPayout);
-              notice(m.title, m.body);
-            } else if (outcome !== 'done') {
-              const m = PAY_OUTCOME_ALERT_GAMIYA[outcome];
-              notice(m.title, m.body);
-            }
+            if (outcome === 'done') return;
+            const m = outcome === 'amount-changed' ? AMOUNT_CHANGED_ALERT.gamiya
+              : outcome === 'missing' ? CHARGE_MISSING_ALERT.gamiya
+              : outcome === 'already-recorded' ? GAMIYA_ALREADY_RECORDED_ALERT
+              : outcome === 'bad-amount' ? GAMIYA_BAD_AMOUNT_ALERT
+              // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتسجل مرتين)
+              : outcome === 'uncertain' ? CHARGE_UNCERTAIN_ALERT
+              : payAlerts(isPayout)[outcome];
+            notice(m.title, m.body);
           }),
         },
       ],
@@ -235,7 +240,7 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
     await runBusy(async () => {
       try {
         const result = await addGamiya(data);
-        if (result.outcome === 'invalid') { setError(result.message); return; }
+        if (result.outcome !== 'done') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
@@ -382,7 +387,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
     await runBusy(async () => {
       try {
         const result = await updateGamiya(gamiya.id, { name: name.trim(), walletId, reminderDaysBefore, chargeMode });
-        if (result.outcome === 'invalid') { setError(result.message); return; }
+        if (result.outcome !== 'done') { setError(result.message); return; }
       } catch {
         // مبيمسكش فشل الكتابة: الكتابة بتعدي من `track` اللي بيبلع الرفض
         // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون

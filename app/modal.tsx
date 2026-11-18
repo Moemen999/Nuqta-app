@@ -4,7 +4,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { TX_DELETE_OUTCOME_ALERT, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
+import { txDeleteOutcomeAlert, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
 import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
@@ -360,7 +360,7 @@ export default function AddTransactionModal() {
           if (result.outcome !== 'done') {
             deleting.current = false;
             setBusy(false);
-            const alert = TX_DELETE_OUTCOME_ALERT[result.outcome];
+            const alert = txDeleteOutcomeAlert(result.outcome, result.subject);
             notice(alert.title, alert.body);
             return;
           }

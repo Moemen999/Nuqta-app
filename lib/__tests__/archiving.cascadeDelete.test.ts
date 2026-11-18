@@ -51,8 +51,10 @@ describe('معرّفات العمليات لكل نوع', () => {
     expect(subscriptionTransactionIds(s, [{ id: 't_stray', subscriptionId: 's' }, { id: 'other', subscriptionId: 'x' }, { id: 't_s2', subscriptionId: 's' }]))
       .toEqual(['t_s1', 't_s2', 't_closed_only', 't_stray']);
   });
-  it('الجمعية: الشهور اللي ليها عملية بس', () => {
-    expect(gamiyaTransactionIds(gam)).toEqual(['t_g1']);
+  it('الجمعية (بند C، 2026-11-18): المربوطة في الشهور + المعرّف الثابت لكل شهر + أي عملية عليها gamiyaId، من غير تكرار', () => {
+    expect(gamiyaTransactionIds(gam)).toEqual(['t_g1', 'gamiya_g_m1', 'gamiya_g_m2']);
+    expect(gamiyaTransactionIds(gam, [{ id: 't_stray', gamiyaId: 'g' }, { id: 'other', gamiyaId: 'x' }, { id: 't_g1', gamiyaId: 'g' }]))
+      .toEqual(['t_g1', 'gamiya_g_m1', 'gamiya_g_m2', 't_stray']);
   });
   it('سجل مش موجود ← مفيش معرّفات', () => {
     expect(debtTransactionIds(undefined)).toEqual([]);

@@ -1,6 +1,7 @@
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 import { fmt, walletBalance } from '@/lib/finance';
+import { gamiyaTxId } from '@/lib/autoCharge';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
@@ -462,8 +463,23 @@ export function subscriptionTransactionIds(
   return [...new Set(ids)];
 }
 
-export function gamiyaTransactionIds(g: Pick<Gamiya, 'months'> | undefined): string[] {
-  return (g?.months || []).map(m => m.transactionId).filter((x): x is string => !!x);
+/**
+ * كل عمليات الجمعية (بند C، مراجعة 2026-11-18 — نفس `subscriptionTransactionIds`): `months[].transactionId`، والمعرّف
+ * الثابت لكل شهر (`gamiyaTxId` — شهر سجّله جهاز تاني والتحديث لسه ما وصلناش)، ولو اتبعتت `transactions`: أي عملية
+ * عليها `gamiyaId` بتاعها. مسح معرّف مش موجود في الدفعة مبيعملش حاجة؛ والعدّ في التأكيد بيعدّي على `linkedTransactions`.
+ */
+export function gamiyaTransactionIds(
+  g: (Pick<Gamiya, 'months'> & { id?: string }) | undefined,
+  transactions: { id: string; gamiyaId?: string }[] = [],
+): string[] {
+  if (!g) return [];
+  const months = Array.isArray(g.months) ? g.months : [];
+  const ids = [
+    ...months.map(m => m?.transactionId),
+    ...(g.id ? months.filter(m => typeof m?.id === 'string').map(m => gamiyaTxId(g.id!, m.id)) : []),
+    ...(g.id ? transactions.filter(t => t.gamiyaId === g.id).map(t => t.id) : []),
+  ].filter((x): x is string => typeof x === 'string' && !!x);
+  return [...new Set(ids)];
 }
 
 /** العمليات المربوطة اللي لسه موجودة فعلاً — المعرّف ممكن يكون لعملية اتمسحت قبل كده */
@@ -492,6 +508,13 @@ export const CHARGE_IN_FLIGHT_DELETE_BLOCK: CascadeDeleteBlock = {
   reason: 'charge-in-flight',
   title: 'استنى ثواني',
   body: 'فيه خصم بيتسجل للاشتراك ده دلوقتي. استنى لحد ما يخلص وبعدين امسح.',
+};
+
+/** نفس `CHARGE_IN_FLIGHT_DELETE_BLOCK` للجمعية (بند C): قسط أو استلام بيتسجل دلوقتي */
+export const CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA: CascadeDeleteBlock = {
+  reason: 'charge-in-flight',
+  title: 'استنى ثواني',
+  body: 'فيه شهر بيتسجل للجمعية دي دلوقتي. استنى لحد ما يخلص وبعدين امسح.',
 };
 
 /**
