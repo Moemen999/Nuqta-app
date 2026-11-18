@@ -4,9 +4,12 @@ import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import {
-  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
-  type ChargeKind, type Gamiya, type Subscription,
+  CHARGE_BAD_INSTALLMENT_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT,
+  PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
+  type ChargeEntry, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
+import { PAYOUT_INSTALLMENT_UNREADABLE_LINE, PayoutInstallmentField, parseInstallment } from '@/components/PayoutInstallmentField';
+import { storableAmount } from '@/lib/linkedEdit';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { chargeDateLabel, gamiyaOpenCharges, subscriptionOpenCharges, type OpenCharge } from '@/lib/autoCharge';
@@ -43,8 +46,17 @@ export type PendingCharge = {
   labelOf: (key: string) => string;
 };
 
-/** سطر الكارت تحت مبلغ الاستلام */
+/** سطر الكارت (وشيت "المبلغ مختلف") تحت مبلغ الاستلام */
 export const PAYOUT_INSTALLMENT_LINE = 'ومعاه هيتسجل قسطك في الشهر ده من نفس المحفظة:';
+
+/**
+ * قسطك في شهر الاستلام زي ما هيتسجل: رقم، أو `null` لو المتخزّن مش مقروء (المستخدم بيكتبه — الجولة 1 على 3a72d99)،
+ * أو `undefined` لو ده مش كارت استلام
+ */
+function payoutInstallment(p: PendingCharge): number | null | undefined {
+  if (!p.payout) return undefined;
+  return typeof p.installment === 'number' ? storableAmount(p.installment) : null;
+}
 
 // "لسه" في الجمعية: الكارت بيستخبّى النهاردة بس (القسط لسه عليك — مش بيتقفل).
 // في الذاكرة بس عن قصد: فتحة التطبيق الجاية بكرة بترجّعه
@@ -112,6 +124,11 @@ export const SKIP_UNCERTAIN_ALERT = {
 export const CHARGE_BAD_AMOUNT_ALERT = {
   title: 'المبلغ مش مقروء',
   body: 'المبلغ المتسجل مش رقم صالح، فما اتسجلش أي خصم. دوس "المبلغ مختلف" واكتب المبلغ اللي اتخصم.',
+};
+/** نفس الحالة على شهر الاستلام — فلوس داخلة، فـ"خصم" غلط هناك (الجولة 1 على 3a72d99) */
+export const CHARGE_BAD_AMOUNT_ALERT_PAYOUT = {
+  title: 'المبلغ مش مقروء',
+  body: 'مبلغ الاستلام المتسجل مش رقم صالح، فما اتسجلش حاجة. دوس "المبلغ مختلف" واكتب المبلغ اللي استلمته.',
 };
 /** الجمعية: الشهر مابقاش مستني ردك (اتغيّر من جهاز تاني) */
 const GAMIYA_CHANGED_ALERT = {
@@ -205,10 +222,15 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const busyId = (p: PendingCharge) => `charge_${p.id}_${p.payout ? 'in' : 'out'}`;
 
   /** بيرجّع اتسجل ولا لأ — شيت المبلغ مبيتقفلش على فشل عشان الرقم اللي اتكتب مايضيعش */
-  async function record(p: PendingCharge, charge: OpenCharge, amount: number) {
+  async function record(p: PendingCharge, charge: OpenCharge, amount: number, typedInstallment?: number) {
     let ok = false;
+    // شهر الاستلام: قسطك اللي على الكارت (اتغيّر ← الذرة بترفض)، أو اللي المستخدم كتبه لما المتخزّن مش مقروء
+    const inst = payoutInstallment(p);
+    const entry: ChargeEntry = inst === undefined ? { key: charge.key, amount }
+      : inst !== null ? { key: charge.key, amount, seenInstallment: p.installment }
+      : { key: charge.key, amount, ...(typedInstallment !== undefined ? { installment: typedInstallment } : {}) };
     await run(busyId(p), async () => {
-      const r = await recordCharges(p.kind, p.id, [{ key: charge.key, amount }]);
+      const r = await recordCharges(p.kind, p.id, [entry]);
       // اتمسح من جهاز تاني ← مفيش حاجة تتعاد، فالشيت بيتقفل
       if (r.outcome === 'missing') {
         ok = true;
@@ -221,6 +243,11 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         // شهر الاستلام فلوس داخلة — "الخصم" غلط هناك
         const m = p.kind === 'gamiya' && p.payout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT;
         notice(m.title, m.body);
+        return;
+      }
+      // قسطك (أو الاستلام) اتغيّر من جهاز تاني والكارت مفتوح — مفيش فلوس اتحركت، والكارت بيتحدّث بالرقم الجديد
+      if (r.outcome === 'amount-changed') {
+        notice(GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.title, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.body);
         return;
       }
       if (r.outcome !== 'done') {
@@ -237,8 +264,13 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         notice(CHARGE_SKIPPED_ELSEWHERE_ALERT.title, CHARGE_SKIPPED_ELSEWHERE_ALERT.body);
         return;
       }
+      if (r.recorded.length === 0 && r.badInstallment) {
+        notice(CHARGE_BAD_INSTALLMENT_ALERT.title, CHARGE_BAD_INSTALLMENT_ALERT.body);
+        return;
+      }
       if (r.recorded.length === 0 && r.badAmount) {
-        notice(CHARGE_BAD_AMOUNT_ALERT.title, CHARGE_BAD_AMOUNT_ALERT.body);
+        const m = p.payout ? CHARGE_BAD_AMOUNT_ALERT_PAYOUT : CHARGE_BAD_AMOUNT_ALERT;
+        notice(m.title, m.body);
         return;
       }
       if (r.recorded.length === 0 && r.changed) {
@@ -287,10 +319,13 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         const charge = p.charges[0];
         const busy = busyKey === busyId(p);
         const more = p.charges.length - 1;
-        const showInst = p.payout && typeof p.installment === 'number' && Number.isFinite(p.installment);
+        const inst = payoutInstallment(p);
+        const showInst = typeof inst === 'number';
+        // قسطك مش مقروء ← "استلمت" بيفتح الشيت بخانة قسطك (مش تسجيل هيترفض)
+        const instUnreadable = inst === null;
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
-            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(p.installment!, amountsHidden)}` : ''}`)}>
+            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(inst, amountsHidden)}` : ''}${instUnreadable ? `، ${PAYOUT_INSTALLMENT_UNREADABLE_LINE}` : ''}`)}>
             <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{titleOf(p)}</Text>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
@@ -302,8 +337,11 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
             {showInst && (
               <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>
-                {PAYOUT_INSTALLMENT_LINE} <Money value={p.installment!} sign="−" />
+                {PAYOUT_INSTALLMENT_LINE} <Money value={inst} sign="−" />
               </Text>
+            )}
+            {instUnreadable && (
+              <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>{PAYOUT_INSTALLMENT_UNREADABLE_LINE}</Text>
             )}
             </View>
             <View style={styles.actions}>
@@ -312,7 +350,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
                 label={yesLabel(p)}
                 disabled={busyKey !== null}
                 busy={busy}
-                onPress={() => record(p, charge, charge.amount)}
+                onPress={() => (instUnreadable ? setEditing({ p, charge }) : record(p, charge, charge.amount))}
                 accessibilityLabel={`"${p.name}" ${yesLabel(p)}`} />
               <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
                 onPress={() => setEditing({ p, charge })}
@@ -340,8 +378,9 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
           question={`${editing.p.payout ? 'استلمت' : editing.p.kind === 'gamiya' ? 'اتدفع' : 'اتخصم'} كام في ${editing.p.labelOf(editing.charge.key)}؟`}
           yes={yesLabel(editing.p)}
           base={editing.charge.amount}
+          installment={payoutInstallment(editing.p)}
           busy={busyKey === busyId(editing.p)}
-          onSave={async amount => { if (await record(editing.p, editing.charge, amount)) setEditing(null); }}
+          onSave={async (amount, inst) => { if (await record(editing.p, editing.charge, amount, inst)) setEditing(null); }}
           onClose={() => setEditing(null)}
         />
       )}
@@ -353,16 +392,23 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
  * مبلغ الفترة دي بس — المبلغ المعتاد مبيتغيّرش. لو المبالغ مخفية الخانة
  * بتبدأ فاضية بقناع، والفاضي معناه "المعتاد" (زي شيت الدخل الثابت).
  */
-function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }: {
-  name: string; question: string; yes: string; base: number; busy: boolean;
-  onSave: (amount: number) => void; onClose: () => void;
+/**
+ * شهر الاستلام (`installment` مش `undefined`): قسطك بيتسجل مع الاستلام، فالشيت بيقوله (قاعدة 7 — الجولة 1 على 3a72d99)؛
+ * ولو مش مقروء (`null`) بيتكتب هنا للشهر ده بس، والزرار مقفول لحد ما يبقى مبلغ.
+ */
+function ChargeAmountSheet({ name, question, yes, base, installment, busy, onSave, onClose }: {
+  name: string; question: string; yes: string; base: number; installment?: number | null; busy: boolean;
+  onSave: (amount: number, installment?: number) => void; onClose: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { amountsHidden, money } = usePrivacy();
   const [value, setValue] = useState(amountsHidden ? '' : String(base));
+  const [instValue, setInstValue] = useState('');
+  const typedInst = installment === null ? parseInstallment(instValue) : undefined;
   const typed = value.trim() === '' ? base : Number(value.replace(/,/g, ''));
   const valid = Number.isFinite(typed) && typed > 0;
+  const instValid = installment !== null || typedInst !== null;
   const diff = valid && value.trim() !== '' ? incomeDiffNote(typed, base, money) : null;
 
   return (
@@ -386,12 +432,18 @@ function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }:
               />
               {!valid && <Text style={styles.error} accessibilityLiveRegion="polite">المبلغ لازم يبقى أكبر من صفر.</Text>}
               {!!diff && <Text style={styles.diff} accessibilityLiveRegion="polite">{diff}</Text>}
+              {typeof installment === 'number' && (
+                <Text style={styles.diff} testID="charge_amount_installment_line">
+                  {PAYOUT_INSTALLMENT_LINE} <Money value={installment} sign="−" />
+                </Text>
+              )}
+              {installment === null && <PayoutInstallmentField value={instValue} onChange={setInstValue} />}
               <Text style={styles.hint}>{`ده للمرة دي بس — "${name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>
               <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button testID="charge_amount_save" label={yes} style={styles.saveBtn}
-                disabled={!valid} busy={busy} onPress={() => onSave(typed)} />
+                disabled={!valid || !instValid} busy={busy} onPress={() => onSave(typed, typedInst ?? undefined)} />
             </View>
           </View>
         </View>

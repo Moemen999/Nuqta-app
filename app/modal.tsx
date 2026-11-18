@@ -345,7 +345,10 @@ export default function AddTransactionModal() {
     const message = linkWarning ? `متأكد إنك عايز تمسحها؟\n\n${linkWarning}` : 'متأكد إنك عايز تمسحها؟';
     // شهر استلام الجمعية: مسح واحدة بيمسح التانية (الاستلام ↔ قسطك، اختيار أ) — التسوية على الاتنين
     const paired = gamiyaPairedTxIds(gamiyas, existing.id);
-    const changes = [{ before: existing }, ...transactions.filter(t => paired.includes(t.id)).map(t => ({ before: t }))];
+    const pairedTxs = transactions.filter(t => paired.includes(t.id));
+    const changes = [{ before: existing }, ...pairedTxs.map(t => ({ before: t }))];
+    // العمليات اللي التسوية اتحسبت عليها — لو السيرفر عليه غيرهم (جهاز تاني) الذرة بترفض (`changed`) بدل تسوية على مسح مختلف
+    const expectedTxIds = [existing.id, ...pairedTxs.map(t => t.id)];
     // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
     // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
     // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز
@@ -355,7 +358,7 @@ export default function AddTransactionModal() {
       if (deleting.current) return Promise.resolve();
       deleting.current = true;
       setBusy(true);
-      return Promise.resolve().then(() => deleteTransaction(existing.id, settlements))
+      return Promise.resolve().then(() => deleteTransaction(existing.id, settlements, { expectedTxIds }))
         .then(result => {
           // عملية دفعة/زيادة دين ذرة من السيرفر (الجولة 2، بند 1): مفيش نت / ما اتمسحتش / مش متأكدين ← المودال
           // بيفضل مفتوح والرسالة بتقول الحالة. الإعادة آمنة: لو المسح كان وصل، الذرة بتلاقي العملية مش موجودة ومبتكتبش تاني
@@ -364,6 +367,8 @@ export default function AddTransactionModal() {
             setBusy(false);
             const alert = txDeleteOutcomeAlert(result.outcome, result.subject);
             notice(alert.title, alert.body);
+            // الأرقام اللي قدامه (والتسوية) قديمة — الشاشة بتتقفل، والرسالة بتقول يفتحها تاني (الجولة 1 على 3a72d99)
+            if (result.outcome === 'changed') leave();
             return;
           }
           // التأكيد وعد إن المعاد هيرجع والسيرفر ما رجّعوش ← بنقول، مش بنسيب الوعد ساكت (زي شاشة الدين)

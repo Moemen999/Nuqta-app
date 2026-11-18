@@ -103,7 +103,7 @@ it('الشيت: اختيار المحفظة ثم "حذف" ← deleteTransaction 
   expect(mockData.deleteTransaction).toHaveBeenCalledTimes(1);
   expect(mockData.deleteTransaction).toHaveBeenCalledWith('tx_p', [
     expect.objectContaining({ archivedWalletId: 'a', targetWalletId: 'w' }),
-  ]);
+  ], { expectedTxIds: ['tx_p'] });
   expect(alertSpy).not.toHaveBeenCalled();
 });
 
@@ -262,6 +262,59 @@ describe('نتيجة مسح عملية الدين', () => {
     const { router } = jest.requireMock('expo-router');
     router.back.mockClear();
     await pressDeleteViaAlert();
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * الجولة 1 على 3a72d99 (بند 2): مسح عملية من شهر استلام الجمعية — المودال بيبعت العمليات اللي حسب عليها التسوية
+ * (`expectedTxIds`)، والذرة بترفض لو السيرفر عليه غيرهم (`changed`) ← الرسالة والمودال بيتقفل (الأرقام قدامه قديمة).
+ */
+describe('مسح عملية من شهر استلام الجمعية', () => {
+  const { TX_DELETE_OUTCOME_ALERT_GAMIYA } = jest.requireActual('@/context/DataContext');
+  const ui2 = () => <ThemeProvider><NoticeProvider><PrivacyProvider><AddTransactionModal /></PrivacyProvider></NoticeProvider></ThemeProvider>;
+  function seedPayout(withInst: boolean) {
+    seed([active], 'w');
+    mockParams = { id: 'gamiya_g_m1' };
+    Object.assign(mockData, {
+      debts: [],
+      transactions: [
+        { id: 'gamiya_g_m1', type: 'income', amount: 10000, walletId: 'w', date: '2026-03-20', gamiyaId: 'g', periodKey: 'm1' },
+        ...(withInst ? [{ id: 'gamiya_g_m1_inst', type: 'expense', amount: 1000, walletId: 'w', date: '2026-03-20', gamiyaId: 'g', periodKey: 'm1' }] : []),
+      ],
+      gamiyas: [{
+        id: 'g', name: 'العيلة', monthlyAmount: 1000, walletId: 'w',
+        months: [{ id: 'm1', monthIndex: 1, dueDate: '2026-03-20', amount: 10000, status: 'done', isPayoutMonth: true, transactionId: 'gamiya_g_m1', installmentTransactionId: 'gamiya_g_m1_inst' }],
+      }],
+      transactionLinkWarning: () => null,
+    });
+  }
+  async function deleteViaAlert() {
+    await render(ui2());
+    await act(async () => {});
+    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
+    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => {});
+  }
+
+  it.each([
+    [true, ['gamiya_g_m1', 'gamiya_g_m1_inst']],
+    // قسطك مش موجود عندنا ← المودال مبيوعدش بيه، والذرة بتقارن على ده
+    [false, ['gamiya_g_m1']],
+  ])('قسطك موجود=%p ← expectedTxIds = اللي التسوية اتحسبت عليه', async (withInst, expected) => {
+    seedPayout(withInst);
+    await deleteViaAlert();
+    expect(mockData.deleteTransaction).toHaveBeenCalledWith('gamiya_g_m1', [], { expectedTxIds: expected });
+  });
+
+  it('changed ← "الأرقام اتغيّرت" والمودال بيتقفل', async () => {
+    seedPayout(true);
+    mockData.deleteTransaction = jest.fn(async () => ({ outcome: 'changed', subject: 'gamiya' }));
+    const { router } = jest.requireMock('expo-router');
+    router.back.mockClear();
+    await deleteViaAlert();
+    expect(screen.getByText(TX_DELETE_OUTCOME_ALERT_GAMIYA.changed.title)).toBeTruthy();
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 });

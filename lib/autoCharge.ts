@@ -236,6 +236,30 @@ export function gamiyaMonthTxIds(m: Pick<GamiyaMonthLike, 'transactionId' | 'ins
   return [m.transactionId, m.installmentTransactionId].filter((x): x is string => typeof x === 'string' && !!x);
 }
 
+/**
+ * ملاحظة على شهر استلام حسابه ناقص (الجولة 1 على 3a72d99، بند 7 — مش بتمنع حاجة). النسخ الأقدم على جهاز تاني متعرفش
+ * قسطك في شهر الاستلام: ممكن تسجّل الاستلام لوحده، أو تمسح واحدة من الاتنين وترجّع الشهر من غير التانية.
+ */
+export const GAMIYA_NOTE_LEGACY_PAYOUT = 'الشهر ده اتسجل قبل ما قسطك يتسجل معاه — امسح عملية الاستلام من الأرشيف وسجّله تاني.';
+export const GAMIYA_NOTE_PAIR_BROKEN = 'حساب الشهر ده ناقص: عملية الاستلام أو قسطك اتمسحت لوحدها (يمكن من نسخة أقدم على جهاز تاني). امسح اللي فاضل منهم من الأرشيف وسجّله تاني.';
+export const GAMIYA_NOTE_STRAY_INSTALLMENT = 'قسطك في الشهر ده لسه متسجل من غير الاستلام (يمكن من نسخة أقدم على جهاز تاني). لما تسجّل الاستلام هيتربط بيه، أو امسحه من الأرشيف.';
+
+/**
+ * `txIds` = العمليات الموجودة (بعد ما العمليات وصلت بس — الشاشة مبتسألش قبلها). `null` = الشهر سليم أو مش شهر استلام.
+ * pending وعليه علامة قسطك والعملية مش موجودة ← مفيش فلوس اتحركت، والتسجيل الجاي بيكتبها من الأول (مش ملاحظة).
+ */
+export function gamiyaMonthNote(
+  m: Pick<GamiyaMonthLike, 'isPayoutMonth' | 'status' | 'transactionId' | 'installmentTransactionId'>, txIds: ReadonlySet<string>,
+): string | null {
+  if (!m.isPayoutMonth) return null;
+  if (m.status === 'done') {
+    if (!m.installmentTransactionId) return GAMIYA_NOTE_LEGACY_PAYOUT;
+    if (!m.transactionId || gamiyaMonthTxIds(m).some(x => !txIds.has(x))) return GAMIYA_NOTE_PAIR_BROKEN;
+    return null;
+  }
+  return m.installmentTransactionId && txIds.has(m.installmentTransactionId) ? GAMIYA_NOTE_STRAY_INSTALLMENT : null;
+}
+
 /** سطر توضيح تحت "مبلغ الاستلام" في فورم الجمعية */
 export const gamiyaPayoutHint = 'اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل الاستلام ده، وقسطك في الشهر ده كمصروف لوحده.';
 

@@ -5,8 +5,11 @@ import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import {
   AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, GAMIYA_ALREADY_RECORDED_ALERT,
-  GAMIYA_BAD_AMOUNT_ALERT, GAMIYA_MONTH_MISSING_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, useData, type Gamiya,
+  GAMIYA_BAD_AMOUNT_ALERT, GAMIYA_BAD_INSTALLMENT_ALERT, GAMIYA_MONTH_MISSING_ALERT, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT_GAMIYA,
+  PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, useData, type Gamiya, type GamiyaMarkOutcome,
 } from '@/context/DataContext';
+import PayoutInstallmentSheet from '@/components/PayoutInstallmentField';
+import { storableAmount } from '@/lib/linkedEdit';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, monthsPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
@@ -19,7 +22,7 @@ import { useWalletDefault } from '@/lib/useWalletDefault';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import { gamiyaMarkConfirmBody, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
+import { gamiyaMarkConfirmBody, gamiyaMonthNote, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
@@ -45,6 +48,23 @@ export function gamiyaNextLabel(days: number, reminderDaysBefore: number, isPayo
 const payAlerts = (isPayout: boolean) => (isPayout ? PAY_OUTCOME_ALERT_GAMIYA_PAYOUT : PAY_OUTCOME_ALERT_GAMIYA);
 const walletMissingAlert = (isPayout: boolean) => payAlerts(isPayout)['wallet-missing'];
 
+/** رسالة نتيجة "اتدفع"/"استلمت" من الشاشة (التأكيد، وشيت قسطك لما مش مقروء) — `null` = اتسجل */
+function markOutcomeAlert(outcome: GamiyaMarkOutcome, isPayout: boolean): { title: string; body: string } | null {
+  if (outcome === 'done') return null;
+  // شهر الاستلام: الاستلام **أو** قسطك اتغيّر — "مبلغ الشهر ده" لوحده نص الحقيقة
+  if (outcome === 'amount-changed') return isPayout ? GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT : AMOUNT_CHANGED_ALERT.gamiya;
+  if (outcome === 'missing') return CHARGE_MISSING_ALERT.gamiya;
+  // الجمعية لسه موجودة والشهر بس اللي مش فيها — مش "الجمعية اتمسحت"
+  if (outcome === 'month-missing') return GAMIYA_MONTH_MISSING_ALERT;
+  if (outcome === 'already-recorded') return GAMIYA_ALREADY_RECORDED_ALERT;
+  if (outcome === 'bad-amount') return GAMIYA_BAD_AMOUNT_ALERT;
+  // قسطك الشهري مش مقروء — بتسمّيه هو مش "المبلغ" (الجولة 1 على 3a72d99)
+  if (outcome === 'bad-installment') return GAMIYA_BAD_INSTALLMENT_ALERT;
+  // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتسجل مرتين). وشهر الاستلام الكلام عن استلام مش خصم
+  if (outcome === 'uncertain') return isPayout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT;
+  return payAlerts(isPayout)[outcome];
+}
+
 export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -58,6 +78,11 @@ export default function GamiyaView() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingGamiya, setEditingGamiya] = useState<Gamiya | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // "استلمت" والقسط الشهري مش مقروء ← شيت قسطك بدل التأكيد (الجولة 1 على 3a72d99)
+  const [instEntry, setInstEntry] = useState<{ g: Gamiya; monthId: string; amount: number; monthIndex: number } | null>(null);
+  // ملاحظة الشهر الناقص (بند 7) بعد ما العمليات توصل بس — قبلها كل شهر كان هيبان "ناقص"
+  const txIdsReady = !figuresPending.includes('transactions') && !loadErrors.includes('transactions');
+  const txIds = useMemo(() => new Set(transactions.map(t => t.id)), [transactions]);
 
   /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
@@ -88,6 +113,12 @@ export default function GamiyaView() {
       notice(m.title, m.body);
       return;
     }
+    // القسط الشهري مش مقروء (قديم، أو أقل من نص قرش) ← تأكيد بيقول رقم مش هيتسجل كان هيترفض. الشيت بيقول الاستلام
+    // وبيطلب قسطك للشهر ده — هو التأكيد (قاعدة 7)
+    if (isPayout && storableAmount(g.monthlyAmount) === null) {
+      setInstEntry({ g, monthId, amount, monthIndex });
+      return;
+    }
     confirm(
       isPayout ? 'استلام الجمعية' : 'تسجيل القسط',
       // شهر الاستلام بيسجّل قسطك كمان (اختيار أ، 2026-11-18) — الرقمين في الجملة هما اللي هيتكتبوا
@@ -100,18 +131,8 @@ export default function GamiyaView() {
             // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
             // والاستلام: قسطك اللي في الجملة كمان
             const outcome = await (isPayout ? markGamiyaMonthDone(g.id, monthId, amount, g.monthlyAmount) : markGamiyaMonthDone(g.id, monthId, amount));
-            if (outcome === 'done') return;
-            const m = outcome === 'amount-changed' ? AMOUNT_CHANGED_ALERT.gamiya
-              : outcome === 'missing' ? CHARGE_MISSING_ALERT.gamiya
-              // الجمعية لسه موجودة والشهر بس اللي مش فيها — مش "الجمعية اتمسحت"
-              : outcome === 'month-missing' ? GAMIYA_MONTH_MISSING_ALERT
-              : outcome === 'already-recorded' ? GAMIYA_ALREADY_RECORDED_ALERT
-              : outcome === 'bad-amount' ? GAMIYA_BAD_AMOUNT_ALERT
-              // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتسجل مرتين)
-              // وشهر الاستلام الكلام عن استلام مش خصم
-              : outcome === 'uncertain' ? (isPayout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT)
-              : payAlerts(isPayout)[outcome];
-            notice(m.title, m.body);
+            const m = markOutcomeAlert(outcome, isPayout);
+            if (m) notice(m.title, m.body);
           }),
         },
       ],
@@ -162,8 +183,11 @@ export default function GamiyaView() {
 
         {isExpanded && (
           <View style={styles.expandedArea}>
-            {g.months.map(m => (
-              <View key={m.id} style={styles.monthRow}>
+            {g.months.map(m => {
+              const note = txIdsReady ? gamiyaMonthNote(m, txIds) : null;
+              return (
+              <View key={m.id}>
+              <View style={styles.monthRow}>
                 <Text accessible accessibilityLabel={speakable(`شهر ${m.monthIndex}${m.isPayoutMonth ? '، استلام' : ''}، ${dateText(m.dueDate, todayStr())}، ${moneyText(m.amount, amountsHidden)}، ${m.status === 'done' ? (m.isPayoutMonth ? 'اتسجل الاستلام' : 'اتدفع') : m.isPayoutMonth ? 'بانتظار الاستلام' : 'بانتظار الدفع'}`)}
                   style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
                   شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
@@ -179,7 +203,11 @@ export default function GamiyaView() {
                   <Text style={{ color: colors.incomeText, fontSize: typeScale.caption }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">✓ خلص</Text>
                 )}
               </View>
-            ))}
+              {/* حساب الشهر ناقص (نسخة أقدم على جهاز تاني) — بتقول الطريق ومبتقفلش حاجة */}
+              {note && <Text style={styles.monthNote} testID={`gamiya_month_note_${m.id}`}>{note}</Text>}
+              </View>
+              );
+            })}
             <View style={styles.gamiyaActions}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تعديل جمعية ${g.name}`} style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>تعديل</Text>
@@ -212,6 +240,24 @@ export default function GamiyaView() {
       </FoldedSection>
 
       <AddGamiyaModal visible={showAdd} onClose={() => setShowAdd(false)} />
+      {instEntry && (
+        <PayoutInstallmentSheet
+          title={`استلام جمعية "${instEntry.g.name}" — شهر ${instEntry.monthIndex}`}
+          payoutAmount={instEntry.amount}
+          walletName={walletHistoryName(wallets, instEntry.g.walletId)}
+          busy={busyKey === `month_${instEntry.monthId}`}
+          onClose={() => setInstEntry(null)}
+          onSave={installment => runBusy(`month_${instEntry.monthId}`, async () => {
+            const { g, monthId, amount } = instEntry;
+            // قسطك المكتوب بيتسجل بس لو المتخزّن لسه مش مقروء — الذرة بتقرر من نسخة السيرفر
+            const outcome = await markGamiyaMonthDone(g.id, monthId, amount, undefined, installment);
+            const m = markOutcomeAlert(outcome, true);
+            // الشيت بيتقفل على النتايج القاطعة؛ النت/الفشل بيسيبه مفتوح عشان الرقم اللي اتكتب مايضيعش
+            if (!m || !['no-connection', 'failed'].includes(outcome)) setInstEntry(null);
+            if (m) notice(m.title, m.body);
+          })}
+        />
+      )}
       {editingGamiya && <EditGamiyaModal gamiya={editingGamiya} onClose={() => setEditingGamiya(null)} />}
     </ScrollView>
   );
@@ -360,6 +406,7 @@ function makeStyles(c: ThemeColors) {
     expandedArea: { marginTop: space.lg, borderTopWidth: 1, borderTopColor: c.border, paddingTop: space.md },
     monthRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', paddingVertical: space.xs },
     monthText: { fontSize: typeScale.caption, flex: 1, textAlign: 'right' },
+    monthNote: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs },
     // كان ~28 طول — 44 للمس (دراسة الشكل)
     deleteBtn: { borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.sm, alignItems: 'center', paddingVertical: space.sm, marginTop: space.md },
     gamiyaActions: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md },

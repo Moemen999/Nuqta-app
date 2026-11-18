@@ -136,6 +136,10 @@ class AmountChangedError extends Error { name = 'AmountChangedError'; }
 class PeriodChangedError extends Error { name = 'PeriodChangedError'; }
 /** مبلغ الاشتراك المتخزّن مش مبلغ ينفع يتسجل (NaN، صفر، سالب) — الجولة 2 */
 class BadStoredAmountError extends Error { name = 'BadStoredAmountError'; }
+/** شهر الاستلام: قسط الجمعية الشهري المتخزّن مش مبلغ (قديم، أو 0.004) والمستخدم ما كتبش قسطه — مفيش كتابة خالص */
+class BadInstallmentError extends Error { name = 'BadInstallmentError'; }
+/** مسح عملية شهر استلام: العمليات الموجودة على السيرفر مش اللي المودال حسب عليها التسوية — مفيش كتابة خالص */
+class TxSetChangedError extends Error { name = 'TxSetChangedError'; }
 /** الرقمين للّوج في نسخ التطوير بس (silent-failure-hunter): رفض من غير تعديل حقيقي يبان */
 const amountChanged = (seen: number | undefined, actual: number) => Object.assign(new AmountChangedError(), { seen, actual });
 /** `[seen, actual]` في التطوير، ولا حاجة في الإنتاج (مفيش رقم فلوس بيخرج — CLAUDE.md: Sentry) */
@@ -353,9 +357,10 @@ export const PAY_OUTCOME_ALERT_GAMIYA_PAYOUT: typeof PAY_OUTCOME_ALERT = {
  * - `month-missing`: الجمعية موجودة بس الشهر مش فيها — مفيش حاجة اتسجلت (`GAMIYA_MONTH_MISSING_ALERT`).
  * - `already-recorded`: الشهر اتسجل قبل كده (جهاز تاني، الكارت، التلقائي) — مفيش كتابة (`GAMIYA_ALREADY_RECORDED_ALERT`).
  * - `bad-amount`: مبلغ الشهر المتخزّن مش رقم صالح — مفيش كتابة، ومش "المبلغ اتغيّر" للأبد (`GAMIYA_BAD_AMOUNT_ALERT`).
+ * - `bad-installment`: شهر الاستلام وقسطك الشهري المتخزّن مش مبلغ، ومفيش قسط مكتوب — مفيش كتابة (`GAMIYA_BAD_INSTALLMENT_ALERT`).
  * - `uncertain`: الذرة فشلت وسؤال السيرفر بعدها كمان فشل (`CHARGE_UNCERTAIN_ALERT`).
  */
-export type GamiyaMarkOutcome = PayOutcome | 'amount-changed' | 'missing' | 'month-missing' | 'already-recorded' | 'bad-amount' | 'uncertain';
+export type GamiyaMarkOutcome = PayOutcome | 'amount-changed' | 'missing' | 'month-missing' | 'already-recorded' | 'bad-amount' | 'bad-installment' | 'uncertain';
 /** نفس صيغة "اتسجلت قبل كده" بتاعة الكارت */
 export const GAMIYA_ALREADY_RECORDED_ALERT = {
   title: 'اتسجلت قبل كده',
@@ -365,6 +370,25 @@ export const GAMIYA_ALREADY_RECORDED_ALERT = {
 export const GAMIYA_BAD_AMOUNT_ALERT = {
   title: 'المبلغ مش مقروء',
   body: 'المبلغ المتسجّل للشهر ده مش رقم صالح، فما اتسجلش حاجة. سجّله من كارت "مستنيين ردك" في الرئيسية واكتب المبلغ بنفسك.',
+};
+/**
+ * شهر الاستلام وقسط الجمعية الشهري المتخزّن مش مبلغ (بيانات قديمة، أو أقل من نص قرش) — الاستلام وقسطك بيتسجلوا مع بعض أو
+ * مفيش (اختيار أ)، فالطريق إن المستخدم يكتب قسطه في الشهر ده بنفسه (الجولة 1 على 3a72d99 — كان بيقول "المبلغ" ويودّي
+ * على كارت بيرفض هو كمان). القسط الشهري نفسه مش بيتعدّل من الجمعية، فالمكتوب للشهر ده بس.
+ */
+export const GAMIYA_BAD_INSTALLMENT_ALERT = {
+  title: 'قسطك مش مقروء',
+  body: 'قسط الجمعية الشهري المتسجّل مش رقم صالح، فما اتسجلش حاجة — لا الاستلام ولا قسطك. دوس "استلمت" تاني واكتب قسطك في الشهر ده بنفسك.',
+};
+/** نفس الحالة من كارت "استلمت؟" — الخانة في شيت "المبلغ مختلف" */
+export const CHARGE_BAD_INSTALLMENT_ALERT = {
+  title: 'قسطك مش مقروء',
+  body: 'قسط الجمعية الشهري المتسجّل مش رقم صالح، فما اتسجلش حاجة — لا الاستلام ولا قسطك. دوس "المبلغ مختلف" واكتب قسطك في الشهر ده بنفسك.',
+};
+/** شهر الاستلام: الاستلام أو قسطك اتعدّل من جهاز تاني والتأكيد/الكارت مفتوح (الشاشة والكارت) */
+export const GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT = {
+  title: 'الأرقام اتغيّرت',
+  body: 'مبلغ الاستلام أو قسطك الشهري اتعدّل من جهاز تاني، فمفيش فلوس اتحركت. شوف الأرقام الجديدة وأكّد تاني لو موافق عليها.',
 };
 /** الإضافة/التعديل ونسخة الحساب مش جاهزة (`uid` فاضي) — كانت بترجع "تم" ومفيش حاجة اتكتبت */
 export const GAMIYA_NOT_SAVED_MESSAGE = 'الجمعية ما اتحفظتش — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.';
@@ -596,8 +620,9 @@ export type DebtEntryDeleteOut = DebtIncreaseDeleteOut;
  * مسح عملية من مودال العملية (الأرشيف/الرئيسية). العادي batch بيشتغل أوفلاين ← `done` على طول. عملية **دفعة أو زيادة
  * دين** ذرة بتقرا الدين من السيرفر (الجولة 2، بند 1) ← محتاجة نت ونتيجة قاطعة: `uncertain` = الذرة فشلت وسؤال السيرفر
  * بعدها كمان فشل. `dueNotRestored`: التأكيد قال المعاد هيرجع والسيرفر ما رجّعوش (الدين اتغيّر من جهاز تاني).
+ * `changed` (شهر استلام الجمعية): العمليات اللي على السيرفر مش اللي المودال حسب عليها التسوية — مفيش أي كتابة.
  */
-export type TxDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'uncertain' | 'no-account';
+export type TxDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'uncertain' | 'no-account' | 'changed';
 export type TxDeleteResult = {
   outcome: TxDeleteOutcome; dueNotRestored?: 'payment' | 'increase';
   /** العملية مربوطة بشهر جمعية (مراجعة 2026-11-18) — الرسالة بتتكلم عن الجمعية مش الدين (`txDeleteOutcomeAlert`) */
@@ -620,6 +645,10 @@ export const TX_DELETE_OUTCOME_ALERT: Record<Exclude<TxDeleteOutcome, 'done'>, {
     title: 'ما اتمسحتش',
     body: 'العملية لسه موجودة والرصيد ما اتلمسش — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
   },
+  changed: {
+    title: 'الأرقام اتغيّرت',
+    body: 'العملية دي اتغيّرت من جهاز تاني وإحنا بنمسح، فما اتمسحش حاجة والرصيد زي ما هو. افتحها تاني.',
+  },
 };
 /** نفس `TX_DELETE_OUTCOME_ALERT` لعملية شهر جمعية — المسح بيرجّع الشهر يسأل، فلازم يتأكد من السيرفر */
 export const TX_DELETE_OUTCOME_ALERT_GAMIYA: typeof TX_DELETE_OUTCOME_ALERT = {
@@ -636,6 +665,10 @@ export const TX_DELETE_OUTCOME_ALERT_GAMIYA: typeof TX_DELETE_OUTCOME_ALERT = {
     body: 'النت قطع واحنا بنمسح، فمش عارفين المسح وصل ولا لأ. افتح الأرشيف وبص، ولو العملية لسه موجودة امسحها تاني.',
   },
   'no-account': TX_DELETE_OUTCOME_ALERT['no-account'],
+  changed: {
+    title: 'الأرقام اتغيّرت',
+    body: 'عمليات الشهر ده في الجمعية اتغيّرت من جهاز تاني وإحنا بنمسح، فما اتمسحش حاجة والرصيد زي ما هو. افتحها تاني.',
+  },
 };
 /** رسالة نتيجة مسح العملية حسب اللي مربوطة بيه */
 export function txDeleteOutcomeAlert(outcome: Exclude<TxDeleteOutcome, 'done'>, subject?: TxDeleteResult['subject']) {
@@ -911,7 +944,11 @@ type DataContextType = {
     settlements?: Settlement[],
   ) => Promise<TxEditResult>;
   /** عملية دفعة/زيادة دين ← ذرة من السيرفر بنتيجة (`TxDeleteResult`)؛ غير كده batch و`done` على طول */
-  deleteTransaction: (id: string, settlements?: Settlement[]) => Promise<TxDeleteResult>;
+  /**
+   * `expectedTxIds` (المودال): العمليات اللي التسوية اتحسبت عليها — شهر استلام الجمعية لو السيرفر عليه غيرهم ← `changed`
+   * ومفيش كتابة. من غيره (العمليات البايظة — مفيش تسوية) بيمسح اللي موجود.
+   */
+  deleteTransaction: (id: string, settlements?: Settlement[], opts?: { expectedTxIds?: string[] }) => Promise<TxDeleteResult>;
   transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
   setMonthlyIncome: (month: string, income: number) => Promise<void>;
@@ -951,9 +988,10 @@ type DataContextType = {
   updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   /** `seenInstallment`: قسطك اللي اتقال في تأكيد شهر الاستلام — اتغيّر ← `amount-changed` */
-  markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number) => Promise<GamiyaMarkOutcome>;
+  /** `typedInstallment`: قسطك اللي المستخدم كتبه — بيتسجل **بس** لو القسط المتخزّن مش مقروء (`bad-installment`) */
+  markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number, typedInstallment?: number) => Promise<GamiyaMarkOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
-  recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<ChargeRecordResult>;
+  recordCharges: (kind: ChargeKind, id: string, entries: ChargeEntry[], opts?: { auto?: boolean }) => Promise<ChargeRecordResult>;
   /** "ما اتخصمش" — الفترة بتتقفل من غير عملية */
   skipSubscriptionCharge: (id: string, key: string) => Promise<SkipChargeOutcome>;
   addIncome: (draft: IncomeDraft & { mode: IncomeMode }) => Promise<void>;
@@ -995,12 +1033,20 @@ export type ChargeKind = 'subscription' | 'gamiya';
  * ولما `recorded` فاضي، السبب بيتقال: `stopped` (اتوقف)، `skipped` (اتقفلت "ما اتخصمش" من جهاز تاني)،
  * `changed` (الفترة مابقتش في الجدول — المعاد اتغيّر). من غير ولا واحد منهم = اتسجلت فعلاً قبل كده.
  */
-export type ChargeRecordOutcome = PayOutcome | 'missing' | 'uncertain';
+/** `amount-changed`: قسطك في شهر الاستلام اتغيّر عن اللي على الكارت (`seenInstallment`) — مفيش أي كتابة */
+export type ChargeRecordOutcome = PayOutcome | 'missing' | 'uncertain' | 'amount-changed';
 export type ChargeRecordResult = {
   outcome: ChargeRecordOutcome; recorded: string[]; stopped?: boolean; skipped?: boolean; changed?: boolean;
   /** الفترة مفتوحة بس المبلغ اللي اتبعت (أو المتخزّن) مش رقم صالح — ما اتسجلش، ومش "اتسجلت قبل كده" */
   badAmount?: boolean;
+  /** شهر الاستلام: قسط الجمعية الشهري المتخزّن مش مبلغ ومفيش قسط مكتوب (`installment`) — ما اتسجلش حاجة */
+  badInstallment?: boolean;
 };
+/**
+ * فترة بيسجلها `recordCharges`. شهر استلام الجمعية بس: `seenInstallment` = قسطك اللي على الكارت (اتغيّر ← `amount-changed`)،
+ * و`installment` = قسطك اللي المستخدم كتبه لما المتخزّن مش مقروء — بيتسجل **بس** في الحالة دي.
+ */
+export type ChargeEntry = { key: string; amount: number; seenInstallment?: number; installment?: number };
 /** "سدّد" من شاشة الاشتراكات */
 export type SubscriptionPayOutcome = PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed' | 'missing' | 'uncertain';
 /**
@@ -2329,7 +2375,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * الحذف + تعديل السجل المرتبط + تسوية المحافظ المؤرشفة، كلهم في دفعة واحدة.
    * لو أي حتة فشلت، مفيش أي حاجة اتكتبت.
    */
-  async function deleteTransaction(id: string, settlements: Settlement[] = []): Promise<TxDeleteResult> {
+  async function deleteTransaction(id: string, settlements: Settlement[] = [], opts: { expectedTxIds?: string[] } = {}): Promise<TxDeleteResult> {
     // مفيش حساب ← مفيش مسح، فمش "اتمسحت" (المودال كان بيتقفل والعملية لسه موجودة)
     if (!uid) return { outcome: 'no-account' };
     // المدخلة الأول: لو التطبيق اتقفل بعد الحذف وقبل شيلها، الإعادة كانت هترجّع العملية اللي اتمسحت
@@ -2352,7 +2398,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // `gamiyaId` على العملية نفسها (التحديث لسه ما وصلناش)
     const gamiyaId = gamiyas.find(g => (g.months || []).some(m => gamiyaMonthTxIds(m).includes(id)))?.id
       ?? transactions.find(x => x.id === id)?.gamiyaId ?? brokenTransactions.find(x => x.id === id)?.gamiyaId;
-    if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements);
+    if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements, opts.expectedTxIds);
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'transactions', id));
     const { pruneSubscription } = stageReconcile(batch, id);
@@ -2370,7 +2416,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * (بتحرّك الرصيد ومحدش بيسأل عنها). دلوقتي الجمعية بتتقري **من السيرفر** جوه ذرة، والشهر اللي بيرجع يسأل هو اللي
    * مربوط بالعملية دي بس، والعملية والتسوية في نفس الذرة. التمن: محتاجة نت (قاعدة 7) — والنتيجة قاطعة للمودال.
    */
-  async function deleteGamiyaLinkedTransaction(txId: string, gamiyaId: string, settlements: Settlement[]): Promise<TxDeleteResult> {
+  async function deleteGamiyaLinkedTransaction(
+    txId: string, gamiyaId: string, settlements: Settlement[], expectedTxIds?: string[],
+  ): Promise<TxDeleteResult> {
     const subject = 'gamiya' as const;
     if (!uid) return { outcome: 'failed', subject };
     if (!serverReachableRef.current) return { outcome: 'no-connection', subject };
@@ -2388,11 +2436,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const siblingRefs = gamiyaMonthTxIds(month).filter(x => x !== txId).map(x => doc(db, 'users', uid!, 'transactions', x));
         const siblingSnaps = await Promise.all(siblingRefs.map(r => t.get(r)));
         // كل القرايات خلصت — من هنا كتابات بس
-        // العملية اتمسحت قبل كده (جهاز تاني، أو commit وصل والرد ضاع): التسوية اتحسبت على أثرها، فمتتكتبش تاني
-        if (txSnap.exists()) {
-          t.delete(txRef);
-          stageSettlements(t, settlements);
+        // اللي هيتمسح فعلاً = الموجود على السيرفر. المودال حسب التسوية على اللي هو شايفه (`expectedTxIds`): لو مختلفين
+        // (جهاز تاني مسح واحدة، أو الشهر عندنا لسه من غير قسطك) التسوية كانت هتتكتب على مسح مش هو ← المؤرشفة مش صفر.
+        // فمفيش كتابة خالص والمودال بيقول "اتغيّرت" (الجولة 1 على 3a72d99 — money-reviewer)
+        const present = [txSnap, ...siblingSnaps].filter(x => x.exists()).map(x => x.id);
+        if (expectedTxIds && present.length > 0) {
+          const expected = new Set(expectedTxIds);
+          if (present.length !== expected.size || present.some(x => !expected.has(x))) throw new TxSetChangedError();
         }
+        // الكل اتمسح قبل كده (جهاز تاني، أو commit وصل والرد ضاع): التسوية اتحسبت على أثرهم، فمتتكتبش تاني
+        if (present.length > 0) stageSettlements(t, settlements);
+        if (txSnap.exists()) t.delete(txRef);
         siblingSnaps.forEach(snap => { if (snap.exists()) t.delete(snap.ref); });
         if (!g || !month) return;
         // المصفوفة من نسخة السيرفر اللي اتقرت جوه الذرة، والشهر المربوط بالعملية دي بس هو اللي بيتغيّر
@@ -2406,6 +2460,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return { outcome: 'done' };
     } catch (e) {
+      // اترفضت قبل أي كتابة — مش محتاجة سؤال السيرفر
+      if (e instanceof TxSetChangedError) { console.warn('[gamiya] tx delete refused, linked set changed on server', gamiyaId); return { outcome: 'changed', subject }; }
       // ذرية يعني كله أو مفيش — بس الـcommit ممكن يكون وصل والرد ضاع ← السيرفر الأول، والتسجيل بعده
       const landed = await gamiyaTxDeleteLanded(gamiyaRef, txRef, txId);
       if (landed === 'landed') return { outcome: 'done' };
@@ -2528,8 +2584,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     for (const g of gamiyas) {
       const m = (g.months || []).find(x => gamiyaMonthTxIds(x).includes(id));
-      // شهر الاستلام: مسح واحدة بيمسح التانية (`deleteGamiyaLinkedTransaction`) — لازم يتقال قبل التأكيد
-      if (m && gamiyaMonthTxIds(m).length > 1) {
+      // شهر الاستلام: مسح واحدة بيمسح التانية (`deleteGamiyaLinkedTransaction`) — لازم يتقال قبل التأكيد. **بس لو التانية
+      // موجودة فعلاً** (نسخة قديمة على جهاز تاني ممكن تكون مسحتها) — غير كده بنوعد بمسح حاجة مش موجودة (الجولة 1)
+      if (m && gamiyaMonthTxIds(m).some(x => x !== id && transactions.some(t => t.id === x))) {
         const other = m.transactionId === id ? 'قسطك في الشهر ده' : 'استلام الجمعية';
         return `دي من شهر الاستلام في جمعية "${g.name}" — لو مسحتها هتتمسح معاها عملية ${other} كمان، والشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
@@ -3425,6 +3482,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const [snap, ...txSnaps] = await withTimeout(Promise.all([
         getDocFromServer(ref),
         ...keys.map(k => getDocFromServer(doc(db, 'users', uid!, 'transactions', gamiyaTxId(id, k)))),
+        // شهر الاستلام: قسطك (ممكن يكون هو اللي اتكتب بس — الاستلام كان موجود)
+        ...keys.map(k => getDocFromServer(doc(db, 'users', uid!, 'transactions', gamiyaInstallmentTxId(id, k)))),
       ]), LANDED_CHECK_TIMEOUT_MS);
       if (!snap.exists()) return { state: 'gone', recorded: [] };
       const raw = (snap.data() as { months?: unknown }).months;
@@ -3434,10 +3493,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const m = monthOf(k);
         return !!m && m.status === 'done' && m.at === at && m.transactionId === gamiyaTxId(id, k);
       });
-      const recorded = ours.filter(k => {
-        const tx = txSnaps[keys.indexOf(k)];
-        return tx.exists() && tx.data()?.createdAt === at;
-      });
+      const recorded = ours.filter(k => [txSnaps[keys.indexOf(k)], txSnaps[keys.length + keys.indexOf(k)]]
+        .some(tx => tx.exists() && tx.data()?.createdAt === at));
       if (ours.length > 0) return { state: 'landed', recorded };
       // `already` = **كل** الشهور اتقفلت من مكان تاني. بعضها بس ← اللي فاضل ما اتسجلش، فده فشل مش "اتسجلت قبل كده"
       // (مراجعة الجولة 2: `some` كانت بتحوّل ذرة فشلت لـ`{done, recorded: []}` والشهر التاني لسه مفتوح)
@@ -3517,7 +3574,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * المحاولات فشلت بنسأل السيرفر قبل "مفيش أي خصم اتسجل" (`uncertain` لو السؤال كمان فشل).
    */
   async function recordCharges(
-    kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {},
+    kind: ChargeKind, id: string, entries: ChargeEntry[], opts: { auto?: boolean } = {},
   ): Promise<ChargeRecordResult> {
     if (deletingRef.current) return { outcome: 'failed', recorded: [] };
     if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
@@ -3530,7 +3587,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const at = uniqueStamp();
     const keys = [...new Set(entries.map(e => e.key))];
     let recorded: string[] = [];
-    let reasons: Pick<ChargeRecordResult, 'stopped' | 'skipped' | 'changed' | 'badAmount'> = {};
+    let reasons: Pick<ChargeRecordResult, 'stopped' | 'skipped' | 'changed' | 'badAmount' | 'badInstallment'> = {};
     // الاشتراك والجمعية الاتنين (بند C): المسح بيستنى الخصم الشغال
     chargeBegin(id);
     try {
@@ -3554,7 +3611,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const notOpen = keys.filter(k => !open.some(o => o.key === k));
         const maybeOurs = notOpen.filter(closedOnTx);
         const prior = await Promise.all(maybeOurs.map(k => t.get(doc(db, 'users', uid!, 'transactions', txIdOf(k)))));
-        const oursBefore = maybeOurs.filter((k, i) => prior[i].exists() && prior[i].data()?.createdAt === at);
+        // شهر الاستلام: محاولة وصلت ممكن تكون كتبت قسطك بس (الاستلام كان موجود قبلها) — بصمتنا على أي واحدة منهم
+        const priorInst = kind === 'gamiya'
+          ? await Promise.all(maybeOurs.map(k => t.get(doc(db, 'users', uid!, 'transactions', gamiyaInstallmentTxId(id, k)))))
+          : [];
+        const oursBefore = maybeOurs.filter((k, i) => (prior[i].exists() && prior[i].data()?.createdAt === at)
+          || (!!priorInst[i]?.exists() && priorInst[i].data()?.createdAt === at));
 
         const seen = new Set<string>();
         const todo: { key: string; amount: number }[] = [];
@@ -3583,15 +3645,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
           reasons.changed = true;
         }
         // شهر الاستلام (اختيار أ، 2026-11-18): الاستلام وقسطك في الشهر ده مع بعض — قسط مش مقروء ← الشهر ميتسجلش خالص
-        // (مش استلام من غير قسط)، زي المبلغ البايظ
+        // (مش استلام من غير قسط). المخرج (الجولة 1 على 3a72d99): قسطك المكتوب من شيت "المبلغ مختلف" — بس لو المتخزّن
+        // مش مقروء. والمقروء لازم يبقى اللي على الكارت (`seenInstallment`) — اتغيّر ← `amount-changed` ومفيش كتابة
         const instOf = new Map<string, number>();
         if (kind === 'gamiya') {
           const g = data as Gamiya;
           for (const e of [...todo]) {
             if (!g.months?.find(m => m.id === e.key)?.isPayoutMonth) continue;
-            const inst = storableAmount(g.monthlyAmount);
-            if (inst === null) { reasons.badAmount = true; todo.splice(todo.indexOf(e), 1); continue; }
-            instOf.set(e.key, inst);
+            const src = entries.find(x => x.key === e.key);
+            const stored = storableAmount(g.monthlyAmount);
+            if (stored !== null) {
+              if (seenAmountDiffers(src?.seenInstallment, g.monthlyAmount)) throw amountChanged(src?.seenInstallment, g.monthlyAmount);
+              instOf.set(e.key, stored);
+              continue;
+            }
+            const typed = src?.installment === undefined ? null : storableAmount(src.installment);
+            if (typed === null) { reasons.badInstallment = true; todo.splice(todo.indexOf(e), 1); continue; }
+            instOf.set(e.key, typed);
           }
         }
         recorded = [...oursBefore];
@@ -3638,18 +3708,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const i = todo.findIndex(e => e.key === m.id);
           if (i === -1) return m;
           const { reopened: _r, auto: _a, transactionId: _t, installmentTransactionId: _it, at: _at, ...rest } = m;
+          let wrote = false;
           if (!existing[i].exists()) {
             t.set(txRefs[i], {
               type: m.isPayoutMonth ? 'income' : 'expense', amount: todo[i].amount, walletId: g.walletId, date: m.dueDate,
               note: `${m.isPayoutMonth ? 'استلام جمعية' : 'قسط جمعية'}: ${g.name} (شهر ${m.monthIndex})`,
               gamiyaId: id, periodKey: m.id, createdAt: at, ...(auto ? { autoRecorded: true } : {}),
             });
-            recorded.push(m.id);
+            wrote = true;
           }
           const inst = instOf.get(m.id);
           const instId = gamiyaInstallmentTxId(id, m.id);
           // موجودة (اتعدّلت مثلاً) ← الشهر بيتقفل عليها من غير ما نكتب فوقها
-          if (inst !== undefined && !instExists.get(m.id)) t.set(doc(db, 'users', uid!, 'transactions', instId), gamiyaInstallmentTxData(g, m, inst, at));
+          if (inst !== undefined && !instExists.get(m.id)) {
+            t.set(doc(db, 'users', uid!, 'transactions', instId), gamiyaInstallmentTxData(g, m, inst, at));
+            wrote = true;
+          }
+          // الاستلام كان موجود وقسطك اتكتب دلوقتي ← فلوس اتحركت، فمش "اتسجلت قبل كده" (الجولة 1)
+          if (wrote) recorded.push(m.id);
           return {
             ...rest, status: 'done' as const, transactionId: txRefs[i].id,
             ...(inst !== undefined ? { installmentTransactionId: instId } : {}), at, ...(auto ? { auto: true } : {}),
@@ -3661,6 +3737,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل؛ بس الشاشة لازم تقول كده (بند G)
       if (e instanceof ChargeMissingError) { console.warn(`[${kind}] record refused, gone`, id); return { outcome: 'missing', recorded: [] }; }
+      // اترفضت قبل أي كتابة — مش محتاجة سؤال السيرفر. اسم الخطوة بس، والأرقام في التطوير بس
+      if (e instanceof AmountChangedError) {
+        console.warn(`[${kind}] record refused, installment changed since shown`, id, ...amountsForDevLog(e));
+        return { outcome: 'amount-changed', recorded: [] };
+      }
       if (e instanceof WalletMissingError) {
         noteAtomicFailure(kind === 'subscription' ? 'تسجيل الاشتراك' : 'تسجيل الجمعية', e);
         return { outcome: 'wallet-missing', recorded: [] };
@@ -4279,7 +4360,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * **ليه مش `recordCharges`:** هناك الشهور اللي معادها جه بس (`gamiyaOpenCharges`)، والشاشة بتسجّل أي شهر لسه
    * pending (قسط بدري) — فالمسار ده فاضل لوحده بنفس العقد، والمعرّف الثابت واحد فالشهر عمليته واحدة مهما اتسجل منين.
    */
-  async function markGamiyaMonthDone(gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number): Promise<GamiyaMarkOutcome> {
+  async function markGamiyaMonthDone(
+    gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number, typedInstallment?: number,
+  ): Promise<GamiyaMarkOutcome> {
     if (deletingRef.current) return 'failed';
     // مفيش حساب ← مفيش كتابة، فمش "تم"
     if (!uid) return 'failed';
@@ -4310,11 +4393,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         }
         const amount = storableAmount(month.amount);
         if (amount === null) throw new BadStoredAmountError();
-        // شهر الاستلام بيكتب قسطك كمان — نفس الفحصين على رقمه (التأكيد قال الرقمين)
-        const installment = month.isPayoutMonth ? storableAmount(g.monthlyAmount) : null;
-        if (month.isPayoutMonth && installment === null) throw new BadStoredAmountError();
+        // شهر الاستلام بيكتب قسطك كمان — نفس الفحصين على رقمه (التأكيد قال الرقمين). المتخزّن مش مقروء ← قسطك اللي
+        // المستخدم كتبه (شيت الشاشة) بس في الحالة دي، ومن غيره `bad-installment` مش "المبلغ" (الجولة 1 على 3a72d99)
+        const storedInst = month.isPayoutMonth ? storableAmount(g.monthlyAmount) : null;
+        const installment = !month.isPayoutMonth ? null
+          : storedInst ?? (typedInstallment === undefined ? null : storableAmount(typedInstallment));
+        if (month.isPayoutMonth && installment === null) throw new BadInstallmentError();
         if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
-        if (month.isPayoutMonth && seenAmountDiffers(seenInstallment, g.monthlyAmount)) throw amountChanged(seenInstallment, g.monthlyAmount);
+        if (storedInst !== null && seenAmountDiffers(seenInstallment, g.monthlyAmount)) throw amountChanged(seenInstallment, g.monthlyAmount);
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();
         const existing = await t.get(txRef);
@@ -4344,6 +4430,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (e instanceof WalletMissingError) return 'wallet-missing';
       // مفيش كتابة خالص (اترفضت قبلها) — مش محتاج سؤال السيرفر. اسم الخطوة بس، من غير المبلغ (sentryScrub)
       if (e instanceof BadStoredAmountError) { console.warn('[gamiya] mark refused, stored amount unreadable', gamiyaId); return 'bad-amount'; }
+      if (e instanceof BadInstallmentError) { console.warn('[gamiya] mark refused, monthly installment unreadable', gamiyaId); return 'bad-installment'; }
       // ذرية يعني كله أو مفيش — **بس** الـcommit ممكن يكون وصل والرد ضاع. فقبل "مفيش أي خصم اتسجل" بنسأل السيرفر
       const landed = await gamiyaChargeLanded(gamiyaRef, gamiyaId, [monthId], at);
       if (landed.state === 'landed') return 'done';
