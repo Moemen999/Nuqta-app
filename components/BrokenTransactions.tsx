@@ -73,7 +73,7 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
   const {
     wallets, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad, updateTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
-  const linkKind = transactionLinkKind(t.id, { debts, subscriptions, gamiyas, incomes });
+  const linkKind = transactionLinkKind(t.id, { debts, subscriptions, gamiyas, incomes }, t);
   const block = brokenFixBlock(t, linkKind, wallets);
   const [amount, setAmount] = useState(t.amount !== undefined ? String(t.amount) : '');
   // التاريخ الناقص بيفضل فاضي لحد ما يتختار — "النهارده" من غير ما حد يقول كان هيتسجل ساكت (silent-failure-hunter)

@@ -3,10 +3,10 @@ import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
+import { incomeRecordNotice, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { todayStr, walletHistoryName } from '@/lib/finance';
+import { toMoneyAmount, todayStr, walletHistoryName } from '@/lib/finance';
 import { MONEY_MASK } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
@@ -102,12 +102,13 @@ export default function IncomeHomeCards() {
   async function record(inc: RecurringIncome, key: string, amount: number) {
     let ok = false;
     await run(`rec_${inc.id}`, async () => {
-      const r = await recordIncomePeriods(inc.id, [{ key, amount }]);
-      if (r.outcome !== 'done') {
-        notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
-        return;
-      }
-      ok = true;
+      // المبلغ المعتاد زي ما هو ← `seenAmount`: لو اتغيّر من جهاز تاني الذرة بترفض بدل ما تسجّل الجديد (M3)
+      const r = await recordIncomePeriods(inc.id, [{ key, amount }], amount === inc.amount ? { seenAmount: inc.amount } : undefined);
+      // "اتسجل" بس لو `recorded` فيه حاجة — غير كده السبب الحقيقي (M2)
+      const m = incomeRecordNotice(r);
+      // اتمسح/مش متأكدين/اتحسمت ← الشيت بيتقفل ("نزل" تاني ممكن يسجّل مرتين)؛ الفشل بيسيبه عشان الرقم مايضيعش
+      ok = r.outcome === 'done' || r.outcome === 'missing' || r.outcome === 'uncertain';
+      if (m) { notice(m.title, m.body); return; }
       AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}"`);
     });
     return ok;
@@ -186,8 +187,10 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { amountsHidden, money } = usePrivacy();
   const [value, setValue] = useState(amountsHidden ? '' : String(inc.amount));
-  const typed = value.trim() === '' ? inc.amount : Number(value.replace(/,/g, ''));
-  const valid = Number.isFinite(typed) && typed > 0;
+  // M4: مقرّب للقرش زي ما هيتخزّن، واللي بيتقرّب لصفر مرفوض هنا مش بعد "نزل"
+  const rounded = value.trim() === '' ? inc.amount : toMoneyAmount(Number(value.replace(/,/g, '')));
+  const valid = rounded !== null;
+  const typed = rounded ?? 0;
   const diff = valid && value.trim() !== '' ? incomeDiffNote(typed, inc.amount, money) : null;
 
   return (

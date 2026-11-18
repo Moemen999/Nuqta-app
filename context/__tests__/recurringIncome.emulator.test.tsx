@@ -1,6 +1,6 @@
 import { db } from '@/firebaseConfig';
-import { walletBalance } from '@/lib/finance';
-import { incomeTxId } from '@/lib/recurringIncome';
+import { addDays, addMonths, todayStr, walletBalance } from '@/lib/finance';
+import { incomeTxId, incomeUpcomingPeriod } from '@/lib/recurringIncome';
 import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
@@ -31,6 +31,15 @@ afterEach(async () => {
 
 const uidPath = () => ['users', getMockUid()] as const;
 
+/**
+ * مراجعة الدخل (2026-11-18، M3): الذرة بتسجل بس فترات من الجدول اللي على السيرفر، فالمفاتيح هنا فترات فاتت فعلاً
+ * (نسبية للنهارده، يوم 25) والدخل بيبدأ من 6 شهور. قبل كده كانت تواريخ ثابتة (K9) والذرة كانت بتقبل أي مفتاح.
+ */
+const TODAY = todayStr();
+const K7 = addMonths(TODAY, -4).slice(0, 7);
+const K8 = addMonths(TODAY, -3).slice(0, 7);
+const K9 = addMonths(TODAY, -2).slice(0, 7);
+
 async function makeIncome(over: Record<string, unknown> = {}) {
   const w = harness.api().wallets[0];
   await harness.api().addIncome({
@@ -39,7 +48,11 @@ async function makeIncome(over: Record<string, unknown> = {}) {
   } as any);
   await harness.waitForData(api => api.incomes.length === 1);
   await harness.waitForData(api => api.pendingWrites === 0);
-  return { walletId: w.id, incomeId: harness.api().incomes[0].id };
+  const incomeId = harness.api().incomes[0].id;
+  const startDate = addMonths(TODAY, -6);
+  await updateDoc(doc(db, ...uidPath(), 'incomes', incomeId), { startDate });
+  await harness.waitForData(api => api.incomes[0].startDate === startDate);
+  return { walletId: w.id, incomeId };
 }
 
 function balanceOf(walletId: string) {
@@ -54,28 +67,28 @@ describe('التسجيل', () => {
     const { walletId, incomeId } = await makeIncome();
     const before = balanceOf(walletId);
 
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: ['2026-09'] });
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [K9] });
 
-    await harness.waitForData(api => api.transactions.some(t => t.id === incomeTxId(incomeId, '2026-09')));
-    const tx = harness.api().transactions.find(t => t.id === incomeTxId(incomeId, '2026-09'))!;
+    await harness.waitForData(api => api.transactions.some(t => t.id === incomeTxId(incomeId, K9)));
+    const tx = harness.api().transactions.find(t => t.id === incomeTxId(incomeId, K9))!;
     expect(tx).toMatchObject({ type: 'income', amount: 8000, walletId });
-    expect(harness.api().incomes[0].closed?.['2026-09']?.txId).toBe(tx.id);
+    expect(harness.api().incomes[0].closed?.[K9]?.txId).toBe(tx.id);
     expect(balanceOf(walletId) - before).toBe(8000);
   });
 
   it('كذا فترة في نداء واحد (اللحاق) ← كلهم', async () => {
     const { incomeId } = await makeIncome();
     const r = await harness.api().recordIncomePeriods(incomeId, [
-      { key: '2026-07', amount: 8000 }, { key: '2026-08', amount: 8000 }, { key: '2026-09', amount: 8000 },
+      { key: K7, amount: 8000 }, { key: K8, amount: 8000 }, { key: K9, amount: 8000 },
     ]);
-    expect(r.recorded).toEqual(['2026-07', '2026-08', '2026-09']);
+    expect(r.recorded).toEqual([K7, K8, K9]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 3);
   });
 
   it('مبلغ الفترة دي بس مختلف ← الأساس ما اتغيّرش', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 7200 }]);
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 7200 }]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
     expect(incomeTxs(incomeId)[0].amount).toBe(7200);
     expect(harness.api().incomes[0].amount).toBe(8000);
@@ -85,12 +98,12 @@ describe('التسجيل', () => {
 describe('ممنوع يتسجل مرتين', () => {
   it('نفس الفترة مرتين ورا بعض ← التانية مبتسجلش حاجة', async () => {
     const { walletId, incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
     const after1 = balanceOf(walletId);
 
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [] });
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [], already: true });
     expect(incomeTxs(incomeId)).toHaveLength(1);
     expect(balanceOf(walletId)).toBe(after1);
   });
@@ -99,54 +112,54 @@ describe('ممنوع يتسجل مرتين', () => {
     const { walletId, incomeId } = await makeIncome();
     const before = balanceOf(walletId);
     const [a, b] = await Promise.all([
-      harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]),
-      harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]),
+      harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]),
+      harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]),
     ]);
-    expect([...a.recorded, ...b.recorded]).toEqual(['2026-09']);
+    expect([...a.recorded, ...b.recorded]).toEqual([K9]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
     expect(balanceOf(walletId) - before).toBe(8000);
   });
 
   it('المستخدم مسح العملية ← مبترجعش تتسجل لوحدها', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
-    await deleteDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')));
+    await deleteDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, K9)));
     await harness.waitForData(() => incomeTxs(incomeId).length === 0);
 
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     expect(r.recorded).toEqual([]);
     expect(incomeTxs(incomeId)).toHaveLength(0);
   });
 
   it('عملية موجودة بالمعرّف (والعلامة ناقصة) ← بتتقفل من غير ما تتكتب فوق تعديل المستخدم', async () => {
     const { walletId, incomeId } = await makeIncome();
-    await setDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')), {
-      type: 'income', amount: 7777, walletId, date: '2026-09-25', incomeId, periodKey: '2026-09',
+    await setDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, K9)), {
+      type: 'income', amount: 7777, walletId, date: `${K9}-25`, incomeId, periodKey: K9,
     });
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
 
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     expect(r.recorded).toEqual([]);
-    await harness.waitForData(api => !!api.incomes[0].closed?.['2026-09']);
+    await harness.waitForData(api => !!api.incomes[0].closed?.[K9]);
     expect(incomeTxs(incomeId)[0].amount).toBe(7777);
   });
 
   it('"مانزلش" بيقفل الفترة، ومفيش تسجيل بعدها', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().skipIncomePeriod(incomeId, '2026-09');
-    await harness.waitForData(api => api.incomes[0].closed?.['2026-09']?.skipped === true);
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.api().skipIncomePeriod(incomeId, K9);
+    await harness.waitForData(api => api.incomes[0].closed?.[K9]?.skipped === true);
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     expect(r.recorded).toEqual([]);
   });
 
   it('"مانزلش" على فترة مبيمسحش علامة فترة تانية اتسجلت', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-08', amount: 8000 }]);
-    await harness.waitForData(api => !!api.incomes[0].closed?.['2026-08']);
-    await harness.api().skipIncomePeriod(incomeId, '2026-09');
-    await harness.waitForData(api => !!api.incomes[0].closed?.['2026-09']);
-    expect(harness.api().incomes[0].closed?.['2026-08']?.txId).toBeTruthy();
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K8, amount: 8000 }]);
+    await harness.waitForData(api => !!api.incomes[0].closed?.[K8]);
+    await harness.api().skipIncomePeriod(incomeId, K9);
+    await harness.waitForData(api => !!api.incomes[0].closed?.[K9]);
+    expect(harness.api().incomes[0].closed?.[K8]?.txId).toBeTruthy();
   });
 });
 
@@ -154,17 +167,17 @@ describe('النتيجة القاطعة', () => {
   it('اتوقف من جهاز تاني ← مفيش تسجيل ومش فشل', async () => {
     const { incomeId } = await makeIncome();
     await updateDoc(doc(db, ...uidPath(), 'incomes', incomeId), { status: 'paused' });
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [] });
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [], stopped: true });
   });
 
   it('المحفظة اتأرشفت ← wallet-missing ومفيش حاجة اتكتبت', async () => {
     const { walletId, incomeId } = await makeIncome();
     await updateDoc(doc(db, ...uidPath(), 'wallets', walletId), { archived: true, archivedAt: new Date().toISOString() });
-    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     expect(r).toEqual({ outcome: 'wallet-missing', recorded: [] });
     expect(incomeTxs(incomeId)).toHaveLength(0);
-    expect(harness.api().incomes[0].closed?.['2026-09']).toBeUndefined();
+    expect(harness.api().incomes[0].closed?.[K9]).toBeUndefined();
   });
 
   it('من غير نت ← no-connection على طول ومفيش حاجة اتكتبت', async () => {
@@ -174,7 +187,7 @@ describe('النتيجة القاطعة', () => {
     try {
       await harness.waitForData(api => api.serverReachable === false);
       const t0 = Date.now();
-      const r = await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+      const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
       expect(r.outcome).toBe('no-connection');
       expect(Date.now() - t0).toBeLessThan(2000);
       expect(incomeTxs(incomeId)).toHaveLength(0);
@@ -240,13 +253,14 @@ describe('القواعد', () => {
 describe('تغيير الجدول', () => {
   it('يوم الأسبوع اتغيّر ← البداية بتتنقل لبعد آخر أسبوع اتقفل، ومفيش حقل معلّق', async () => {
     const { incomeId } = await makeIncome({ frequency: 'weekly', dayOfMonth: undefined, weekday: 5 });
-    const last = '2099-01-02';
-    await harness.api().recordIncomePeriods(incomeId, [{ key: last, amount: 8000 }]);
+    // آخر أسبوع اتقفل = الجاي ("نزل" بدري) — لازم يبقى في الجدول (M3)
+    const last = incomeUpcomingPeriod(harness.api().incomes[0], TODAY)!;
+    expect((await harness.api().recordIncomePeriods(incomeId, [{ key: last, amount: 8000 }])).recorded).toEqual([last]);
     await harness.waitForData(api => !!api.incomes[0].closed?.[last]);
 
     await harness.api().updateIncome(incomeId, { frequency: 'weekly', weekday: 1 });
     await harness.waitForData(api => api.incomes[0].weekday === 1);
-    expect(harness.api().incomes[0].startDate).toBe('2099-01-09');
+    expect(harness.api().incomes[0].startDate).toBe(addDays(last, 7));
   });
 
   it('شهري ← أسبوعي بيشيل dayOfMonth', async () => {
@@ -280,8 +294,8 @@ describe('مسح الدخل الثابت', () => {
 
   it('"ما نزلش" بس ← بيتمسح برضه', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().skipIncomePeriod(incomeId, '2026-09');
-    await harness.waitForData(api => api.incomes[0].closed?.['2026-09']?.skipped === true);
+    await harness.api().skipIncomePeriod(incomeId, K9);
+    await harness.waitForData(api => api.incomes[0].closed?.[K9]?.skipped === true);
     await harness.waitForData(api => api.pendingWrites === 0);
     expect(await harness.api().deleteIncome(incomeId)).toBe('done');
     await harness.waitForData(api => api.incomes.length === 0);
@@ -289,7 +303,7 @@ describe('مسح الدخل الثابت', () => {
 
   it('سجّل مرة ← has-records، والدخل والعملية فاضلين', async () => {
     const { walletId, incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
     const after = balanceOf(walletId);
     expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
@@ -300,9 +314,9 @@ describe('مسح الدخل الثابت', () => {
 
   it('سجّل والمستخدم مسح العملية ← لسه has-records (كانت فلوس دخلت)', async () => {
     const { incomeId } = await makeIncome();
-    await harness.api().recordIncomePeriods(incomeId, [{ key: '2026-09', amount: 8000 }]);
+    await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
     await harness.waitForData(() => incomeTxs(incomeId).length === 1);
-    await deleteDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')));
+    await deleteDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, K9)));
     await harness.waitForData(() => incomeTxs(incomeId).length === 0);
     expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
     expect(harness.api().incomes).toHaveLength(1);
@@ -313,7 +327,7 @@ describe('مسح الدخل الثابت', () => {
     // اللي الجهاز التاني كتبه: العلامة بس (من غير العملية)، عشان النسخة المحلية
     // تفضل فاضية من أي عملية والفحص المحلي ميلحقش يمنع
     await updateDoc(doc(db, ...uidPath(), 'incomes', incomeId), {
-      closed: { '2026-09': { txId: incomeTxId(incomeId, '2026-09'), at: new Date().toISOString() } },
+      closed: { [K9]: { txId: incomeTxId(incomeId, K9), at: new Date().toISOString() } },
     });
     void walletId;
     expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
@@ -322,13 +336,13 @@ describe('مسح الدخل الثابت', () => {
 
   it('العلامة "ما نزلش" بس العملية موجودة بالمعرّف الثابت (سباق skipIncomePeriod) ← has-records من جوه الذرة', async () => {
     const { walletId, incomeId } = await makeIncome();
-    await harness.api().skipIncomePeriod(incomeId, '2026-09');
-    await harness.waitForData(api => api.incomes[0].closed?.['2026-09']?.skipped === true);
+    await harness.api().skipIncomePeriod(incomeId, K9);
+    await harness.waitForData(api => api.incomes[0].closed?.[K9]?.skipped === true);
     await harness.waitForData(api => api.pendingWrites === 0);
     // العملية مكتوبة من غير incomeId عشان الفحص المحلي ميشوفهاش — الذرة لازم
     // تلاقيها بالمعرّف الثابت
-    await setDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, '2026-09')), {
-      type: 'income', amount: 8000, walletId, date: '2026-09-25',
+    await setDoc(doc(db, ...uidPath(), 'transactions', incomeTxId(incomeId, K9)), {
+      type: 'income', amount: 8000, walletId, date: `${K9}-25`,
     });
     expect(await harness.api().deleteIncome(incomeId)).toBe('has-records');
     expect(harness.api().incomes).toHaveLength(1);

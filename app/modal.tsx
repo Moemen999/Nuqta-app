@@ -56,7 +56,7 @@ export default function AddTransactionModal() {
   const isEdit = !!existing;
   // مربوطة بدين/اشتراك/جمعية/دخل ← النوع مقفول (`lib/linkedEdit.ts`)، والدين
   // بس بيتعدّل معاها في نفس الذرة
-  const liveLinkKind = existing ? transactionLinkKind(existing.id, { debts, subscriptions, gamiyas, incomes }) : null;
+  const liveLinkKind = existing ? transactionLinkKind(existing.id, { debts, subscriptions, gamiyas, incomes }, existing) : null;
   // الربط بيتثبّت وقت ما الفورم يتملى ومبيتغيّرش بعد كده: لو الدين اتفك من جهاز
   // تاني والفورم مفتوح، الحفظ كان هيروح للمسار العادي ويسيب الدين على القديم
   const [frozenLink, setFrozenLink] = useState<LinkKind | null | undefined>(undefined);

@@ -1,5 +1,5 @@
 import { MONTH_NAMES } from '@/lib/dateText';
-import { addDays, endOfMonth, fmt } from '@/lib/finance';
+import { addDays, endOfMonth, fmt, toMoneyAmount } from '@/lib/finance';
 
 /**
  * الدخل الثابت (مرتب، إيجار بيدخلك، مصروف شهري). كل حاجة هنا دوال صافية على
@@ -206,7 +206,8 @@ export type IncomeDraft = {
  */
 export function validateIncomeDraft(d: IncomeDraft): string | null {
   if (!d.name.trim()) return 'اكتب اسم للدخل ده (زي "المرتب").';
-  if (!(d.amount > 0) || !Number.isFinite(d.amount)) return 'المبلغ لازم يكون أكبر من صفر.';
+  // M4 (مراجعة 2026-11-18): التقريب للقرش الأول وبعدين الفحص — 0.004 بيبقى صفر و1e307 بيبقى Infinity
+  if (toMoneyAmount(d.amount) === null) return 'المبلغ لازم يكون أكبر من صفر.';
   if (!d.walletId) return 'اختار المحفظة اللي الفلوس بتنزل فيها.';
   if (d.frequency === 'monthly') {
     if (!Number.isInteger(d.dayOfMonth) || d.dayOfMonth! < 1 || d.dayOfMonth! > 31) return 'اليوم لازم يكون من 1 لـ 31.';

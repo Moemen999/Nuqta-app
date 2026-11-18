@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useData, type ChargeKind } from '@/context/DataContext';
 import { useNotifications } from '@/context/NotificationsContext';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -9,7 +8,7 @@ import {
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { todayStr } from '@/lib/finance';
 import { notifyNow } from '@/lib/notifications';
-import { INCOME_RETRY_MS, type IncomeNotice } from '@/lib/useIncomeAutoRecord';
+import { AUTO_UNCERTAIN_RETRY_MAX, INCOME_RETRY_MS, claimUncertainNotification, type IncomeNotice } from '@/lib/useIncomeAutoRecord';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
@@ -18,29 +17,10 @@ type DueItem = { kind: ChargeKind; id: string; name: string; charges: OpenCharge
 /**
  * الجولة 2 (silent-failure-hunter): `uncertain` بيعيد بعد دقيقة — بس **بسقف**: 5 محاولات لنفس الفترات في الجلسة. بعدها
  * الرسالة بتفضل ("افتح الأرشيف وبص") والإعادة كل دقيقة بتقف — المحاولة الجاية لما التطبيق يرجع من الخلفية أو يتفتح من
- * جديد (حركة من المستخدم). غير كده نت بايظ = محاولة كل دقيقة للأبد.
+ * جديد (حركة من المستخدم). نفس السقف بتاع الدخل التلقائي (`AUTO_UNCERTAIN_RETRY_MAX`)، وإشعار "مش متأكدين" مرة في
+ * اليوم بنفس الدالة (`claimUncertainNotification`).
  */
-export const CHARGE_UNCERTAIN_RETRY_MAX = 5;
-/**
- * إشعار "مش متأكدين" مرة في اليوم لنفس الاشتراك/الجمعية **حتى بعد فتحة باردة** — على الجهاز بس، والمحتوى معرّفات
- * مستندات من غير أي مبلغ ولا اسم. رسالة الرئيسية بتظهر تاني عادي (الشك لسه قايم)؛ الإشعار بس اللي مبيتكررش
- */
-const UNCERTAIN_NOTIFIED_KEY = 'nuqta-charge-uncertain-notified';
-
-/** `true` = أول مرة النهاردة (ابعت الإشعار). التخزين فشل ← `true`: إشعار زيادة أهون من إشعار ضايع */
-async function claimUncertainNotification(noticeId: string, day: string): Promise<boolean> {
-  try {
-    const raw = await AsyncStorage.getItem(UNCERTAIN_NOTIFIED_KEY);
-    const parsed = raw ? JSON.parse(raw) as { day?: unknown; ids?: unknown } : null;
-    const ids = parsed && parsed.day === day && Array.isArray(parsed.ids) ? parsed.ids.filter((x): x is string => typeof x === 'string') : [];
-    if (ids.includes(noticeId)) return false;
-    await AsyncStorage.setItem(UNCERTAIN_NOTIFIED_KEY, JSON.stringify({ day, ids: [...ids, noticeId] }));
-    return true;
-  } catch (e) {
-    console.warn('[charge] uncertain notify dedupe storage failed', (e as { name?: string })?.name ?? 'unknown');
-    return true;
-  }
-}
+export const CHARGE_UNCERTAIN_RETRY_MAX = AUTO_UNCERTAIN_RETRY_MAX;
 
 type UncertainItem = { kind: ChargeKind; id: string; keys: string[] };
 

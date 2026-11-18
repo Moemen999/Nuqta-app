@@ -528,6 +528,17 @@ export const NO_ACCOUNT_DELETE_BLOCK_GAMIYA: CascadeDeleteBlock = {
   title: 'ما اتمسحتش',
   body: 'الجمعية لسه موجودة — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
 };
+/** نفس `NO_ACCOUNT_DELETE_BLOCK_GAMIYA` للاشتراك والدين (مراجعة الدخل 2026-11-18) — كانوا بيرجّعوا "تم" ومفيش حاجة اتمسحت */
+export const NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'no-account',
+  title: 'ما اتمسحش',
+  body: 'الاشتراك لسه موجود — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
+};
+export const NO_ACCOUNT_DELETE_BLOCK_DEBT: CascadeDeleteBlock = {
+  reason: 'no-account',
+  title: 'ما اتمسحش',
+  body: 'الدين لسه موجود — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
+};
 
 /**
  * هل مسح السجل ده بعملياته هيحرّك رصيد محفظة مؤرشفة؟ `null` = المسح آمن.

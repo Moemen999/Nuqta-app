@@ -1,14 +1,14 @@
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { INCOME_DELETE_ALERT, INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
+import { INCOME_DELETE_ALERT, incomeRecordNotice, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectableOptions } from '@/lib/archiving';
 import { defaultWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
 import { dateText } from '@/lib/dateText';
-import { todayStr, walletHistoryName } from '@/lib/finance';
+import { toMoneyAmount, todayStr, walletHistoryName } from '@/lib/finance';
 import { plainAmount } from '@/lib/money';
 import {
   WEEKDAY_NAMES, incomeDueDate, incomeHasRecords, incomeOpenPeriods, incomePeriodLabel, incomeRescheduleStart, incomeScheduleKeysChange, incomeScheduleLabel,
@@ -71,8 +71,11 @@ export default function IncomesView() {
         {
           text: 'نزل',
           onPress: () => run(`rec_${inc.id}`, async () => {
-            const r = await recordIncomePeriods(inc.id, [{ key, amount: inc.amount }]);
-            if (r.outcome !== 'done') notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
+            // التأكيد عرض المبلغ المعتاد ← `seenAmount`: لو اتغيّر من جهاز تاني الذرة بترفض (M3)
+            const r = await recordIncomePeriods(inc.id, [{ key, amount: inc.amount }], { seenAmount: inc.amount });
+            // "اتسجل" بس لو `recorded` فيه حاجة — غير كده السبب الحقيقي (M2)
+            const m = incomeRecordNotice(r);
+            if (m) notice(m.title, m.body);
           }),
         },
       ],
@@ -318,7 +321,8 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
     const full = validateIncomeDraft(draft);
     if (full) { setError(full); return; }
     const payload = {
-      ...draft, name: name.trim(), mode,
+      // M4: المبلغ اللي بيتخزّن مقرّب للقرش (`validateIncomeDraft` اتأكد إنه مش null)
+      ...draft, amount: toMoneyAmount(draft.amount)!, name: name.trim(), mode,
       // التغيير بين شهري وأسبوعي بيشيل الحقل التاني بدل ما يفضل معلّق
       dayOfMonth: frequency === 'monthly' ? Number(day) : undefined,
       weekday: frequency === 'weekly' ? weekday : undefined,

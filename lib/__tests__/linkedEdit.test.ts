@@ -179,6 +179,10 @@ describe('transactionLinkKind', () => {
   ])('%s ← %s', (id, kind) => {
     expect(transactionLinkKind(id, sources)).toBe(kind);
   });
+  // L4: سباق "ما نزلش" بيشيل الـtxId من العلامة والعملية لسه موجودة بـincomeId — لسه مربوطة بالدخل
+  it('incomeId من غير علامة ← income', () => {
+    expect(transactionLinkKind('income_inc_2026-02', sources, { incomeId: 'inc' })).toBe('income');
+  });
 });
 
 describe('storableAmount — التقريب الأول وبعدين الفحص (R1)', () => {

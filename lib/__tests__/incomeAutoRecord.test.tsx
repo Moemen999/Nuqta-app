@@ -3,7 +3,8 @@ import { Text } from 'react-native';
 import { act, render, screen, waitFor } from '@testing-library/react-native';
 import { addDays, todayStr } from '@/lib/finance';
 import type { RecurringIncome } from '@/lib/recurringIncome';
-import { INCOME_RETRY_MS, useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AUTO_UNCERTAIN_RETRY_MAX, INCOME_RETRY_MS, useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 
 /**
  * التسجيل التلقائي أول ما التطبيق يتفتح: بيسجل كل الفترات اللي فاتت في نداء
@@ -36,7 +37,8 @@ function Probe() {
   return <>{notices.map(n => <Text key={n.id} testID={`notice_${n.kind}`}>{n.text}</Text>)}</>;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await AsyncStorage.clear();
   mockNotify.mockClear();
   mockHidden = false;
   Object.assign(mockData, {
@@ -181,4 +183,76 @@ it('دخل تاني استحق وإحنا في نص محاولة ← بيتسج�
   await view.rerender(<Probe />);
   await act(async () => { release(); });
   await waitFor(() => expect(mockData.recordIncomePeriods.mock.calls.some((c: string[]) => c[0] === 'i2')).toBe(true));
+});
+
+/**
+ * مراجعة الدخل (2026-11-18): نفس `useChargeAutoRecord` — `uncertain` ممنوع يقول "ومفيش حاجة اتسجلت"، والإعادة ليها
+ * سقف، والرسالة بتمشي لما الفترات تتحسم؛ `missing` ساكت؛ والهوك لو رمى مبيتبلعش.
+ */
+describe('نتايج صريحة للتلقائي', () => {
+  it('uncertain ← "مش متأكدين" مش "ومفيش حاجة اتسجلت"، وإشعار واحد', async () => {
+    mockData.recordIncomePeriods = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    const text = screen.getByTestId('notice_error').props.children as string;
+    expect(text).toContain('مش متأكدين سجلنا "المرتب"');
+    expect(text).not.toContain('ومفيش حاجة اتسجلت');
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+    expect((mockNotify.mock.calls[0] as unknown as string[])[0]).toBe('مش متأكدين سجلنا "المرتب" ولا لأ');
+  });
+
+  it('uncertain ← الإعادة بتقف عند AUTO_UNCERTAIN_RETRY_MAX', async () => {
+    jest.useFakeTimers();
+    try {
+      mockData.recordIncomePeriods = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+      await render(<Probe />);
+      await waitFor(() => expect(mockData.recordIncomePeriods).toHaveBeenCalledTimes(1));
+      for (let i = 0; i < AUTO_UNCERTAIN_RETRY_MAX + 4; i++) {
+        await act(async () => { jest.advanceTimersByTime(INCOME_RETRY_MS + 10); });
+      }
+      expect(mockData.recordIncomePeriods).toHaveBeenCalledTimes(AUTO_UNCERTAIN_RETRY_MAX);
+      expect(screen.getByTestId('notice_error')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('uncertain والفترات اتقفلت بعد كده ← الرسالة بتختفي', async () => {
+    mockData.recordIncomePeriods = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    const view = await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    const [, entries] = mockData.recordIncomePeriods.mock.calls[0];
+    const closed = Object.fromEntries((entries as { key: string }[]).map(e => [e.key, { txId: `income_i1_${e.key}`, at: 'x' }]));
+    mockData.incomes = [income({ closed })];
+    await view.rerender(<Probe />);
+    await waitFor(() => expect(screen.queryByTestId('notice_error')).toBeNull());
+  });
+
+  it('missing (اتمسح) ← ولا رسالة ولا إشعار', async () => {
+    mockData.recordIncomePeriods = jest.fn(async () => ({ outcome: 'missing', recorded: [] }));
+    await render(<Probe />);
+    await waitFor(() => expect(mockData.recordIncomePeriods).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 20));
+    expect(screen.queryByTestId('notice_error')).toBeNull();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it('رمى (باگ) ← Sentry مش بلع', async () => {
+    const atomic = jest.spyOn(require('@/lib/atomicFailure'), 'reportAtomicFailure').mockImplementation(() => {});
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockData.recordIncomePeriods = jest.fn(async () => { throw new Error('boom'); });
+    await render(<Probe />);
+    await waitFor(() => expect(atomic).toHaveBeenCalledWith('الدخل التلقائي', expect.any(Error)));
+    atomic.mockRestore();
+    warn.mockRestore();
+  });
+
+  it('الإشعار فشل ← console.warn من غير مبلغ (مش catch فاضي)', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockNotify.mockImplementationOnce(async () => { throw new Error('denied'); });
+    await render(<Probe />);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[income] notify failed', expect.anything()));
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('8000');
+    warn.mockRestore();
+  });
 });

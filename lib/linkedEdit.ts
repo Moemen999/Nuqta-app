@@ -52,13 +52,18 @@ export function storedEditChange(before: TxChange['before'], after: NonNullable<
 
 export type LinkKind = 'debt' | 'subscription' | 'gamiya' | 'income';
 
+/**
+ * `tx` (L4، مراجعة الدخل 2026-11-18): العملية نفسها لو معاها `incomeId` — سباق "ما نزلش" بيشيل الـtxId من علامة الفترة
+ * والعملية لسه موجودة، فكانت بتبان "مش مربوطة" وتتعدّل نوعها/تتمسح من غير تحذير الدخل.
+ */
 export function transactionLinkKind(txId: string, src: {
   debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[]; incomes: RecurringIncome[];
-}): LinkKind | null {
+}, tx?: { incomeId?: string }): LinkKind | null {
   if (src.debts.some(d => debtRoleOf(d, txId))) return 'debt';
   if (src.subscriptions.some(s => (s.history || []).some(h => h.transactionId === txId))) return 'subscription';
   if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId))) return 'gamiya';
   if (src.incomes.some(inc => Object.values(inc.closed || {}).some(c => c.txId === txId))) return 'income';
+  if (tx?.incomeId && src.incomes.some(inc => inc.id === tx.incomeId)) return 'income';
   return null;
 }
 
