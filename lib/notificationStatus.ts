@@ -43,3 +43,19 @@ export function whenPhrase(days: number) {
   if (n <= 10) return `بعد ${n} أيام`;
   return `بعد ${n} يوم`;
 }
+
+/** «كام مرة متأخرة»: 1 ← مرة، 2 ← مرتين متأخرين، 3–10 ← N مرات متأخرة، 11+ ← N مرة متأخرة */
+export function overdueCountPhrase(n: number) {
+  if (n === 1) return 'مرة متأخرة';
+  if (n === 2) return 'مرتين متأخرين';
+  if (n <= 10) return `${n} مرات متأخرة`;
+  return `${n} مرة متأخرة`;
+}
+
+/** «متأخر كام يوم»: 1 ← يوم، 2 ← يومين، 3–10 ← N أيام، 11+ ← N يوم */
+export function overdueDaysPhrase(d: number) {
+  if (d === 1) return 'متأخر يوم';
+  if (d === 2) return 'متأخر يومين';
+  if (d <= 10) return `متأخر ${d} أيام`;
+  return `متأخر ${d} يوم`;
+}

@@ -88,7 +88,7 @@ async function pressDelete(Screen: React.ComponentType, button: string) {
 /** بيدوس زرار "حذف" جوه الـAlert اللي اتفتح */
 async function confirmAlert() {
   const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-  const destructive = buttons.find(b => b.text === 'حذف');
+  const destructive = buttons.find(b => b.text === 'حذف' || b.text === 'امسحه');
   await act(async () => { await destructive?.onPress?.(); });
 }
 

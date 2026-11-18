@@ -62,14 +62,14 @@ describe('"اتخصم" بالنتايج الجديدة', () => {
     mockData.markSubscriptionPaid = jest.fn(async () => 'uncertain');
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByText('اتخصم')); });
-    await pressAlertButton('تأكيد');
+    await pressAlertButton('سجّل الخصم');
     expect(screen.getByTestId('notice_title').props.children).toBe(CHARGE_UNCERTAIN_ALERT.title);
   });
   it('missing ← "الاشتراك ده اتمسح"', async () => {
     mockData.markSubscriptionPaid = jest.fn(async () => 'missing');
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByText('اتخصم')); });
-    await pressAlertButton('تأكيد');
+    await pressAlertButton('سجّل الخصم');
     expect(screen.getByTestId('notice_title').props.children).toBe(CHARGE_MISSING_ALERT.subscription.title);
   });
 });
@@ -105,7 +105,7 @@ describe('التعديل (بند D)', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('pick_date')); });
     await act(async () => { fireEvent.press(screen.getByTestId('subscription_edit_save')); });
     const [title, body] = alertSpy.mock.calls[alertSpy.mock.calls.length - 1];
-    expect(title).toBe('تغيّر المعاد؟');
+    expect(title).toBe('نغيّر المعاد؟');
     expect(body).toContain('عليه مرة متأخرة لسه ما اتسجلتش');
     expect(mockData.updateSubscription).not.toHaveBeenCalled();
     await pressAlertButton('إلغاء');

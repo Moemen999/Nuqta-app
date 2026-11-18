@@ -11,7 +11,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { chargeDateLabel, gamiyaOpenCharges, subscriptionOpenCharges, type OpenCharge } from '@/lib/autoCharge';
 import { todayStr, walletHistoryName } from '@/lib/finance';
-import { MONEY_MASK } from '@/lib/money';
+import { MONEY_MASK, moneyText, speakable } from '@/lib/money';
 import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
@@ -82,7 +82,7 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
 
 /** الكارت اتدَس على فترة اتقفلت "ما اتخصمش" من جهاز تاني — مش "اتسجلت قبل كده" (مفيش خصم اتسجل) */
 export const CHARGE_SKIPPED_ELSEWHERE_ALERT = {
-  title: 'اتقفلت إنها ما اتخصمتش',
+  title: 'اتقفلت على إنها ما اتخصمتش',
   body: 'المرة دي اتقفلت قبل كده على إنها ما اتخصمتش (يمكن من جهاز تاني)، فما سجلناش خصم. لو اتخصم فعلاً، سجّله مصروف عادي من "+".',
 };
 /** "ما اتخصمش" على فترة اتسجل عليها خصم فعلاً — ممنوع "مش هنسجل خصم" والخصم موجود */
@@ -125,9 +125,13 @@ export function usePendingCharges(): PendingCharge[] {
   ].filter(p => !snoozed.has(snoozeKey(p, today)));
 }
 
+/** من غير إيموجي لقارئ الشاشة */
+function plainTitleOf(p: PendingCharge) {
+  if (p.kind === 'subscription') return `اشتراك "${p.name}" اتخصم؟`;
+  return p.payout ? `استلمت جمعية "${p.name}"؟` : `قسط جمعية "${p.name}" اتدفع؟`;
+}
 function titleOf(p: PendingCharge) {
-  if (p.kind === 'subscription') return `🧾 اشتراك "${p.name}" اتخصم؟`;
-  return p.payout ? `🤝 استلمت جمعية "${p.name}"؟` : `🤝 قسط جمعية "${p.name}" اتدفع؟`;
+  return `${p.kind === 'subscription' ? '🧾' : '🤝'} ${plainTitleOf(p)}`;
 }
 function yesLabel(p: PendingCharge) {
   if (p.kind === 'subscription') return 'اتخصم';
@@ -144,7 +148,7 @@ export function ChargeAutoNotices() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { notices, dismiss } = useChargeAutoRecord();
 
-  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
+  // نتيجة فلوس (اتسجل / ما اتسجلش): بتتقال بـ`announceForAccessibility` مرة واحدة (من غير liveRegion على نفس الرسالة — كانت بتتقال مرتين)
   const announced = useRef(new Set<string>());
   useEffect(() => {
     notices.forEach(n => {
@@ -159,8 +163,7 @@ export function ChargeAutoNotices() {
   return (
     <View style={styles.wrap}>
       {notices.map(n => (
-        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
-          accessibilityLiveRegion="polite">
+        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}>
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
@@ -178,6 +181,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
+  const { amountsHidden } = usePrivacy();
   const notice = useNotice();
   const confirm = useConfirm();
   // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي) — نفس شاشة الاشتراكات
@@ -271,7 +275,8 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         const more = p.charges.length - 1;
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
-            <Text numberOfLines={2} style={styles.title}>{titleOf(p)}</Text>
+            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}`)}>
+            <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{titleOf(p)}</Text>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -280,6 +285,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               <Text style={styles.sub} testID={`charge_card_today_hint_${p.id}`}>{SUB_RECORDS_TODAY_HINT}</Text>
             )}
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
+            </View>
             <View style={styles.actions}>
               <Button
                 testID={`charge_card_yes_${p.id}`}
@@ -343,9 +349,9 @@ function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }:
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={styles.sheet} accessibilityViewIsModal>
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>{question}</Text>
+              <Text style={styles.sheetTitle} accessibilityRole="header">{question}</Text>
               <TextInput
                 testID="charge_amount_input"
                 style={styles.bigInput}
@@ -358,8 +364,8 @@ function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }:
                 placeholderTextColor={colors.textMuted}
                 accessibilityLabel={question}
               />
-              {!valid && <Text style={styles.error}>المبلغ لازم يكون أكبر من صفر.</Text>}
-              {!!diff && <Text style={styles.diff}>{diff}</Text>}
+              {!valid && <Text style={styles.error} accessibilityLiveRegion="polite">المبلغ لازم يبقى أكبر من صفر.</Text>}
+              {!!diff && <Text style={styles.diff} accessibilityLiveRegion="polite">{diff}</Text>}
               <Text style={styles.hint}>{`ده للمرة دي بس — "${name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
             <View style={styles.footer}>

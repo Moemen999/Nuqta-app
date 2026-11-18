@@ -193,7 +193,7 @@ describe('نتايج صريحة (مراجعة 2026-11-17)', () => {
   };
   it('الكارت uncertain ← "مش متأكدين"', cardCase({ outcome: 'uncertain', recorded: [] }, 'مش متأكدين اتسجل ولا لأ'));
   it('الكارت missing ← "الاشتراك ده اتمسح"', cardCase({ outcome: 'missing', recorded: [] }, 'الاشتراك ده اتمسح'));
-  it('الكارت على فترة اتفوّتت ← مش "اتسجلت قبل كده"', cardCase({ outcome: 'done', recorded: [], skipped: true }, 'اتقفلت إنها ما اتخصمتش'));
+  it('الكارت على فترة اتفوّتت ← مش "اتسجلت قبل كده"', cardCase({ outcome: 'done', recorded: [], skipped: true }, 'اتقفلت على إنها ما اتخصمتش'));
   it('الكارت والفترة اتغيّرت ← "الفترة اتغيّرت"', cardCase({ outcome: 'done', recorded: [], changed: true }, 'الفترة اتغيّرت'));
 
   const skipCase = (outcome: string, title: string) => async () => {
