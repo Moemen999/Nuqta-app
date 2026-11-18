@@ -957,7 +957,11 @@ type DataContextType = {
  */
 export type IncomeRecordOutcome = PayOutcome | 'missing' | 'uncertain' | 'amount-changed';
 export type IncomeRecordResult = {
-  outcome: IncomeRecordOutcome; recorded: string[];
+  /**
+   * `recordedTotal` (الجولة الأخيرة 2026-11-18): مجموع المبالغ اللي **اتكتبت فعلاً** على عمليات `recorded` — من الكتابة نفسها
+   * أو من العملية على السيرفر (الرد اللي ضاع). موجود بس لما `recorded` مش فاضي؛ الإشعار بياخده بدل `inc.amount × العدد`.
+   */
+  outcome: IncomeRecordOutcome; recorded: string[]; recordedTotal?: number;
   stopped?: boolean; skipped?: boolean; already?: boolean; changed?: boolean; badAmount?: boolean; modeChanged?: boolean;
 };
 /** `seenAmount` = المستخدم أكّد المبلغ المعتاد ده (مش كتب رقم بإيده) — الذرة بترفض لو المعتاد على السيرفر مختلف */
@@ -983,7 +987,8 @@ export type SubscriptionPayOutcome = PayOutcome | 'already-paid-today' | 'stoppe
  * "ما اتخصمش": `already-recorded` = الفترة اتسجل عليها خصم فعلاً (ممنوع نقول "مش هنسجل خصم")،
  * `stopped` = الاشتراك اتوقف، `period-changed` = الفترة مابقتش مفتوحة لسبب تاني (المعاد اتغيّر).
  */
-export type SkipChargeOutcome = PayOutcome | 'missing' | 'already-recorded' | 'stopped' | 'period-changed' | 'uncertain';
+/** `no-account`: مفيش حساب مفتوح — مش "النت" (الجولة الأخيرة 2026-11-18) */
+export type SkipChargeOutcome = PayOutcome | 'missing' | 'already-recorded' | 'stopped' | 'period-changed' | 'uncertain' | 'no-account';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -3418,8 +3423,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * الشاشة كانت بتقول "مش هنسجل خصم" والخصم موجود.
    */
   async function skipSubscriptionCharge(id: string, key: string): Promise<SkipChargeOutcome> {
-    // مفيش حساب ← ما اتقفلش حاجة، فمش "تم"
-    if (!uid) return 'failed';
+    // مفيش حساب ← ما اتقفلش حاجة، فمش "تم" — وسببه الحساب مش النت
+    if (!uid) return 'no-account';
     if (!serverReachableRef.current) return 'no-connection';
     if (!(await waitForOurWritesToLand())) return 'no-connection';
     const subRef = doc(db, 'users', uid, 'subscriptions', id);
@@ -3665,8 +3670,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
    *
    * **سباق معروف ومقبول:** جهاز تاني لسه شايف الفترة مفتوحة ودوس "ما نزلش"
    * بعد ما اتسجلت، فالعلامة بتتحول `{ skipped }` والـtxId بيضيع منها. الفلوس
-   * صح (العملية موجودة) والفترة لسه مقفولة؛ اللي بيضيع الربط بس، ومفيش
-   * حاجة بتقرا `skipped` دلوقتي. لو حاجة اتبنت عليه، ده لازم يبقى ذري.
+   * صح (العملية موجودة) والفترة لسه مقفولة؛ اللي بيضيع الربط بس.
+   * **اللي بيقرا `skipped` مبيصدّقهوش لوحده:** `recordIncomePeriods` (جوه الذرة)
+   * و`incomeRecordLanded` بيقروا العملية بمعرّفها الثابت — موجودة ← "اتسجلت"
+   * مش "ما نزلش"؛ و`deleteIncome` بيقراها كمان. أي قارئ جديد لـ`skipped` لازم
+   * يعمل نفس الحاجة، أو السباق ده يتقفل بذرة.
    */
   async function skipIncomePeriod(incomeId: string, key: string) {
     if (!uid) return;
@@ -3739,10 +3747,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const at = uniqueStamp();
     const keys = [...new Set(entries.map(e => e.key))];
     let recorded: string[] = [];
-    let reasons: Omit<IncomeRecordResult, 'outcome' | 'recorded'> = {};
+    let recordedTotal = 0;
+    let reasons: Omit<IncomeRecordResult, 'outcome' | 'recorded' | 'recordedTotal'> = {};
+    /** المبلغ اللي على العملية نفسها — مش اللي كنا ناويين نكتبه */
+    const txAmount = (data: Record<string, unknown> | undefined) => (typeof data?.amount === 'number' && Number.isFinite(data.amount) ? data.amount : 0);
     try {
       await countPending(runTransaction(db, async (t) => {
         recorded = [];
+        recordedTotal = 0;
         reasons = {};
         const snap = await t.get(incRef);
         if (!snap.exists()) throw new IncomeMissingError();
@@ -3752,11 +3764,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const prior = await Promise.all(maybeOurs.map(k => t.get(txRefOf(k))));
         const oursBefore = maybeOurs.filter((k, i) => prior[i].exists() && prior[i].data()?.createdAt === at);
         recorded = [...oursBefore];
+        prior.forEach((p, i) => { if (oursBefore.includes(maybeOurs[i])) recordedTotal += txAmount(p.data()); });
         const others = keys.filter(k => !maybeOurs.includes(k));
-        // مقفولة من مكان تاني: "ما نزلش" ← skipped، غير كده اتسجلت قبل كده
+        /**
+         * الجولة الأخيرة (2026-11-18): علامة `{ skipped }` من غير txId مبتتصدّقش لوحدها — سباق `skipIncomePeriod` بيقلبها
+         * والعملية موجودة. العملية بمعرّفها الثابت بتتقري هنا (كل القرايات قبل أي كتابة): موجودة ببصمتنا ← اتسجلت مننا
+         * (محاولة وصلت و"ما نزلش" قلب العلامة بعدها)، موجودة من غير بصمتنا ← اتسجلت قبل كده، مش موجودة ← "ما نزلش" بجد.
+         */
+        const skipMarked = others.filter(k => inc.closed?.[k]?.skipped && !inc.closed[k].txId);
+        const skipTx = await Promise.all(skipMarked.map(k => t.get(txRefOf(k))));
+        const skipTxOf = (k: string) => skipTx[skipMarked.indexOf(k)];
+        skipMarked.forEach((k, i) => {
+          if (skipTx[i].exists() && skipTx[i].data()?.createdAt === at) { recorded.push(k); recordedTotal += txAmount(skipTx[i].data()); }
+        });
+        // مقفولة من مكان تاني: "ما نزلش" (والعملية مش موجودة) ← skipped، غير كده اتسجلت قبل كده
         const noteClosedReasons = (closedKeys: string[]) => {
-          if (closedKeys.some(k => inc.closed?.[k]?.skipped && !inc.closed[k].txId)) reasons.skipped = true;
-          else if (closedKeys.length > 0) reasons.already = true;
+          const rest = closedKeys.filter(k => !recorded.includes(k));
+          if (rest.some(k => skipMarked.includes(k) && !skipTxOf(k).exists())) reasons.skipped = true;
+          else if (rest.length > 0) reasons.already = true;
         };
         // اتوقف من جهاز تاني — مفيش حاجة تتسجل، ومش فشل؛ بس السبب بيتقال
         if (inc.status !== 'active') {
@@ -3801,10 +3826,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
             incomeId, periodKey: e.key, createdAt: at, ...(auto ? { autoRecorded: true } : {}),
           });
           recorded.push(e.key);
+          recordedTotal += e.amount;
         });
         t.update(incRef, { closed });
       }));
-      return { outcome: 'done', recorded, ...(recorded.length === 0 ? reasons : {}) };
+      if (recorded.length > 0) return { outcome: 'done', recorded, recordedTotal: roundMoney(recordedTotal) };
+      return { outcome: 'done', recorded, ...reasons };
     } catch (e) {
       // M2: اتمسح من جهاز تاني — مش فشل نت، ورسالته لوحدها
       if (e instanceof IncomeMissingError) { console.warn('[income] record refused, income gone', incomeId); return { outcome: 'missing', recorded: [] }; }
@@ -3816,7 +3843,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       // ذرية يعني كله أو مفيش — بس الـcommit ممكن يكون وصل والرد ضاع. فقبل "ما اتسجلش" بنسأل السيرفر
       const landed = await incomeRecordLanded(incRef, incomeId, keys, at);
-      if (landed.state === 'landed') return { outcome: 'done', recorded: landed.recorded };
+      if (landed.state === 'landed') {
+        return { outcome: 'done', recorded: landed.recorded, ...(landed.recorded.length > 0 ? { recordedTotal: landed.recordedTotal } : {}) };
+      }
       // كل الفترات اتقفلت من مكان تاني (مش ببصمتنا) ← نفس اللي الذرة كانت هترجّعه لو قرت ده
       if (landed.state === 'already') { console.warn('[income] record failed, periods already closed on server', incomeId); return { outcome: 'done', recorded: [], ...landed.reasons }; }
       // بعد سؤال السيرفر: كتابة وصلت متتسجلش "فشلت" في اللوج وSentry
@@ -3833,7 +3862,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function incomeRecordLanded(
     incRef: DocumentReference, incomeId: string, keys: string[], at: string,
-  ): Promise<{ state: 'landed' | 'already' | 'missing' | 'gone' | 'unknown'; recorded: string[]; reasons?: { skipped?: boolean; already?: boolean } }> {
+  ): Promise<{ state: 'landed' | 'already' | 'missing' | 'gone' | 'unknown'; recorded: string[]; recordedTotal?: number; reasons?: { skipped?: boolean; already?: boolean } }> {
     try {
       const [snap, ...txSnaps] = await withTimeout(Promise.all([
         getDocFromServer(incRef),
@@ -3841,11 +3870,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
       ]), LANDED_CHECK_TIMEOUT_MS);
       if (!snap.exists()) return { state: 'gone', recorded: [] };
       const closed = (snap.data() as { closed?: Record<string, IncomeClosed> }).closed;
+      const txOurs = (i: number) => txSnaps[i].exists() && txSnaps[i].data()?.createdAt === at;
       const ours = keys.filter(k => closed?.[k]?.at === at && closed?.[k]?.txId === incomeTxId(incomeId, k));
-      const recorded = keys.filter((k, i) => ours.includes(k) && txSnaps[i].exists() && txSnaps[i].data()?.createdAt === at);
-      if (ours.length > 0) return { state: 'landed', recorded };
+      /**
+       * اللي اتكتب مننا = عمليته ببصمتنا، والفترة مقفولة: ببصمتنا، **أو** "ما نزلش" قلب العلامة بعد ما كتابتنا وصلت
+       * (سباق `skipIncomePeriod` — الجولة الأخيرة 2026-11-18). العملية موجودة يعني الفلوس اتسجلت، مش "ما نزلش".
+       */
+      const skipOverOurs = (k: string, i: number) => !!closed?.[k]?.skipped && !closed[k].txId && txOurs(i);
+      const recordedIdx = keys.map((k, i) => (ours.includes(k) && txOurs(i)) || skipOverOurs(k, i));
+      const recorded = keys.filter((_, i) => recordedIdx[i]);
+      const recordedTotal = roundMoney(keys.reduce((s, _, i) => {
+        const amount = recordedIdx[i] ? txSnaps[i].data()?.amount : 0;
+        return s + (typeof amount === 'number' && Number.isFinite(amount) ? amount : 0);
+      }, 0));
+      if (ours.length > 0 || recorded.length > 0) return { state: 'landed', recorded, recordedTotal };
       if (keys.length > 0 && keys.every(k => !!closed?.[k])) {
-        const skipped = keys.some(k => closed?.[k]?.skipped && !closed[k].txId);
+        // "ما نزلش" بس لو العملية مش موجودة — موجودة (من مكان تاني) ← اتسجلت قبل كده
+        const skipped = keys.some((k, i) => closed?.[k]?.skipped && !closed[k].txId && !txSnaps[i].exists());
         return { state: 'already', recorded: [], reasons: skipped ? { skipped: true } : { already: true } };
       }
       return { state: 'missing', recorded: [] };

@@ -68,7 +68,7 @@ describe('التسجيل', () => {
     const before = balanceOf(walletId);
 
     const r = await harness.api().recordIncomePeriods(incomeId, [{ key: K9, amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [K9] });
+    expect(r).toEqual({ outcome: 'done', recorded: [K9], recordedTotal: 8000 });
 
     await harness.waitForData(api => api.transactions.some(t => t.id === incomeTxId(incomeId, K9)));
     const tx = harness.api().transactions.find(t => t.id === incomeTxId(incomeId, K9))!;

@@ -42,6 +42,13 @@ export async function claimUncertainNotification(noticeId: string, day: string):
   }
 }
 
+/** المبلغ المتخزّن على الدخل التلقائي مش مقروء — اسم نوع بس للـSentry (`atomicFailureCode`)، من غير المبلغ */
+class IncomeBadAmountError extends Error { name = 'IncomeBadAmountError'; }
+
+/** رسالة الرئيسية لما التلقائي مقدرش يسجل عشان المبلغ المتخزّن بايظ */
+export const incomeBadAmountMessage = (name: string) =>
+  `ما سجلناش "${name}": المبلغ المتسجّل ليه مش مقروء، ومفيش حاجة اتسجلت. عدّل الدخل من التخطيط ← دخل ثابت.`;
+
 /** الإشعار ما اتبعتش — اسم الخطأ بس، من غير مبلغ ولا اسم (sentryScrub) */
 const warnNotifyFailed = (e: unknown) => console.warn('[income] notify failed', (e as { name?: string })?.name ?? 'unknown');
 
@@ -88,21 +95,54 @@ export function useIncomeAutoRecord() {
   const uncertainTries = useRef(new Map<string, number>());
   /** رسايل "مش متأكدين" المفتوحة ← الفترات اللي بتستناها تتحسم */
   const uncertainOpen = useRef(new Map<string, { id: string; keys: string[] }>());
+  /**
+   * محاولات اللي رمى (باگ) لنفس الدخل في الجلسة — نفس السقف — وSentry مرة واحدة للدخل في الجلسة (الجولة الأخيرة 2026-11-18:
+   * كانت إعادة كل دقيقة من غير سقف وحدث Sentry مع كل واحدة)
+   */
+  const throwTries = useRef(new Map<string, number>());
+  const throwReported = useRef(new Set<string>());
+  /** المبلغ المتخزّن بايظ ← Sentry مرة واحدة للدخل في الجلسة (الرسالة نفسها مرة في اليوم بـ`shownErrors`) */
+  const badAmountReported = useRef(new Set<string>());
+  /** الإعادة دي جاية من مؤقت الدقيقة (مش رجوع من الخلفية ولا رجوع النت) ← اللي وصل السقف بيتفوّت */
+  const timerWake = useRef(false);
+  /** آخر `incomes` — الحسم بعد ما المحاولة تخلص بيقرا منه (الـsnapshot اللي بيقفل ممكن يكون وصل وهي شغالة) */
+  const incomesRef = useRef(incomes);
+  incomesRef.current = incomes;
 
-  // "مش متأكدين" بتمشي لما كل الفترات تتقفل (الإعادة نجحت، أو اتسجلت/"ما نزلش" من الكارت أو جهاز تاني)
-  useEffect(() => {
+  /**
+   * "مش متأكدين" بتمشي لما كل الفترات تتقفل (الإعادة نجحت، أو اتسجلت/"ما نزلش" من الكارت أو جهاز تاني). الجولة الأخيرة
+   * (2026-11-18): لو فيه فترات اتقفلت على عملية، الرسالة بتتبدّل بـ"سجلنا" — مش بتختفي ساكتة والمستخدم مش عارف اتسجل ولا لأ.
+   */
+  const resolveUncertain = useCallback((list: typeof incomes) => {
     if (uncertainOpen.current.size === 0) return;
-    const done = [...uncertainOpen.current].filter(([, u]) => {
-      const inc = incomes.find(i => i.id === u.id);
-      return !!inc && u.keys.every(k => { const c = inc.closed?.[k]; return !!c && (!!c.txId || !!c.skipped); });
-    }).map(([nid]) => nid);
+    const today = todayStr();
+    const done: string[] = [];
+    const recordedNotices: IncomeNotice[] = [];
+    uncertainOpen.current.forEach((u, nid) => {
+      const inc = list.find(i => i.id === u.id);
+      if (!inc || !u.keys.every(k => { const c = inc.closed?.[k]; return !!c && (!!c.txId || !!c.skipped); })) return;
+      done.push(nid);
+      const withTx = u.keys.filter(k => !!inc.closed?.[k]?.txId);
+      if (withTx.length > 0) {
+        recordedNotices.push({
+          id: `rec:${inc.id}:${withTx.join(',')}`, kind: 'recorded',
+          text: incomeRecordedMessage(inc.name, withTx.map(k => incomePeriodLabel(inc, k, today))),
+        });
+      }
+    });
     if (done.length === 0) return;
     done.forEach(nid => uncertainOpen.current.delete(nid));
-    setNotices(prev => prev.filter(n => !done.includes(n.id)));
-  }, [incomes]);
+    setNotices(prev => [
+      ...prev.filter(n => !done.includes(n.id) && !recordedNotices.some(r => r.id === n.id)),
+      ...recordedNotices,
+    ]);
+  }, []);
+
+  useEffect(() => { resolveUncertain(incomes); }, [incomes, resolveUncertain]);
 
   useEffect(() => {
-    const sub = AppState.addEventListener('change', s => { if (s === 'active') setWake(w => w + 1); });
+    // حركة من المستخدم ← مش إعادة المؤقت (اللي وصل السقف بيتجرّب تاني مرة)
+    const sub = AppState.addEventListener('change', s => { if (s === 'active') { timerWake.current = false; setWake(w => w + 1); } });
     return () => { sub.remove(); clearTimeout(retryTimer.current); };
   }, []);
 
@@ -110,7 +150,7 @@ export function useIncomeAutoRecord() {
   // مش أول رسمة: دي هتبقى أول محاولة عادية، والتنبيه هنا كان هيعيدها مرتين
   const wasReachable = useRef(serverReachable);
   useEffect(() => {
-    if (serverReachable && !wasReachable.current) setWake(w => w + 1);
+    if (serverReachable && !wasReachable.current) { timerWake.current = false; setWake(w => w + 1); }
     wasReachable.current = serverReachable;
   }, [serverReachable]);
 
@@ -130,6 +170,8 @@ export function useIncomeAutoRecord() {
 
     running.current = true;
     clearTimeout(retryTimer.current);
+    const fromTimer = timerWake.current;
+    timerWake.current = false;
     (async () => {
       const found: IncomeNotice[] = [];
       let retry = false;
@@ -137,7 +179,24 @@ export function useIncomeAutoRecord() {
       // يقف للأبد في الجلسة من غير ولا كلمة
       try {
         for (const { inc, keys } of due) {
-          const r = await recordIncomePeriods(inc.id, keys.map(key => ({ key, amount: inc.amount })), { auto: true });
+          const triesKey = `${inc.id}:${keys.join(',')}`;
+          // الجولة الأخيرة (2026-11-18): الإعادة كل دقيقة واحدة للكل — فدخل وصل السقف كان بيتعاد عشان دخل تاني عايز إعادة.
+          // من المؤقت بيتفوّت؛ رجوع من الخلفية أو رجوع النت (حركة) بيجرّبه تاني مرة
+          if (fromTimer && ((uncertainTries.current.get(triesKey) ?? 0) >= AUTO_UNCERTAIN_RETRY_MAX
+            || (throwTries.current.get(inc.id) ?? 0) >= AUTO_UNCERTAIN_RETRY_MAX)) continue;
+          let r: Awaited<ReturnType<typeof recordIncomePeriods>>;
+          try {
+            r = await recordIncomePeriods(inc.id, keys.map(key => ({ key, amount: inc.amount })), { auto: true });
+          } catch (e) {
+            // `recordIncomePeriods` بيرجّع نتيجة دايمًا؛ ده لو رمى غصب عنه (باگ) — مبيتبلعش: Sentry مرة للدخل في الجلسة،
+            // وإعادة بعد دقيقة بنفس السقف. ودخل رمى مبيوقّفش الباقي
+            console.warn('[income] auto record threw', (e as { name?: string })?.name ?? 'unknown');
+            if (!throwReported.current.has(inc.id)) { throwReported.current.add(inc.id); reportAtomicFailure('الدخل التلقائي', e); }
+            const tries = (throwTries.current.get(inc.id) ?? 0) + 1;
+            throwTries.current.set(inc.id, tries);
+            if (tries < AUTO_UNCERTAIN_RETRY_MAX) retry = true;
+            continue;
+          }
           // no-connection والنت "شغال": يعني انتظار الكتابات خلص وقته — مفيش
           // تغيير هيصحّي الهوك، فبنجرب تاني بعد دقيقة بدل ما نستنى الخلفية
           if (r.outcome === 'no-connection') { retry = true; continue; }
@@ -146,7 +205,6 @@ export function useIncomeAutoRecord() {
           if (r.outcome === 'uncertain') {
             // الذرة فشلت وسؤال السيرفر كمان (مراجعة الدخل 2026-11-18): ممنوع "ومفيش حاجة اتسجلت" — ممكن يكون اتسجل.
             // والإعادة بعد دقيقة آمنة: التسجيل ذري بمعرّف ثابت، فلو كان وصل مبتكتبش حاجة
-            const triesKey = `${inc.id}:${keys.join(',')}`;
             const tries = (uncertainTries.current.get(triesKey) ?? 0) + 1;
             uncertainTries.current.set(triesKey, tries);
             if (tries < AUTO_UNCERTAIN_RETRY_MAX) retry = true;
@@ -165,13 +223,29 @@ export function useIncomeAutoRecord() {
             });
             continue;
           }
-          // اسم الخطوة بس، من غير أي رقم (sentryScrub)
-          if (r.outcome === 'done' && r.recorded.length === 0 && r.badAmount) console.warn('[income] auto skipped: stored amount unreadable');
+          if (r.outcome === 'done' && r.recorded.length === 0 && r.badAmount) {
+            // الجولة الأخيرة (2026-11-18): كان console.warn بس، والكارت مبيظهرش للتلقائي — فالدخل ميتسجلش أبدًا والمستخدم
+            // مايعرفش. رسالة في الرئيسية (مرة في اليوم) + Sentry مرة للدخل في الجلسة، من غير أي رقم (sentryScrub)
+            console.warn('[income] auto skipped: stored amount unreadable');
+            if (!badAmountReported.current.has(inc.id)) {
+              badAmountReported.current.add(inc.id);
+              reportAtomicFailure('الدخل التلقائي', new IncomeBadAmountError());
+            }
+            const id = `err:${inc.id}:badAmount:${today}`;
+            if (!shownErrors.current.has(id)) {
+              shownErrors.current.add(id);
+              found.push({ id, kind: 'error', text: incomeBadAmountMessage(inc.name) });
+            }
+            continue;
+          }
           if (r.outcome === 'done' && r.recorded.length > 0) {
             const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)));
             found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', text });
             if (notificationsOn) {
-              notifyNow(`"${inc.name}" اتسجل لوحده`, incomeRecordedNotification(text, inc.amount * r.recorded.length, amountsHidden), 'income')
+              // الجولة الأخيرة: المبلغ من اللي اتكتب فعلاً (`recordedTotal`)، مش `inc.amount` المحلي × العدد.
+              // مش موجود ← الإشعار من غير رقم بدل رقم متخمّن
+              const total = r.recordedTotal;
+              notifyNow(`"${inc.name}" اتسجل لوحده`, incomeRecordedNotification(text, total ?? 0, amountsHidden || total === undefined), 'income')
                 .catch(warnNotifyFailed);
             }
           } else if (r.outcome === 'wallet-missing' || r.outcome === 'failed') {
@@ -187,19 +261,21 @@ export function useIncomeAutoRecord() {
           }
         }
       } catch (e) {
-        // `recordIncomePeriods` بيرجّع نتيجة دايمًا؛ ده لو رمى غصب عنه (باگ) — مبيتبلعش: Sentry + إعادة بعد دقيقة
-        console.warn('[income] auto record threw', (e as { name?: string })?.name ?? 'unknown');
+        // اللي برّه النداء نفسه رمى (الإشعار، التخزين…) — باگ؛ مبيتبلعش، ومن غير إعادة (السقف فوق للنداء)
+        console.warn('[income] auto record loop threw', (e as { name?: string })?.name ?? 'unknown');
         reportAtomicFailure('الدخل التلقائي', e);
-        retry = true;
       } finally {
         running.current = false;
         if (missedRerun.current) { missedRerun.current = false; setRecheck(r => r + 1); }
         // جوه finally: لو حاجة رمت في النص، اللي اتلم قبلها والإعادة مايضيعوش
         if (found.length) setNotices(prev => [...prev.filter(p => !found.some(f => f.id === p.id)), ...found]);
-        if (retry) retryTimer.current = setTimeout(() => setWake(w => w + 1), INCOME_RETRY_MS);
+        // الجولة الأخيرة: الـsnapshot اللي بيقفل الفترات ممكن يكون وصل والمحاولة شغالة (قبل ما "مش متأكدين" تتسجل) —
+        // من غير الحسم هنا الرسالة كانت هتعلّق لحد snapshot جديد
+        resolveUncertain(incomesRef.current);
+        if (retry) retryTimer.current = setTimeout(() => { timerWake.current = true; setWake(w => w + 1); }, INCOME_RETRY_MS);
       }
     })();
-  }, [incomes, serverReachable, privacyLoaded, wake, recheck, recordIncomePeriods, notificationsOn, amountsHidden]);
+  }, [incomes, serverReachable, privacyLoaded, wake, recheck, recordIncomePeriods, notificationsOn, amountsHidden, resolveUncertain]);
 
   const dismiss = useCallback((id: string) => {
     setNotices(prev => prev.filter(n => n.id !== id));

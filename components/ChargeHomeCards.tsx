@@ -94,6 +94,11 @@ export const SKIP_STOPPED_ALERT = {
   title: 'الاشتراك ده اتوقف',
   body: 'اتوقف من جهاز تاني، فما غيّرناش حاجة.',
 };
+/** مفيش حساب مفتوح — السبب مش النت (الجولة الأخيرة 2026-11-18) */
+export const SKIP_NO_ACCOUNT_ALERT = {
+  title: 'ما اتغيّرش حاجة',
+  body: 'مفيش حساب مفتوح دلوقتي، فلسه هيسألك. سجّل دخول تاني وجرب.',
+};
 export const SKIP_UNCERTAIN_ALERT = {
   title: 'مش متأكدين اتحفظ ولا لأ',
   body: 'النت قطع واحنا بنحفظ. لو الكارت لسه موجود في "مستنيين ردك"، جرّب تاني.',
@@ -261,6 +266,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
             else if (r === 'missing') notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
             else if (r === 'period-changed') notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
             else if (r === 'uncertain') notice(SKIP_UNCERTAIN_ALERT.title, SKIP_UNCERTAIN_ALERT.body);
+            else if (r === 'no-account') notice(SKIP_NO_ACCOUNT_ALERT.title, SKIP_NO_ACCOUNT_ALERT.body);
             else notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
           });
         },

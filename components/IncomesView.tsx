@@ -18,7 +18,7 @@ import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
 import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
-import { useBusy, useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
@@ -44,7 +44,8 @@ export default function IncomesView() {
   const { incomes, wallets, transactions, recordIncomePeriods, setIncomeStatus, deleteIncome } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
-  const { busyKey, run } = useBusyKey();
+  // دوسة على دخل تاني والأولى لسه بتلف كانت بتتسقط ساكت (الجولة الأخيرة 2026-11-18)
+  const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
   const [editing, setEditing] = useState<RecurringIncome | 'new' | null>(null);
   const [showStopped, setShowStopped] = useState(false);
   const today = todayStr();

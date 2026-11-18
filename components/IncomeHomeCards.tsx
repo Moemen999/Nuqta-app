@@ -12,7 +12,7 @@ import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
-import { useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -88,7 +88,8 @@ export default function IncomeHomeCards() {
   const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
-  const { busyKey, run } = useBusyKey();
+  // دوسة على كارت تاني والأولى لسه بتلف كانت بتتسقط ساكت (الجولة الأخيرة 2026-11-18)
+  const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
 

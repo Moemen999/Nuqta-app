@@ -289,6 +289,38 @@ describe('التلقائي uncertain: الإعادة ليها سقف، والر�
   });
 });
 
+/** جولة الدخل الأخيرة (2026-11-18): نفس تصليح `useIncomeAutoRecord` — "مش متأكدين" مبتعلّقش، واللي اتسجل بيتقال */
+describe('التلقائي uncertain: الحسم', () => {
+  beforeEach(() => { mockData.gamiyas = []; });
+  const closedSub = () => sub({
+    chargeMode: 'auto', chargeAutoSince: start, nextDueDate: addMonths(today, 1),
+    closed: { [start]: { txId: `sub_s1_${start}`, at: 'x' }, [today]: { txId: `sub_s1_${today}`, at: 'x' } },
+  });
+
+  it('اتقفلت على عمليات ← "سجلنا لوحدنا" بدل ما الرسالة تختفي ساكتة', async () => {
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    const view = await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    mockData.subscriptions = [closedSub()];
+    await view.rerender(<Probe />);
+    await waitFor(() => expect(screen.queryByTestId('notice_error')).toBeNull());
+    expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا لوحدنا: اشتراك "نتفليكس"/);
+  });
+
+  it('الـsnapshot اللي بيقفل وصل قبل ما النتيجة ترجع ← الرسالة مبتعلّقش', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(r => { release = r; });
+    mockData.recordCharges = jest.fn(async () => { await gate; return { outcome: 'uncertain', recorded: [] }; });
+    const view = await render(<Probe />);
+    await waitFor(() => expect(mockData.recordCharges).toHaveBeenCalledTimes(1));
+    mockData.subscriptions = [closedSub()];
+    await view.rerender(<Probe />);
+    await act(async () => { release(); });
+    await waitFor(() => expect(screen.getByTestId('notice_recorded')).toBeTruthy());
+    expect(screen.queryByTestId('notice_error')).toBeNull();
+  });
+});
+
 describe('التلقائي ومبلغ متخزّن بايظ (الجولة 2)', () => {
   it('done من غير تسجيل وbadAmount ← console.warn باسم الخطوة بس', async () => {
     const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});

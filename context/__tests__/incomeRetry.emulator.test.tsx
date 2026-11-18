@@ -102,7 +102,7 @@ describe('H1+H2: الرد اللي ضاع — بنسأل السيرفر قبل "
     const { incomeId } = await makeIncome();
     landThenFail();
     const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [KEY] });
+    expect(r).toEqual({ outcome: 'done', recorded: [KEY], recordedTotal: 8000 });
     expect((await serverTxs()).filter(t => t.incomeId === incomeId)).toHaveLength(1);
   });
 
@@ -126,7 +126,7 @@ describe('H1+H2: الرد اللي ضاع — بنسأل السيرفر قبل "
     const { incomeId } = await makeIncome();
     landThenRetry();
     const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [KEY] });
+    expect(r).toEqual({ outcome: 'done', recorded: [KEY], recordedTotal: 8000 });
     const closed = (await serverIncome(incomeId)).closed[KEY];
     const tx = await serverTx(incomeTxId(incomeId, KEY));
     expect(typeof closed.at).toBe('string');
@@ -192,6 +192,7 @@ describe('M3: السيرفر هو اللي بيحكم', () => {
     await updateDoc(userDoc('incomes', incomeId), { amount: 9000 });
     const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }], { auto: true });
     expect(r.recorded).toEqual([KEY]);
+    expect(r.recordedTotal).toBe(9000);
     expect((await serverTx(incomeTxId(incomeId, KEY)))?.amount).toBe(9000);
   });
 
@@ -214,7 +215,7 @@ describe('M3: السيرفر هو اللي بيحكم', () => {
     const { incomeId } = await makeIncome();
     const up = incomeUpcomingPeriod(harness.api().incomes[0], today)!;
     const r = await harness.api().recordIncomePeriods(incomeId, [{ key: up, amount: 8000 }]);
-    expect(r).toEqual({ outcome: 'done', recorded: [up] });
+    expect(r).toEqual({ outcome: 'done', recorded: [up], recordedTotal: 8000 });
   });
 
   it('"نزل" بالمبلغ المعتاد والمعتاد اتغيّر على السيرفر ← amount-changed ومفيش كتابة', async () => {
@@ -263,6 +264,59 @@ describe('L4: العملية مربوطة بالدخل بـincomeId حتى لو 
   });
 });
 
+/**
+ * الجولة الأخيرة (2026-11-18): سباق "ما نزلش" بيقلب العلامة `{ skipped }` والعملية موجودة — السبب مايبقاش "ما نزلش"
+ * والفلوس اتسجلت. العملية بتتقري جوه الذرة وفي سؤال السيرفر: موجودة ← already، ولو ببصمتنا ← recorded.
+ */
+describe('العلامة skipped والعملية موجودة', () => {
+  const skipMark = (incomeId: string) => updateDoc(userDoc('incomes', incomeId), { [`closed.${KEY}`]: { skipped: true, at: 'other-device' } });
+  async function otherDeviceTx(walletId: string, incomeId: string) {
+    await setDoc(userDoc('transactions', incomeTxId(incomeId, KEY)), {
+      type: 'income', amount: 8000, walletId, date: `${KEY}-25`, incomeId, periodKey: KEY, createdAt: 'other-device',
+    });
+  }
+
+  it('جوه الذرة: العملية موجودة من جهاز تاني ← already مش skipped', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    await otherDeviceTx(walletId, incomeId);
+    await skipMark(incomeId);
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [], already: true });
+  });
+
+  it('سؤال السيرفر بعد الفشل: العملية موجودة من جهاز تاني ← already مش skipped', async () => {
+    const { walletId, incomeId } = await makeIncome();
+    await otherDeviceTx(walletId, incomeId);
+    await skipMark(incomeId);
+    failWithoutLanding();
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [], already: true });
+  });
+
+  it('الإعادة جوه الذرة: كتابتنا وصلت و"ما نزلش" قلب العلامة قبل الإعادة ← recorded (عمليتنا ببصمتنا)', async () => {
+    const { incomeId } = await makeIncome();
+    runMock.mockImplementationOnce(async (_db: unknown, fn: TxFn) => {
+      await realRun(fn);
+      await skipMark(incomeId);
+      return realRun(fn);
+    });
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [KEY], recordedTotal: 8000 });
+  });
+
+  it('سؤال السيرفر: كتابتنا وصلت و"ما نزلش" قلب العلامة قبل السؤال ← recorded مش skipped', async () => {
+    const { incomeId } = await makeIncome();
+    runMock.mockImplementationOnce(async (_db: unknown, fn: TxFn) => {
+      await realRun(fn);
+      await skipMark(incomeId);
+      throw unavailable();
+    });
+    const r = await harness.api().recordIncomePeriods(incomeId, [{ key: KEY, amount: 8000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [KEY], recordedTotal: 8000 });
+    expect((await serverTxs()).filter(t => t.incomeId === incomeId)).toHaveLength(1);
+  });
+});
+
 describe('من غير حساب مفتوح', () => {
   it('recordIncomePeriods/deleteSubscription/deleteDebt/skipSubscriptionCharge مبيرجّعوش done ساكت', async () => {
     await harness.unmount();
@@ -271,6 +325,6 @@ describe('من غير حساب مفتوح', () => {
     expect((await harness.api().recordIncomePeriods('x', [{ key: KEY, amount: 8000 }])).outcome).toBe('failed');
     expect((await harness.api().deleteSubscription('x')).outcome).toBe('blocked');
     expect((await harness.api().deleteDebt('x')).outcome).toBe('blocked');
-    expect(await harness.api().skipSubscriptionCharge('x', KEY)).toBe('failed');
+    expect(await harness.api().skipSubscriptionCharge('x', KEY)).toBe('no-account');
   });
 });

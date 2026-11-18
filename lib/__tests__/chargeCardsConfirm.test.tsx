@@ -62,6 +62,15 @@ it('من غير نت ← رسالة "ما اتغيّرش حاجة" بتبان ب
   expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT['no-connection'].title);
 });
 
+it('مفيش حساب مفتوح (no-account) ← رسالة بتقول كده، مش "النت"', async () => {
+  mockData.skipSubscriptionCharge = jest.fn(async () => 'no-account');
+  await openSkip();
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  const body = screen.getByTestId('notice_body').props.children as string;
+  expect(body).toContain('مفيش حساب مفتوح');
+  expect(body).not.toContain('النت');
+});
+
 // تلميح "هيتسجل بتاريخ النهاردة": بس لاشتراك فترته من شهر غير الشهر ده. "النهاردة" من todayStr() زي باقي الملف
 const firstOfPrevMonth = () => {
   const y = Number(today.slice(0, 4)), m = Number(today.slice(5, 7));

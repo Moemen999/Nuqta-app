@@ -22,7 +22,8 @@ type DueItem = { kind: ChargeKind; id: string; name: string; charges: OpenCharge
  */
 export const CHARGE_UNCERTAIN_RETRY_MAX = AUTO_UNCERTAIN_RETRY_MAX;
 
-type UncertainItem = { kind: ChargeKind; id: string; keys: string[] };
+/** `name`/`labels`: عشان رسالة "سجلنا لوحدنا" لو الفترات اتقفلت على عمليات (الجولة الأخيرة 2026-11-18) */
+type UncertainItem = { kind: ChargeKind; id: string; keys: string[]; name: string; labels: Record<string, string> };
 
 /** كل الفترات اللي ما اتأكدناش منها اتحسمت (اتقفلت على عملية، أو اتفوّتت) ← السؤال اتجاوب */
 function uncertainResolved(
@@ -36,6 +37,16 @@ function uncertainResolved(
   }
   const g = gamiyas.find(x => x.id === u.id);
   return !!g && u.keys.every(k => g.months?.some(m => m.id === k && m.status === 'done'));
+}
+
+/** الفترات اللي اتقفلت على **عملية** (مش اتفوّتت) — دي اللي "سجلنا" عنها لما "مش متأكدين" تتحسم */
+function uncertainRecordedKeys(
+  u: UncertainItem,
+  subscriptions: { id: string; closed?: Record<string, { txId?: string; skipped?: boolean; reopened?: boolean }> }[],
+): string[] {
+  if (u.kind === 'gamiya') return u.keys;
+  const s = subscriptions.find(x => x.id === u.id);
+  return u.keys.filter(k => !!s?.closed?.[k]?.txId && !s.closed[k].skipped);
 }
 
 /**
@@ -61,15 +72,35 @@ export function useChargeAutoRecord() {
   const missedRerun = useRef(false);
   const uncertainTries = useRef(new Map<string, number>());
   const uncertainOpen = useRef(new Map<string, UncertainItem>());
+  /** آخر بيانات — الحسم بعد ما المحاولة تخلص بيقرا منها (الـsnapshot اللي بيقفل ممكن يكون وصل وهي شغالة) */
+  const latest = useRef({ subscriptions, gamiyas });
+  latest.current = { subscriptions, gamiyas };
 
-  // "مش متأكدين" بتمشي لما الفترات تتحسم (الإعادة نجحت، أو اتسجلت/اتفوّتت من الكارت أو جهاز تاني)
-  useEffect(() => {
+  /**
+   * "مش متأكدين" بتمشي لما الفترات تتحسم (الإعادة نجحت، أو اتسجلت/اتفوّتت من الكارت أو جهاز تاني). الجولة الأخيرة
+   * (2026-11-18، نفس `useIncomeAutoRecord`): اللي اتقفل على عملية بيتبدّل بـ"سجلنا لوحدنا" — مش بيختفي ساكت.
+   */
+  const resolveUncertain = useCallback((subs: typeof subscriptions, gams: typeof gamiyas) => {
     if (uncertainOpen.current.size === 0) return;
-    const done = [...uncertainOpen.current].filter(([, u]) => uncertainResolved(u, subscriptions, gamiyas)).map(([nid]) => nid);
+    const done: string[] = [];
+    const parts: string[] = [];
+    const ids: string[] = [];
+    uncertainOpen.current.forEach((u, nid) => {
+      if (!uncertainResolved(u, subs, gams)) return;
+      done.push(nid);
+      const keys = uncertainRecordedKeys(u, subs);
+      if (keys.length > 0) {
+        parts.push(chargeRecordedPart(u.kind, u.name, keys.map(k => u.labels[k] ?? k)));
+        ids.push(`${u.id}:${keys.join(',')}`);
+      }
+    });
     if (done.length === 0) return;
     done.forEach(nid => uncertainOpen.current.delete(nid));
-    setNotices(prev => prev.filter(n => !done.includes(n.id)));
-  }, [subscriptions, gamiyas]);
+    const rec: IncomeNotice[] = parts.length > 0 ? [{ id: `rec:${ids.join(';')}`, kind: 'recorded', text: chargeRecordedMessage(parts) }] : [];
+    setNotices(prev => [...prev.filter(n => !done.includes(n.id) && !rec.some(r => r.id === n.id)), ...rec]);
+  }, []);
+
+  useEffect(() => { resolveUncertain(subscriptions, gamiyas); }, [subscriptions, gamiyas, resolveUncertain]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', s => { if (s === 'active') setWake(w => w + 1); });
@@ -128,7 +159,7 @@ export function useChargeAutoRecord() {
             if (tries < CHARGE_UNCERTAIN_RETRY_MAX) retry = true;
             else console.warn('[charge] uncertain retry cap reached');
             const id = `uncertain:${d.id}:${today}`;
-            uncertainOpen.current.set(id, { kind: d.kind, id: d.id, keys });
+            uncertainOpen.current.set(id, { kind: d.kind, id: d.id, keys, name: d.name, labels: Object.fromEntries(keys.map(k => [k, d.labelOf(k)])) });
             if (shownErrors.current.has(id)) continue;
             shownErrors.current.add(id);
             if (notificationsOn && await claimUncertainNotification(id, today)) {
@@ -182,10 +213,12 @@ export function useChargeAutoRecord() {
         running.current = false;
         if (missedRerun.current) { missedRerun.current = false; setRecheck(r => r + 1); }
         if (found.length) setNotices(prev => [...prev.filter(p => !found.some(f => f.id === p.id)), ...found]);
+        // الجولة الأخيرة: الـsnapshot اللي بيقفل ممكن يكون وصل قبل ما "مش متأكدين" تتسجل — من غير ده كانت هتعلّق
+        resolveUncertain(latest.current.subscriptions, latest.current.gamiyas);
         if (retry) retryTimer.current = setTimeout(() => setWake(w => w + 1), INCOME_RETRY_MS);
       }
     })();
-  }, [subscriptions, gamiyas, serverReachable, privacyLoaded, wake, recheck, recordCharges, notificationsOn, amountsHidden]);
+  }, [subscriptions, gamiyas, serverReachable, privacyLoaded, wake, recheck, recordCharges, notificationsOn, amountsHidden, resolveUncertain]);
 
   const dismiss = useCallback((id: string) => {
     setNotices(prev => prev.filter(n => n.id !== id));
