@@ -8,7 +8,9 @@ import {
   PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
   type ChargeEntry, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
-import { PAYOUT_INSTALLMENT_UNREADABLE_LINE, PayoutInstallmentField, parseInstallment } from '@/components/PayoutInstallmentField';
+import {
+  PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT, PAYOUT_INSTALLMENT_UNREADABLE_LINE, PayoutInstallmentError, PayoutInstallmentField, parseInstallment,
+} from '@/components/PayoutInstallmentField';
 import { storableAmount } from '@/lib/linkedEdit';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -265,6 +267,8 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         return;
       }
       if (r.recorded.length === 0 && r.badInstallment) {
+        // مفيش حاجة اتسجلت — الشيت بيفضل مفتوح عشان قسطك المكتوب مايضيعش (الجولة 2)
+        ok = false;
         notice(CHARGE_BAD_INSTALLMENT_ALERT.title, CHARGE_BAD_INSTALLMENT_ALERT.body);
         return;
       }
@@ -311,6 +315,10 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
     ]);
   }
 
+  // الشيت مفتوح على نسخة الكارت وقت ما اتفتح — قسطك ممكن يتغيّر (أو يبقى مقروء) وهو مفتوح، والذرة بترفض (amount-changed).
+  // من غير النسخة الحالية الإعادة كانت هتبعت نفس الرقم القديم وتترفض للأبد (الجولة 2، مع M1)
+  const editingLive = editing ? (pending.find(x => busyId(x) === busyId(editing.p)) ?? editing.p) : null;
+
   if (pending.length === 0) return null;
 
   return (
@@ -344,7 +352,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>{PAYOUT_INSTALLMENT_UNREADABLE_LINE}</Text>
             )}
             </View>
-            <View style={styles.actions}>
+            <View style={styles.cardActions}>
               <Button
                 testID={`charge_card_yes_${p.id}`}
                 label={yesLabel(p)}
@@ -372,15 +380,15 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         );
       })}
 
-      {editing && (
+      {editing && editingLive && (
         <ChargeAmountSheet
           name={editing.p.name}
           question={`${editing.p.payout ? 'استلمت' : editing.p.kind === 'gamiya' ? 'اتدفع' : 'اتخصم'} كام في ${editing.p.labelOf(editing.charge.key)}؟`}
           yes={yesLabel(editing.p)}
           base={editing.charge.amount}
-          installment={payoutInstallment(editing.p)}
+          installment={payoutInstallment(editingLive)}
           busy={busyKey === busyId(editing.p)}
-          onSave={async (amount, inst) => { if (await record(editing.p, editing.charge, amount, inst)) setEditing(null); }}
+          onSave={async (amount, inst) => { if (await record(editingLive, editing.charge, amount, inst)) setEditing(null); }}
           onClose={() => setEditing(null)}
         />
       )}
@@ -433,17 +441,20 @@ function ChargeAmountSheet({ name, question, yes, base, installment, busy, onSav
               {!valid && <Text style={styles.error} accessibilityLiveRegion="polite">المبلغ لازم يبقى أكبر من صفر.</Text>}
               {!!diff && <Text style={styles.diff} accessibilityLiveRegion="polite">{diff}</Text>}
               {typeof installment === 'number' && (
-                <Text style={styles.diff} testID="charge_amount_installment_line">
+                <Text style={styles.diff} testID="charge_amount_installment_line" accessible
+                  accessibilityLabel={speakable(`${PAYOUT_INSTALLMENT_LINE} ${moneyText(installment, amountsHidden)}`)}>
                   {PAYOUT_INSTALLMENT_LINE} <Money value={installment} sign="−" />
                 </Text>
               )}
               {installment === null && <PayoutInstallmentField value={instValue} onChange={setInstValue} />}
               <Text style={styles.hint}>{`ده للمرة دي بس — "${name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
+            {installment === null && <PayoutInstallmentError value={instValue} />}
             <View style={styles.footer}>
               <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button testID="charge_amount_save" label={yes} style={styles.saveBtn}
-                disabled={!valid || !instValid} busy={busy} onPress={() => onSave(typed, typedInst ?? undefined)} />
+                disabled={!valid || !instValid} busy={busy} onPress={() => onSave(typed, typedInst ?? undefined)}
+                accessibilityHint={!instValid ? PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT : undefined} />
             </View>
           </View>
         </View>
@@ -462,7 +473,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
-    actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
+    cardActions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
       borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,

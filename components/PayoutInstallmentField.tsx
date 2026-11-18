@@ -1,7 +1,10 @@
 import { Button } from '@/components/Button';
 import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import { storableAmount } from '@/lib/linkedEdit';
+import { moneyText, speakable } from '@/lib/money';
 import { bigAmountInputStyle, overlayStyle, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -17,17 +20,35 @@ export const PAYOUT_INSTALLMENT_INPUT_HINT = 'القسط الشهري المتس
 /** سطر الكارت مكان مبلغ قسطك لما مش مقروء */
 export const PAYOUT_INSTALLMENT_UNREADABLE_LINE = 'قسطك الشهري المتسجّل مش رقم صالح — هتكتبه بنفسك قبل ما نسجّل الاستلام.';
 
-/** القسط المكتوب ← مبلغ ينفع يتسجل (مقرّب للقرش وأكبر من صفر)، أو `null` */
+/** الزرار مقفول لحد ما قسطك يتكتب — بيتقال لقارئ الشاشة (a11y-architect، الجولة 2) */
+export const PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT = 'اكتب قسطك الأول';
+export const PAYOUT_INSTALLMENT_INVALID = 'اكتب قسط أكبر من صفر.';
+
+/** القسط المكتوب ← مبلغ ينفع يتسجل (مقرّب للقرش وأكبر من صفر)، أو `null`. الأرقام العربية (٩٥٠، ١٬٠٠٠٫٥) بتتقري */
 export function parseInstallment(value: string): number | null {
   if (value.trim() === '') return null;
-  return storableAmount(Number(value.replace(/,/g, '')));
+  return storableAmount(Number(normalizeAmountInput(value)));
 }
 
-/** الخانة نفسها: العنوان، والرقم، والسبب، ورسالة لو المكتوب مش مبلغ */
-export function PayoutInstallmentField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * رسالة "المكتوب مش مبلغ" — **متركّبة دايمًا** (فاضية لو مفيش غلط) وبرّه الـScrollView فوق الفوتر، عشان قارئ الشاشة
+ * يقولها أول ما تظهر وماتستخبّاش تحت الكيبورد (a11y-architect، الجولة 2)
+ */
+export function PayoutInstallmentError({ value }: { value: string }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const invalid = value.trim() !== '' && parseInstallment(value) === null;
+  return (
+    <Text testID="payout_installment_error" style={invalid ? styles.error : styles.errorEmpty} accessibilityLiveRegion="polite">
+      {invalid ? PAYOUT_INSTALLMENT_INVALID : ''}
+    </Text>
+  );
+}
+
+/** الخانة نفسها: العنوان، والرقم، والسبب. رسالة الغلط برّه (`PayoutInstallmentError`) */
+export function PayoutInstallmentField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
     <View testID="payout_installment_field">
       <Text style={styles.label}>{PAYOUT_INSTALLMENT_INPUT_LABEL}</Text>
@@ -41,9 +62,8 @@ export function PayoutInstallmentField({ value, onChange }: { value: string; onC
         placeholder="0"
         placeholderTextColor={colors.textMuted}
         accessibilityLabel={PAYOUT_INSTALLMENT_INPUT_LABEL}
-        accessibilityHint={PAYOUT_INSTALLMENT_INPUT_HINT}
       />
-      {invalid && <Text style={styles.error} accessibilityLiveRegion="polite">القسط لازم يبقى أكبر من صفر.</Text>}
+      {/* السبب ظاهر تحت الخانة — مش متكرر كـaccessibilityHint (كان بيتقري مرتين) */}
       <Text style={styles.hint}>{PAYOUT_INSTALLMENT_INPUT_HINT}</Text>
     </View>
   );
@@ -59,24 +79,28 @@ export default function PayoutInstallmentSheet({ title, payoutAmount, walletName
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+  const { amountsHidden } = usePrivacy();
   const [value, setValue] = useState('');
   const installment = parseInstallment(value);
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
         <View style={styles.overlay}>
           <View style={styles.sheet} accessibilityViewIsModal testID="payout_installment_sheet">
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
               <Text style={styles.sheetTitle} accessibilityRole="header">{title}</Text>
-              <Text style={styles.summary}>
+              <Text style={styles.summary} testID="payout_installment_summary" accessible
+                accessibilityLabel={speakable(`هيتسجل استلام ${moneyText(payoutAmount, amountsHidden)} في ${walletName}، ومعاه قسطك من نفس المحفظة.`)}>
                 هيتسجل استلام <Money value={payoutAmount} /> في {walletName}، ومعاه قسطك من نفس المحفظة.
               </Text>
               <PayoutInstallmentField value={value} onChange={setValue} />
             </ScrollView>
+            <PayoutInstallmentError value={value} />
             <View style={styles.footer}>
               <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button testID="payout_installment_save" label="سجّل الاستلام" style={styles.saveBtn}
-                disabled={installment === null} busy={busy} onPress={() => { if (installment !== null) onSave(installment); }} />
+                disabled={installment === null} busy={busy} onPress={() => { if (installment !== null) onSave(installment); }}
+                accessibilityHint={installment === null ? PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT : undefined} />
             </View>
           </View>
         </View>
@@ -89,11 +113,12 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     label: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.lg },
     input: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.md },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.sm },
+    errorEmpty: { height: 0 },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.md },
     summary: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     overlay: overlayStyle,
-    sheet: { ...sheetStyle(c, { maxHeight: '80%' }), padding: 0, overflow: 'hidden' },
+    sheet: { ...sheetStyle(c, { maxHeight: '90%' }), padding: 0, overflow: 'hidden' },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 14),
     footer: stickyFooterStyle(c, c.nav),

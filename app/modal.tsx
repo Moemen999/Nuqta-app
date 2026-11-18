@@ -46,7 +46,7 @@ export default function AddTransactionModal() {
   const styles = useMemo(() => makeStyles(colors, insets.bottom), [colors, insets.bottom]);
   const { id } = useLocalSearchParams<{ id?: string }>();
   const {
-    wallets, categories, transactions, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad,
+    wallets, categories, transactions, brokenTransactions, debts, subscriptions, gamiyas, incomes, linkSourcesReady, loadErrors, retryLoad,
     addTransaction, updateTransaction, updateDebtLinkedTransaction, deleteTransaction, transactionLinkWarning,
   } = useData();
   const { categoryColors } = useChartColors();
@@ -347,8 +347,14 @@ export default function AddTransactionModal() {
     const paired = gamiyaPairedTxIds(gamiyas, existing.id);
     const pairedTxs = transactions.filter(t => paired.includes(t.id));
     const changes = [{ before: existing }, ...pairedTxs.map(t => ({ before: t }))];
-    // العمليات اللي التسوية اتحسبت عليها — لو السيرفر عليه غيرهم (جهاز تاني) الذرة بترفض (`changed`) بدل تسوية على مسح مختلف
-    const expectedTxIds = [existing.id, ...pairedTxs.map(t => t.id)];
+    // العمليات اللي التسوية اتحسبت عليها بأرقامها — لو السيرفر عليه غيرهم (جهاز تاني: معرّف أو مبلغ/محفظة) الذرة بترفض
+    // (`changed`) بدل تسوية على مسح مختلف. التانية لو بايظة (برّه `transactions`) بالمعرّف بس: هتتمسح ومش في أي رصيد،
+    // ومن غيرها الذرة كانت هتقول "اتغيّرت" للأبد (الجولة 2، بندين 2 و4)
+    const brokenPaired = brokenTransactions.filter(t => paired.includes(t.id)).map(t => ({ id: t.id }));
+    const expectedTxs = [
+      ...[existing, ...pairedTxs].map(t => ({ id: t.id, amount: t.amount, walletId: t.walletId, type: t.type })),
+      ...brokenPaired,
+    ];
     // `deleteTransaction` async: التجهيز (stageReconcile/stageSettlements) بيرمي جوّاها فبيرفض
     // الـpromise — قبل كده المودال كان بيتقفل والمستخدم فاكر إنها اتمسحت ومفيش حاجة اتكتبت
     // (silent-failure-hunter). الكتابة نفسها مبتتستناش (`track`) — الـpromise بيخلص بعد التجهيز
@@ -358,7 +364,7 @@ export default function AddTransactionModal() {
       if (deleting.current) return Promise.resolve();
       deleting.current = true;
       setBusy(true);
-      return Promise.resolve().then(() => deleteTransaction(existing.id, settlements, { expectedTxIds }))
+      return Promise.resolve().then(() => deleteTransaction(existing.id, settlements, { expectedTxs }))
         .then(result => {
           // عملية دفعة/زيادة دين ذرة من السيرفر (الجولة 2، بند 1): مفيش نت / ما اتمسحتش / مش متأكدين ← المودال
           // بيفضل مفتوح والرسالة بتقول الحالة. الإعادة آمنة: لو المسح كان وصل، الذرة بتلاقي العملية مش موجودة ومبتكتبش تاني

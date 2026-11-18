@@ -51,7 +51,7 @@ let resolveAdd: () => void = () => {};
 function seed() {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
-    wallets: [wallet], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
+    wallets: [wallet], categories: [], transactions: [], brokenTransactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
     linkSourcesReady: true, loadErrors: [], figuresPending: [], retryLoad: jest.fn(), transactionLinkWarning: () => null,
     // الكتابة المتينة: بترجع بعد ما نسخة الـoutbox تتكتب — هنا بتفضل معلّقة لحد ما الاختبار يقول
     addTransaction: jest.fn(() => new Promise<void>(r => { resolveAdd = r; })),

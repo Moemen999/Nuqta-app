@@ -22,7 +22,7 @@ import { useWalletDefault } from '@/lib/useWalletDefault';
 import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber, validReminderDays } from '@/lib/entryValidation';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
-import { gamiyaMarkConfirmBody, gamiyaMonthNote, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
+import { gamiyaMarkConfirmBody, gamiyaMonthNote, gamiyaMonthTxIds, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
@@ -68,7 +68,7 @@ function markOutcomeAlert(outcome: GamiyaMarkOutcome, isPayout: boolean): { titl
 export default function GamiyaView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
+  const { gamiyas, wallets, transactions, brokenTransactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
   const { amountsHidden } = usePrivacy();
   // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
@@ -83,6 +83,8 @@ export default function GamiyaView() {
   // ملاحظة الشهر الناقص (بند 7) بعد ما العمليات توصل بس — قبلها كل شهر كان هيبان "ناقص"
   const txIdsReady = !figuresPending.includes('transactions') && !loadErrors.includes('transactions');
   const txIds = useMemo(() => new Set(transactions.map(t => t.id)), [transactions]);
+  // عملية بايظة (موجودة بس برّه `transactions`) مش "اتمسحت" — الشهر ده ملهوش ملاحظة، وبانر البايظة بيغطيه (الجولة 2)
+  const brokenIds = useMemo(() => new Set((brokenTransactions ?? []).map(t => t.id)), [brokenTransactions]);
 
   /** نفس فحص الدين: شهر متسدد من محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(g: Gamiya) {
@@ -184,7 +186,7 @@ export default function GamiyaView() {
         {isExpanded && (
           <View style={styles.expandedArea}>
             {g.months.map(m => {
-              const note = txIdsReady ? gamiyaMonthNote(m, txIds) : null;
+              const note = txIdsReady && !gamiyaMonthTxIds(m).some(x => brokenIds.has(x)) ? gamiyaMonthNote(m, txIds) : null;
               return (
               <View key={m.id}>
               <View style={styles.monthRow}>
@@ -204,7 +206,7 @@ export default function GamiyaView() {
                 )}
               </View>
               {/* حساب الشهر ناقص (نسخة أقدم على جهاز تاني) — بتقول الطريق ومبتقفلش حاجة */}
-              {note && <Text style={styles.monthNote} testID={`gamiya_month_note_${m.id}`}>{note}</Text>}
+              {note && <Text style={styles.monthNote} testID={`gamiya_month_note_${m.id}`} accessibilityLabel={`شهر ${m.monthIndex}، ${note}`}>{note}</Text>}
               </View>
               );
             })}

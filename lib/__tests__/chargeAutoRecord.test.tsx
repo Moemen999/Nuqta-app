@@ -331,4 +331,19 @@ describe('التلقائي ومبلغ متخزّن بايظ (الجولة 2)', (
     expect(mockNotify).not.toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  // الجولة 2 على شهر الاستلام (hardening): أي نتيجة/سبب مش متعالج بيتسجل في اللوج باسم الخطوة بس — مش بيعدّي ساكت
+  it.each([
+    [{ outcome: 'done', recorded: [], changed: true }, ['[charge] auto recorded nothing', 'changed']],
+    [{ outcome: 'done', recorded: [], badInstallment: true }, ['[charge] auto recorded nothing', 'bad-installment']],
+    [{ outcome: 'done', recorded: [], stopped: true }, ['[charge] auto recorded nothing', 'stopped']],
+    [{ outcome: 'amount-changed', recorded: [] }, ['[charge] auto unhandled outcome', 'amount-changed']],
+  ])('%p ← console.warn باسم الخطوة والسبب بس (من غير مبالغ)', async (result, expected) => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => result);
+    await render(<Probe />);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith(...expected));
+    warn.mockRestore();
+  });
 });

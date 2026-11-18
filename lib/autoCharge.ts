@@ -240,8 +240,10 @@ export function gamiyaMonthTxIds(m: Pick<GamiyaMonthLike, 'transactionId' | 'ins
  * ملاحظة على شهر استلام حسابه ناقص (الجولة 1 على 3a72d99، بند 7 — مش بتمنع حاجة). النسخ الأقدم على جهاز تاني متعرفش
  * قسطك في شهر الاستلام: ممكن تسجّل الاستلام لوحده، أو تمسح واحدة من الاتنين وترجّع الشهر من غير التانية.
  */
-export const GAMIYA_NOTE_LEGACY_PAYOUT = 'الشهر ده اتسجل قبل ما قسطك يتسجل معاه — امسح عملية الاستلام من الأرشيف وسجّله تاني.';
-export const GAMIYA_NOTE_PAIR_BROKEN = 'حساب الشهر ده ناقص: عملية الاستلام أو قسطك اتمسحت لوحدها (يمكن من نسخة أقدم على جهاز تاني). امسح اللي فاضل منهم من الأرشيف وسجّله تاني.';
+// الجولة 2: قبل «امسحه وسجّله تاني» لازم يتأكد إن الاستلام المتسجّل هو الجمعية كلها — لو كان كاتبه صافي (من غير قسطه)،
+// إعادة التسجيل كانت هتخصم القسط مرتين
+export const GAMIYA_NOTE_LEGACY_PAYOUT = 'الشهر ده اتسجل قبل ما قسطك يتسجل معاه. بصّ على مبلغ الاستلام في الأرشيف: لو هو الجمعية كلها، امسحه وسجّل الشهر تاني عشان قسطك يتسجل معاه. لو كان متسجّل من غير قسطك، سيبه زي ما هو.';
+export const GAMIYA_NOTE_PAIR_BROKEN = 'حساب الشهر ده ناقص: واحدة من عمليتي الاستلام وقسطك اتمسحت (يمكن من نسخة أقدم على جهاز تاني). امسح اللي فاضل منهم من الأرشيف وسجّل الشهر تاني.';
 export const GAMIYA_NOTE_STRAY_INSTALLMENT = 'قسطك في الشهر ده لسه متسجل من غير الاستلام (يمكن من نسخة أقدم على جهاز تاني). لما تسجّل الاستلام هيتربط بيه، أو امسحه من الأرشيف.';
 
 /**
@@ -261,7 +263,7 @@ export function gamiyaMonthNote(
 }
 
 /** سطر توضيح تحت "مبلغ الاستلام" في فورم الجمعية */
-export const gamiyaPayoutHint = 'اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل الاستلام ده، وقسطك في الشهر ده كمصروف لوحده.';
+export const gamiyaPayoutHint = 'اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل ده استلام، وقسطك في الشهر ده بيتسجل معاه مصروف.';
 
 /** «25 سبتمبر» — والسنة لو مش السنة دي */
 export function chargeDateLabel(date: string, today: string) {
@@ -345,7 +347,7 @@ export function gamiyaMarkConfirmBody(
     return named ? `${g} — ${generic}` : generic;
   }
   const base = m.isPayout
-    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate, today)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}، وخصم قسطك في الشهر ده ${fmt(m.installment!)} ج.م من نفس المحفظة؟`
+    ? `استلام ${g} (شهر ${m.monthIndex}، ${dueDateLabel(m.dueDate, today)}) — نسجّل استلام ${fmt(m.amount)} ج.م في ${walletName}، وقسطك في الشهر ده ${fmt(m.installment!)} ج.م يتدفع من نفس المحفظة؟`
     : `قسط شهر ${m.monthIndex} من ${g} (${dueDateLabel(m.dueDate, today)}) — نسجّل خصم ${fmt(m.amount)} ج.م من ${walletName}؟`;
   return m.dueDate === today ? base : `${base} هيتسجل بتاريخ المعاد مش النهاردة.`;
 }

@@ -43,7 +43,7 @@ function seed(wallets: unknown[], txWallet: string) {
   Object.assign(mockData, {
     wallets, categories: [],
     transactions: [{ id: 'tx_p', type: 'income', amount: 300, walletId: txWallet, date: '2026-03-20' }],
-    debts: [debt], subscriptions: [], gamiyas: [], incomes: [], linkSourcesReady: true, loadErrors: [], retryLoad: jest.fn(),
+    debts: [debt], subscriptions: [], gamiyas: [], incomes: [], brokenTransactions: [], linkSourcesReady: true, loadErrors: [], retryLoad: jest.fn(),
     addTransaction: jest.fn(), updateTransaction: jest.fn(), deleteTransaction: jest.fn(async () => ({ outcome: 'done' })),
     transactionLinkWarning: () => WARNING,
     updateDebtLinkedTransaction: jest.fn(async () => ({ outcome: 'done', note: null })),
@@ -103,7 +103,7 @@ it('الشيت: اختيار المحفظة ثم "حذف" ← deleteTransaction 
   expect(mockData.deleteTransaction).toHaveBeenCalledTimes(1);
   expect(mockData.deleteTransaction).toHaveBeenCalledWith('tx_p', [
     expect.objectContaining({ archivedWalletId: 'a', targetWalletId: 'w' }),
-  ], { expectedTxIds: ['tx_p'] });
+  ], { expectedTxs: [{ id: 'tx_p', amount: 300, walletId: 'a', type: 'income' }] });
   expect(alertSpy).not.toHaveBeenCalled();
 });
 
@@ -298,14 +298,23 @@ describe('مسح عملية من شهر استلام الجمعية', () => {
     await act(async () => {});
   }
 
+  const PAYOUT = { id: 'gamiya_g_m1', amount: 10000, walletId: 'w', type: 'income' };
+  const INST = { id: 'gamiya_g_m1_inst', amount: 1000, walletId: 'w', type: 'expense' };
   it.each([
-    [true, ['gamiya_g_m1', 'gamiya_g_m1_inst']],
+    [true, [PAYOUT, INST]],
     // قسطك مش موجود عندنا ← المودال مبيوعدش بيه، والذرة بتقارن على ده
-    [false, ['gamiya_g_m1']],
-  ])('قسطك موجود=%p ← expectedTxIds = اللي التسوية اتحسبت عليه', async (withInst, expected) => {
+    [false, [PAYOUT]],
+  ])('قسطك موجود=%p ← expectedTxs = اللي التسوية اتحسبت عليه (بالمبلغ والمحفظة والنوع — الجولة 2)', async (withInst, expected) => {
     seedPayout(withInst);
     await deleteViaAlert();
-    expect(mockData.deleteTransaction).toHaveBeenCalledWith('gamiya_g_m1', [], { expectedTxIds: expected });
+    expect(mockData.deleteTransaction).toHaveBeenCalledWith('gamiya_g_m1', [], { expectedTxs: expected });
+  });
+
+  it('قسطك بايظ (موجود بس برّه transactions) ← بيتبعت بالمعرّف بس، عشان الذرة متقولش "اتغيّرت" للأبد (الجولة 2)', async () => {
+    seedPayout(false);
+    mockData.brokenTransactions = [{ id: 'gamiya_g_m1_inst', reasons: ['amount'] }];
+    await deleteViaAlert();
+    expect(mockData.deleteTransaction).toHaveBeenCalledWith('gamiya_g_m1', [], { expectedTxs: [PAYOUT, { id: 'gamiya_g_m1_inst' }] });
   });
 
   it('changed ← "الأرقام اتغيّرت" والمودال بيتقفل', async () => {

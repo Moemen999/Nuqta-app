@@ -420,7 +420,7 @@ export const DEBT_GONE_DELETE_ALERT = {
 export const PAY_OUTCOME_ALERT_DEBT: Record<Exclude<DebtPayOutcome, 'done'>, { title: string; body: string }> = {
   'no-connection': {
     title: 'مفيش نت دلوقتي',
-    body: 'ما اتسجلش حاجة. العملية دي لازم تتأكد من السيرفر عشان متتسجلش مرتين — جرب تاني أول ما النت يرجع.',
+    body: 'مفيش حاجة اتسجلت. العملية دي لازم تتأكد من السيرفر عشان متتسجلش مرتين — جرب تاني أول ما النت يرجع.',
   },
   failed: {
     title: 'ما اتسجلش',
@@ -623,6 +623,8 @@ export type DebtEntryDeleteOut = DebtIncreaseDeleteOut;
  * `changed` (شهر استلام الجمعية): العمليات اللي على السيرفر مش اللي المودال حسب عليها التسوية — مفيش أي كتابة.
  */
 export type TxDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'uncertain' | 'no-account' | 'changed';
+/** عملية حسب عليها المودال التسوية — المعرّف دايمًا، والأرقام لو العملية سليمة (البايظة بالمعرّف بس) */
+export type ExpectedTx = { id: string; amount?: number; walletId?: string; type?: Transaction['type'] };
 export type TxDeleteResult = {
   outcome: TxDeleteOutcome; dueNotRestored?: 'payment' | 'increase';
   /** العملية مربوطة بشهر جمعية (مراجعة 2026-11-18) — الرسالة بتتكلم عن الجمعية مش الدين (`txDeleteOutcomeAlert`) */
@@ -945,10 +947,11 @@ type DataContextType = {
   ) => Promise<TxEditResult>;
   /** عملية دفعة/زيادة دين ← ذرة من السيرفر بنتيجة (`TxDeleteResult`)؛ غير كده batch و`done` على طول */
   /**
-   * `expectedTxIds` (المودال): العمليات اللي التسوية اتحسبت عليها — شهر استلام الجمعية لو السيرفر عليه غيرهم ← `changed`
-   * ومفيش كتابة. من غيره (العمليات البايظة — مفيش تسوية) بيمسح اللي موجود.
+   * `expectedTxs` (المودال): العمليات اللي التسوية اتحسبت عليها، بمبلغها ومحفظتها ونوعها — شهر استلام الجمعية لو السيرفر
+   * عليه غيرهم (معرّف زيادة/ناقص، أو نفس المعرّف برقم تاني) ← `changed` ومفيش كتابة. العملية البايظة بتتبعت بالمعرّف بس.
+   * من غيره على عملية بايظة ("صلّح العملية" — مفيش تسوية) بيمسح العملية دي بس، والتانية بتفضل (الجولة 2، بند 3).
    */
-  deleteTransaction: (id: string, settlements?: Settlement[], opts?: { expectedTxIds?: string[] }) => Promise<TxDeleteResult>;
+  deleteTransaction: (id: string, settlements?: Settlement[], opts?: { expectedTxs?: ExpectedTx[] }) => Promise<TxDeleteResult>;
   transactionLinkWarning: (id: string) => string | null;
   setBudget: (categoryId: string, limit: number) => Promise<void>;
   setMonthlyIncome: (month: string, income: number) => Promise<void>;
@@ -988,7 +991,7 @@ type DataContextType = {
   updateGamiya: (id: string, data: GamiyaEdit) => Promise<EntrySaveResult>;
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   /** `seenInstallment`: قسطك اللي اتقال في تأكيد شهر الاستلام — اتغيّر ← `amount-changed` */
-  /** `typedInstallment`: قسطك اللي المستخدم كتبه — بيتسجل **بس** لو القسط المتخزّن مش مقروء (`bad-installment`) */
+  /** `typedInstallment`: قسطك اللي المستخدم كتبه — بيتسجل **بس** لو القسط المتخزّن مش مقروء (`bad-installment`)؛ لو المتخزّن بقى مقروء ← `amount-changed` ومفيش كتابة */
   markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number, seenInstallment?: number, typedInstallment?: number) => Promise<GamiyaMarkOutcome>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
   recordCharges: (kind: ChargeKind, id: string, entries: ChargeEntry[], opts?: { auto?: boolean }) => Promise<ChargeRecordResult>;
@@ -1044,7 +1047,7 @@ export type ChargeRecordResult = {
 };
 /**
  * فترة بيسجلها `recordCharges`. شهر استلام الجمعية بس: `seenInstallment` = قسطك اللي على الكارت (اتغيّر ← `amount-changed`)،
- * و`installment` = قسطك اللي المستخدم كتبه لما المتخزّن مش مقروء — بيتسجل **بس** في الحالة دي.
+ * و`installment` = قسطك اللي المستخدم كتبه لما المتخزّن مش مقروء — بيتسجل **بس** في الحالة دي، ولو المتخزّن بقى مقروء ← `amount-changed` ومفيش كتابة.
  */
 export type ChargeEntry = { key: string; amount: number; seenInstallment?: number; installment?: number };
 /** "سدّد" من شاشة الاشتراكات */
@@ -2375,7 +2378,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * الحذف + تعديل السجل المرتبط + تسوية المحافظ المؤرشفة، كلهم في دفعة واحدة.
    * لو أي حتة فشلت، مفيش أي حاجة اتكتبت.
    */
-  async function deleteTransaction(id: string, settlements: Settlement[] = [], opts: { expectedTxIds?: string[] } = {}): Promise<TxDeleteResult> {
+  async function deleteTransaction(id: string, settlements: Settlement[] = [], opts: { expectedTxs?: ExpectedTx[] } = {}): Promise<TxDeleteResult> {
     // مفيش حساب ← مفيش مسح، فمش "اتمسحت" (المودال كان بيتقفل والعملية لسه موجودة)
     if (!uid) return { outcome: 'no-account' };
     // المدخلة الأول: لو التطبيق اتقفل بعد الحذف وقبل شيلها، الإعادة كانت هترجّع العملية اللي اتمسحت
@@ -2398,7 +2401,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // `gamiyaId` على العملية نفسها (التحديث لسه ما وصلناش)
     const gamiyaId = gamiyas.find(g => (g.months || []).some(m => gamiyaMonthTxIds(m).includes(id)))?.id
       ?? transactions.find(x => x.id === id)?.gamiyaId ?? brokenTransactions.find(x => x.id === id)?.gamiyaId;
-    if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements, opts.expectedTxIds);
+    // العملية دي بايظة ومحدش حسب تسوية (مسح من "صلّح العملية") ← هي بس، والتانية بتفضل (الجولة 2، بند 3)
+    const onlyThis = !opts.expectedTxs && brokenTransactions.some(x => x.id === id);
+    if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements, opts.expectedTxs, onlyThis);
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'transactions', id));
     const { pruneSubscription } = stageReconcile(batch, id);
@@ -2417,7 +2422,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * مربوط بالعملية دي بس، والعملية والتسوية في نفس الذرة. التمن: محتاجة نت (قاعدة 7) — والنتيجة قاطعة للمودال.
    */
   async function deleteGamiyaLinkedTransaction(
-    txId: string, gamiyaId: string, settlements: Settlement[], expectedTxIds?: string[],
+    txId: string, gamiyaId: string, settlements: Settlement[], expectedTxs?: ExpectedTx[], onlyThis = false,
   ): Promise<TxDeleteResult> {
     const subject = 'gamiya' as const;
     if (!uid) return { outcome: 'failed', subject };
@@ -2433,16 +2438,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // شهر الاستلام عليه عمليتين (الاستلام وقسطك — اختيار أ): مسح واحدة بيمسح التانية في نفس الذرة، عشان الشهر
         // يرجع يسأل من غير ما يفضل نص الحركة في المحفظة. المودال حسب التسوية على الاتنين (`gamiyaPairedTxIds`)
         const month = g?.months.find(m => gamiyaMonthTxIds(m).includes(txId));
-        const siblingRefs = gamiyaMonthTxIds(month).filter(x => x !== txId).map(x => doc(db, 'users', uid!, 'transactions', x));
+        // `onlyThis` (مسح عملية بايظة من "صلّح العملية" — مفيش تسوية): التانية **مبتتمسحش**. لو سليمة على محفظة مؤرشفة،
+        // مسحها من غير تسوية كان هيسيب المؤرشفة مش صفر (الجولة 2، بند 3). الشهر بيرجع يسأل، والتسجيل الجاي بيلاقيها
+        // بمعرّفها الثابت ومبيكتبش فوقها
+        const siblingRefs = onlyThis
+          ? []
+          : gamiyaMonthTxIds(month).filter(x => x !== txId).map(x => doc(db, 'users', uid!, 'transactions', x));
         const siblingSnaps = await Promise.all(siblingRefs.map(r => t.get(r)));
         // كل القرايات خلصت — من هنا كتابات بس
         // اللي هيتمسح فعلاً = الموجود على السيرفر. المودال حسب التسوية على اللي هو شايفه (`expectedTxIds`): لو مختلفين
         // (جهاز تاني مسح واحدة، أو الشهر عندنا لسه من غير قسطك) التسوية كانت هتتكتب على مسح مش هو ← المؤرشفة مش صفر.
         // فمفيش كتابة خالص والمودال بيقول "اتغيّرت" (الجولة 1 على 3a72d99 — money-reviewer)
-        const present = [txSnap, ...siblingSnaps].filter(x => x.exists()).map(x => x.id);
-        if (expectedTxIds && present.length > 0) {
-          const expected = new Set(expectedTxIds);
-          if (present.length !== expected.size || present.some(x => !expected.has(x))) throw new TxSetChangedError();
+        const presentSnaps = [txSnap, ...siblingSnaps].filter(x => x.exists());
+        const present = presentSnaps.map(x => x.id);
+        if (expectedTxs && present.length > 0) {
+          const expected = new Map(expectedTxs.map(e => [e.id, e]));
+          // نفس المعرّف برقم تاني (اتعدّل من جهاز تاني) = التسوية اتحسبت على رقم مش هو (الجولة 2، بند 4). البايظة بالمعرّف بس
+          const differs = (snap: (typeof presentSnaps)[number]) => {
+            const e = expected.get(snap.id);
+            if (!e) return true;
+            const d = snap.data() as { amount?: unknown; walletId?: unknown; type?: unknown };
+            return (e.amount !== undefined && d.amount !== e.amount)
+              || (e.walletId !== undefined && d.walletId !== e.walletId)
+              || (e.type !== undefined && d.type !== e.type);
+          };
+          if (present.length !== expected.size || presentSnaps.some(differs)) throw new TxSetChangedError();
         }
         // الكل اتمسح قبل كده (جهاز تاني، أو commit وصل والرد ضاع): التسوية اتحسبت على أثرهم، فمتتكتبش تاني
         if (present.length > 0) stageSettlements(t, settlements);
@@ -2586,9 +2606,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const m = (g.months || []).find(x => gamiyaMonthTxIds(x).includes(id));
       // شهر الاستلام: مسح واحدة بيمسح التانية (`deleteGamiyaLinkedTransaction`) — لازم يتقال قبل التأكيد. **بس لو التانية
       // موجودة فعلاً** (نسخة قديمة على جهاز تاني ممكن تكون مسحتها) — غير كده بنوعد بمسح حاجة مش موجودة (الجولة 1)
-      if (m && gamiyaMonthTxIds(m).some(x => x !== id && transactions.some(t => t.id === x))) {
+      // التانية بايظة (موجودة بس برّه `transactions`) لسه بتتمسح معاها من المودال (الجولة 2، بند 2)
+      // والعملية دي نفسها بايظة (مسح من "صلّح العملية" من غير تسوية) ← التانية **مبتتمسحش** (بند 3)، فمفيش وعد بيها
+      const selfBroken = brokenTransactions.some(t => t.id === id);
+      if (m && !selfBroken && gamiyaMonthTxIds(m).some(x => x !== id && (transactions.some(t => t.id === x) || brokenTransactions.some(t => t.id === x)))) {
         const other = m.transactionId === id ? 'قسطك في الشهر ده' : 'استلام الجمعية';
-        return `دي من شهر الاستلام في جمعية "${g.name}" — لو مسحتها هتتمسح معاها عملية ${other} كمان، والشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
+        return `دي من شهر الاستلام في جمعية "${g.name}" — لو مسحتها هتتمسح معاها عملية ${other} كمان، والشهر هيرجع يسألك "استلمت؟" في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
       if (m) {
         return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
@@ -3655,6 +3678,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             const src = entries.find(x => x.key === e.key);
             const stored = storableAmount(g.monthlyAmount);
             if (stored !== null) {
+              // المستخدم كتب قسطه (المتخزّن كان مش مقروء) والمتخزّن بقى مقروء في النص ← مش بنبدّل رقمه ساكت (الجولة 2، M1)
+              if (src?.installment !== undefined) throw amountChanged(src.installment, g.monthlyAmount);
               if (seenAmountDiffers(src?.seenInstallment, g.monthlyAmount)) throw amountChanged(src?.seenInstallment, g.monthlyAmount);
               instOf.set(e.key, stored);
               continue;
@@ -4400,6 +4425,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
           : storedInst ?? (typedInstallment === undefined ? null : storableAmount(typedInstallment));
         if (month.isPayoutMonth && installment === null) throw new BadInstallmentError();
         if (seenAmountDiffers(seenAmount, month.amount)) throw amountChanged(seenAmount, month.amount);
+        // المستخدم كتب قسطه لأن المتخزّن كان مش مقروء، والمتخزّن بقى مقروء في النص ← مش بنبدّل رقمه ساكت (الجولة 2، M1)
+        if (storedInst !== null && typedInstallment !== undefined) throw amountChanged(typedInstallment, g.monthlyAmount);
         if (storedInst !== null && seenAmountDiffers(seenInstallment, g.monthlyAmount)) throw amountChanged(seenInstallment, g.monthlyAmount);
 
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', g.walletId)))) throw new WalletMissingError();

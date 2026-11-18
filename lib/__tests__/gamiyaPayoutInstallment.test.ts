@@ -61,7 +61,7 @@ describe('نص تأكيد الاستلام: الرقمين اللي هيتكتب
   const TODAY = '2026-11-12';
   it('الاستلام وقسطك', () => {
     expect(gamiyaMarkConfirmBody({ name: 'Work', monthIndex: 4, dueDate: TODAY, amount: 15000, installment: 1500, isPayout: true }, 'CIB', TODAY))
-      .toBe('استلام جمعية "Work" (شهر 4، 12 نوفمبر) — نسجّل استلام 15,000 ج.م في CIB، وخصم قسطك في الشهر ده 1,500 ج.م من نفس المحفظة؟');
+      .toBe('استلام جمعية "Work" (شهر 4، 12 نوفمبر) — نسجّل استلام 15,000 ج.م في CIB، وقسطك في الشهر ده 1,500 ج.م يتدفع من نفس المحفظة؟');
   });
   it('قسط مش مقروء: جملة عامة من غير NaN', () => {
     const body = gamiyaMarkConfirmBody({ name: 'Work', monthIndex: 4, dueDate: TODAY, amount: 15000, installment: NaN, isPayout: true }, 'CIB', TODAY);
@@ -71,6 +71,6 @@ describe('نص تأكيد الاستلام: الرقمين اللي هيتكتب
 
 describe('سطر توضيح مبلغ الاستلام في فورم الجمعية', () => {
   it('بيقول إن قسطك في شهر الاستلام بيتسجل لوحده', () => {
-    expect(gamiyaPayoutHint).toBe('اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل الاستلام ده، وقسطك في الشهر ده كمصروف لوحده.');
+    expect(gamiyaPayoutHint).toBe('اكتب الجمعية كلها (القسط × عدد الأعضاء). في شهر الاستلام هيتسجل ده استلام، وقسطك في الشهر ده بيتسجل معاه مصروف.');
   });
 });

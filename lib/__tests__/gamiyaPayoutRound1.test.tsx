@@ -6,7 +6,7 @@ import { ConfirmProvider } from '@/components/ConfirmProvider';
 import GamiyaView from '@/components/GamiyaView';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import {
-  PAYOUT_INSTALLMENT_INPUT_LABEL, PAYOUT_INSTALLMENT_UNREADABLE_LINE,
+  PAYOUT_INSTALLMENT_INPUT_LABEL, PAYOUT_INSTALLMENT_UNREADABLE_LINE, parseInstallment,
 } from '@/components/PayoutInstallmentField';
 import { ThemeProvider } from '@/context/ThemeContext';
 import {
@@ -51,7 +51,7 @@ beforeEach(() => {
   privacy.amountsHidden = false;
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
-    wallets: [W], categories: [], transactions: [], loadErrors: [], figuresPending: [], subscriptions: [], gamiyas: [gam(1000)],
+    wallets: [W], categories: [], transactions: [], brokenTransactions: [], loadErrors: [], figuresPending: [], subscriptions: [], gamiyas: [gam(1000)],
     deleteGamiya: jest.fn(async () => ({ outcome: 'done' })), markGamiyaMonthDone: jest.fn(async () => 'done'),
     updateGamiya: jest.fn(async () => ({ outcome: 'done' })), addGamiya: jest.fn(async () => ({ outcome: 'done' })),
     recordCharges: jest.fn(async () => ({ outcome: 'done', recorded: ['m1'] })), skipSubscriptionCharge: jest.fn(),
@@ -214,5 +214,101 @@ describe('ملاحظة الشهر لو حسابه ناقص (بند 7)', () => {
     ])];
     await openGamiya();
     expect(screen.queryByTestId('gamiya_month_note_m2')).toBeNull();
+  });
+});
+
+/**
+ * الجولة 2 على شهر الاستلام (money-reviewer + silent-failure-hunter + arabic-copy-reviewer + a11y-architect) — اللي على الشاشة.
+ */
+describe('الجولة 2: الشاشة', () => {
+  const payout = (over: Partial<M>): M => ({ id: 'm2', monthIndex: 2, dueDate: '2099-08-01', amount: 2000, status: 'done', isPayoutMonth: true, ...over });
+
+  it('parseInstallment بيقرا الأرقام العربية (٩٥٠، ١٬٠٠٠٫٥)', () => {
+    expect(parseInstallment('٩٥٠')).toBe(950);
+    expect(parseInstallment('١٬٠٠٠٫٥')).toBe(1000.5);
+    expect(parseInstallment('۹۵۰')).toBe(950);
+    expect(parseInstallment('−5')).toBeNull();
+  });
+
+  it('واحدة من عمليتي الشهر بايظة (مش ممسوحة) ← مفيش ملاحظة "اتمسحت" (بانر البايظة بيغطيها)', async () => {
+    mockData.gamiyas = [gam(1000, [
+      { id: 'm1', monthIndex: 1, dueDate: '2099-07-01', amount: 1000, status: 'pending', isPayoutMonth: false },
+      payout({ transactionId: 'p', installmentTransactionId: 'i' }),
+    ])];
+    mockData.transactions = [{ id: 'p', type: 'income', amount: 2000, walletId: 'w1', date: '2099-08-01' }];
+    mockData.brokenTransactions = [{ id: 'i', reasons: ['amount'] }];
+    await openGamiya();
+    expect(screen.queryByTestId('gamiya_month_note_m2')).toBeNull();
+  });
+
+  it('الملاحظة لقارئ الشاشة بتبدأ بالشهر', async () => {
+    mockData.gamiyas = [gam(1000, [
+      { id: 'm1', monthIndex: 1, dueDate: '2099-07-01', amount: 1000, status: 'pending', isPayoutMonth: false },
+      payout({ transactionId: 'p' }),
+    ])];
+    mockData.transactions = [{ id: 'p', type: 'income', amount: 2000, walletId: 'w1', date: '2099-08-01' }];
+    await openGamiya();
+    expect(screen.getByTestId('gamiya_month_note_m2').props.accessibilityLabel).toBe(`شهر 2، ${GAMIYA_NOTE_LEGACY_PAYOUT}`);
+  });
+
+  it('شيت قسطك: الملخص بقناع لقارئ الشاشة، الخطأ متركّب دايمًا، والزرار المقفول بيقول ليه، والخانة من غير hint مكرر', async () => {
+    privacy.amountsHidden = true;
+    mockData.gamiyas = [gam(NaN)];
+    await openGamiya();
+    await act(async () => { fireEvent.press(screen.getByText('استلمت')); });
+    const summary = screen.getByTestId('payout_installment_summary');
+    expect(summary.props.accessible).toBe(true);
+    expect(summary.props.accessibilityLabel).toContain('مبلغ مخفي');
+    expect(summary.props.accessibilityLabel).not.toContain('2,000');
+    expect(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL).props.accessibilityHint).toBeUndefined();
+    const err = screen.getByTestId('payout_installment_error');
+    expect(err.props.accessibilityLiveRegion).toBe('polite');
+    expect(err).toHaveTextContent('');
+    expect(screen.getByTestId('payout_installment_save').props.accessibilityHint).toBe('اكتب قسطك الأول');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL), '0.004'); });
+    expect(screen.getByTestId('payout_installment_error')).toHaveTextContent('اكتب قسط أكبر من صفر.');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL), '950'); });
+    expect(screen.getByTestId('payout_installment_save').props.accessibilityHint).toBeUndefined();
+  });
+
+  it('الكارت: شيت "المبلغ مختلف" — سطر قسطك ليه اسم بقناع لقارئ الشاشة', async () => {
+    privacy.amountsHidden = true;
+    mockData.gamiyas = [payoutToday(1000)];
+    await render(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByLabelText('"جمعية الشغل" المبلغ مختلف')); });
+    const line = screen.getByTestId('charge_amount_installment_line');
+    expect(line.props.accessible).toBe(true);
+    expect(line.props.accessibilityLabel).toContain('مبلغ مخفي');
+  });
+
+  it('الكارت: badInstallment من الشيت ← الشيت بيفضل مفتوح والقسط المكتوب ما يضيعش', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockData.gamiyas = [payoutToday(NaN)];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'done', recorded: [], badInstallment: true }));
+    await render(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByTestId('charge_card_yes_g1')); });
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL), '950'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('charge_amount_save')); });
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(CHARGE_BAD_INSTALLMENT_ALERT.title, CHARGE_BAD_INSTALLMENT_ALERT.body));
+    expect(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL).props.value).toBe('950');
+    alert.mockRestore();
+  });
+
+  it('الكارت: القسط بقى مقروء والشيت مفتوح (M1 ← amount-changed) ← الشيت بيتحدّث بالقسط والإعادة بتبعته كـseenInstallment', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockData.gamiyas = [payoutToday(NaN)];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'amount-changed', recorded: [] }));
+    const view = await render(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByTestId('charge_card_yes_g1')); });
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(PAYOUT_INSTALLMENT_INPUT_LABEL), '950'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('charge_amount_save')); });
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.title, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.body));
+    mockData.gamiyas = [payoutToday(1000)];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'done', recorded: ['m1'] }));
+    await view.rerender(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+    expect(screen.getByTestId('charge_amount_installment_line')).toBeTruthy();
+    await act(async () => { fireEvent.press(screen.getByTestId('charge_amount_save')); });
+    expect(mockData.recordCharges).toHaveBeenCalledWith('gamiya', 'g1', [{ key: 'm1', amount: 2000, seenInstallment: 1000 }]);
+    alert.mockRestore();
   });
 });

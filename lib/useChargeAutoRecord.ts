@@ -194,6 +194,15 @@ export function useChargeAutoRecord() {
                 ? `ما سجلناش ${what}: المحفظة بتاعته اتأرشفت أو اتمسحت، ومفيش أي خصم اتسجل. اختارله محفظة شغالة من الالتزامات ← ${d.kind === 'subscription' ? 'الاشتراكات' : 'الجمعية'}.`
                 : `ما سجلناش ${what} دلوقتي، ومفيش أي خصم اتسجل. هنجرب تاني أول ما ترجع للتطبيق.`,
             });
+          } else if (r.outcome === 'done') {
+            // اتسجل صفر ومن غير badAmount (اتقال فوق): السبب بيتسجل باسمه بس — مش بيعدّي ساكت (الجولة 2، hardening)
+            if (!r.badAmount) {
+              const why = r.badInstallment ? 'bad-installment' : r.changed ? 'changed' : r.stopped ? 'stopped' : r.skipped ? 'skipped' : 'already-recorded';
+              console.warn('[charge] auto recorded nothing', why);
+            }
+          } else {
+            // نتيجة التلقائي مبيتوقعهاش (مثلاً amount-changed — التلقائي مبيبعتش أرقام شافها). اسمها بس، من غير أرقام
+            console.warn('[charge] auto unhandled outcome', r.outcome);
           }
         }
       } catch (e) {
