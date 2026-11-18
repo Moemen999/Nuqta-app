@@ -5,6 +5,7 @@ import {
   chargeDateLabel, chargeRecordedMessage, chargeRecordedNotification, chargeRecordedPart, gamiyaOpenCharges,
   subscriptionOpenCharges, type OpenCharge,
 } from '@/lib/autoCharge';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { todayStr } from '@/lib/finance';
 import { notifyNow } from '@/lib/notifications';
 import { INCOME_RETRY_MS, type IncomeNotice } from '@/lib/useIncomeAutoRecord';
@@ -79,6 +80,26 @@ export function useChargeAutoRecord() {
         for (const d of due) {
           const r = await recordCharges(d.kind, d.id, d.charges.map(c => ({ key: c.key, amount: c.amount })), { auto: true });
           if (r.outcome === 'no-connection') { retry = true; continue; }
+          // اتمسح (من جهاز تاني) — مفيش حاجة تتسجل ولا تتقال
+          if (r.outcome === 'missing') continue;
+          const what = d.kind === 'subscription' ? `اشتراك "${d.name}"` : `قسط جمعية "${d.name}"`;
+          if (r.outcome === 'uncertain') {
+            // الذرة فشلت وسؤال السيرفر كمان (مراجعة 2026-11-17): ممنوع "ومفيش أي خصم اتسجل" — ممكن يكون اتسجل.
+            // وبنعيد بعد دقيقة: التسجيل ذري بمعرّف ثابت، فلو كان وصل الإعادة مبتكتبش حاجة
+            retry = true;
+            const id = `uncertain:${d.id}:${today}`;
+            if (shownErrors.current.has(id)) continue;
+            shownErrors.current.add(id);
+            if (notificationsOn) {
+              notifyNow(`مش متأكدين سجلنا ${what} ولا لأ`, 'النت قطع واحنا بنسجّل. افتح الأرشيف وبص قبل ما تسجّله بإيدك.', 'charge')
+                .catch(e => console.warn('[charge] notify failed', e));
+            }
+            found.push({
+              id, kind: 'error',
+              text: `مش متأكدين سجلنا ${what} ولا لأ — النت قطع واحنا بنسجّل. افتح الأرشيف وبص الأول، ولو مش موجود سجّله بإيدك، عشان ميتخصمش مرتين.`,
+            });
+            continue;
+          }
           if (r.outcome === 'done' && r.recorded.length > 0) {
             parts.push(chargeRecordedPart(d.kind, d.name, r.recorded.map(d.labelOf)));
             recordedIds.push(`${d.id}:${r.recorded.join(',')}`);
@@ -87,7 +108,6 @@ export function useChargeAutoRecord() {
             const id = `err:${d.id}:${r.outcome}:${today}`;
             if (shownErrors.current.has(id)) continue;
             shownErrors.current.add(id);
-            const what = d.kind === 'subscription' ? `اشتراك "${d.name}"` : `قسط جمعية "${d.name}"`;
             // "تلقائي" معناه إن المستخدم مش هيفتح يتأكد — فالفشل لازم يوصله زي النجاح
             // (مرة في اليوم، زي الرسالة). من غير مبلغ، فمش محتاج قناع
             if (notificationsOn) {
@@ -102,6 +122,11 @@ export function useChargeAutoRecord() {
             });
           }
         }
+      } catch (e) {
+        // `recordCharges` بيرجّع نتيجة دايمًا؛ ده لو رمى غصب عنه (باگ) — مبيتبلعش: Sentry + إعادة بعد دقيقة
+        console.warn('[charge] auto record threw', e);
+        reportAtomicFailure('الخصم التلقائي', e);
+        retry = true;
       } finally {
         if (parts.length > 0) {
           const text = chargeRecordedMessage(parts);

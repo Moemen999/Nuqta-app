@@ -33,6 +33,8 @@ export const ENTRY_MESSAGES = {
   // D-B (2026-10-28): اتعادت كتابتها — القديمة ("راجع البيانات — …") مكانتش بتقول تعمل إيه
   payoutMonth: 'خانة "هتستلم في الشهر رقم كام؟" لازم يبقى فيها رقم صحيح من 1 لحد "عدد الشهور الكلي"، من غير كسور. اكتب رقم الشهر اللي هتستلم فيه، زي 6.',
   totalMonths: `"عدد الشهور الكلي" لازم يبقى رقم صحيح بين 1 و${GAMIYA_MAX_MONTHS}. اكتب عدد شهور الجمعية، زي 12.`,
+  // بند D (2026-11-17): النسخة اللي فيها التاريخ بتتبني في `dueInsideClosedPeriod`
+  nextDueDate: 'المعاد ده جوه فترة اتقفلت خلاص (اتسجلت أو فوّتّها)، فكان هيخلّي نفس الفترة تتخصم مرتين. اختار معاد بعد آخر فترة اتقفلت.',
 } as const;
 
 export type EntryField = keyof typeof ENTRY_MESSAGES;
@@ -99,3 +101,11 @@ export const LEGACY_VALUE_NOTE = 'فيه قيمة قديمة برّه الحدو
 export const legacyNote = (problem: EntryInvalid | null) => (problem ? `${LEGACY_VALUE_NOTE} ${problem.message}` : '');
 
 export { storableAmount };
+
+/** بند D: المعاد الجديد قبل `floor` (`subscriptionDueFloor`) ← بيترفض برسالة فيها أقرب معاد ينفع */
+export function dueInsideClosedPeriod(floorLabel: string): EntryInvalid {
+  return {
+    outcome: 'invalid', field: 'nextDueDate',
+    message: `المعاد الجديد لازم يبقى ${floorLabel} أو بعده. اللي قبله فترة اتقفلت خلاص (اتسجلت أو فوّتّها)، ومعاد جواها كان هيخلّي نفس الفترة تتخصم مرتين.`,
+  };
+}

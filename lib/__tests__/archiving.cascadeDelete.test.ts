@@ -44,6 +44,13 @@ describe('معرّفات العمليات لكل نوع', () => {
   it('الاشتراك: الدفعات اللي ليها عملية بس', () => {
     expect(subscriptionTransactionIds(sub)).toEqual(['t_s1', 't_s2']);
   });
+  it('الاشتراك (بند H): + عمليات closed + أي عملية عليها subscriptionId، من غير تكرار', () => {
+    const s = {
+      ...sub, id: 's', closed: { '2026-01-01': { txId: 't_s1', at: 'a' }, '2026-02-01': { txId: 't_closed_only', at: 'a' }, '2026-03-01': { skipped: true, at: 'a' } },
+    } as unknown as Subscription;
+    expect(subscriptionTransactionIds(s, [{ id: 't_stray', subscriptionId: 's' }, { id: 'other', subscriptionId: 'x' }, { id: 't_s2', subscriptionId: 's' }]))
+      .toEqual(['t_s1', 't_s2', 't_closed_only', 't_stray']);
+  });
   it('الجمعية: الشهور اللي ليها عملية بس', () => {
     expect(gamiyaTransactionIds(gam)).toEqual(['t_g1']);
   });

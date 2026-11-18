@@ -445,8 +445,21 @@ export function debtTransactionIds(d: Pick<Debt, 'initialTransactionId' | 'payme
   ].filter((x): x is string => !!x);
 }
 
-export function subscriptionTransactionIds(s: Pick<Subscription, 'history'> | undefined): string[] {
-  return (s?.history || []).map(h => h.transactionId).filter((x): x is string => !!x);
+/**
+ * كل عمليات الاشتراك (بند H، 2026-11-17): من `history`، ومن `closed` (عملية قفلت فترة وسطرها ضاع من `history`)،
+ * ولو اتبعتت `transactions`: أي عملية عليها `subscriptionId` بتاعه — مسح الاشتراك كان بيسيبهم يتامى بيحرّكوا الرصيد.
+ */
+export function subscriptionTransactionIds(
+  s: (Pick<Subscription, 'history'> & { id?: string; closed?: Record<string, { txId?: string }> }) | undefined,
+  transactions: { id: string; subscriptionId?: string }[] = [],
+): string[] {
+  if (!s) return [];
+  const ids = [
+    ...(s.history || []).map(h => h.transactionId),
+    ...Object.values(s.closed || {}).map(c => c?.txId),
+    ...(s.id ? transactions.filter(t => t.subscriptionId === s.id).map(t => t.id) : []),
+  ].filter((x): x is string => typeof x === 'string' && !!x);
+  return [...new Set(ids)];
 }
 
 export function gamiyaTransactionIds(g: Pick<Gamiya, 'months'> | undefined): string[] {
@@ -472,7 +485,14 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
   gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
-export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading'; title: string; body: string };
+export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight'; title: string; body: string };
+
+/** بند H: خصم شغال على نفس الاشتراك ("سدّد"/الكارت/التلقائي) ← المسح بيستنى لحد ما يخلص */
+export const CHARGE_IN_FLIGHT_DELETE_BLOCK: CascadeDeleteBlock = {
+  reason: 'charge-in-flight',
+  title: 'استنى ثواني',
+  body: 'فيه خصم بيتسجل للاشتراك ده دلوقتي. استنى لحد ما يخلص وبعدين امسح.',
+};
 
 /**
  * هل مسح السجل ده بعملياته هيحرّك رصيد محفظة مؤرشفة؟ `null` = المسح آمن.

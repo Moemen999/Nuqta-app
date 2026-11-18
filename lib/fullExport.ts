@@ -103,7 +103,7 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
       Id: x.id, Name: x.name, Amount: x.amount, WalletId: x.walletId, Wallet: walletName(x.walletId),
       CategoryId: s(x.categoryId), Category: categoryName(x.categoryId), Frequency: x.frequency, CustomDays: n(x.customDays),
       NextDueDate: x.nextDueDate, ReminderDaysBefore: x.reminderDaysBefore, Active: x.active !== false,
-      ChargeMode: s(x.chargeMode) || 'confirm', ChargeAutoSince: s(x.chargeAutoSince), CreatedAt: x.createdAt,
+      ChargeMode: s(x.chargeMode) || 'confirm', ChargeAutoSince: s(x.chargeAutoSince), AnchorDay: n(x.anchorDay), CreatedAt: x.createdAt,
     })) },
     { name: 'SubscriptionPayments', rows: d.subscriptions.flatMap(x => byDate(x.history || []).map(p => ({
       SubscriptionId: x.id, Subscription: x.name, Id: p.id, Date: p.date, Amount: p.amount,
@@ -176,7 +176,7 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   ResidueIncreasesTotal: 'مجموع الزيادات وقت حساب الفرق', ResidueLastAbsorbs: 'الفرق متضاف على آخر قسط', DueDate: 'المعاد',
   ReminderDaysBefore: 'التذكير قبل المعاد (أيام)', InitialWalletId: 'معرّف محفظة البداية', InitialTransactionId: 'معرّف عملية البداية',
   DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
-  NextDueDate: 'المعاد الجاي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
+  NextDueDate: 'المعاد الجاي', AnchorDay: 'يوم المعاد الأصلي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
   Auto: 'اتسجلت لوحدها', Skipped: 'اتفوّتت', Reopened: 'رجعت تسأل', At: 'اتقفلت في', MonthlyAmount: 'القسط الشهري',
   TotalMonths: 'عدد الشهور', PayoutMonthIndex: 'رقم شهر الاستلام', PayoutAmount: 'مبلغ الاستلام', StartDate: 'تاريخ البداية',
   MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',

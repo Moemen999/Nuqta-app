@@ -4,7 +4,7 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, PERIOD_CHANGED_ALERT, useData, type Subscription } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, PAY_OUTCOME_ALERT, PERIOD_CHANGED_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { CUSTOM_DAYS_FIELD, CUSTOM_FREQUENCY_BUTTON, frequencyLabel } from '@/lib/frequencyLabel';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
@@ -56,6 +56,17 @@ export const SUBSCRIPTION_RESUME_FAIL_ALERT = {
   },
 };
 
+/**
+ * مرات متأخرة لسه ما اتسجلتش هتتشال لو المعاد اتقدّم لـ`next` (أو لو الاشتراك اتوقف ورجع) — الجدول بيبدأ من المعاد
+ * الجديد. اللي رجعت تسأل مبتتشالش (بتسأل لوحدها). مصدر واحد للإيقاف والتعديل (بند D، 2026-11-17).
+ */
+function overdueDroppedCount(s: Subscription, next?: string) {
+  return subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened && (next === undefined || c.key < next)).length;
+}
+function overduePhrase(n: number) {
+  return n === 1 ? 'مرة متأخرة' : `${n} مرات متأخرة`;
+}
+
 export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
@@ -81,9 +92,9 @@ export default function SubscriptionsView() {
   function confirmStop(s: Subscription) {
     // مرة متأخرة لسه ما اتسجلتش ← الرجوع بعدين بيبدأ من المعاد الجاي فهتتشال، فلازم تتقال دلوقتي
     // (money-reviewer، جولة 1)
-    const overdue = subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened).length;
+    const overdue = overdueDroppedCount(s);
     const overdueLine = overdue > 0
-      ? ` عليه ${overdue === 1 ? 'مرة متأخرة' : `${overdue} مرات متأخرة`} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
+      ? ` عليه ${overduePhrase(overdue)} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
       : '';
     confirm('توقّف الاشتراك ده مؤقتًا؟', `"${s.name}" مش هيتخصم ولا هيفكّرك بيه لحد ما ترجّعه. الدفعات اللي اتسجلت بتفضل زي ما هي.${overdueLine}`, [
       { text: 'إلغاء', style: 'cancel' },
@@ -114,7 +125,8 @@ export default function SubscriptionsView() {
 
   /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
-    const txIds = subscriptionTransactionIds(s);
+    // بند H: كل عمليات الاشتراك (history + closed + subscriptionId) — نفس اللي المسح بيمسحه
+    const txIds = subscriptionTransactionIds(s, transactions);
     const blocked = cascadeDeleteBlock({ kind: 'subscription', name: s.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // المسح بيشيل كل الدفعات اللي اتسجلت والرصيد بيتحرك — التأكيد لازم يقول كده
@@ -158,7 +170,12 @@ export default function SubscriptionsView() {
           // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
           // + الفترة اللي في الجملة: لو جهاز تاني قفلها، الذرة بترفض (period-changed) بدل ما تقفل اللي بعدها
           const outcome = await markSubscriptionPaid(s.id, todayStr(), s.amount, periodKey);
-          if (outcome === 'amount-changed') {
+          if (outcome === 'missing') {
+            notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
+          } else if (outcome === 'uncertain') {
+            // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتخصم مرتين)
+            notice(CHARGE_UNCERTAIN_ALERT.title, CHARGE_UNCERTAIN_ALERT.body);
+          } else if (outcome === 'amount-changed') {
             notice(AMOUNT_CHANGED_ALERT.subscription.title, AMOUNT_CHANGED_ALERT.subscription.body);
           } else if (outcome === 'period-changed') {
             notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
@@ -441,6 +458,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const { wallets, categories, updateSubscription } = useData();
   const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
+  const confirm = useConfirm();
 
   const [name, setName] = useState(sub.name);
   const [amount, setAmount] = useState(String(sub.amount));
@@ -469,12 +487,26 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
       categoryId: categoryId ?? undefined,
       frequency,
       customDays: frequency === 'custom' ? parseEntryNumber(customDays) : undefined,
-      nextDueDate,
+      // بند D (2026-11-17): المعاد بيتبعت بس لو اتغيّر — تعديل الاسم مثلاً مبيلمسش الجدول
+      ...(nextDueDate !== sub.nextDueDate ? { nextDueDate } : {}),
       reminderDaysBefore: parseEntryNumber(reminderDays),
       chargeMode,
     };
     const problem = subscriptionEntryProblem(data);
     if (problem) { setError(problem.message); return; }
+    // المعاد اتقدّم بعد مرات متأخرة لسه ما اتسجلتش ← هتتشال، فلازم تتقال قبل الحفظ (نفس تأكيد الإيقاف)
+    const dropped = nextDueDate > sub.nextDueDate ? overdueDroppedCount(sub, nextDueDate) : 0;
+    if (dropped > 0) {
+      confirm('تغيّر المعاد؟', `عليه ${overduePhrase(dropped)} لسه ما اتسجلتش قبل المعاد الجديد — مش هتتسجل ومش هنسألك عنها تاني. لو اتخصمت فعلاً، سجّلها أو فوّتها من "مستنيين ردك" الأول.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'غيّر المعاد', onPress: () => { save(data); } },
+      ]);
+      return;
+    }
+    await save(data);
+  }
+
+  async function save(data: Partial<Subscription>) {
     await runBusy(async () => {
       try {
         const result = await updateSubscription(sub.id, data);
@@ -552,7 +584,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           )}
 
           <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity testID="subscription_edit_due" accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
           </TouchableOpacity>
 

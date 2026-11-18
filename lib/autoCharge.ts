@@ -1,4 +1,4 @@
-import { addDays, addMonths, fmt, isDateStr } from '@/lib/finance';
+import { addDays, addMonthsAnchored, fmt, isDateStr } from '@/lib/finance';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
 import { dueDateLabel } from '@/lib/reopenDue';
 import { namedLabel } from '@/lib/writeError';
@@ -48,6 +48,12 @@ export type SubscriptionLike = {
   active?: boolean;
   chargeMode?: ChargeMode;
   chargeAutoSince?: string;
+  /**
+   * يوم الشهر الأصلي (1–31) للشهري والسنوي — بند C (2026-11-17). بيتكتب مع الإضافة ومع تعديل المعاد،
+   * وفي أول كتابة بتحرّك المعاد على اشتراك قديم. **القديم اللي معاده اتقصّ قبل كده (31 ← 28) مبيرجعش**:
+   * اليوم الأصلي ماكانش متخزّن في أي حتة، فبنكمّل من المعاد المتخزّن.
+   */
+  anchorDay?: number;
   closed?: Record<string, ChargeClosed>;
 };
 
@@ -74,10 +80,36 @@ export type GamiyaLike = {
 /** فترة مفتوحة: مفتاحها، ومبلغها المعتاد، ولو ينفع تتسجل لوحدها */
 export type OpenCharge = { key: string; due: string; amount: number; autoOk: boolean };
 
-export function subscriptionNextCycle(sub: Pick<SubscriptionLike, 'frequency' | 'customDays'>, date: string) {
-  return sub.frequency === 'monthly' ? addMonths(date, 1)
-    : sub.frequency === 'yearly' ? addMonths(date, 12)
-    : addDays(date, sub.customDays || 30);
+/** يوم صالح من 1 لـ31 ولا لأ */
+export function validAnchorDay(x: unknown): x is number {
+  return typeof x === 'number' && Number.isInteger(x) && x >= 1 && x <= 31;
+}
+
+/**
+ * اليوم الأصلي للاشتراك: المتخزّن لو صالح، وإلا يوم `nextDueDate` المتخزّن (اشتراك قديم)، وإلا يوم `fallback`.
+ */
+export function subscriptionAnchorDay(sub: { anchorDay?: number; nextDueDate?: string }, fallback?: string): number | undefined {
+  if (validAnchorDay(sub.anchorDay)) return sub.anchorDay;
+  const from = isDateStr(sub.nextDueDate) ? sub.nextDueDate : isDateStr(fallback) ? fallback : undefined;
+  return from ? Number(from.slice(8, 10)) : undefined;
+}
+
+/**
+ * `anchorDay` لكتابة بتحرّك المعاد: لو الاشتراك لسه مالوش (قديم)، بيتثبّت من المعاد **قبل** ما يتحرّك —
+ * غير كده أول 28 فبراير كان هيبقى هو اليوم الأصلي.
+ */
+export function anchorDayPatch(sub: { anchorDay?: number; nextDueDate?: string; frequency?: string }): { anchorDay?: number } {
+  if (validAnchorDay(sub.anchorDay) || sub.frequency === 'custom') return {};
+  const day = subscriptionAnchorDay(sub);
+  return day ? { anchorDay: day } : {};
+}
+
+export function subscriptionNextCycle(
+  sub: Pick<SubscriptionLike, 'frequency' | 'customDays'> & { anchorDay?: number; nextDueDate?: string }, date: string,
+) {
+  if (sub.frequency === 'custom') return addDays(date, sub.customDays || 30);
+  const months = sub.frequency === 'yearly' ? 12 : 1;
+  return addMonthsAnchored(date, months, subscriptionAnchorDay(sub, date) ?? Number(date.slice(8, 10)));
 }
 
 /**
@@ -92,8 +124,12 @@ export function subscriptionResumeDate(sub: Pick<SubscriptionLike, 'frequency' |
   return d && d >= today ? d : today;
 }
 
-function autoAllowed(mode: ChargeMode | undefined, since: string | undefined, due: string) {
-  return mode === 'auto' && !!since && due >= since;
+/**
+ * `amount`: مبلغ متخزّن بايظ (مش رقم محدود أكبر من صفر) على "تلقائي" كان بيتفوّت ساكت في `recordCharges` — والكارت
+ * كمان مستخبي لأنه "تلقائي". دلوقتي مبيتسجلش لوحده وبيرجع يسأل (الكارت بيظهر)، فالمستخدم بيشوفه.
+ */
+function autoAllowed(mode: ChargeMode | undefined, since: string | undefined, due: string, amount: unknown) {
+  return mode === 'auto' && !!since && due >= since && typeof amount === 'number' && Number.isFinite(amount) && amount > 0;
 }
 
 /**
@@ -110,7 +146,7 @@ export function subscriptionOpenCharges(sub: SubscriptionLike, today: string): O
   if (sub.active === false) return out.sort((a, b) => a.key.localeCompare(b.key)).slice(0, CHARGE_CATCHUP_MAX);
   let d = sub.nextDueDate;
   for (let i = 0; i < LOOP_GUARD && d && d <= today; i++) {
-    if (!closed[d]) out.push({ key: d, due: d, amount: sub.amount, autoOk: autoAllowed(sub.chargeMode, sub.chargeAutoSince, d) });
+    if (!closed[d]) out.push({ key: d, due: d, amount: sub.amount, autoOk: autoAllowed(sub.chargeMode, sub.chargeAutoSince, d, sub.amount) });
     d = subscriptionNextCycle(sub, d);
   }
   return out.sort((a, b) => a.key.localeCompare(b.key)).slice(0, CHARGE_CATCHUP_MAX);
@@ -146,6 +182,16 @@ export function subscriptionKeyOpen(sub: SubscriptionLike, key: string) {
   return key >= sub.nextDueDate;
 }
 
+/**
+ * أقرب معاد ينفع الاشتراك يتنقل له في التعديل (بند D، 2026-11-17): بعد آخر فترة اتقفلت (اتسجلت أو اتفوّتت).
+ * معاد قبله بيقع جوه فترة اتقفلت ← مفتاح جديد لنفس الفترة ← خصم مرتين. `null` = مفيش فترة اتقفلت، أي معاد ماشي.
+ */
+export function subscriptionDueFloor(sub: SubscriptionLike): string | null {
+  const keys = Object.entries(sub.closed || {}).filter(([k, c]) => !c.reopened && isDateStr(k)).map(([k]) => k).sort();
+  if (keys.length === 0) return null;
+  return subscriptionNextCycle(sub, keys[keys.length - 1]);
+}
+
 /** بعد ما فترات اتقفلت: `nextDueDate` يعدّي أي فترة مقفولة وراه على طول */
 export function subscriptionAdvance(sub: SubscriptionLike, closed: Record<string, ChargeClosed>) {
   let d = sub.nextDueDate;
@@ -161,7 +207,7 @@ export function gamiyaOpenCharges(g: GamiyaLike, today: string): OpenCharge[] {
     .slice(0, CHARGE_CATCHUP_MAX)
     .map(m => ({
       key: m.id, due: m.dueDate, amount: m.amount,
-      autoOk: !m.isPayoutMonth && !m.reopened && autoAllowed(g.chargeMode, g.chargeAutoSince, m.dueDate),
+      autoOk: !m.isPayoutMonth && !m.reopened && autoAllowed(g.chargeMode, g.chargeAutoSince, m.dueDate, m.amount),
     }));
 }
 

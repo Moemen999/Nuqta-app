@@ -4,7 +4,8 @@ import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import {
-  PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type ChargeKind, type Gamiya, type Subscription,
+  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PERIOD_CHANGED_ALERT, useData,
+  type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -13,7 +14,7 @@ import { todayStr, walletHistoryName } from '@/lib/finance';
 import { MONEY_MASK } from '@/lib/money';
 import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
-import { useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
@@ -78,6 +79,35 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
     ...(payouts.length ? [{ ...base, charges: payouts, payout: true }] : []),
   ];
 }
+
+/** الكارت اتدَس على فترة اتقفلت "ما اتخصمش" من جهاز تاني — مش "اتسجلت قبل كده" (مفيش خصم اتسجل) */
+export const CHARGE_SKIPPED_ELSEWHERE_ALERT = {
+  title: 'اتقفلت إنها ما اتخصمتش',
+  body: 'المرة دي اتقفلت قبل كده على إنها ما اتخصمتش (يمكن من جهاز تاني)، فما سجلناش خصم. لو اتخصم فعلاً، سجّله مصروف عادي من "+".',
+};
+/** "ما اتخصمش" على فترة اتسجل عليها خصم فعلاً — ممنوع "مش هنسجل خصم" والخصم موجود */
+export const SKIP_ALREADY_RECORDED_ALERT = {
+  title: 'اتسجل عليها خصم خلاص',
+  body: 'المرة دي اتسجل عليها خصم قبل كده (يمكن من جهاز تاني)، فما غيّرناش حاجة. لو ما اتخصمش فعلاً، امسح العملية من الأرشيف.',
+};
+export const SKIP_STOPPED_ALERT = {
+  title: 'الاشتراك ده اتوقف',
+  body: 'اتوقف من جهاز تاني، فما غيّرناش حاجة.',
+};
+export const SKIP_UNCERTAIN_ALERT = {
+  title: 'مش متأكدين اتحفظ ولا لأ',
+  body: 'النت قطع واحنا بنحفظ. لو الكارت لسه موجود في "مستنيين ردك"، جرّب تاني.',
+};
+/** المبلغ المتخزّن مش رقم صالح (بيانات قديمة) — ما اتسجلش، والمستخدم يكتب المبلغ بنفسه */
+export const CHARGE_BAD_AMOUNT_ALERT = {
+  title: 'المبلغ مش مقروء',
+  body: 'المبلغ المتسجل مش رقم صالح، فما اتسجلش أي خصم. دوس "المبلغ مختلف" واكتب المبلغ اللي اتخصم.',
+};
+/** الجمعية: الشهر مابقاش مستني ردك (اتغيّر من جهاز تاني) */
+const GAMIYA_CHANGED_ALERT = {
+  title: 'الجمعية اتغيّرت',
+  body: 'الشهر ده اتغيّر من جهاز تاني، فما اتسجلش حاجة. راجعه تاني.',
+};
 
 /** اشتراك فترته من شهر فات: التأكيد بإيدك بيتسجل بتاريخ النهاردة (قرار مؤمن 2026-11-12) فبيتحسب على الشهر ده */
 export const SUB_RECORDS_TODAY_HINT = 'هيتسجل بتاريخ النهاردة، فهيتحسب على الشهر ده';
@@ -150,7 +180,8 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
-  const { busyKey, run } = useBusyKey();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي) — نفس شاشة الاشتراكات
+  const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
   const pending = usePendingCharges().filter(p => !kind || p.kind === kind);
@@ -163,14 +194,39 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
     let ok = false;
     await run(busyId(p), async () => {
       const r = await recordCharges(p.kind, p.id, [{ key: charge.key, amount }]);
+      // اتمسح من جهاز تاني ← مفيش حاجة تتعاد، فالشيت بيتقفل
+      if (r.outcome === 'missing') {
+        ok = true;
+        notice(CHARGE_MISSING_ALERT[p.kind].title, CHARGE_MISSING_ALERT[p.kind].body);
+        return;
+      }
+      // ممكن يكون اتسجل — الشيت بيتقفل عشان "اتخصم" تاني ميتداسش قبل ما يبص في الأرشيف
+      if (r.outcome === 'uncertain') {
+        ok = true;
+        notice(CHARGE_UNCERTAIN_ALERT.title, CHARGE_UNCERTAIN_ALERT.body);
+        return;
+      }
       if (r.outcome !== 'done') {
         notice(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
         return;
       }
       ok = true;
-      // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال
+      // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال **السبب الحقيقي**
       if (r.recorded.length === 0 && r.stopped) {
         notice('الاشتراك ده اتوقف', 'اتوقف من جهاز تاني، فما اتسجلش أي خصم. لو عايز تسجّله، رجّعه من شاشة الاشتراكات الأول.');
+        return;
+      }
+      if (r.recorded.length === 0 && r.skipped) {
+        notice(CHARGE_SKIPPED_ELSEWHERE_ALERT.title, CHARGE_SKIPPED_ELSEWHERE_ALERT.body);
+        return;
+      }
+      if (r.recorded.length === 0 && r.badAmount) {
+        notice(CHARGE_BAD_AMOUNT_ALERT.title, CHARGE_BAD_AMOUNT_ALERT.body);
+        return;
+      }
+      if (r.recorded.length === 0 && r.changed) {
+        const m = p.kind === 'subscription' ? PERIOD_CHANGED_ALERT : GAMIYA_CHANGED_ALERT;
+        notice(m.title, m.body);
         return;
       }
       if (r.recorded.length === 0) {
@@ -191,8 +247,14 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         onPress: () => {
           run(busyId(p), async () => {
             const r = await skipSubscriptionCharge(p.id, charge.key);
-            if (r !== 'done') notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
-            else AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
+            // بند E (2026-11-17): كل نتيجة بتقول اللي حصل فعلاً — "مش هنسجل خصم" بس لما الفترة اتقفلت فعلاً من غير خصم
+            if (r === 'done') AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
+            else if (r === 'already-recorded') notice(SKIP_ALREADY_RECORDED_ALERT.title, SKIP_ALREADY_RECORDED_ALERT.body);
+            else if (r === 'stopped') notice(SKIP_STOPPED_ALERT.title, SKIP_STOPPED_ALERT.body);
+            else if (r === 'missing') notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
+            else if (r === 'period-changed') notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
+            else if (r === 'uncertain') notice(SKIP_UNCERTAIN_ALERT.title, SKIP_UNCERTAIN_ALERT.body);
+            else notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
           });
         },
       },

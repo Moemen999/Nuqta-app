@@ -9,17 +9,17 @@ import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
-  cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  CHARGE_IN_FLIGHT_DELETE_BLOCK, cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
   type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
 import { buildFeedbackDoc, type FeedbackType } from '@/lib/feedback';
 import { debtLinkedEditPlan, debtRoleOf, installmentEditMessage, linkedEditAlreadyApplied, storableAmount, type LinkedEditNext } from '@/lib/linkedEdit';
 import {
-  gamiyaEntryProblem, invalidEntry, subscriptionEntryProblem, validReminderDays, type EntrySaveResult,
+  dueInsideClosedPeriod as dueInsideClosedPeriodEntry, gamiyaEntryProblem, invalidEntry, subscriptionEntryProblem, validReminderDays, type EntrySaveResult,
 } from '@/lib/entryValidation';
 import {
-  addDays, addMonths, debtGrandTotal, debtPaid, debtRemaining,
+  addDays, addMonths, addMonthsAnchored, debtGrandTotal, debtPaid, debtRemaining,
   installmentChangeMessage, installmentCountAfterPayment, installmentCountFor, installmentIncreaseMessage, isDateStr, pinInstallmentAmount, reopenedDueDate,
   foldInstallmentResidue, stampResidue, transactionDeleteDebtPlan, debtLinkWarning, increaseLeftoverChoice, residueForIncrease, sameLeftoverSeen, type LeftoverMode, type LeftoverSeen, installmentResidueIgnored, installmentResidueKnown, storableCount, toMoneyAmount, installmentValue, planInstallmentCountEdit, planInstallments, PIASTRE_EPS, roundMoney, suggestedInstallmentPayment, todayStr,
 } from '@/lib/finance';
@@ -37,8 +37,8 @@ import {
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
 import {
-  chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionManualKey, subscriptionNextCycle, subscriptionOpenCharges, subscriptionResumeDate,
-  subscriptionTxId, type ChargeClosed, type ChargeMode,
+  anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
+  subscriptionOpenCharges, subscriptionResumeDate, subscriptionTxId, type ChargeClosed, type ChargeMode,
 } from '@/lib/autoCharge';
 import {
   SETUP_LATE_DONE_MESSAGE, SETUP_OTHER_MESSAGE, createdBeforeSetupFeature, setupCategoryIcon, setupDoneKey, setupFingerprint, validateSetupChoice,
@@ -189,6 +189,29 @@ export type GamiyaEdit = Partial<Pick<Gamiya, 'name' | 'walletId' | 'reminderDay
 /** نتيجة `deleteWallet`/`archiveWallet` — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
 export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
 
+/**
+ * وقت كتابة **فريد على الجهاز ده**: نفس `toISOString` بس لو اتطلب مرتين في نفس الملّي ثانية التاني بيتزق ملّي.
+ * بصمة الكتابة (`at`/`createdAt`) في الاشتراك والجمعية بتتقارن عشان نعرف "دي كتابتنا اللي وصلت" (بند A/B) —
+ * نداءين متوازيين في نفس الملّي ثانية (تلقائي + تلقائي) كانوا هياخدوا نفس البصمة والتاني يفتكر كتابة الأول بتاعته.
+ * بين جهازين: نفس الملّي ثانية **ونفس الفترة** — مش واقعي، ولو حصل النتيجة "اتسجلت" وهي فعلاً اتسجلت مرة واحدة.
+ */
+let lastStampMs = 0;
+function uniqueStamp() {
+  lastStampMs = Math.max(Date.now(), lastStampMs + 1);
+  return new Date(lastStampMs).toISOString();
+}
+
+/** الفترة دي اتقفلت بكتابتنا إحنا (`at` بتاع المحاولة دي) على عمليتها الثابتة — مش من جهاز تاني */
+function closedByUs(c: ChargeClosed | undefined, txId: string, at: string) {
+  return !!c && !c.reopened && c.at === at && c.txId === txId;
+}
+
+/** مبلغ عملية موجودة (اتعدّلت مثلاً) — سطر التاريخ بيتكتب بيه هو، مش باللي اتبعت */
+function existingAmount(snap: { exists(): boolean; data(): any }, fallback: number): number {
+  const a = snap.exists() ? snap.data()?.amount : undefined;
+  return typeof a === 'number' && Number.isFinite(a) ? a : fallback;
+}
+
 /** المحفظة موجودة ومؤرشفة — الممسوحة مش هنا: ملهاش رصيد يتحسب أصلاً */
 async function walletArchived(t: FirestoreTransaction, walletRef: DocumentReference) {
   const snap = await t.get(walletRef);
@@ -245,6 +268,20 @@ export const PERIOD_CHANGED_ALERT = {
   title: 'الفترة اتغيّرت',
   body: 'الاشتراك ده اتغيّر من جهاز تاني، فما اتسجلش أي خصم. راجعه تاني قبل ما تسجّل.',
 };
+
+/**
+ * الذرة فشلت وسؤال السيرفر بعدها كمان فشل (مراجعة الاشتراكات 2026-11-17، نفس `PAY_OUTCOME_ALERT_DEBT.uncertain`):
+ * مش عارفين الخصم اتسجل ولا لأ، فممنوع "مفيش أي خصم اتسجل" — المستخدم كان هيعيد ويتخصم مرتين.
+ */
+export const CHARGE_UNCERTAIN_ALERT = {
+  title: 'مش متأكدين اتسجل ولا لأ',
+  body: 'النت قطع واحنا بنسجّل، فمش عارفين الخصم وصل ولا لأ. افتح الأرشيف وبص الأول، ولو مش موجود سجّله تاني — عشان ميتخصمش مرتين.',
+};
+/** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
+export const CHARGE_MISSING_ALERT = {
+  subscription: { title: 'الاشتراك ده اتمسح', body: 'اتمسح (يمكن من جهاز تاني)، فما اتسجلش أي خصم.' },
+  gamiya: { title: 'الجمعية دي اتمسحت', body: 'اتمسحت (يمكن من جهاز تاني)، فما اتسجلش حاجة.' },
+} as const;
 
 /** شهر استلام الجمعية: نفس رسالة المحفظة بس بكلام الاستلام ("خصم" هنا غلط) */
 export const GAMIYA_PAYOUT_WALLET_MISSING_ALERT = {
@@ -584,6 +621,8 @@ export type Subscription = {
   chargeMode?: ChargeMode;
   /** "تلقائي" بيسجل الفترات اللي معادها من اليوم ده بس */
   chargeAutoSince?: string;
+  /** يوم الشهر الأصلي (1–31) للشهري والسنوي — بند C (`lib/autoCharge.ts`). مش موجود = اشتراك قديم */
+  anchorDay?: number;
   /** الفترات المقفولة بمفتاح المعاد — في نفس ذرة العملية */
   closed?: Record<string, ChargeClosed>;
 };
@@ -743,7 +782,7 @@ type DataContextType = {
   }) => Promise<EntrySaveResult>;
   updateSubscription: (id: string, data: Partial<Subscription>) => Promise<EntrySaveResult>;
   deleteSubscription: (id: string) => Promise<CascadeDeleteResult>;
-  markSubscriptionPaid: (id: string, date: string, seenAmount?: number, seenKey?: string) => Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed'>;
+  markSubscriptionPaid: (id: string, date: string, seenAmount?: number, seenKey?: string) => Promise<SubscriptionPayOutcome>;
   /** وقّف/رجّع الاشتراك (2026-11-02). الرجوع بيرفض لو المحفظة مش شغالة */
   setSubscriptionActive: (id: string, active: boolean) => Promise<PayOutcome | 'missing'>;
   addGamiya: (data: {
@@ -755,9 +794,9 @@ type DataContextType = {
   deleteGamiya: (id: string) => Promise<CascadeDeleteResult>;
   markGamiyaMonthDone: (gamiyaId: string, monthId: string, seenAmount?: number) => Promise<PayOutcome | 'amount-changed'>;
   /** تسجيل فترات اشتراك/جمعية (كارت "اتخصم؟" أو التلقائي) — ذري، ومفيش فترة بتتسجل مرتين */
-  recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<IncomeRecordResult>;
+  recordCharges: (kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts?: { auto?: boolean }) => Promise<ChargeRecordResult>;
   /** "ما اتخصمش" — الفترة بتتقفل من غير عملية */
-  skipSubscriptionCharge: (id: string, key: string) => Promise<PayOutcome>;
+  skipSubscriptionCharge: (id: string, key: string) => Promise<SkipChargeOutcome>;
   addIncome: (draft: IncomeDraft & { mode: IncomeMode }) => Promise<void>;
   updateIncome: (id: string, patch: Partial<IncomeDraft & { mode: IncomeMode }>) => Promise<void>;
   setIncomeStatus: (id: string, status: IncomeStatus) => Promise<void>;
@@ -774,6 +813,27 @@ type DataContextType = {
 /** `stopped` = الاشتراك اتوقف (من جهاز تاني) ففترة مطلوبة مابقتش مفتوحة — مش "اتسجلت قبل كده" */
 export type IncomeRecordResult = { outcome: PayOutcome; recorded: string[]; stopped?: boolean };
 export type ChargeKind = 'subscription' | 'gamiya';
+
+/**
+ * نتيجة `recordCharges` (الاشتراكات والجمعية — مراجعة 2026-11-17). فوق `PayOutcome`:
+ * - `missing`: الاشتراك/الجمعية اتمسح (من جهاز تاني) — مفيش حاجة اتسجلت، ومش فشل.
+ * - `uncertain`: الذرة فشلت بعد ما ممكن تكون وصلت، وسؤال السيرفر كمان فشل — ممنوع "مفيش أي خصم اتسجل".
+ * ولما `recorded` فاضي، السبب بيتقال: `stopped` (اتوقف)، `skipped` (اتقفلت "ما اتخصمش" من جهاز تاني)،
+ * `changed` (الفترة مابقتش في الجدول — المعاد اتغيّر). من غير ولا واحد منهم = اتسجلت فعلاً قبل كده.
+ */
+export type ChargeRecordOutcome = PayOutcome | 'missing' | 'uncertain';
+export type ChargeRecordResult = {
+  outcome: ChargeRecordOutcome; recorded: string[]; stopped?: boolean; skipped?: boolean; changed?: boolean;
+  /** الفترة مفتوحة بس المبلغ اللي اتبعت (أو المتخزّن) مش رقم صالح — ما اتسجلش، ومش "اتسجلت قبل كده" */
+  badAmount?: boolean;
+};
+/** "سدّد" من شاشة الاشتراكات */
+export type SubscriptionPayOutcome = PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed' | 'missing' | 'uncertain';
+/**
+ * "ما اتخصمش": `already-recorded` = الفترة اتسجل عليها خصم فعلاً (ممنوع نقول "مش هنسجل خصم")،
+ * `stopped` = الاشتراك اتوقف، `period-changed` = الفترة مابقتش مفتوحة لسبب تاني (المعاد اتغيّر).
+ */
+export type SkipChargeOutcome = PayOutcome | 'missing' | 'already-recorded' | 'stopped' | 'period-changed' | 'uncertain';
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
@@ -960,6 +1020,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * كانت ممكن تزرع محافظ على حساب بيتمسح). مبيرجعش false غير بحساب تاني.
    */
   const deletingRef = useRef(false);
+  /**
+   * اشتراكات عليها خصم شغال دلوقتي (ذرة "سدّد"/الكارت/التلقائي) — بند H: المسح بيستنى لحد ما يخلص، غير كده
+   * العملية اللي الذرة بتكتبها كانت ممكن تفضل يتيمة بعد ما الاشتراك اتمسح.
+   */
+  const chargeInFlight = useRef(new Set<string>());
   /** نفس العلامة كحالة للشاشات (صف "مسح الحساب" بيقول "ما خلصش") — جولة 2 SHOULD-FIX 1 */
   const [deletionPending, setDeletionPending] = useState(false);
   // كاش أول فتحة باردة — اللي اتقرا من الجهاز للحساب ده (التصميم: reports/2026-11-02-cold-cache-design.md)
@@ -1884,6 +1949,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   const cascadeInputs = useRef({ wallets, transactions, loadErrors, debts });
   cascadeInputs.current = { wallets, transactions, loadErrors, debts };
+  /** آخر اشتراكات (بند H) — مسح الاشتراك بيقرا `closed`/`history` من آخر render مش من نسخة التأكيد */
+  const latestSubscriptions = useRef(subscriptions);
+  latestSubscriptions.current = subscriptions;
 
   function deleteWithTransactions(
     kind: CascadeKind, name: string, recordRef: DocumentReference, txIds: string[], label?: string,
@@ -1960,6 +2028,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // بند 1). الـbatch ده كان بيشيلها بـ`arrayRemove` من حالة الرياكت، وسطر اتعدّل من جهاز تاني كان بيفضل بعملية اتمسحت
     }
 
+    // بند (مراجعة 2026-11-17): الاشتراك والفترة من **العملية نفسها** (`subscriptionId` + `periodKey`) — سطرها في
+    // `history` عندنا ممكن يكون ناقص (التلقائي من جهاز تاني لسه ما وصلش، أو اتشال)، وكان بيسيب الفترة مقفولة على عملية
+    // اتمسحت فمبتسألش تاني. لو السطر موجود بيتشال كمان
+    const tx = transactions.find(x => x.id === txId);
+    const txSub = tx?.subscriptionId ? subscriptions.find(x => x.id === tx.subscriptionId) : undefined;
+    const txKey = typeof tx?.periodKey === 'string' && isDateStr(tx.periodKey) ? tx.periodKey : undefined;
+    if (txSub && txKey && txSub.closed?.[txKey]?.txId === txId) {
+      const row = (txSub.history || []).find(h => h.transactionId === txId);
+      const rollBack = subscriptionNextCycle(txSub, txKey) === txSub.nextDueDate;
+      batch.update(doc(db, 'users', uid, 'subscriptions', txSub.id),
+        new FieldPath('closed', txKey), { reopened: true, at: new Date().toISOString() },
+        ...(row ? ['history', arrayRemove(row)] : []),
+        ...(rollBack ? ['nextDueDate', txKey] : []));
+      return;
+    }
+
     for (const sub of subscriptions) {
       const history = sub.history || [];
       const idx = history.findIndex(h => h.transactionId === txId);
@@ -1988,8 +2072,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // لو دي آخر دفعة اتسجلت، بنرجّع موعد الاستحقاق خطوة ورا بعكس نفس المعادلة
       // اللي قدّمته. لو دفعة قديمة، الموعد الحالي لسه صح فبنسيبه زي ما هو
       const isLast = idx === history.length - 1;
-      const rolledBack = sub.frequency === 'monthly' ? addMonths(sub.nextDueDate, -1)
-        : sub.frequency === 'yearly' ? addMonths(sub.nextDueDate, -12)
+      const anchor = subscriptionAnchorDay(sub) ?? Number(sub.nextDueDate.slice(8, 10));
+      const rolledBack = sub.frequency === 'monthly' ? addMonthsAnchored(sub.nextDueDate, -1, anchor)
+        : sub.frequency === 'yearly' ? addMonthsAnchored(sub.nextDueDate, -12, anchor)
         : addDays(sub.nextDueDate, -(sub.customDays || 30));
       batch.update(doc(db, 'users', uid, 'subscriptions', sub.id), {
         history: history.filter(h => h.transactionId !== txId),
@@ -2796,8 +2881,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const { chargeMode, ...rest } = data;
     rest.amount = storableAmount(rest.amount)!;
     const clean = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
+    // بند C: اليوم الأصلي بيتخزّن من الأول، فـ31 يناير ← 28 فبراير ← 31 مارس (مش 28 للأبد)
+    const anchor = rest.frequency === 'custom' ? undefined : subscriptionAnchorDay({ nextDueDate: rest.nextDueDate });
     addDocNoWait('subscriptions', {
-      ...clean, ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()),
+      ...clean, ...(anchor ? { anchorDay: anchor } : {}), ...chargeModePatch(chargeMode ?? 'confirm', undefined, todayStr()),
       active: true, history: [], closed: {}, createdAt: new Date().toISOString(),
     }, namedLabel('الاشتراك', data.name));
     return { outcome: 'done' };
@@ -2810,14 +2897,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data.frequency === 'custom' && data.customDays === undefined ? { ...data, customDays: stored?.customDays } : data,
     );
     if (invalid) return invalid;
+    // بند D: المعاد اتغيّر فعلاً (الشاشة بتبعته بس لو اتغيّر، والفحص هنا للي بيبعته زي ما هو)
+    const dueMoved = data.nextDueDate !== undefined && data.nextDueDate !== stored?.nextDueDate;
+    if (dueMoved && stored) {
+      const floor = subscriptionDueFloor(stored);
+      if (floor && data.nextDueDate! < floor) return dueInsideClosedPeriodEntry(chargeDateLabel(floor, todayStr()));
+    }
     if (!uid) return { outcome: 'done' };
     // لازم نشيل قيم undefined — Firestore بترفضها وبترمي خطأ يمنع الحفظ كله
-    const current = subscriptions.find(s => s.id === id);
-    const { chargeMode, chargeAutoSince: _ignored, ...rest } = data;
+    const current = stored;
+    const { chargeMode, chargeAutoSince: _ignored, anchorDay: _anchor, ...rest } = data;
     if (rest.amount !== undefined) rest.amount = storableAmount(rest.amount)!;
+    if (!dueMoved) delete rest.nextDueDate;
     const clean: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
     // "تلقائي" من النهاردة بس — مش من أول ما الاشتراك اتعمل (`chargeModePatch`)
     if (chargeMode) Object.assign(clean, chargeModePatch(chargeMode, current, todayStr()));
+    if (dueMoved) {
+      // بند C: اليوم الأصلي = يوم المعاد الجديد
+      const freq = data.frequency ?? stored?.frequency;
+      if (freq !== 'custom') clean.anchorDay = Number(data.nextDueDate!.slice(8, 10));
+      // بند D: المعاد اتنقل على "تلقائي" ← الفترات الجديدة اللي معادها قبل النهاردة بتسأل مش بتتخصم لوحدها
+      // (المعاد الجديد بيفتح مفاتيح جديدة — من غير ده كانت بتتخصم تاني فوق اللي اتسجل)
+      const mode = chargeMode ?? stored?.chargeMode;
+      if (mode === 'auto') clean.chargeAutoSince = todayStr();
+    }
     track(updateDoc(doc(db, 'users', uid, 'subscriptions', id), clean), namedLabel('تعديل الاشتراك', current?.name));
     return { outcome: 'done' };
   }
@@ -2853,7 +2956,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (server.active !== false) return;
         // المحفظة اتأرشفت أو اتمسحت وهو واقف (الأرشفة مبتطلبش نقل الواقف)
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', server.walletId)))) throw new WalletMissingError();
-        t.update(ref, { active: true, nextDueDate: subscriptionResumeDate(server, todayStr()) });
+        t.update(ref, { active: true, nextDueDate: subscriptionResumeDate(server, todayStr()), ...anchorDayPatch(server) });
       }));
       return 'done';
     } catch (e) {
@@ -2863,11 +2966,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       return 'failed';
     }
   }
+  /**
+   * بند H (2026-11-17): العمليات من آخر render (`cascadeInputs`) — مش من الـclosure اللي فتح التأكيد — ومن كل مكان
+   * بيشاور عليها: `history`، و`closed` (عملية قفلت فترة وسطرها ضاع من `history`)، وأي عملية عليها `subscriptionId`.
+   * وخصم شغال على نفس الاشتراك ← المسح بيستنى: الذرة كانت هتكتب عملية بعد المسح وتفضل يتيمة.
+   * **متبقّي:** المسح دفعة أوفلاين (مش ذرة من السيرفر) — عملية تلقائي من جهاز تاني لسه ما وصلتش الـlistener مش هتتمسح.
+   */
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'done' };
-    const sub = subscriptions.find(s => s.id === id);
+    const sub = latestSubscriptions.current.find(s => s.id === id);
+    if (chargeInFlight.current.has(id)) return { outcome: 'blocked', ...CHARGE_IN_FLIGHT_DELETE_BLOCK };
     return deleteWithTransactions('subscription', sub?.name ?? '', doc(db, 'users', uid, 'subscriptions', id),
-      subscriptionTransactionIds(sub), namedLabel('حذف الاشتراك', sub?.name));
+      subscriptionTransactionIds(sub, cascadeInputs.current.transactions), namedLabel('حذف الاشتراك', sub?.name));
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.
@@ -2877,7 +2987,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * ويقف. علامة التكرار هي نفس التاريخ ونفس المبلغ (منقدرش نضيف حقل جديد من
    * غير تعديل قواعد Firestore في الكونسول).
    */
-  async function markSubscriptionPaid(id: string, date: string, seenAmount?: number, seenKey?: string): Promise<PayOutcome | 'already-paid-today' | 'stopped' | 'amount-changed' | 'period-changed'> {
+  async function markSubscriptionPaid(id: string, date: string, seenAmount?: number, seenKey?: string): Promise<SubscriptionPayOutcome> {
     if (deletingRef.current) return 'failed';
     if (!uid) return 'done';
     // من غير اتصال العملية دي مش هتعرف تشتغل أصلاً (بتقرا من السيرفر)، فبنرفض
@@ -2891,13 +3001,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!(await waitForOurWritesToLand())) return 'no-connection';
     // مفتاح الفترة بيتحسب من todayStr() بتاعة الدالة دي مش من بارامتر date، فلو حد بعت date قديم مفيش ضمان إنهم زي بعض
     const today = todayStr();
+    /**
+     * بند A/B (مراجعة 2026-11-17): `at` **برّه** الذرة — نفس القيمة في كل محاولة، فهي بصمتنا على الفترة اللي اتقفلت.
+     * فايرستور بتعيد الـcallback لما الرد يضيع والـcommit ممكن يكون وصل: الإعادة بتلاقي الفترة مقفولة ببصمتنا ← `done`
+     * (مش "اتسجل النهاردة خلاص")، ولو كل المحاولات فشلت بنسأل السيرفر عن البصمة قبل "مفيش أي خصم اتسجل".
+     */
+    const at = uniqueStamp();
+    const tried = new Set<string>();
     let paidToday = false;
+    let oursLanded = false;
+    chargeInFlight.current.add(id);
     try {
       await countPending(runTransaction(db, async (t) => {
         paidToday = false;
+        oursLanded = false;
         const snap = await t.get(subRef);
-        if (!snap.exists()) return;
+        if (!snap.exists()) throw new ChargeMissingError();
         const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
+        // محاولة قبل كده وصلت (الرد ضاع) ← دي كتابتنا، مش "اتسجل قبل كده"
+        if ([...tried].some(k => closedByUs(sub.closed?.[k], subscriptionTxId(id, k), at))) { oursLanded = true; return; }
         // واقف (ممكن من جهاز تاني والزرار لسه باين هنا) ← مفيش خصم، ونتيجة صريحة
         if (sub.active === false) throw new SubscriptionStoppedError();
         if (seenAmountDiffers(seenAmount, sub.amount)) throw amountChanged(seenAmount, sub.amount);
@@ -2913,6 +3035,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const key = subscriptionManualKey(sub, today);
         // التأكيد سمّى فترة معيّنة؛ لو جهاز تاني قفلها، الأقدم المفتوحة بقت اللي بعدها — مبنقفلش فترة مش اللي المستخدم وافق عليها
         if (seenKey !== undefined && seenKey !== key) throw new PeriodChangedError();
+        tried.add(key);
         const txRef = doc(db, 'users', uid!, 'transactions', subscriptionTxId(id, key));
 
         // المحفظة بتتقري من جوه العملية الذرية عشان الإجابة تبقى عن الحالة
@@ -2921,7 +3044,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', sub.walletId)))) throw new WalletMissingError();
         const existing = await t.get(txRef);
 
-        const at = new Date().toISOString();
         // موجودة (مقفولة من غير علامة لأي سبب) ← بنقفل الفترة من غير ما نكتب فوقها
         if (!existing.exists()) {
           const txData = {
@@ -2934,47 +3056,123 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const closed = { ...(sub.closed || {}), [key]: { txId: txRef.id, at } };
         const payment: SubscriptionPayment = {
           id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-          date, amount: sub.amount, transactionId: txRef.id, periodKey: key,
+          date, amount: existingAmount(existing, sub.amount), transactionId: txRef.id, periodKey: key,
         };
         const nextHistory = history.some(h => h.transactionId === txRef.id) ? history : [...history, payment];
-        t.update(subRef, { history: nextHistory, closed, nextDueDate: subscriptionAdvance(sub, closed) });
+        t.update(subRef, { history: nextHistory, closed, nextDueDate: subscriptionAdvance(sub, closed), ...anchorDayPatch(sub) });
       }));
-      return paidToday ? 'already-paid-today' : 'done';
+      return paidToday && !oursLanded ? 'already-paid-today' : 'done';
     } catch (e) {
+      if (e instanceof ChargeMissingError) { console.warn('[subscription] pay refused, subscription gone', id); return 'missing'; }
       if (e instanceof SubscriptionStoppedError) return 'stopped';
       // مش فشل (مش Sentry): الشاشة بتقول إن المبلغ اتغيّر والمستخدم يقرر تاني على الجديد
       if (e instanceof AmountChangedError) { console.warn('[subscription] amount changed since shown, nothing written', id, ...amountsForDevLog(e)); return 'amount-changed'; }
       if (e instanceof PeriodChangedError) { console.warn('[subscription] period changed since shown, nothing written', id); return 'period-changed'; }
-      // العملية الذرية إما تتم كلها أو مفيش — ففشلها معناه إن مفيش أي خصم اتسجل،
-      // والشاشة بتقول كده صريح بدل تنبيه الخطأ العام بتاع track
-      if (!(e instanceof WalletMissingError)) noteAtomicFailure('تسديد الاشتراك', e);
-      return e instanceof WalletMissingError ? 'wallet-missing' : 'failed';
+      if (e instanceof WalletMissingError) return 'wallet-missing';
+      // ذرية يعني كله أو مفيش — **بس** الـcommit ممكن يكون وصل والرد ضاع. فقبل "مفيش أي خصم اتسجل" بنسأل السيرفر
+      const landed = await subscriptionChargeLanded(subRef, id, [...tried], at);
+      if (landed.state === 'landed') return 'done';
+      // بعد سؤال السيرفر: كتابة وصلت متتسجلش "فشلت" في اللوج وSentry
+      noteAtomicFailure('تسديد الاشتراك', e);
+      if (landed.state === 'gone') return 'missing';
+      return landed.state === 'unknown' ? 'uncertain' : 'failed';
+    } finally {
+      chargeInFlight.current.delete(id);
+    }
+  }
+
+  /**
+   * الذرة فشلت — بصمتنا (`at`) وصلت السيرفر على أي فترة من اللي حاولنا نقفلها؟ (بند A، نفس `debtEntryLanded`)
+   * `recorded` = الفترات اللي **عمليتها** اتكتبت مننا (`createdAt` = بصمتنا)، مش اللي اتقفلت على عملية موجودة.
+   * `unknown` = السؤال نفسه فشل أو عدّى السقف، فالشاشة مبتجزمش بـ"مفيش أي خصم اتسجل".
+   * **نفس الشباك الضيق المتبقّي زي الدين:** `missing` = مش على السيرفر **لحظة السؤال**؛ المعرّف ثابت، فلو الـcommit
+   * وصل بعدها مفيش تكرار — الإعادة بتلاقي الفترة مقفولة.
+   */
+  async function subscriptionChargeLanded(
+    subRef: DocumentReference, id: string, keys: string[], at: string,
+  ): Promise<{ state: 'landed' | 'missing' | 'gone' | 'unknown'; recorded: string[] }> {
+    try {
+      const [snap, ...txSnaps] = await withTimeout(Promise.all([
+        getDocFromServer(subRef),
+        ...keys.map(k => getDocFromServer(doc(db, 'users', uid!, 'transactions', subscriptionTxId(id, k)))),
+      ]), LANDED_CHECK_TIMEOUT_MS);
+      if (!snap.exists()) return { state: 'gone', recorded: [] };
+      const closed = (snap.data() as { closed?: Record<string, ChargeClosed> }).closed;
+      const ours = keys.filter(k => closedByUs(closed?.[k], subscriptionTxId(id, k), at));
+      const recorded = keys.filter((k, i) => ours.includes(k) && txSnaps[i].exists() && txSnaps[i].data()?.createdAt === at);
+      return { state: ours.length > 0 ? 'landed' : 'missing', recorded };
+    } catch (e) {
+      // كود الخطأ بس — مفيش بيانات (sentryScrub)
+      console.warn('[subscription] landed check failed', (e as { code?: string })?.code ?? 'timeout');
+      return { state: 'unknown', recorded: [] };
+    }
+  }
+
+  /** نفس فكرة `subscriptionChargeLanded` للجمعية: الشهر اتقفل على عملية بمعرّفه الثابت و`createdAt` بتاعها بصمتنا */
+  async function gamiyaChargeLanded(
+    ref: DocumentReference, id: string, keys: string[], at: string,
+  ): Promise<{ state: 'landed' | 'missing' | 'gone' | 'unknown'; recorded: string[] }> {
+    try {
+      const [snap, ...txSnaps] = await withTimeout(Promise.all([
+        getDocFromServer(ref),
+        ...keys.map(k => getDocFromServer(doc(db, 'users', uid!, 'transactions', gamiyaTxId(id, k)))),
+      ]), LANDED_CHECK_TIMEOUT_MS);
+      if (!snap.exists()) return { state: 'gone', recorded: [] };
+      const months = ((snap.data() as { months?: GamiyaMonth[] }).months) || [];
+      const recorded = keys.filter((k, i) => months.some(m => m.id === k && m.status === 'done' && m.transactionId === gamiyaTxId(id, k))
+        && txSnaps[i].exists() && txSnaps[i].data()?.createdAt === at);
+      return { state: recorded.length > 0 ? 'landed' : 'missing', recorded };
+    } catch (e) {
+      console.warn('[gamiya] landed check failed', (e as { code?: string })?.code ?? 'timeout');
+      return { state: 'unknown', recorded: [] };
     }
   }
 
   /**
    * "ما اتخصمش" (اشتراك اتلغى، شهر مجاني). ذري: جهاز تاني ممكن يكون سجّل
    * الفترة دي في نفس اللحظة — لو سبقنا، بنلاقيها مقفولة ومبنكتبش فوق علامته.
+   * والنتيجة بتقول ليه ما اتقفلتش (بند E): اتسجل عليها خصم فعلاً، اتوقف، اتمسح، أو الفترة اتغيّرت —
+   * الشاشة كانت بتقول "مش هنسجل خصم" والخصم موجود.
    */
-  async function skipSubscriptionCharge(id: string, key: string): Promise<PayOutcome> {
+  async function skipSubscriptionCharge(id: string, key: string): Promise<SkipChargeOutcome> {
     if (!uid) return 'done';
     if (!serverReachableRef.current) return 'no-connection';
     if (!(await waitForOurWritesToLand())) return 'no-connection';
     const subRef = doc(db, 'users', uid, 'subscriptions', id);
+    const at = uniqueStamp();
+    let result: SkipChargeOutcome = 'done';
     try {
       await countPending(runTransaction(db, async (t) => {
+        result = 'done';
         const snap = await t.get(subRef);
-        if (!snap.exists()) return;
+        if (!snap.exists()) { result = 'missing'; return; }
         const sub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
+        const c = sub.closed?.[key];
+        // اتفوّتت خلاص (مننا في محاولة وصلت، أو من جهاز تاني) ← نفس النتيجة
+        if (c?.skipped && !c.reopened) return;
+        if (c?.txId && !c.reopened) { result = 'already-recorded'; return; }
         // الحالة الحقيقية (money-reviewer): الواقف بيتخطّى اللي رجعت تسأل بس، مش فترة عادية
-        if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) return;
-        const closed = { ...(sub.closed || {}), [key]: { skipped: true, at: new Date().toISOString() } };
-        t.update(subRef, { closed, nextDueDate: subscriptionAdvance(sub, closed) });
+        if (!subscriptionOpenCharges(sub, todayStr()).some(o => o.key === key)) {
+          result = sub.active === false ? 'stopped' : 'period-changed';
+          return;
+        }
+        const closed = { ...(sub.closed || {}), [key]: { skipped: true, at } };
+        t.update(subRef, { closed, nextDueDate: subscriptionAdvance(sub, closed), ...anchorDayPatch(sub) });
       }));
-      return 'done';
+      return result;
     } catch (e) {
-      noteAtomicFailure('فوّت فترة اشتراك', e);
-      return 'failed';
+      try {
+        const snap = await withTimeout(getDocFromServer(subRef), LANDED_CHECK_TIMEOUT_MS);
+        if (!snap.exists()) return 'missing';
+        const c = (snap.data() as { closed?: Record<string, ChargeClosed> }).closed?.[key];
+        if (c?.skipped && c.at === at) return 'done';
+        noteAtomicFailure('فوّت فترة اشتراك', e);
+        return 'failed';
+      } catch (checkError) {
+        console.warn('[subscription] skip landed check failed', (checkError as { code?: string })?.code ?? 'timeout');
+        noteAtomicFailure('فوّت فترة اشتراك', e);
+        return 'uncertain';
+      }
     }
   }
 
@@ -2987,10 +3185,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
    *    الفترة بتتقفل عليها من غير ما نكتب فوقها، فتعديل المستخدم مبيضيعش.
    * 3. التلقائي (`auto`) بيسجل بس الفترات اللي `autoOk` — اللي رجعت تسأل
    *    (عمليتها اتمسحت) وشهر الاستلام وأي فترة قبل تفعيل التلقائي بيسألوا.
+   *
+   * **الإعادة والرد اللي ضاع (بند A/B، 2026-11-17):** `at` برّه الذرة = بصمتنا على العملية (`createdAt`). الإعادة بعد
+   * commit وصل بتلاقي الفترة مقفولة على عملية ببصمتنا ← بتتحسب في `recorded` (مش "اتسجلت من جهاز تاني")، ولو كل
+   * المحاولات فشلت بنسأل السيرفر قبل "مفيش أي خصم اتسجل" (`uncertain` لو السؤال كمان فشل).
    */
   async function recordCharges(
     kind: ChargeKind, id: string, entries: { key: string; amount: number }[], opts: { auto?: boolean } = {},
-  ): Promise<IncomeRecordResult> {
+  ): Promise<ChargeRecordResult> {
     if (deletingRef.current) return { outcome: 'failed', recorded: [] };
     if (!uid || entries.length === 0) return { outcome: 'done', recorded: [] };
     if (!serverReachableRef.current) return { outcome: 'no-connection', recorded: [] };
@@ -2998,34 +3200,62 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const auto = !!opts.auto;
     const ref = doc(db, 'users', uid, kind === 'subscription' ? 'subscriptions' : 'gamiyas', id);
     const today = todayStr();
+    const txIdOf = (key: string) => (kind === 'subscription' ? subscriptionTxId(id, key) : gamiyaTxId(id, key));
+    const at = uniqueStamp();
+    const keys = [...new Set(entries.map(e => e.key))];
     let recorded: string[] = [];
-    let stopped = false;
+    let reasons: Pick<ChargeRecordResult, 'stopped' | 'skipped' | 'changed' | 'badAmount'> = {};
+    if (kind === 'subscription') chargeInFlight.current.add(id);
     try {
       await countPending(runTransaction(db, async (t) => {
         recorded = [];
-        stopped = false;
+        reasons = {};
         const snap = await t.get(ref);
         if (!snap.exists()) throw new ChargeMissingError();
         const data = kind === 'subscription' ? subscriptionFromDoc<Subscription>(id, snap.data(), true) : gamiyaFromDoc<Gamiya>(id, snap.data(), true);
         const open = kind === 'subscription'
           ? subscriptionOpenCharges(data as Subscription, today)
           : gamiyaOpenCharges(data as Gamiya, today);
+        // فترة مش مفتوحة لأنها مقفولة على عمليتها الثابتة — ممكن تكون كتابتنا في محاولة وصلت (بند B)
+        const closedOnTx = (key: string) => {
+          if (kind === 'subscription') {
+            const c = (data as Subscription).closed?.[key];
+            return !!c && !c.reopened && c.txId === txIdOf(key);
+          }
+          return (data as Gamiya).months?.some(m => m.id === key && m.status === 'done' && m.transactionId === txIdOf(key));
+        };
+        const notOpen = keys.filter(k => !open.some(o => o.key === k));
+        const maybeOurs = notOpen.filter(closedOnTx);
+        const prior = await Promise.all(maybeOurs.map(k => t.get(doc(db, 'users', uid!, 'transactions', txIdOf(k)))));
+        const oursBefore = maybeOurs.filter((k, i) => prior[i].exists() && prior[i].data()?.createdAt === at);
+
         const seen = new Set<string>();
-        const todo = entries.filter(e => {
+        const todo: { key: string; amount: number }[] = [];
+        entries.forEach(e => {
           const o = open.find(x => x.key === e.key);
-          if (!o || seen.has(e.key) || !(e.amount > 0) || !Number.isFinite(e.amount) || (auto && !o.autoOk)) return false;
+          if (!o || seen.has(e.key) || (auto && !o.autoOk)) return;
+          // التلقائي بياخد المبلغ من المستند اللي على السيرفر (مش من نسخة الرياكت)، والكارت بيتقرّب للقرش
+          const amount = storableAmount(auto ? o.amount : e.amount);
+          if (amount === null) { reasons.badAmount = true; return; }
           seen.add(e.key);
-          return true;
+          todo.push({ key: e.key, amount });
         });
-        // واقف وفيه مفتاح مطلوب مش مفتوح **ومش مقفول** — المقفول اتسجل فعلاً، فده "اتسجلت قبل كده" مش "اتوقف"
-        stopped = kind === 'subscription' && (data as Subscription).active === false
-          && entries.some(e => !open.some(o => o.key === e.key) && !(data as Subscription).closed?.[e.key]);
+        // ليه مفيش حاجة اتسجلت — للمفاتيح اللي مش مفتوحة ومش مننا
+        if (kind === 'subscription') {
+          const s = data as Subscription;
+          const others = notOpen.filter(k => !oursBefore.includes(k));
+          // واقف وفيه مفتاح مطلوب مش مفتوح **ومش مقفول** — المقفول اتسجل فعلاً، فده "اتسجلت قبل كده" مش "اتوقف"
+          if (s.active === false && others.some(k => !s.closed?.[k])) reasons.stopped = true;
+          else if (others.some(k => s.closed?.[k]?.skipped && !s.closed[k].reopened)) reasons.skipped = true;
+          else if (others.some(k => !s.closed?.[k])) reasons.changed = true;
+        } else if (notOpen.some(k => !oursBefore.includes(k) && !closedOnTx(k))) {
+          reasons.changed = true;
+        }
+        recorded = [...oursBefore];
         if (todo.length === 0) return;
         if (!(await walletUsable(t, doc(db, 'users', uid!, 'wallets', data.walletId)))) throw new WalletMissingError();
-        const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions',
-          kind === 'subscription' ? subscriptionTxId(id, e.key) : gamiyaTxId(id, e.key)));
+        const txRefs = todo.map(e => doc(db, 'users', uid!, 'transactions', txIdOf(e.key)));
         const existing = await Promise.all(txRefs.map(r => t.get(r)));
-        const at = new Date().toISOString();
 
         if (kind === 'subscription') {
           const sub = data as Subscription;
@@ -3040,7 +3270,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
             if (!history.some(h => h.transactionId === txId)) {
               history.push({
                 id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + i,
-                date: recDate, amount: e.amount, transactionId: txId, periodKey: e.key, ...(auto ? { auto: true } : {}),
+                // العملية موجودة (اتعدّلت مثلاً) ← السطر بمبلغها هي، مش باللي اتبعت
+                date: recDate, amount: existingAmount(existing[i], e.amount), transactionId: txId, periodKey: e.key, ...(auto ? { auto: true } : {}),
               });
             }
             if (existing[i].exists()) return;
@@ -3052,7 +3283,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             t.set(txRefs[i], Object.fromEntries(Object.entries(txData).filter(([, v]) => v !== undefined)));
             recorded.push(e.key);
           });
-          t.update(ref, { closed, history, nextDueDate: subscriptionAdvance(sub, closed) });
+          t.update(ref, { closed, history, nextDueDate: subscriptionAdvance(sub, closed), ...anchorDayPatch(sub) });
           return;
         }
 
@@ -3073,12 +3304,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         });
         t.update(ref, { months });
       }));
-      return { outcome: 'done', recorded, ...(stopped ? { stopped } : {}) };
+      return { outcome: 'done', recorded, ...(recorded.length === 0 ? reasons : {}) };
     } catch (e) {
-      // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل
-      if (e instanceof ChargeMissingError) return { outcome: 'done', recorded: [] };
+      // اتمسح من جهاز تاني — مفيش حاجة تتسجل، ومش فشل؛ بس الشاشة لازم تقول كده (بند G)
+      if (e instanceof ChargeMissingError) { console.warn(`[${kind}] record refused, gone`, id); return { outcome: 'missing', recorded: [] }; }
+      if (e instanceof WalletMissingError) {
+        noteAtomicFailure(kind === 'subscription' ? 'تسجيل الاشتراك' : 'تسجيل الجمعية', e);
+        return { outcome: 'wallet-missing', recorded: [] };
+      }
+      const landed = kind === 'subscription'
+        ? await subscriptionChargeLanded(ref, id, keys, at)
+        : await gamiyaChargeLanded(ref, id, keys, at);
+      if (landed.state === 'landed') return { outcome: 'done', recorded: landed.recorded };
       noteAtomicFailure(kind === 'subscription' ? 'تسجيل الاشتراك' : 'تسجيل الجمعية', e);
-      return { outcome: e instanceof WalletMissingError ? 'wallet-missing' : 'failed', recorded: [] };
+      if (landed.state === 'gone') return { outcome: 'missing', recorded: [] };
+      return { outcome: landed.state === 'unknown' ? 'uncertain' : 'failed', recorded: [] };
+    } finally {
+      if (kind === 'subscription') chargeInFlight.current.delete(id);
     }
   }
 

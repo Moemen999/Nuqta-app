@@ -136,3 +136,94 @@ describe('كارت "اتخصم؟"', () => {
     expect(mockData.recordCharges).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * مراجعة الاشتراكات (2026-11-17): نتايج `recordCharges` الجديدة بتتقال زي ما هي — `uncertain` ممنوع يقول
+ * "ومفيش أي خصم اتسجل"، و`missing` مبيقولش حاجة في التلقائي، و`recorded=[]` بيقول السبب الحقيقي في الكارت.
+ */
+describe('نتايج صريحة (مراجعة 2026-11-17)', () => {
+  const mount = () => render(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+
+  it('التلقائي uncertain ← رسالة "مش متأكدين" وإشعار صادق، مش "مفيش أي خصم اتسجل"', async () => {
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    const text = screen.getByTestId('notice_error').props.children as string;
+    expect(text).toContain('مش متأكدين سجلنا اشتراك "نتفليكس"');
+    expect(text).not.toContain('مفيش أي خصم اتسجل');
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+    const [title, body] = mockNotify.mock.calls[0] as unknown as string[];
+    expect(title).toBe('مش متأكدين سجلنا اشتراك "نتفليكس" ولا لأ');
+    expect(body).not.toContain('مفيش أي خصم اتسجل');
+  });
+
+  it('التلقائي missing (اتمسح) ← ولا رسالة ولا إشعار', async () => {
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'missing', recorded: [] }));
+    await render(<Probe />);
+    await waitFor(() => expect(mockData.recordCharges).toHaveBeenCalled());
+    await new Promise(r => setTimeout(r, 20));
+    expect(screen.queryByTestId('notice_error')).toBeNull();
+    expect(mockNotify).not.toHaveBeenCalled();
+  });
+
+  it('التلقائي رمى (باگ) ← مبيتبلعش: Sentry، والرسايل اللي قبله بتتعرض', async () => {
+    const atomic = jest.spyOn(require('@/lib/atomicFailure'), 'reportAtomicFailure').mockImplementation(() => {});
+    mockData.recordCharges = jest.fn(async (kind: string, _id: string, entries: { key: string }[]) => {
+      if (kind === 'gamiya') throw new Error('boom');
+      return { outcome: 'done', recorded: entries.map(e => e.key) };
+    });
+    await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_recorded')).toBeTruthy());
+    expect(atomic).toHaveBeenCalledWith('الخصم التلقائي', expect.any(Error));
+    atomic.mockRestore();
+  });
+
+  const cardCase = (result: Record<string, unknown>, title: string) => async () => {
+    const alert = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(() => {});
+    mockData.subscriptions = [sub()];
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => result);
+    await mount();
+    fireEvent.press(screen.getByTestId('charge_card_yes_s1'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(title, expect.any(String)));
+    expect(alert).not.toHaveBeenCalledWith('اتسجلت قبل كده', expect.anything());
+    alert.mockRestore();
+  };
+  it('الكارت uncertain ← "مش متأكدين"', cardCase({ outcome: 'uncertain', recorded: [] }, 'مش متأكدين اتسجل ولا لأ'));
+  it('الكارت missing ← "الاشتراك ده اتمسح"', cardCase({ outcome: 'missing', recorded: [] }, 'الاشتراك ده اتمسح'));
+  it('الكارت على فترة اتفوّتت ← مش "اتسجلت قبل كده"', cardCase({ outcome: 'done', recorded: [], skipped: true }, 'اتقفلت إنها ما اتخصمتش'));
+  it('الكارت والفترة اتغيّرت ← "الفترة اتغيّرت"', cardCase({ outcome: 'done', recorded: [], changed: true }, 'الفترة اتغيّرت'));
+
+  const skipCase = (outcome: string, title: string) => async () => {
+    const alert = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation((...args: unknown[]) => {
+      // التأكيد نفسه: دوس "ما اتخصمش"
+      const buttons = args[2] as { text: string; onPress?: () => void }[] | undefined;
+      buttons?.find(b => b.text === 'ما اتخصمش')?.onPress?.();
+    });
+    mockData.subscriptions = [sub()];
+    mockData.gamiyas = [];
+    mockData.skipSubscriptionCharge = jest.fn(async () => outcome);
+    await mount();
+    fireEvent.press(screen.getByLabelText('"نتفليكس" ما اتخصمش'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(title, expect.any(String)));
+    alert.mockRestore();
+  };
+  it('"ما اتخصمش" على فترة اتسجلت ← "اتسجل عليها خصم خلاص"', skipCase('already-recorded', 'اتسجل عليها خصم خلاص'));
+  it('"ما اتخصمش" على اشتراك اتوقف ← "الاشتراك ده اتوقف"', skipCase('stopped', 'الاشتراك ده اتوقف'));
+  it('"ما اتخصمش" على اشتراك اتمسح ← "الاشتراك ده اتمسح"', skipCase('missing', 'الاشتراك ده اتمسح'));
+});
+
+describe('مبلغ متخزّن بايظ', () => {
+  it('الكارت badAmount ← "المبلغ مش مقروء" مش "اتسجلت قبل كده"', async () => {
+    const alert = jest.spyOn(require('react-native').Alert, 'alert').mockImplementation(() => {});
+    mockData.subscriptions = [sub()];
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'done', recorded: [], badAmount: true }));
+    await render(<ThemeProvider><ChargeHomeCards /></ThemeProvider>);
+    fireEvent.press(screen.getByTestId('charge_card_yes_s1'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith('المبلغ مش مقروء', expect.any(String)));
+    alert.mockRestore();
+  });
+});

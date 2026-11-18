@@ -106,6 +106,21 @@ export function addMonths(dateStr: string, n: number) {
   return toDateStr(firstOfTarget);
 }
 
+/**
+ * زي `addMonths` بس اليوم من **اليوم الأصلي** (`anchorDay`، 1–31) مش من التاريخ اللي داخل: min(اليوم الأصلي،
+ * عدد أيام الشهر). 31 يناير ← 28 فبراير ← **31 مارس** (مش 28 للأبد — بند C، مراجعة الاشتراكات 2026-11-17).
+ * سنوي 29 فبراير ← 28 في السنين العادية و29 في الكبيسة.
+ */
+export function addMonthsAnchored(dateStr: string, n: number, anchorDay: number) {
+  const d = parseDateStr(dateStr);
+  const firstOfTarget = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+  const lastDayOfTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  firstOfTarget.setUTCDate(Math.min(anchorDay, lastDayOfTarget));
+  return toDateStr(firstOfTarget);
+}
+
 export function startOfMonth(dateStr: string) {
   return dateStr.slice(0, 7) + '-01';
 }

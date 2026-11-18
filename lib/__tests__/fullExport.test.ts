@@ -61,6 +61,7 @@ it('كل عنصر صف — المؤرشف والواقف جوّه', () => {
   expect(sheet('Wallets')).toHaveLength(2);
   expect(sheet('Wallets')[1]).toMatchObject({ Id: 'w2', Archived: true, ArchivedAt: '2026-10-01' });
   expect(sheet('Subscriptions')[0]).toMatchObject({ Id: 's1', Active: false, Frequency: 'custom', CustomDays: 45, ChargeMode: 'auto', ChargeAutoSince: '2026-09-01' });
+  expect(sheet('Subscriptions')[0]).toHaveProperty('AnchorDay');
   expect(sheet('GamiyaMonths').map(r => r.Id)).toEqual(['m1', 'm2']);
   expect(sheet('Shakhbata').map(r => r.Month)).toEqual(['2026-10', '2026-11']);
 });
