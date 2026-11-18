@@ -4,8 +4,8 @@ import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import {
-  AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, GAMIYA_ALREADY_RECORDED_ALERT, GAMIYA_BAD_AMOUNT_ALERT,
-  PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, useData, type Gamiya,
+  AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, GAMIYA_ALREADY_RECORDED_ALERT,
+  GAMIYA_BAD_AMOUNT_ALERT, GAMIYA_MONTH_MISSING_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, useData, type Gamiya,
 } from '@/context/DataContext';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -95,10 +95,13 @@ export default function GamiyaView() {
             if (outcome === 'done') return;
             const m = outcome === 'amount-changed' ? AMOUNT_CHANGED_ALERT.gamiya
               : outcome === 'missing' ? CHARGE_MISSING_ALERT.gamiya
+              // الجمعية لسه موجودة والشهر بس اللي مش فيها — مش "الجمعية اتمسحت"
+              : outcome === 'month-missing' ? GAMIYA_MONTH_MISSING_ALERT
               : outcome === 'already-recorded' ? GAMIYA_ALREADY_RECORDED_ALERT
               : outcome === 'bad-amount' ? GAMIYA_BAD_AMOUNT_ALERT
               // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتسجل مرتين)
-              : outcome === 'uncertain' ? CHARGE_UNCERTAIN_ALERT
+              // وشهر الاستلام الكلام عن استلام مش خصم
+              : outcome === 'uncertain' ? (isPayout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT)
               : payAlerts(isPayout)[outcome];
             notice(m.title, m.body);
           }),

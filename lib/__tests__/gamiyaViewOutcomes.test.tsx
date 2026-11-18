@@ -8,8 +8,8 @@ import { NoticeProvider } from '@/components/NoticeProvider';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import {
-  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, GAMIYA_ALREADY_RECORDED_ALERT, GAMIYA_BAD_AMOUNT_ALERT, GAMIYA_NOT_SAVED_MESSAGE,
-  PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT,
+  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, GAMIYA_ALREADY_RECORDED_ALERT, GAMIYA_BAD_AMOUNT_ALERT,
+  GAMIYA_MONTH_MISSING_ALERT, GAMIYA_NOT_SAVED_MESSAGE, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT,
 } from '@/context/DataContext';
 import { CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA } from '@/lib/archiving';
 import { todayStr } from '@/lib/finance';
@@ -58,6 +58,8 @@ describe('"اتخصم" من شاشة الجمعية بالنتايج الجدي�
   it.each([
     ['uncertain', CHARGE_UNCERTAIN_ALERT],
     ['missing', CHARGE_MISSING_ALERT.gamiya],
+    // الجمعية لسه موجودة والشهر بس اللي مش لاقيينه ← مش "الجمعية دي اتمسحت" (مراجعة الجولة 2)
+    ['month-missing', GAMIYA_MONTH_MISSING_ALERT],
     ['already-recorded', GAMIYA_ALREADY_RECORDED_ALERT],
     ['bad-amount', GAMIYA_BAD_AMOUNT_ALERT],
     ['failed', PAY_OUTCOME_ALERT_GAMIYA.failed],
@@ -75,6 +77,28 @@ describe('شهر الاستلام: الكلام عن استلام مش خصم', 
     await markMonth('استلمت');
     expect(noticeBody()).toBe(PAY_OUTCOME_ALERT_GAMIYA_PAYOUT[outcome].body);
     expect(noticeBody()).not.toContain('خصم');
+  });
+
+  it('uncertain ← "الاستلام وصل ولا لأ" مش "الخصم"', async () => {
+    mockData.markGamiyaMonthDone = jest.fn(async () => 'uncertain');
+    await markMonth('استلمت');
+    expect(noticeTitle()).toBe(CHARGE_UNCERTAIN_ALERT_PAYOUT.title);
+    expect(noticeBody()).toBe(CHARGE_UNCERTAIN_ALERT_PAYOUT.body);
+    expect(noticeBody()).not.toContain('خصم');
+  });
+
+  it('الكارت في الرئيسية: استلام وuncertain ← رسالة الاستلام', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    mockData.gamiyas = [{
+      ...gam, months: [{ id: 'm1', monthIndex: 1, dueDate: today, amount: 2000, status: 'pending', isPayoutMonth: true }],
+    }];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    mockData.skipSubscriptionCharge = jest.fn();
+    await render(<ThemeProvider><PrivacyProvider><ChargeHomeCards /></PrivacyProvider></ThemeProvider>);
+    fireEvent.press(screen.getByTestId('charge_card_yes_g1'));
+    await waitFor(() => expect(alert).toHaveBeenCalledWith(CHARGE_UNCERTAIN_ALERT_PAYOUT.title, CHARGE_UNCERTAIN_ALERT_PAYOUT.body));
+    expect(String(alert.mock.calls[0][1])).not.toContain('خصم');
+    alert.mockRestore();
   });
 
   it('الكارت في الرئيسية: استلام من غير نت ← رسالة الاستلام', async () => {

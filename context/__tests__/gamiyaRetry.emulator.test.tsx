@@ -157,11 +157,12 @@ describe('B: نتايج صريحة', () => {
     expect(await serverTxs()).toHaveLength(0);
   });
 
-  it('الشهر مش موجود ← missing', async () => {
+  it('الشهر مش موجود والجمعية لسه موجودة ← month-missing (مش "الجمعية اتمسحت")', async () => {
     const { g, m1 } = await makeGamiya();
     const months = (await serverGamiya(g.id)).months.filter((m: { id: string }) => m.id !== m1.id);
     await updateDoc(userDoc('gamiyas', g.id), { months });
-    expect(await harness.api().markGamiyaMonthDone(g.id, m1.id, 1000)).toBe('missing');
+    expect(await harness.api().markGamiyaMonthDone(g.id, m1.id, 1000)).toBe('month-missing');
+    expect(await serverTxs()).toHaveLength(0);
   });
 
   it('الشهر اتسجل قبل كده ← already-recorded ومفيش عملية تانية', async () => {
@@ -196,6 +197,51 @@ describe('الكارت: شهر اتسجل بعملية قديمة (معرّف م
     await updateDoc(userDoc('gamiyas', g.id), { months });
     await harness.waitForData(api => api.gamiyas[0].months[0].status === 'done');
     expect(await harness.api().recordCharges('gamiya', g.id, [{ key: m1.id, amount: 1000 }])).toEqual({ outcome: 'done', recorded: [] });
+  });
+});
+
+describe('الكارت/التلقائي: أكتر من شهر في نفس الذرة وسؤال السيرفر بعد الفشل (مراجعة الجولة 2)', () => {
+  /** جمعية بدأت الشهر اللي فات: شهر 1 فات معاده وشهر 2 النهارده — الاتنين مفتوحين */
+  async function twoOpenMonths() {
+    const w = harness.api().wallets[0];
+    const r = await harness.api().addGamiya({
+      name: 'القديمة', monthlyAmount: 1000, totalMonths: 3, payoutMonthIndex: 3, payoutAmount: 3000,
+      walletId: w.id, startDate: addMonths(today, -1), reminderDaysBefore: 3,
+    });
+    expect(r).toEqual({ outcome: 'done' });
+    await harness.waitForData(api => api.gamiyas.length === 1 && api.pendingWrites === 0);
+    const g = harness.api().gamiyas[0];
+    return { g, walletId: w.id, m1: g.months[0], m2: g.months[1] };
+  }
+  /** جهاز تاني سجّل الشهر ده (مش ببصمتنا) */
+  async function closeElsewhere(gId: string, walletId: string, m: { id: string; dueDate: string }) {
+    const txId = gamiyaTxId(gId, m.id);
+    await setDoc(userDoc('transactions', txId), {
+      type: 'expense', amount: 1000, walletId, date: m.dueDate, gamiyaId: gId, periodKey: m.id, createdAt: 'other-device',
+    });
+    const months = (await serverGamiya(gId)).months.map((x: { id: string }) => (x.id === m.id
+      ? { ...x, status: 'done', transactionId: txId, at: 'other-device' } : x));
+    await updateDoc(userDoc('gamiyas', gId), { months });
+  }
+
+  it('شهر واحد بس اتقفل من مكان تاني والتاني لسه مفتوح ← failed، مش "اتسجلت قبل كده"', async () => {
+    const { g, walletId, m1, m2 } = await twoOpenMonths();
+    expect(m1.dueDate <= today && m2.dueDate <= today).toBe(true);
+    await closeElsewhere(g.id, walletId, m1);
+    failWithoutLanding();
+    const r = await harness.api().recordCharges('gamiya', g.id, [{ key: m1.id, amount: 1000 }, { key: m2.id, amount: 1000 }]);
+    expect(r).toEqual({ outcome: 'failed', recorded: [] });
+    expect(await serverTx(gamiyaTxId(g.id, m2.id))).toBeUndefined();
+    expect((await serverGamiya(g.id)).months.find((m: { id: string }) => m.id === m2.id).status).toBe('pending');
+  });
+
+  it('كل الشهور اتقفلت من مكان تاني ← done وrecorded=[] ("اتسجلت قبل كده")', async () => {
+    const { g, walletId, m1, m2 } = await twoOpenMonths();
+    await closeElsewhere(g.id, walletId, m1);
+    await closeElsewhere(g.id, walletId, m2);
+    failWithoutLanding();
+    const r = await harness.api().recordCharges('gamiya', g.id, [{ key: m1.id, amount: 1000 }, { key: m2.id, amount: 1000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [] });
   });
 });
 
@@ -298,5 +344,14 @@ describe('من غير حساب مفتوح', () => {
     expect(add.outcome).toBe('failed');
     expect((await harness.api().updateGamiya('x', { name: 'جديد' })).outcome).toBe('failed');
     expect(await harness.api().markGamiyaMonthDone('x', 'm', 1000)).toBe('failed');
+  });
+
+  it('deleteGamiya/deleteTransaction مبيرجّعوش done ومفيش حاجة اتمسحت', async () => {
+    await harness.unmount();
+    setMockUid('');
+    harness = await renderDataProvider();
+    const del = await harness.api().deleteGamiya('x');
+    expect(del.outcome).toBe('blocked');
+    expect((await harness.api().deleteTransaction('x')).outcome).toBe('no-account');
   });
 });

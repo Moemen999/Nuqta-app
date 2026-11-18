@@ -4,7 +4,7 @@ import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import {
-  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
+  CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
   type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -208,7 +208,9 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
       // ممكن يكون اتسجل — الشيت بيتقفل عشان "اتخصم" تاني ميتداسش قبل ما يبص في الأرشيف
       if (r.outcome === 'uncertain') {
         ok = true;
-        notice(CHARGE_UNCERTAIN_ALERT.title, CHARGE_UNCERTAIN_ALERT.body);
+        // شهر الاستلام فلوس داخلة — "الخصم" غلط هناك
+        const m = p.kind === 'gamiya' && p.payout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT;
+        notice(m.title, m.body);
         return;
       }
       if (r.outcome !== 'done') {

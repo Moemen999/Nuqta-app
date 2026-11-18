@@ -9,7 +9,7 @@ import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
-  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_GAMIYA, cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
   type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
@@ -181,6 +181,8 @@ class IncomeMissingError extends Error { name = 'IncomeMissingError'; }
 
 /** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
 class ChargeMissingError extends Error { name = 'ChargeMissingError'; }
+/** الجمعية موجودة بس الشهر اللي اتطلب مش فيها — غير `ChargeMissingError` عشان الرسالة متقولش "الجمعية اتمسحت" */
+class MonthMissingError extends Error { name = 'MonthMissingError'; }
 
 /** الدخل اتسجل منه حاجة (من جهاز تاني) بين الدوسة والمسح */
 class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
@@ -279,11 +281,21 @@ export const CHARGE_UNCERTAIN_ALERT = {
   title: 'مش متأكدين اتسجل ولا لأ',
   body: 'النت قطع واحنا بنسجّل، فمش عارفين الخصم وصل ولا لأ. افتح الأرشيف وبص الأول، ولو مش موجود سجّله تاني — عشان ميتخصمش مرتين.',
 };
+/** نفس `CHARGE_UNCERTAIN_ALERT` لشهر استلام الجمعية — الفلوس داخلة، فـ"الخصم" غلط (مراجعة الجمعية الجولة 2) */
+export const CHARGE_UNCERTAIN_ALERT_PAYOUT = {
+  title: 'مش متأكدين اتسجل ولا لأ',
+  body: 'النت قطع واحنا بنسجّل، فمش عارفين الاستلام وصل ولا لأ. افتح الأرشيف وبص الأول، ولو مش موجود سجّله تاني — عشان ميتسجلش مرتين.',
+};
 /** الاشتراك/الجمعية اتمسح من جهاز تاني قبل التسجيل */
 export const CHARGE_MISSING_ALERT = {
   subscription: { title: 'الاشتراك ده اتمسح', body: 'اتمسح (يمكن من جهاز تاني)، فما اتسجلش أي خصم.' },
   gamiya: { title: 'الجمعية دي اتمسحت', body: 'اتمسحت (يمكن من جهاز تاني)، فما اتسجلش حاجة.' },
 } as const;
+/** الجمعية لسه موجودة بس الشهر ده مش فيها (اتغيّرت من جهاز تاني) — "الجمعية اتمسحت" هنا كلام غلط (مراجعة الجولة 2) */
+export const GAMIYA_MONTH_MISSING_ALERT = {
+  title: 'الشهر ده مش موجود',
+  body: 'الشهر ده مبقاش في الجمعية (يمكن اتغيّرت من جهاز تاني)، فما اتسجلش حاجة. افتح الجمعية تاني وبص على شهورها.',
+};
 
 /** شهر استلام الجمعية: نفس رسالة المحفظة بس بكلام الاستلام ("خصم" هنا غلط) */
 export const GAMIYA_PAYOUT_WALLET_MISSING_ALERT = {
@@ -322,12 +334,13 @@ export const PAY_OUTCOME_ALERT_GAMIYA_PAYOUT: typeof PAY_OUTCOME_ALERT = {
 /**
  * "اتخصم"/"استلمت" من شاشة الجمعية (`markGamiyaMonthDone`). فوق `PayOutcome`:
  * - `amount-changed`: المبلغ اتغيّر من جهاز تاني والتأكيد مفتوح.
- * - `missing`: الجمعية أو الشهر اتمسح — مفيش حاجة اتسجلت (`CHARGE_MISSING_ALERT.gamiya`).
+ * - `missing`: الجمعية اتمسحت — مفيش حاجة اتسجلت (`CHARGE_MISSING_ALERT.gamiya`).
+ * - `month-missing`: الجمعية موجودة بس الشهر مش فيها — مفيش حاجة اتسجلت (`GAMIYA_MONTH_MISSING_ALERT`).
  * - `already-recorded`: الشهر اتسجل قبل كده (جهاز تاني، الكارت، التلقائي) — مفيش كتابة (`GAMIYA_ALREADY_RECORDED_ALERT`).
  * - `bad-amount`: مبلغ الشهر المتخزّن مش رقم صالح — مفيش كتابة، ومش "المبلغ اتغيّر" للأبد (`GAMIYA_BAD_AMOUNT_ALERT`).
  * - `uncertain`: الذرة فشلت وسؤال السيرفر بعدها كمان فشل (`CHARGE_UNCERTAIN_ALERT`).
  */
-export type GamiyaMarkOutcome = PayOutcome | 'amount-changed' | 'missing' | 'already-recorded' | 'bad-amount' | 'uncertain';
+export type GamiyaMarkOutcome = PayOutcome | 'amount-changed' | 'missing' | 'month-missing' | 'already-recorded' | 'bad-amount' | 'uncertain';
 /** نفس صيغة "اتسجلت قبل كده" بتاعة الكارت */
 export const GAMIYA_ALREADY_RECORDED_ALERT = {
   title: 'اتسجلت قبل كده',
@@ -517,7 +530,7 @@ export type DebtEntryDeleteOut = DebtIncreaseDeleteOut;
  * دين** ذرة بتقرا الدين من السيرفر (الجولة 2، بند 1) ← محتاجة نت ونتيجة قاطعة: `uncertain` = الذرة فشلت وسؤال السيرفر
  * بعدها كمان فشل. `dueNotRestored`: التأكيد قال المعاد هيرجع والسيرفر ما رجّعوش (الدين اتغيّر من جهاز تاني).
  */
-export type TxDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'uncertain';
+export type TxDeleteOutcome = 'done' | 'no-connection' | 'failed' | 'uncertain' | 'no-account';
 export type TxDeleteResult = {
   outcome: TxDeleteOutcome; dueNotRestored?: 'payment' | 'increase';
   /** العملية مربوطة بشهر جمعية (مراجعة 2026-11-18) — الرسالة بتتكلم عن الجمعية مش الدين (`txDeleteOutcomeAlert`) */
@@ -536,6 +549,10 @@ export const TX_DELETE_OUTCOME_ALERT: Record<Exclude<TxDeleteOutcome, 'done'>, {
     title: 'مش متأكدين اتمسحت ولا لأ',
     body: 'النت قطع واحنا بنمسح، فمش عارفين المسح وصل ولا لأ. افتح الدين وبص على تاريخه، ولو العملية لسه فيه امسحها تاني.',
   },
+  'no-account': {
+    title: 'ما اتمسحتش',
+    body: 'العملية لسه موجودة والرصيد ما اتلمسش — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
+  },
 };
 /** نفس `TX_DELETE_OUTCOME_ALERT` لعملية شهر جمعية — المسح بيرجّع الشهر يسأل، فلازم يتأكد من السيرفر */
 export const TX_DELETE_OUTCOME_ALERT_GAMIYA: typeof TX_DELETE_OUTCOME_ALERT = {
@@ -551,6 +568,7 @@ export const TX_DELETE_OUTCOME_ALERT_GAMIYA: typeof TX_DELETE_OUTCOME_ALERT = {
     title: 'مش متأكدين اتمسحت ولا لأ',
     body: 'النت قطع واحنا بنمسح، فمش عارفين المسح وصل ولا لأ. افتح الأرشيف وبص، ولو العملية لسه موجودة امسحها تاني.',
   },
+  'no-account': TX_DELETE_OUTCOME_ALERT['no-account'],
 };
 /** رسالة نتيجة مسح العملية حسب اللي مربوطة بيه */
 export function txDeleteOutcomeAlert(outcome: Exclude<TxDeleteOutcome, 'done'>, subject?: TxDeleteResult['subject']) {
@@ -2223,7 +2241,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * لو أي حتة فشلت، مفيش أي حاجة اتكتبت.
    */
   async function deleteTransaction(id: string, settlements: Settlement[] = []): Promise<TxDeleteResult> {
-    if (!uid) return { outcome: 'done' };
+    // مفيش حساب ← مفيش مسح، فمش "اتمسحت" (المودال كان بيتقفل والعملية لسه موجودة)
+    if (!uid) return { outcome: 'no-account' };
     // المدخلة الأول: لو التطبيق اتقفل بعد الحذف وقبل شيلها، الإعادة كانت هترجّع العملية اللي اتمسحت
     // شيلها فشل أو اتأخر ← علامة مسح، والإعادة بتشوفها ومبتكتبش
     if (outboxIds.current.has(id)) {
@@ -3311,7 +3330,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return tx.exists() && tx.data()?.createdAt === at;
       });
       if (ours.length > 0) return { state: 'landed', recorded };
-      if (keys.some(k => monthOf(k)?.status === 'done')) return { state: 'already', recorded: [] };
+      // `already` = **كل** الشهور اتقفلت من مكان تاني. بعضها بس ← اللي فاضل ما اتسجلش، فده فشل مش "اتسجلت قبل كده"
+      // (مراجعة الجولة 2: `some` كانت بتحوّل ذرة فشلت لـ`{done, recorded: []}` والشهر التاني لسه مفتوح)
+      if (keys.length > 0 && keys.every(k => monthOf(k)?.status === 'done')) return { state: 'already', recorded: [] };
       return { state: 'missing', recorded: [] };
     } catch (e) {
       console.warn('[gamiya] landed check failed', (e as { code?: string })?.code ?? 'timeout');
@@ -3977,7 +3998,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * **متبقّي:** زي الاشتراك — المسح دفعة أوفلاين؛ عملية من جهاز تاني بمعرّف مش ثابت لسه ما وصلتش مش هتتمسح.
    */
   async function deleteGamiya(id: string): Promise<CascadeDeleteResult> {
-    if (!uid) return { outcome: 'done' };
+    // مفيش حساب ← مفيش مسح، فمش "تم" ساكت
+    if (!uid) return { outcome: 'blocked', ...NO_ACCOUNT_DELETE_BLOCK_GAMIYA };
     const g = latestGamiyas.current.find(x => x.id === id);
     if (chargeInFlight.current.has(id)) return { outcome: 'blocked', ...CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA };
     return deleteWithTransactions('gamiya', g?.name ?? '', doc(db, 'users', uid, 'gamiyas', id),
@@ -4018,7 +4040,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (!snap.exists()) throw new ChargeMissingError();
         const g = gamiyaFromDoc<Gamiya>(gamiyaId, snap.data(), true);
         const month = (g.months || []).find(m => m.id === monthId);
-        if (!month) throw new ChargeMissingError();
+        if (!month) throw new MonthMissingError();
         if (month.status === 'done') {
           // محاولة قبل كده وصلت (الرد ضاع) ← دي كتابتنا؛ غير كده اتسجل من مكان تاني
           if (!(month.at === at && month.transactionId === txRef.id)) result = 'already-recorded';
@@ -4048,7 +4070,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }));
       return result;
     } catch (e) {
-      if (e instanceof ChargeMissingError) { console.warn('[gamiya] mark refused, gamiya or month gone', gamiyaId); return 'missing'; }
+      if (e instanceof ChargeMissingError) { console.warn('[gamiya] mark refused, gamiya gone', gamiyaId); return 'missing'; }
+      if (e instanceof MonthMissingError) { console.warn('[gamiya] mark refused, month not in gamiya', gamiyaId); return 'month-missing'; }
       if (e instanceof AmountChangedError) { console.warn('[gamiya] month amount changed since shown, nothing written', gamiyaId, monthId, ...amountsForDevLog(e)); return 'amount-changed'; }
       if (e instanceof WalletMissingError) return 'wallet-missing';
       // مفيش كتابة خالص (اترفضت قبلها) — مش محتاج سؤال السيرفر. اسم الخطوة بس، من غير المبلغ (sentryScrub)

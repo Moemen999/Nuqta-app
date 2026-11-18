@@ -506,7 +506,7 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
   gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
-export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight'; title: string; body: string };
+export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account'; title: string; body: string };
 
 /** بند H: خصم شغال على نفس الاشتراك ("سدّد"/الكارت/التلقائي) ← المسح بيستنى لحد ما يخلص */
 export const CHARGE_IN_FLIGHT_DELETE_BLOCK: CascadeDeleteBlock = {
@@ -520,6 +520,13 @@ export const CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA: CascadeDeleteBlock = {
   reason: 'charge-in-flight',
   title: 'استنى ثواني',
   body: 'فيه شهر بيتسجل للجمعية دي دلوقتي. استنى لحد ما يخلص وبعدين امسح.',
+};
+
+/** مسح الجمعية ونسخة الحساب مش جاهزة (`uid` فاضي) — كان بيرجع "تم" ومفيش حاجة اتمسحت */
+export const NO_ACCOUNT_DELETE_BLOCK_GAMIYA: CascadeDeleteBlock = {
+  reason: 'no-account',
+  title: 'ما اتمسحتش',
+  body: 'الجمعية لسه موجودة — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
 };
 
 /**
