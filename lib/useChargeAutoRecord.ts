@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useData, type ChargeKind } from '@/context/DataContext';
 import { useNotifications } from '@/context/NotificationsContext';
 import { usePrivacy } from '@/context/PrivacyContext';
@@ -13,6 +14,49 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 type DueItem = { kind: ChargeKind; id: string; name: string; charges: OpenCharge[]; labelOf: (key: string) => string };
+
+/**
+ * الجولة 2 (silent-failure-hunter): `uncertain` بيعيد بعد دقيقة — بس **بسقف**: 5 محاولات لنفس الفترات في الجلسة. بعدها
+ * الرسالة بتفضل ("افتح الأرشيف وبص") والإعادة كل دقيقة بتقف — المحاولة الجاية لما التطبيق يرجع من الخلفية أو يتفتح من
+ * جديد (حركة من المستخدم). غير كده نت بايظ = محاولة كل دقيقة للأبد.
+ */
+export const CHARGE_UNCERTAIN_RETRY_MAX = 5;
+/**
+ * إشعار "مش متأكدين" مرة في اليوم لنفس الاشتراك/الجمعية **حتى بعد فتحة باردة** — على الجهاز بس، والمحتوى معرّفات
+ * مستندات من غير أي مبلغ ولا اسم. رسالة الرئيسية بتظهر تاني عادي (الشك لسه قايم)؛ الإشعار بس اللي مبيتكررش
+ */
+const UNCERTAIN_NOTIFIED_KEY = 'nuqta-charge-uncertain-notified';
+
+/** `true` = أول مرة النهاردة (ابعت الإشعار). التخزين فشل ← `true`: إشعار زيادة أهون من إشعار ضايع */
+async function claimUncertainNotification(noticeId: string, day: string): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(UNCERTAIN_NOTIFIED_KEY);
+    const parsed = raw ? JSON.parse(raw) as { day?: unknown; ids?: unknown } : null;
+    const ids = parsed && parsed.day === day && Array.isArray(parsed.ids) ? parsed.ids.filter((x): x is string => typeof x === 'string') : [];
+    if (ids.includes(noticeId)) return false;
+    await AsyncStorage.setItem(UNCERTAIN_NOTIFIED_KEY, JSON.stringify({ day, ids: [...ids, noticeId] }));
+    return true;
+  } catch (e) {
+    console.warn('[charge] uncertain notify dedupe storage failed', (e as { name?: string })?.name ?? 'unknown');
+    return true;
+  }
+}
+
+type UncertainItem = { kind: ChargeKind; id: string; keys: string[] };
+
+/** كل الفترات اللي ما اتأكدناش منها اتحسمت (اتقفلت على عملية، أو اتفوّتت) ← السؤال اتجاوب */
+function uncertainResolved(
+  u: UncertainItem,
+  subscriptions: { id: string; closed?: Record<string, { txId?: string; skipped?: boolean; reopened?: boolean }> }[],
+  gamiyas: { id: string; months?: { id: string; status: string }[] }[],
+): boolean {
+  if (u.kind === 'subscription') {
+    const s = subscriptions.find(x => x.id === u.id);
+    return !!s && u.keys.every(k => { const c = s.closed?.[k]; return !!c && !c.reopened && (!!c.txId || !!c.skipped); });
+  }
+  const g = gamiyas.find(x => x.id === u.id);
+  return !!g && u.keys.every(k => g.months?.some(m => m.id === k && m.status === 'done'));
+}
 
 /**
  * الاشتراكات والجمعيات "التلقائي" بتتسجل **أول ما التطبيق يتفتح بعد
@@ -35,6 +79,17 @@ export function useChargeAutoRecord() {
   const retryTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastAttempt = useRef('');
   const missedRerun = useRef(false);
+  const uncertainTries = useRef(new Map<string, number>());
+  const uncertainOpen = useRef(new Map<string, UncertainItem>());
+
+  // "مش متأكدين" بتمشي لما الفترات تتحسم (الإعادة نجحت، أو اتسجلت/اتفوّتت من الكارت أو جهاز تاني)
+  useEffect(() => {
+    if (uncertainOpen.current.size === 0) return;
+    const done = [...uncertainOpen.current].filter(([, u]) => uncertainResolved(u, subscriptions, gamiyas)).map(([nid]) => nid);
+    if (done.length === 0) return;
+    done.forEach(nid => uncertainOpen.current.delete(nid));
+    setNotices(prev => prev.filter(n => !done.includes(n.id)));
+  }, [subscriptions, gamiyas]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', s => { if (s === 'active') setWake(w => w + 1); });
@@ -86,11 +141,17 @@ export function useChargeAutoRecord() {
           if (r.outcome === 'uncertain') {
             // الذرة فشلت وسؤال السيرفر كمان (مراجعة 2026-11-17): ممنوع "ومفيش أي خصم اتسجل" — ممكن يكون اتسجل.
             // وبنعيد بعد دقيقة: التسجيل ذري بمعرّف ثابت، فلو كان وصل الإعادة مبتكتبش حاجة
-            retry = true;
+            const keys = d.charges.map(c => c.key);
+            const triesKey = `${d.kind}:${d.id}:${keys.join(',')}`;
+            const tries = (uncertainTries.current.get(triesKey) ?? 0) + 1;
+            uncertainTries.current.set(triesKey, tries);
+            if (tries < CHARGE_UNCERTAIN_RETRY_MAX) retry = true;
+            else console.warn('[charge] uncertain retry cap reached');
             const id = `uncertain:${d.id}:${today}`;
+            uncertainOpen.current.set(id, { kind: d.kind, id: d.id, keys });
             if (shownErrors.current.has(id)) continue;
             shownErrors.current.add(id);
-            if (notificationsOn) {
+            if (notificationsOn && await claimUncertainNotification(id, today)) {
               notifyNow(`مش متأكدين سجلنا ${what} ولا لأ`, 'النت قطع واحنا بنسجّل. افتح الأرشيف وبص قبل ما تسجّله بإيدك.', 'charge')
                 .catch(e => console.warn('[charge] notify failed', e));
             }
@@ -100,6 +161,8 @@ export function useChargeAutoRecord() {
             });
             continue;
           }
+          // الجولة 2: التلقائي اتخطّى فترة عشان المبلغ المتخزّن بايظ — مش ساكت. اسم الخطوة بس، من غير أي رقم (sentryScrub)
+          if (r.outcome === 'done' && r.recorded.length === 0 && r.badAmount) console.warn('[charge] auto skipped: stored amount unreadable');
           if (r.outcome === 'done' && r.recorded.length > 0) {
             parts.push(chargeRecordedPart(d.kind, d.name, r.recorded.map(d.labelOf)));
             recordedIds.push(`${d.id}:${r.recorded.join(',')}`);

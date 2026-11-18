@@ -1,10 +1,12 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import ChargeHomeCards from '@/components/ChargeHomeCards';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { addMonths, todayStr } from '@/lib/finance';
-import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
+import { CHARGE_UNCERTAIN_RETRY_MAX, useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
+import { INCOME_RETRY_MS } from '@/lib/useIncomeAutoRecord';
 
 /**
  * الخصم التلقائي من جهة الواجهة: التلقائي بيسجل كل اللي فات في **رسالة
@@ -48,7 +50,8 @@ function Probe() {
   return <>{notices.map(n => <Text key={n.id} testID={`notice_${n.kind}`}>{n.text}</Text>)}</>;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  await AsyncStorage.clear();
   mockNotify.mockClear();
   mockHidden = false;
   Object.assign(mockData, {
@@ -225,5 +228,75 @@ describe('مبلغ متخزّن بايظ', () => {
     fireEvent.press(screen.getByTestId('charge_card_yes_s1'));
     await waitFor(() => expect(alert).toHaveBeenCalledWith('المبلغ مش مقروء', expect.any(String)));
     alert.mockRestore();
+  });
+});
+
+/** الجولة 2 (silent-failure-hunter على f1cc057) */
+describe('التلقائي uncertain: الإعادة ليها سقف، والرسالة بتمشي لما الفترة تتحسم', () => {
+  beforeEach(() => { mockData.gamiyas = []; });
+
+  it('المحاولات بتقف عند CHARGE_UNCERTAIN_RETRY_MAX في الجلسة', async () => {
+    jest.useFakeTimers();
+    try {
+      mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+      await render(<Probe />);
+      await waitFor(() => expect(mockData.recordCharges).toHaveBeenCalledTimes(1));
+      for (let i = 0; i < CHARGE_UNCERTAIN_RETRY_MAX + 4; i++) {
+        await act(async () => { jest.advanceTimersByTime(INCOME_RETRY_MS + 10); });
+      }
+      expect(mockData.recordCharges).toHaveBeenCalledTimes(CHARGE_UNCERTAIN_RETRY_MAX);
+      // الرسالة لسه باينة — الإعادة بس اللي وقفت
+      expect(screen.getByTestId('notice_error')).toBeTruthy();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('الفترات اتقفلت على عملياتها بعد كده ← "مش متأكدين" بتختفي', async () => {
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    const view = await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    mockData.subscriptions = [sub({
+      chargeMode: 'auto', chargeAutoSince: start, nextDueDate: addMonths(today, 1),
+      closed: { [start]: { txId: `sub_s1_${start}`, at: 'x' }, [today]: { txId: `sub_s1_${today}`, at: 'x' } },
+    })];
+    await view.rerender(<Probe />);
+    await waitFor(() => expect(screen.queryByTestId('notice_error')).toBeNull());
+  });
+
+  it('فترة واحدة بس اتقفلت ← الرسالة لسه باينة', async () => {
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    const view = await render(<Probe />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    mockData.subscriptions = [sub({
+      chargeMode: 'auto', chargeAutoSince: start, nextDueDate: today,
+      closed: { [start]: { txId: `sub_s1_${start}`, at: 'x' } },
+    })];
+    await view.rerender(<Probe />);
+    await new Promise(r => setTimeout(r, 30));
+    expect(screen.getByTestId('notice_error')).toBeTruthy();
+  });
+
+  it('فتحة باردة تانية في نفس اليوم ← الرسالة تاني بس **من غير** إشعار تاني', async () => {
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'uncertain', recorded: [] }));
+    const view = await render(<Probe key="first" />);
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+    await view.rerender(<Probe key="second" />);
+    await waitFor(() => expect(mockData.recordCharges).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId('notice_error')).toBeTruthy());
+    expect(mockNotify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('التلقائي ومبلغ متخزّن بايظ (الجولة 2)', () => {
+  it('done من غير تسجيل وbadAmount ← console.warn باسم الخطوة بس', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    mockData.gamiyas = [];
+    mockData.recordCharges = jest.fn(async () => ({ outcome: 'done', recorded: [], badAmount: true }));
+    await render(<Probe />);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('[charge] auto skipped: stored amount unreadable'));
+    expect(mockNotify).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

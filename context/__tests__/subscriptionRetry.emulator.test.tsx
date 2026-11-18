@@ -1,4 +1,4 @@
-import { collection, deleteField, doc, getDocFromServer, getDocsFromServer, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, collection, deleteField, doc, getDocFromServer, getDocsFromServer, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebaseConfig';
 import { gamiyaTxId, subscriptionTxId } from '@/lib/autoCharge';
 import { addDays, addMonths, todayStr } from '@/lib/finance';
@@ -22,6 +22,7 @@ jest.mock('firebase/firestore', () => {
     ...actual,
     runTransaction: jest.fn((...args: unknown[]) => (actual.runTransaction as (...a: unknown[]) => unknown)(...args)),
     getDocFromServer: jest.fn((...args: unknown[]) => (actual.getDocFromServer as (...a: unknown[]) => unknown)(...args)),
+    arrayRemove: jest.fn((...args: unknown[]) => (actual.arrayRemove as (...a: unknown[]) => unknown)(...args)),
   };
 });
 
@@ -34,6 +35,7 @@ const actualFs = jest.requireActual('firebase/firestore');
 const realRun = (fn: TxFn) => actualFs.runTransaction(db, fn);
 const runMock = runTransaction as unknown as jest.Mock;
 const serverGetMock = getDocFromServer as unknown as jest.Mock;
+const arrayRemoveMock = arrayRemove as unknown as jest.Mock;
 const unavailable = () => Object.assign(new Error('unavailable'), { code: 'unavailable' });
 
 const landThenRetry = () => runMock.mockImplementationOnce(async (_db: unknown, fn: TxFn) => {
@@ -379,5 +381,88 @@ describe('مبلغ مش صالح من الكارت', () => {
     const r = await harness.api().recordCharges('subscription', id, [{ key: today, amount: NaN }]);
     expect(r).toEqual({ outcome: 'done', recorded: [], badAmount: true });
     expect(await serverTx(subscriptionTxId(id, today))).toBeUndefined();
+  });
+});
+
+/** الجولة التانية (money-reviewer + silent-failure-hunter على f1cc057) */
+async function waitUntil(check: () => Promise<boolean>, ms = 6000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    if (await check()) return true;
+    await new Promise(r => setTimeout(r, 150));
+  }
+  return false;
+}
+
+describe('الجولة 2: حدّ المعاد بعد التعديل', () => {
+  it('سنوي ← شهري: الحد بيتحسب على التكرار الجديد (كان بيرفض معاد الشهر الجاي)', async () => {
+    const { id } = await makeSub({ frequency: 'yearly' });
+    await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    await harness.waitForData(api => api.subscriptions[0].nextDueDate === addMonths(today, 12) && api.pendingWrites === 0);
+    // جوه الفترة اللي اتقفلت حتى على الشهري ← لسه مرفوض
+    const inside = await harness.api().updateSubscription(id, { frequency: 'monthly', nextDueDate: addDays(today, 1) });
+    expect(inside).toMatchObject({ outcome: 'invalid', field: 'nextDueDate' });
+    const next = addMonths(today, 1);
+    expect((await harness.api().updateSubscription(id, { frequency: 'monthly', nextDueDate: next })).outcome).toBe('done');
+    await harness.waitForData(api => api.pendingWrites === 0 && api.subscriptions[0].frequency === 'monthly');
+    const s = await serverSub(id);
+    expect(s.frequency).toBe('monthly');
+    expect(s.nextDueDate).toBe(next);
+  });
+});
+
+describe('الجولة 2: "سدّد" بمبلغ متخزّن مش مقرّب', () => {
+  it('العملية والسطر بالقرش، والدوسة التانية في نفس اليوم ← already-paid-today من غير عملية تانية', async () => {
+    const { id } = await makeSub();
+    await updateDoc(userDoc('subscriptions', id), { amount: 100.456 });
+    await harness.waitForData(api => api.subscriptions[0].amount === 100.456 && api.pendingWrites === 0);
+    expect(await harness.api().markSubscriptionPaid(id, today)).toBe('done');
+    expect((await serverTx(subscriptionTxId(id, today)))?.amount).toBe(100.46);
+    expect((await serverSub(id)).history[0].amount).toBe(100.46);
+    await harness.waitForData(api => api.subscriptions[0].history.length === 1 && api.pendingWrites === 0);
+    expect(await harness.api().markSubscriptionPaid(id, today)).toBe('already-paid-today');
+    expect((await serverTxs()).filter(t => t.subscriptionId === id)).toHaveLength(1);
+  });
+});
+
+describe('الجولة 2: مسح عملية الاشتراك والسطر عندنا مش زي اللي على السيرفر', () => {
+  it('السطر بيتشال من نسخة السيرفر (arrayRemove من الذاكرة ما لقاهوش)', async () => {
+    const { id } = await makeSub();
+    await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    await harness.waitForData(api => api.transactions.length === 1 && api.subscriptions[0].history.length === 1 && api.pendingWrites === 0);
+    // تمثيل جهاز تاني عدّل السطر ولسه ما وصلناش: arrayRemove بيدوّر على نسخة مش موجودة على السيرفر
+    arrayRemoveMock.mockImplementationOnce(() => actualFs.arrayRemove({ id: 'stale-copy' }));
+    await harness.api().deleteTransaction(subscriptionTxId(id, today));
+    expect(await waitUntil(async () => ((await serverSub(id)).history || []).length === 0)).toBe(true);
+    expect((await serverSub(id)).closed[today].reopened).toBe(true);
+  });
+});
+
+describe('الجولة 2: النتيجة بعد الفشل من نسخة السيرفر', () => {
+  it('"ما اتخصمش" فشل والفترة مقفولة على عمليتها ← already-recorded مش failed', async () => {
+    const { id } = await makeSub();
+    await harness.api().recordCharges('subscription', id, [{ key: today, amount: 200 }]);
+    await harness.waitForData(api => api.pendingWrites === 0);
+    failWithoutLanding();
+    expect(await harness.api().skipSubscriptionCharge(id, today)).toBe('already-recorded');
+  });
+
+  it('الجمعية: الـcommit قفل الشهر على عملية موجودة والرد ضاع ← done وrecorded فاضي (مش failed)', async () => {
+    const w = harness.api().wallets[0];
+    await harness.api().addGamiya({
+      name: 'العيلة', monthlyAmount: 1000, totalMonths: 3, payoutMonthIndex: 3, payoutAmount: 3000,
+      walletId: w.id, startDate: today, reminderDaysBefore: 3,
+    });
+    await harness.waitForData(api => api.gamiyas.length === 1 && api.pendingWrites === 0);
+    const g = harness.api().gamiyas[0];
+    const m = g.months.find(x => x.dueDate === today)!;
+    await setDoc(userDoc('transactions', gamiyaTxId(g.id, m.id)), {
+      type: 'expense', amount: 900, walletId: w.id, date: today, gamiyaId: g.id, periodKey: m.id, createdAt: 'earlier',
+    });
+    await harness.waitForData(api => api.transactions.length === 1);
+    landThenFail();
+    const r = await harness.api().recordCharges('gamiya', g.id, [{ key: m.id, amount: 1000 }]);
+    expect(r).toEqual({ outcome: 'done', recorded: [] });
+    expect((await serverTx(gamiyaTxId(g.id, m.id)))?.amount).toBe(900);
   });
 });
