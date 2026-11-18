@@ -262,7 +262,7 @@ export default function NotificationsScreen() {
         <TouchableOpacity testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
           accessibilityRole="button" accessibilityState={{ expanded: showRoutine }}>
           {showRoutine
-            ? <Text style={styles.toggleText}>اخفي باقي التنبيهات</Text>
+            ? <Text style={styles.toggleText}>اخفِ باقي التنبيهات</Text>
             : <CountedText title="اظهر باقي التنبيهات" count={BANNER_TYPES.length - WARNING_BANNERS.length} style={styles.toggleText} />}
         </TouchableOpacity>
       </View>

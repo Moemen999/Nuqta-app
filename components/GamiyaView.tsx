@@ -35,6 +35,12 @@ export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
   return days < 0 ? 'متأخر — ' : days <= reminderDaysBefore ? 'قرّب — ' : '';
 }
 
+/** عنوان سطر الشهر الجاي: «القسط المتأخر: » لو فات، وإلا «قرّب — القسط الجاي: » / «القسط الجاي: » */
+export function gamiyaNextLabel(days: number, reminderDaysBefore: number, isPayout: boolean): string {
+  const noun = isPayout ? 'شهر الاستلام' : 'القسط';
+  return days < 0 ? `${noun} المتأخر: ` : `${gamiyaDueCue(days, reminderDaysBefore)}${noun} الجاي: `;
+}
+
 /** شهر الاستلام ما اتسجلش فيه "خصم" — الرسايل بتقول استلام (مراجعة 2026-11-18: مش المحفظة بس، كل نتايج الفشل) */
 const payAlerts = (isPayout: boolean) => (isPayout ? PAY_OUTCOME_ALERT_GAMIYA_PAYOUT : PAY_OUTCOME_ALERT_GAMIYA);
 const walletMissingAlert = (isPayout: boolean) => payAlerts(isPayout)['wallet-missing'];
@@ -123,11 +129,11 @@ export default function GamiyaView() {
     const isExpanded = expanded === g.id;
     const nextDays = nextPending ? daysUntil(nextPending.dueDate) : 0;
     const dueLine = nextPending
-      ? `${gamiyaDueCue(nextDays, g.reminderDaysBefore)}${nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: ${dateText(nextPending.dueDate, todayStr())} (${moneyText(nextPending.amount, amountsHidden)})`
+      ? `${gamiyaNextLabel(nextDays, g.reminderDaysBefore, nextPending.isPayoutMonth)}${dateText(nextPending.dueDate, todayStr())} (${moneyText(nextPending.amount, amountsHidden)})`
       : '';
     // الكارت جملة واحدة لقارئ الشاشة (القناع بيتقري «مبلغ مخفي»)
     const cardSentence = speakable(
-      `${g.name}، ${walletLabel}، القسط الشهري ${moneyText(g.monthlyAmount, amountsHidden)}، شهر الاستلام ${g.payoutMonthIndex} من ${g.totalMonths} (${moneyText(g.payoutAmount, amountsHidden)})، اتسدد ${doneCount} من ${monthsPhrase(g.months.length)}${dueLine ? '، ' + dueLine : ''}`,
+      `${g.name}، ${walletLabel}، القسط الشهري ${moneyText(g.monthlyAmount, amountsHidden)}، شهر الاستلام ${g.payoutMonthIndex} من ${g.totalMonths} (${moneyText(g.payoutAmount, amountsHidden)})، اتسجل ${doneCount} من ${monthsPhrase(g.months.length)}${dueLine ? '، ' + dueLine : ''}`,
     );
 
     return (
@@ -143,11 +149,11 @@ export default function GamiyaView() {
           <View style={styles.track} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accentText }]} />
           </View>
-          <Text style={styles.progressText}>اتسدد {doneCount} من {monthsPhrase(g.months.length)}</Text>
+          <Text style={styles.progressText}>اتسجل {doneCount} من {monthsPhrase(g.months.length)}</Text>
           {nextPending && (
             <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
               {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
-              {gamiyaDueCue(daysUntil(nextPending.dueDate), g.reminderDaysBefore)}{nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: {dateText(nextPending.dueDate, todayStr())} (<Money value={nextPending.amount} />)
+              {gamiyaNextLabel(daysUntil(nextPending.dueDate), g.reminderDaysBefore, nextPending.isPayoutMonth)}{dateText(nextPending.dueDate, todayStr())} (<Money value={nextPending.amount} />)
             </Text>
           )}
         </TouchableOpacity>
@@ -156,15 +162,15 @@ export default function GamiyaView() {
           <View style={styles.expandedArea}>
             {g.months.map(m => (
               <View key={m.id} style={styles.monthRow}>
-                <Text accessible accessibilityLabel={speakable(`شهر ${m.monthIndex}${m.isPayoutMonth ? '، استلام' : ''}، ${dateText(m.dueDate, todayStr())}، ${moneyText(m.amount, amountsHidden)}، ${m.status === 'done' ? 'اتسدد' : m.isPayoutMonth ? 'بانتظار الاستلام' : 'بانتظار السداد'}`)}
+                <Text accessible accessibilityLabel={speakable(`شهر ${m.monthIndex}${m.isPayoutMonth ? '، استلام' : ''}، ${dateText(m.dueDate, todayStr())}، ${moneyText(m.amount, amountsHidden)}، ${m.status === 'done' ? (m.isPayoutMonth ? 'اتسجل الاستلام' : 'اتدفع') : m.isPayoutMonth ? 'بانتظار الاستلام' : 'بانتظار الدفع'}`)}
                   style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
                   شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
                   <Button size="sm"
-                    label={m.isPayoutMonth ? 'استلمت' : 'اتخصم'}
-                    // الاسم فيه الشهر — كانت كل الأزرار «اتخصم» بس (اتلقى على الجهاز)
-                    accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتخصم'} شهر ${m.monthIndex}`}
+                    label={m.isPayoutMonth ? 'استلمت' : 'اتدفع'}
+                    // الاسم فيه الشهر — كانت كل الأزرار «اتدفع» بس (اتلقى على الجهاز)
+                    accessibilityLabel={`${m.isPayoutMonth ? 'استلمت' : 'اتدفع'} شهر ${m.monthIndex}`}
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount, m.dueDate, m.monthIndex)}
                     busy={busyKey === `month_${m.id}`} />
                 ) : (
@@ -422,7 +428,7 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           <Text style={styles.sheetTitle} accessibilityRole="header">تعديل جمعية</Text>
           <Text style={styles.hintNote}>
             المبالغ وعدد الشهور وشهر الاستلام مش بيتعدلوا هنا عشان الجدول اتبنى عليهم بالفعل
-            {doneCount > 0 ? ` (واتسدد منهم ${monthsPhrase(doneCount)})` : ''}. لو محتاج تغيّرهم، امسح الجمعية واعملها من جديد.
+            {doneCount > 0 ? ` (واتسجل منهم ${monthsPhrase(doneCount)})` : ''}. لو محتاج تغيّرهم، امسح الجمعية واعملها من جديد.
           </Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>

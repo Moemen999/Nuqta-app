@@ -455,7 +455,7 @@ export const TX_EDIT_OUTCOME_ALERT: Record<Exclude<TxEditOutcome, 'done'>, { tit
 export const INCOME_RECORD_ALERT: Record<Exclude<IncomeRecordOutcome, 'done'>, { title: string; body: string }> = {
   'no-connection': {
     title: 'مفيش نت دلوقتي',
-    body: 'ما اتسجلش حاجة. التسجيل لازم يتأكد من السيرفر عشان الدخل ميتسجلش مرتين — جرب تاني أول ما النت يرجع.',
+    body: 'مفيش حاجة اتسجلت. التسجيل لازم يتأكد من السيرفر عشان الدخل ميتسجلش مرتين — جرب تاني أول ما النت يرجع.',
   },
   failed: {
     title: 'ما اتسجلش',

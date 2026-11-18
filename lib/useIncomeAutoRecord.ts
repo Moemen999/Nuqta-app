@@ -126,7 +126,7 @@ export function useIncomeAutoRecord() {
       if (withTx.length > 0) {
         recordedNotices.push({
           id: `rec:${inc.id}:${withTx.join(',')}`, kind: 'recorded',
-          text: incomeRecordedMessage(inc.name, withTx.map(k => incomePeriodLabel(inc, k, today))),
+          text: incomeRecordedMessage(inc.name, withTx.map(k => incomePeriodLabel(inc, k, today)), inc.frequency),
         });
       }
     });
@@ -239,7 +239,7 @@ export function useIncomeAutoRecord() {
             continue;
           }
           if (r.outcome === 'done' && r.recorded.length > 0) {
-            const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)));
+            const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)), inc.frequency);
             found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', text });
             if (notificationsOn) {
               // الجولة الأخيرة: المبلغ من اللي اتكتب فعلاً (`recordedTotal`)، مش `inc.amount` المحلي × العدد.

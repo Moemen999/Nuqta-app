@@ -214,6 +214,11 @@ export function monthsPhrase(n: number) {
   return countPhrase(n, 'مفيش شهور', 'شهر واحد', 'شهرين', 'شهور', 'شهر');
 }
 
+/** "فترة واحدة" / "فترتين" / "3 فترات" / "11 فترة" — فترات الدخل الثابت الأسبوعي */
+export function periodsPhrase(n: number) {
+  return countPhrase(n, 'مفيش فترات', 'فترة واحدة', 'فترتين', 'فترات', 'فترة');
+}
+
 /** "قسط واحد" / "قسطين" / "3 أقساط" / "13 قسط" — سؤال الباقي بعد الزيادة (D1، 2026-10-30) */
 export function installmentsPhrase(n: number) {
   return countPhrase(n, 'مفيش أقساط', 'قسط واحد', 'قسطين', 'أقساط', 'قسط');

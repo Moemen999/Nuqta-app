@@ -68,7 +68,7 @@ export default function IncomesView() {
       `هنسجل ${plainAmount(inc.amount)} ج.م في "${walletHistoryName(wallets, inc.walletId)}" عن ${label}.`
         + (early ? ` ولما ييجي معاده مش هنسألك عنه تاني.` : ''),
       [
-        { text: 'لسه', style: 'cancel' },
+        { text: 'رجوع', style: 'cancel' },
         {
           text: 'نزل',
           onPress: () => run(`rec_${inc.id}`, async () => {
@@ -77,6 +77,7 @@ export default function IncomesView() {
             // "اتسجل" بس لو `recorded` فيه حاجة — غير كده السبب الحقيقي (M2)
             const m = incomeRecordNotice(r);
             if (m) notice(m.title, m.body);
+            else AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}" عن ${label}`);
           }),
         },
       ],
@@ -85,11 +86,14 @@ export default function IncomesView() {
 
   function confirmStop(inc: RecurringIncome) {
     confirm(
-      `توقف "${inc.name}" خالص؟`,
+      `هتوقّف "${inc.name}" خالص؟`,
       'مش هيتسجل ولا هيسألك عنه تاني. اللي اتسجل قبل كده بيفضل في الأرشيف ورصيدك زي ما هو.',
       [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'وقّفه', style: 'destructive', onPress: () => setIncomeStatus(inc.id, 'stopped') },
+        {
+          text: 'وقّفه', style: 'destructive',
+          onPress: () => { setIncomeStatus(inc.id, 'stopped'); AccessibilityInfo.announceForAccessibility(`اتوقف "${inc.name}"`); },
+        },
       ],
     );
   }
@@ -126,7 +130,7 @@ export default function IncomesView() {
         disabled={busyKey !== null}
         accessibilityRole="button"
         accessibilityLabel={busy ? `بنمسح "${inc.name}"` : `امسح "${inc.name}"`}
-        accessibilityState={{ busy }}>
+        accessibilityState={{ busy, disabled: busyKey !== null }}>
         {busy ? (
           <View style={styles.btnLoading}>
             <ActivityIndicator size="small" color={colors.danger} />
@@ -145,7 +149,7 @@ export default function IncomesView() {
     if (open.length > 0) {
       return inc.mode === 'confirm'
         ? `مستني تأكيدك عن ${incomePeriodLabel(inc, open[0], today)}`
-        : `هيتسجل أول ما النت يبقى متاح`;
+        : `لسه ما اتسجلش — هنجرب تاني أول ما تفتح التطبيق`;
     }
     const up = incomeUpcomingPeriod(inc, today);
     return up ? `الجاي: ${dateText(incomeDueDate(inc, up), today)}` : '';
@@ -154,8 +158,8 @@ export default function IncomesView() {
   return (
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content} {...fabScroll.scrollProps}>
       <View style={styles.titleRow}>
-        <Button testID="income_add_button" size="sm" label="+ دخل ثابت" onPress={() => setEditing('new')} />
-        <Text style={styles.title}>الدخل الثابت</Text>
+        <Button testID="income_add_button" size="sm" label="+ دخل ثابت" accessibilityLabel="إضافة دخل ثابت" onPress={() => setEditing('new')} />
+        <Text style={styles.title} accessibilityRole="header">الدخل الثابت</Text>
       </View>
 
       {live.length === 0 && (
@@ -186,7 +190,7 @@ export default function IncomesView() {
                   disabled={busyKey !== null}
                   accessibilityRole="button"
                   accessibilityLabel={`"${inc.name}" نزل`}
-                  accessibilityState={{ busy: recBusy }}>
+                  accessibilityState={{ busy: recBusy, disabled: busyKey !== null }}>
                   {recBusy ? (
                     <View style={styles.btnLoading}>
                       <ActivityIndicator size="small" color={colors.onAccent} />
@@ -197,18 +201,24 @@ export default function IncomesView() {
                   )}
                 </TouchableOpacity>
               )}
-              <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(inc)} accessibilityRole="button">
+              <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(inc)} accessibilityRole="button"
+                accessibilityLabel={`تعديل "${inc.name}"`}>
                 <Text style={styles.editText}>تعديل</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.editBtn}
-                onPress={() => setIncomeStatus(inc.id, paused ? 'active' : 'paused')}
-                accessibilityRole="button">
+                onPress={() => {
+                  setIncomeStatus(inc.id, paused ? 'active' : 'paused');
+                  AccessibilityInfo.announceForAccessibility(paused ? `رجع "${inc.name}"` : `"${inc.name}" واقف مؤقتًا`);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={paused ? `رجّع "${inc.name}"` : `وقّف "${inc.name}" مؤقتًا`}>
                 <Text style={styles.editText}>{paused ? 'رجّعه' : 'وقّفه مؤقتًا'}</Text>
               </TouchableOpacity>
               {/* اللي عمره ما سجّل: المسح مكان "وقّفه" — التوقيف كان هيسيب كارت مالوش لازمة */}
               {incomeHasRecords(inc, transactions) ? (
-                <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button">
+                <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button"
+                  accessibilityLabel={`وقّف "${inc.name}"`}>
                   <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>وقّفه</Text>
                 </TouchableOpacity>
               ) : deleteButton(inc)}
@@ -218,9 +228,10 @@ export default function IncomesView() {
       })}
 
       {stopped.length > 0 && (
-        <TouchableOpacity style={styles.stoppedToggle} onPress={() => setShowStopped(s => !s)} accessibilityRole="button">
+        <TouchableOpacity style={styles.stoppedToggle} onPress={() => setShowStopped(s => !s)} accessibilityRole="button"
+          accessibilityLabel={showStopped ? 'اخفِ المتوقف' : `المتوقف، ${stopped.length}`} accessibilityState={{ expanded: showStopped }}>
           {showStopped
-            ? <Text style={styles.stoppedToggleText}>اخفي المتوقف</Text>
+            ? <Text style={styles.stoppedToggleText}>اخفِ المتوقف</Text>
             : <CountedText title="المتوقف" count={stopped.length} style={styles.stoppedToggleText} />}
         </TouchableOpacity>
       )}
@@ -228,10 +239,13 @@ export default function IncomesView() {
         <View key={inc.id} style={[styles.card, styles.cardPaused]}>
           <View style={styles.cardHead}>
             <Text style={styles.name}>{inc.name}</Text>
-            <Money value={inc.amount} style={styles.amount} />
+            <Money value={inc.amount} sign="+" style={styles.amount} />
           </View>
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.editBtn} onPress={() => setIncomeStatus(inc.id, 'active')} accessibilityRole="button">
+            <TouchableOpacity style={styles.editBtn} onPress={() => {
+              setIncomeStatus(inc.id, 'active');
+              AccessibilityInfo.announceForAccessibility(`رجع "${inc.name}" من النهاردة`);
+            }} accessibilityRole="button" accessibilityLabel={`رجّع "${inc.name}" من النهاردة`}>
               <Text style={styles.editText}>رجّعه من النهاردة</Text>
             </TouchableOpacity>
             {!incomeHasRecords(inc, transactions) && deleteButton(inc)}
@@ -281,8 +295,9 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
 
   // `accessibilityLiveRegion` أندرويد بس — VoiceOver كان هيسكت عن الغلط وعن
   // تغيير الخطوة (المحتوى كله بيتغيّر بعد "التالي" من غير ما حد يقول)
+  // مكانيزم إعلان واحد: أندرويد بالـliveRegion على نص الغلط، وiOS بالإعلان — من غير ما الاتنين يقروه مرتين
   useEffect(() => {
-    if (error) AccessibilityInfo.announceForAccessibility(error);
+    if (error && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(error);
   }, [error]);
   useEffect(() => {
     if (step > 0) AccessibilityInfo.announceForAccessibility(`الخطوة ${step + 1} من 3: ${STEPS[step]}`);
@@ -307,9 +322,19 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
     // جدول جديد والفترات اللي معادها جه لسه ما اتأكدتش: مفاتيحها مش هتبقى
     // موجودة في الجدول الجديد، فكانت هتختفي من غير ما حد يقول (money-reviewer)
     if (income && pendingOnScheduleChange) {
-      return `فيه ${incomePeriodLabel(income, pendingOnScheduleChange, todayStr())} لسه ما اتأكدش. أكّده أو قول "ما نزلش" من الرئيسية الأول، وبعدين غيّر المعاد.`;
+      const period = incomePeriodLabel(income, pendingOnScheduleChange, todayStr());
+      return income.mode === 'auto'
+        ? `"${income.name}" عن ${period} لسه ما اتسجلش. دوس "نزل" عليه في الصفحة دي أو استنى لما يتسجل، وبعدين غيّر المعاد.`
+        : `"${income.name}" عن ${period} لسه ما اتأكدش. أكّده أو قول "ما نزلش" من "مستنيين ردك" في الرئيسية الأول، وبعدين غيّر المعاد.`;
     }
     return validateIncomeDraft(draft);
+  }
+
+  /** رجوع خطوة (أو إلغاء من الأولى) — نفس الزرار وزرار الرجوع بتاع أندرويد */
+  function goBack() {
+    freeze();
+    setError('');
+    if (step === 0) onClose(); else setStep(step - 1);
   }
 
   function next() {
@@ -350,29 +375,30 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="slide" onRequestClose={goBack}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={styles.sheet} accessibilityViewIsModal>
             <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>{income ? 'تعديل الدخل الثابت' : 'دخل ثابت جديد'}</Text>
+              <Text style={styles.sheetTitle} accessibilityRole="header">{income ? 'تعديل الدخل الثابت' : 'دخل ثابت جديد'}</Text>
               <View style={styles.stepsRow} accessible accessibilityLabel={`الخطوة ${step + 1} من 3: ${STEPS[step]}`}>
                 {STEPS.map((s, i) => (
                   <View key={s} style={[styles.stepDot, i <= step && { backgroundColor: colors.accent }]} />
                 ))}
               </View>
-              <Text style={styles.stepTitle}>{STEPS[step]}</Text>
+              <Text style={styles.stepTitle} accessibilityRole="header">{STEPS[step]}</Text>
 
               {step === 0 && (
                 <>
                   <Text style={styles.label}>اسمه</Text>
-                  <TextInput maxLength={NAME_MAX_LENGTH} testID="income_name" style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
+                  <TextInput maxLength={NAME_MAX_LENGTH} testID="income_name" accessibilityLabel="اسم الدخل" style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
                     placeholder="المرتب" placeholderTextColor={colors.textMuted} textAlign="right" autoFocus={!income} />
                   <Text style={styles.label}>المبلغ المعتاد</Text>
-                  <TextInput testID="income_amount" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
+                  <TextInput testID="income_amount" accessibilityLabel="المبلغ المعتاد"
+                    accessibilityHint={income && amountsHidden ? 'المبلغ مخفي — سيبه فاضي عشان يفضل زي ما هو' : undefined} style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
                     keyboardType="numeric" textAlign="right" placeholderTextColor={colors.textMuted}
                     placeholder={income && amountsHidden ? '•••• (زي ما هو)' : '0'} />
-                  <Text style={styles.hint}>لو شهر نزل مختلف، هتعدّل الشهر ده بس من غير ما الرقم ده يتغيّر.</Text>
+                  <Text style={styles.hint}>لو مرة نزل فيها مبلغ مختلف، بتكتبه وقتها للمرة دي بس والمبلغ ده يفضل زي ما هو.</Text>
                 </>
               )}
 
@@ -406,7 +432,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   {frequency === 'monthly' ? (
                     <>
                       <Text style={styles.label}>يوم كام في الشهر؟</Text>
-                      <TextInput testID="income_day" style={styles.input} value={day} onChangeText={v => { freeze(); setDay(v); }}
+                      <TextInput testID="income_day" accessibilityLabel="يوم الشهر" accessibilityHint="من 1 لـ 31" style={styles.input} value={day} onChangeText={v => { freeze(); setDay(v); }}
                         keyboardType="number-pad" textAlign="right" maxLength={2} />
                       {Number(day) >= 29 && Number(day) <= 31 && (
                         <Text style={styles.hint}>الشهور اللي أقصر بتاخد آخر يوم فيها.</Text>
@@ -438,7 +464,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <Text style={styles.modeTitle}>{INCOME_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
                       <Text style={styles.modeBody}>
                         {m === 'confirm'
-                          ? 'يوم المعاد هيجيلك إشعار وكارت في الرئيسية: "نزل؟" — تأكد أو تعدّل المبلغ.'
+                          ? 'يوم المعاد هيجيلك إشعار (لو الإشعارات شغّالة)، وفي الرئيسية سطر "مستنيين ردك" بيفتحلك كارت "نزل؟" — تأكد أو تعدّل المبلغ.'
                           : 'أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله.'}
                       </Text>
                     </TouchableOpacity>
@@ -449,12 +475,14 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                 </>
               )}
 
-              {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
             </ScrollView>
+
+            {/* برّه الـScrollView: فوق الفوتر وظاهر دايمًا من غير تمرير */}
+            {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
 
             <View style={styles.footer}>
               <Button variant="secondary" testID="income_setup_back" label={step === 0 ? 'إلغاء' : 'رجوع'} style={styles.cancelBtn}
-                onPress={() => { freeze(); setError(''); if (step === 0) onClose(); else setStep(step - 1); }} />
+                onPress={goBack} />
               <Button testID="income_setup_next" label={step < 2 ? 'التالي' : 'حفظ'} style={styles.saveBtn} onPress={next} busy={saving} />
             </View>
           </View>
@@ -472,7 +500,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: 20 },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
-    cardPaused: { opacity: 0.7 },
+    cardPaused: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
     name: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     amount: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
@@ -508,7 +536,7 @@ function makeStyles(c: ThemeColors) {
     modeTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
     summary: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxl },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.md, backgroundColor: c.nav },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

@@ -57,7 +57,7 @@ it('كل الفترات اللي فاتت في نداء واحد، ورسالة 
   const [, entries] = mockData.recordIncomePeriods.mock.calls[0];
   expect(entries.length).toBeGreaterThanOrEqual(2);
   expect(entries.every((e: { amount: number }) => e.amount === 8000)).toBe(true);
-  expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا "المرتب" عن أسبوع .+ وأسبوع /);
+  expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا لوحدنا "المرتب" عن أسبوع .+ وأسبوع /);
   expect(mockNotify).toHaveBeenCalledTimes(1);
 });
 
@@ -309,7 +309,7 @@ describe('الجولة الأخيرة', () => {
     mockData.incomes = [income({ closed })];
     await view.rerender(<Probe />);
     await waitFor(() => expect(screen.queryByTestId('notice_error')).toBeNull());
-    expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا "المرتب" عن /);
+    expect(screen.getByTestId('notice_recorded').props.children).toMatch(/^سجلنا لوحدنا "المرتب" عن /);
   });
 
   it('uncertain والفترات اتقفلت "ما نزلش" ← الرسالة بتمشي من غير "سجلنا"', async () => {

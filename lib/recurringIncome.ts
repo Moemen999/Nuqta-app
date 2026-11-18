@@ -1,4 +1,5 @@
 import { MONTH_NAMES } from '@/lib/dateText';
+import { monthsPhrase, periodsPhrase } from '@/lib/archiving';
 import { addDays, endOfMonth, fmt, toMoneyAmount } from '@/lib/finance';
 
 /**
@@ -159,18 +160,22 @@ function joinAnd(items: string[]) {
   return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(' و')} و${items[items.length - 1]}`;
 }
 
-/** رسالة واحدة للكذا فترة: `سجلنا "المرتب" عن سبتمبر وأكتوبر` */
-export function incomeRecordedMessage(name: string, labels: string[]) {
+/**
+ * رسالة واحدة للكذا فترة: `سجلنا لوحدنا "المرتب" عن سبتمبر وأكتوبر` — "لوحدنا" زي `chargeRecordedMessage`.
+ * العدد بالعربي: شهور للشهري، فترات للأسبوعي (`monthsPhrase`/`periodsPhrase`).
+ */
+export function incomeRecordedMessage(name: string, labels: string[], frequency: IncomeFrequency = 'monthly') {
   if (labels.length > 3) {
-    return `سجلنا "${name}" عن ${labels.length} ${labels.length <= 10 ? 'فترات' : 'فترة'}، من ${labels[0]} لـ ${labels[labels.length - 1]}`;
+    const count = frequency === 'weekly' ? periodsPhrase(labels.length) : monthsPhrase(labels.length);
+    return `سجلنا لوحدنا "${name}" عن ${count}، من ${labels[0]} لـ ${labels[labels.length - 1]}`;
   }
-  return `سجلنا "${name}" عن ${joinAnd(labels)}`;
+  return `سجلنا لوحدنا "${name}" عن ${joinAnd(labels)}`;
 }
 
 /** «وفيه فترة تانية» / «فترتين» / «3 فترات» / «11 فترة» — العدد بالعربي مش "2 فترات" */
 export function morePeriodsPhrase(n: number) {
   if (n === 1) return 'وفيه فترة تانية';
-  if (n === 2) return 'وفيه فترتين تانيين';
+  if (n === 2) return 'وفيه فترتين تانيتين';
   return `وفيه ${n} ${n <= 10 ? 'فترات' : 'فترة'} تانية`;
 }
 

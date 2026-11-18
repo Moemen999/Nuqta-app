@@ -45,7 +45,7 @@ beforeEach(() => {
 
 const wrap = (node: React.ReactNode) => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider>{node}</PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
 
-async function markMonth(label: 'اتخصم' | 'استلمت') {
+async function markMonth(label: 'اتدفع' | 'استلمت') {
   await render(wrap(<GamiyaView />));
   await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
   await act(async () => { fireEvent.press(screen.getByText(label)); });
@@ -54,7 +54,7 @@ async function markMonth(label: 'اتخصم' | 'استلمت') {
 const noticeTitle = () => screen.getByTestId('notice_title').props.children;
 const noticeBody = () => screen.getByTestId('notice_body').props.children;
 
-describe('"اتخصم" من شاشة الجمعية بالنتايج الجديدة', () => {
+describe('"اتدفع" من شاشة الجمعية بالنتايج الجديدة', () => {
   it.each([
     ['uncertain', CHARGE_UNCERTAIN_ALERT],
     ['missing', CHARGE_MISSING_ALERT.gamiya],
@@ -65,7 +65,7 @@ describe('"اتخصم" من شاشة الجمعية بالنتايج الجدي�
     ['failed', PAY_OUTCOME_ALERT_GAMIYA.failed],
   ])('%s ← رسالتها', async (outcome, alert) => {
     mockData.markGamiyaMonthDone = jest.fn(async () => outcome);
-    await markMonth('اتخصم');
+    await markMonth('اتدفع');
     expect(noticeTitle()).toBe(alert.title);
     expect(noticeBody()).toBe(alert.body);
   });

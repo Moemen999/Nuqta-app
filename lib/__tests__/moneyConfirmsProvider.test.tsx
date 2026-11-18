@@ -91,10 +91,10 @@ it('دفع اشتراك تاني والأول لسه بيلف ← "استنى ل
   await act(async () => { release(); });
 });
 
-it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة، و"تأكيد" بيسجّل الشهر الصح', async () => {
+it('الجمعية: "اتدفع" للشهر ← تأكيد قبل الكتابة، و"تأكيد" بيسجّل الشهر الصح', async () => {
   await render(wrap(<GamiyaView />));
   await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-  const pay = screen.getAllByText('اتخصم')[0];
+  const pay = screen.getAllByText('اتدفع')[0];
   await act(async () => { fireEvent.press(pay); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('تسجيل القسط');
   expect(screen.getByTestId('confirm_body').props.children).toBe('قسط شهر 1 من جمعية "جمعية الشغل" (1 يوليو 2099) — نسجّل خصم 1,000 ج.م من الكاش؟ هيتسجل بتاريخ المعاد مش النهاردة.');
@@ -108,7 +108,7 @@ it('الجمعية: "اتخصم" للشهر ← تأكيد قبل الكتابة
 it('الجمعية: شهرين بنفس القسط ورا بعض بسرعة ← التأكيد التاني مش بيتبلع (المفتاح هو الشهر)', async () => {
   await render(wrap(<GamiyaView />));
   await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-  const [m1, m2] = screen.getAllByText('اتخصم');
+  const [m1, m2] = screen.getAllByText('اتدفع');
   await act(async () => { fireEvent.press(m1); fireEvent.press(m2); });
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   // من غير المفتاح، التاني كان هيتلغي لأن نصه زي الأول بالظبط
@@ -132,7 +132,7 @@ describe('محفظة مؤرشفة أو ممسوحة: مفيش تأكيد بيو�
     mockData.wallets = wallets;
     await render(wrap(<GamiyaView />));
     await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-    await act(async () => { fireEvent.press(screen.getAllByText('اتخصم')[0]); });
+    await act(async () => { fireEvent.press(screen.getAllByText('اتدفع')[0]); });
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
     expect(screen.getByTestId('notice_title').props.children).toBe(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].title);
     expect(screen.getByTestId('notice_body').props.children).toBe(PAY_OUTCOME_ALERT_GAMIYA['wallet-missing'].body);
@@ -160,7 +160,7 @@ describe('المحافظ لسه ما وصلتش (أو الـlistener وقع): م
     Object.assign(mockData, { wallets: [], ...patch });
     await render(wrap(<GamiyaView />));
     await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-    await act(async () => { fireEvent.press(screen.getAllByText('اتخصم')[0]); });
+    await act(async () => { fireEvent.press(screen.getAllByText('اتدفع')[0]); });
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
     expect(screen.getByTestId('notice_title').props.children).toBe(WALLET_BLOCKED_TITLE);
     expect(mockData.markGamiyaMonthDone).not.toHaveBeenCalled();
@@ -222,7 +222,7 @@ describe('المبلغ اتعدّل من جهاز تاني والتأكيد مف
     mockData.markGamiyaMonthDone = jest.fn(async () => 'amount-changed');
     await render(wrap(<GamiyaView />));
     await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-    await act(async () => { fireEvent.press(screen.getAllByText('اتخصم')[0]); });
+    await act(async () => { fireEvent.press(screen.getAllByText('اتدفع')[0]); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(mockData.markGamiyaMonthDone).toHaveBeenCalledWith('g1', 'm1', 1000);
     expect(screen.getByTestId('notice_body').props.children).toBe(AMOUNT_CHANGED_ALERT.gamiya.body);
