@@ -67,7 +67,7 @@ const SCREENS = [
   // "حذف" الاشتراك جوه قايمة "⋯" (دراسة الشكل خطوة 3) — `button` هنا testID
   { kind: 'الاشتراك', Screen: SubscriptionsView, expand: null, button: 'menu:s1', del: 'deleteSubscription', id: 's1', name: 'نتفليكس' },
   // زرار حذف الجمعية جوه الكارت المفتوح — بندوس على الاسم الأول
-  { kind: 'الجمعية', Screen: GamiyaView, expand: 'جمعية الشغل', button: 'حذف الجمعية', del: 'deleteGamiya', id: 'g1', name: 'جمعية الشغل' },
+  { kind: 'الجمعية', Screen: GamiyaView, expand: 'جمعية الشغل', button: 'امسح الجمعية', del: 'deleteGamiya', id: 'g1', name: 'جمعية الشغل' },
 ] as const;
 
 let current: (typeof SCREENS)[number];
@@ -88,7 +88,7 @@ async function pressDelete(Screen: React.ComponentType, button: string) {
 /** بيدوس زرار "حذف" جوه الـAlert اللي اتفتح */
 async function confirmAlert() {
   const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-  const destructive = buttons.find(b => b.text === 'حذف' || b.text === 'امسحه');
+  const destructive = buttons.find(b => b.text === 'حذف' || b.text === 'امسحه' || b.text === 'امسحها');
   await act(async () => { await destructive?.onPress?.(); });
 }
 

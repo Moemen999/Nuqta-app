@@ -184,7 +184,7 @@ describe('الاشتراكات والجمعية لسه شغالين زي ما ه
     } as Gamiya;
     await run({ gamiyas: [gamiya] });
     expect(scheduled).toHaveLength(1);
-    expect(scheduled[0].body).toContain('الاستلام');
+    expect(scheduled[0].body).toContain('استلام الجمعية');
   });
 });
 
@@ -196,7 +196,7 @@ describe('نص "امتى" ونوع الإشعار (2026-11-17)', () => {
   const gam = (n: number, payout = false) => ({
     id: 'g1', name: 'جمعية الشغل', monthlyAmount: 1000, totalMonths: 1, payoutMonthIndex: 0,
     payoutAmount: 1000, walletId: 'w1', startDate: soon(1), reminderDaysBefore: n, createdAt: '',
-    months: [{ id: 'm1', monthIndex: 0, dueDate: soon(30), isPayoutMonth: payout, amount: 1000, status: 'pending' }],
+    months: [{ id: 'm1', monthIndex: 1, dueDate: soon(30), isPayoutMonth: payout, amount: 1000, status: 'pending' }],
   }) as unknown as Gamiya;
 
   it('الاشتراك: بكرة / بعد يومين / بعد 3 أيام / النهاردة', async () => {
@@ -214,14 +214,14 @@ describe('نص "امتى" ونوع الإشعار (2026-11-17)', () => {
 
   it('الجمعية: القسط والاستلام بيقولوا امتى، والمبالغ المخفية بتتشال', async () => {
     await run({ gamiyas: [gam(3)] });
-    expect(scheduled[0].body).toBe('قسط الشهر بعد 3 أيام — 1,000 ج.م');
+    expect(scheduled[0].body).toBe('قسط شهر 1 بعد 3 أيام — 1,000 ج.م');
     expect(scheduled[0].kind).toBe('gamiya');
     scheduled.length = 0;
     await run({ gamiyas: [gam(1, true)], hideAmounts: true });
-    expect(scheduled[0].body).toBe('شهر الاستلام بكرة');
+    expect(scheduled[0].body).toBe('استلام الجمعية بكرة');
     scheduled.length = 0;
     await run({ gamiyas: [gam(0)] });
-    expect(scheduled[0].body).toBe('قسط الشهر النهاردة — 1,000 ج.م');
+    expect(scheduled[0].body).toBe('قسط شهر 1 النهاردة — 1,000 ج.م');
   });
 
   it('التذكير اليومي بيتجدول بالدقيقة', async () => {

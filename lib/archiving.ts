@@ -209,6 +209,11 @@ function countPhrase(n: number, zero: string, one: string, two: string, many: st
   return `${n} ${plural}`;
 }
 
+/** "شهر واحد" / "شهرين" / "3 شهور" / "13 شهر" — عدد شهور الجمعية */
+export function monthsPhrase(n: number) {
+  return countPhrase(n, 'مفيش شهور', 'شهر واحد', 'شهرين', 'شهور', 'شهر');
+}
+
 /** "قسط واحد" / "قسطين" / "3 أقساط" / "13 قسط" — سؤال الباقي بعد الزيادة (D1، 2026-10-30) */
 export function installmentsPhrase(n: number) {
   return countPhrase(n, 'مفيش أقساط', 'قسط واحد', 'قسطين', 'أقساط', 'قسط');

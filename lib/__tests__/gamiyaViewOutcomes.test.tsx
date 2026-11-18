@@ -97,7 +97,7 @@ describe('المسح والتعديل', () => {
     mockData.deleteGamiya = jest.fn(async () => ({ outcome: 'blocked', ...CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA }));
     await render(wrap(<GamiyaView />));
     await act(async () => { fireEvent.press(screen.getByText('جمعية الشغل')); });
-    await act(async () => { fireEvent.press(screen.getByText('حذف الجمعية')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسح الجمعية')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(noticeTitle()).toBe(CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA.title);
   });

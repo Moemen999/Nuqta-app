@@ -22,7 +22,7 @@ export default function ChargeModePicker({ value, onChange, what, verb, testIDPr
       {(['confirm', 'auto'] as const).map(m => {
         const body = m === 'confirm'
           ? `هيظهرلك كارت في الرئيسية: "${verb}؟" — تأكد أو تعدّل المبلغ. مفيش حاجة بتتسجل من غيرك.`
-          : `أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من المعاد الجاي — اللي فات بيسألك.`;
+          : `أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من المعاد الجاي — اللي فات بيسألك.${what === 'القسط' ? ' شهر الاستلام بيسألك دايمًا.' : ''}`;
         return (
         <TouchableOpacity key={m} testID={`${testIDPrefix}_mode_${m}`} onPress={() => onChange(m)}
           accessibilityLabel={`لما معاد ${what} ييجي: ${CHARGE_MODE_LABEL[m]}${m === 'confirm' ? ' (مقترح)' : ''}. ${body}`}

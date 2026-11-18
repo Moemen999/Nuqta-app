@@ -66,7 +66,7 @@ export async function scheduleAllReminders(opts: {
       .forEach(m => {
         candidates.push({
           title: `جمعية ${g.name}`,
-          body: `${m.isPayoutMonth ? 'شهر الاستلام' : 'قسط الشهر'} ${whenPhrase(g.reminderDaysBefore || 0)}${amount(m.amount)}`,
+          body: `${m.isPayoutMonth ? 'استلام الجمعية' : `قسط شهر ${m.monthIndex}`} ${whenPhrase(g.reminderDaysBefore || 0)}${amount(m.amount)}`,
           date: addDays(m.dueDate, -(g.reminderDaysBefore || 0)),
           kind: 'gamiya',
         });

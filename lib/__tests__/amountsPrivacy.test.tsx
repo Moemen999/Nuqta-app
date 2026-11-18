@@ -167,17 +167,18 @@ describe('الإشعارات والمبالغ مخفية', () => {
     await run(true);
     expect(scheduled).toHaveLength(3);
     for (const n of scheduled) {
-      expect(n.body).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
+      // رقم الشهر في «قسط شهر N» مش فلوس
+      expect(n.body.replace(/قسط شهر \d+/, 'قسط شهر')).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
     }
     expect(scheduled.map(n => n.body)).toEqual(expect.arrayContaining([
-      'مستحق النهاردة', 'قسط الشهر النهاردة', 'المعاد النهاردة — لسه فيه متبقي',
+      'مستحق النهاردة', 'قسط شهر 1 النهاردة', 'المعاد النهاردة — لسه فيه متبقي',
     ]));
   });
 
   it('ولما تكون ظاهرة المبالغ موجودة زي الأول', async () => {
     await run(false);
     expect(scheduled.map(n => n.body)).toEqual(expect.arrayContaining([
-      'مستحق النهاردة — 150 ج.م', 'قسط الشهر النهاردة — 2,000 ج.م', 'المعاد النهاردة — متبقي 900 ج.م',
+      'مستحق النهاردة — 150 ج.م', 'قسط شهر 1 النهاردة — 2,000 ج.م', 'المعاد النهاردة — متبقي 900 ج.م',
     ]));
   });
 });

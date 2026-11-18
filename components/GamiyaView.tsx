@@ -9,7 +9,9 @@ import {
 } from '@/context/DataContext';
 import { walletsNotReadyNotice } from '@/lib/listenerErrors';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, gamiyaTransactionIds, gamiyasPhrase, monthsPhrase, linkedTransactions, selectableOptions } from '@/lib/archiving';
+import { moneyText, speakable } from '@/lib/money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { dateText } from '@/lib/dateText';
 import { daysUntil, todayStr, walletHistoryName } from '@/lib/finance';
 import { defaultWalletId } from '@/lib/defaultWallet';
@@ -42,6 +44,7 @@ export default function GamiyaView() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { gamiyas, wallets, transactions, loadErrors, figuresPending, deleteGamiya, markGamiyaMonthDone } = useData();
   const notice = useNotice();
+  const { amountsHidden } = usePrivacy();
   // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
   const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
   const confirm = useConfirm();
@@ -61,7 +64,7 @@ export default function GamiyaView() {
     confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, async () => {
+        text: 'امسحها', style: 'destructive', onPress: () => runBusy(`del_${g.id}`, async () => {
           const result = await deleteGamiya(g.id);
           if (result.outcome === 'blocked') notice(result.title, result.body);
         }),
@@ -85,7 +88,7 @@ export default function GamiyaView() {
       [
         { text: 'إلغاء', style: 'cancel' },
         {
-          text: 'تأكيد',
+          text: isPayout ? 'سجّل الاستلام' : 'سجّل الخصم',
           onPress: () => runBusy(`month_${monthId}`, async () => {
             // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
             const outcome = await markGamiyaMonthDone(g.id, monthId, amount);
@@ -115,10 +118,18 @@ export default function GamiyaView() {
     const pct = g.months.length > 0 ? (doneCount / g.months.length) * 100 : 0;
     const nextPending = g.months.find(m => m.status === 'pending');
     const isExpanded = expanded === g.id;
+    const nextDays = nextPending ? daysUntil(nextPending.dueDate) : 0;
+    const dueLine = nextPending
+      ? `${gamiyaDueCue(nextDays, g.reminderDaysBefore)}${nextPending.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} الجاي: ${dateText(nextPending.dueDate, todayStr())} (${moneyText(nextPending.amount, amountsHidden)})`
+      : '';
+    // الكارت جملة واحدة لقارئ الشاشة (القناع بيتقري «مبلغ مخفي»)
+    const cardSentence = speakable(
+      `${g.name}، ${walletLabel}، القسط الشهري ${moneyText(g.monthlyAmount, amountsHidden)}، شهر الاستلام ${g.payoutMonthIndex} من ${g.totalMonths} (${moneyText(g.payoutAmount, amountsHidden)})، اتسدد ${doneCount} من ${monthsPhrase(g.months.length)}${dueLine ? '، ' + dueLine : ''}`,
+    );
 
     return (
       <View key={g.id} style={styles.card}>
-        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={cardSentence} accessibilityHint="يفتح جدول الشهور" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
           <View style={styles.cardHead}>
             <Text style={styles.name}>{g.name}</Text>
             <Text style={styles.sub2}>{walletLabel}</Text>
@@ -126,10 +137,10 @@ export default function GamiyaView() {
           <Text style={styles.sub}>
             <Money value={g.monthlyAmount} />/شهر · شهر الاستلام: {g.payoutMonthIndex} من {g.totalMonths} (<Money value={g.payoutAmount} />)
           </Text>
-          <View style={styles.track}>
+          <View style={styles.track} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: colors.accentText }]} />
           </View>
-          <Text style={styles.progressText}>اتسدد {doneCount} من {g.months.length} شهر</Text>
+          <Text style={styles.progressText}>اتسدد {doneCount} من {monthsPhrase(g.months.length)}</Text>
           {nextPending && (
             <Text style={[styles.due, { color: daysUntil(nextPending.dueDate) < 0 ? colors.dangerText : daysUntil(nextPending.dueDate) <= g.reminderDaysBefore ? colors.accentText : colors.textSecondary }]}>
               {/* القرب والتأخير بالكلمة كمان، مش باللون بس. المتأخر كان بيطلع «قرّب» (اتلقى على الجهاز 2026-11-06) */}
@@ -142,7 +153,8 @@ export default function GamiyaView() {
           <View style={styles.expandedArea}>
             {g.months.map(m => (
               <View key={m.id} style={styles.monthRow}>
-                <Text style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
+                <Text accessible accessibilityLabel={speakable(`شهر ${m.monthIndex}${m.isPayoutMonth ? '، استلام' : ''}، ${dateText(m.dueDate, todayStr())}، ${moneyText(m.amount, amountsHidden)}، ${m.status === 'done' ? 'اتسدد' : m.isPayoutMonth ? 'بانتظار الاستلام' : 'بانتظار السداد'}`)}
+                  style={[styles.monthText, { color: m.status === 'done' ? colors.textMuted : colors.text }]}>
                   شهر {m.monthIndex} {m.isPayoutMonth ? '(استلام)' : ''} · {dateText(m.dueDate, todayStr())} · <Money value={m.amount} />
                 </Text>
                 {m.status === 'pending' ? (
@@ -153,16 +165,16 @@ export default function GamiyaView() {
                     onPress={() => confirmMark(g, m.id, m.isPayoutMonth, m.amount, m.dueDate, m.monthIndex)}
                     busy={busyKey === `month_${m.id}`} />
                 ) : (
-                  <Text style={{ color: colors.incomeText, fontSize: typeScale.caption }}>✓ خلص</Text>
+                  <Text style={{ color: colors.incomeText, fontSize: typeScale.caption }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">✓ خلص</Text>
                 )}
               </View>
             ))}
             <View style={styles.gamiyaActions}>
-              <TouchableOpacity accessibilityRole="button" style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تعديل جمعية ${g.name}`} style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>تعديل</Text>
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
-                <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>{busyKey === `del_${g.id}` ? '...' : 'حذف الجمعية'}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح جمعية ${g.name}`} accessibilityState={{ disabled: busyKey === `del_${g.id}`, busy: busyKey === `del_${g.id}` }} style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+                <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>{busyKey === `del_${g.id}` ? '...' : 'امسح الجمعية'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -258,28 +270,28 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>جمعية جديدة</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">جمعية جديدة</Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
+          <TextInput accessibilityLabel="اسم الجمعية" maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
             placeholder="مثلاً: جمعية الشغل" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>القسط الشهري</Text>
-          <TextInput style={styles.bigInput} value={monthlyAmount} onChangeText={v => { freeze(); setMonthlyAmount(v); }}
+          <TextInput accessibilityLabel="القسط الشهري" style={styles.bigInput} value={monthlyAmount} onChangeText={v => { freeze(); setMonthlyAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           <Text style={styles.label}>عدد الشهور الكلي</Text>
-          <TextInput style={styles.input} value={totalMonths} onChangeText={v => { freeze(); setTotalMonths(v); }}
+          <TextInput accessibilityLabel="عدد الشهور الكلي" accessibilityHint="من 1 لـ 60" style={styles.input} value={totalMonths} onChangeText={v => { freeze(); setTotalMonths(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>هتستلم في الشهر رقم كام؟ (من 1 لـ {totalMonths || '؟'})</Text>
-          <TextInput style={styles.input} value={payoutMonthIndex} onChangeText={v => { freeze(); setPayoutMonthIndex(v); }}
+          <TextInput accessibilityLabel="شهر الاستلام" accessibilityHint={`رقم من 1 لـ ${totalMonths || 'عدد الشهور'}`} style={styles.input} value={payoutMonthIndex} onChangeText={v => { freeze(); setPayoutMonthIndex(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>مبلغ الاستلام</Text>
-          <TextInput style={styles.input} value={payoutAmount} onChangeText={v => { freeze(); setPayoutAmount(v); }}
+          <TextInput accessibilityLabel="مبلغ الاستلام" style={styles.input} value={payoutAmount} onChangeText={v => { freeze(); setPayoutAmount(v); }}
             placeholder="عادة = القسط × عدد الأعضاء" keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
@@ -293,21 +305,19 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           </View>
 
           <Text style={styles.label}>تاريخ أول قسط</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تاريخ أول قسط، ${dateText(startDate, todayStr())}`} accessibilityHint="يفتح التقويم" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(startDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
+          <TextInput accessibilityLabel="عدد أيام التذكير قبل كل قسط" style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <ChargeModePicker value={chargeMode} onChange={m => { freeze(); setChargeMode(m); }} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
-
           <CalendarPickerModal visible={showPicker} value={startDate} onSelect={d => { freeze(); setStartDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
+        {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
         <View style={styles.footer}>
           <Button variant="secondary" testID="gamiya_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
           <Button testID="gamiya_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
@@ -354,9 +364,9 @@ function makeStyles(c: ThemeColors) {
     bigInput: bigAmountInputStyle(c),
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.md },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
@@ -404,16 +414,16 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>تعديل جمعية</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">تعديل جمعية</Text>
           <Text style={styles.hintNote}>
             المبالغ وعدد الشهور وشهر الاستلام مش بيتعدلوا هنا عشان الجدول اتبنى عليهم بالفعل
-            {doneCount > 0 ? ` (واتسدد منهم ${doneCount} شهر)` : ''}. لو محتاج تغيّرهم، امسح الجمعية واعملها من جديد.
+            {doneCount > 0 ? ` (واتسدد منهم ${monthsPhrase(doneCount)})` : ''}. لو محتاج تغيّرهم، امسح الجمعية واعملها من جديد.
           </Text>
 
           <Text style={styles.label}>اسم الجمعية</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
+          <TextInput accessibilityLabel="اسم الجمعية" maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
@@ -427,14 +437,13 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           </View>
 
           <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+          <TextInput accessibilityLabel="عدد أيام التذكير قبل كل قسط" style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="القسط" verb="اتدفع" testIDPrefix="gamiya" />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
         </ScrollView>
 
+        {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
         <View style={styles.footer}>
           <Button variant="secondary" testID="gamiya_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="gamiya_edit_save" label="حفظ التعديل" style={styles.saveBtn} onPress={handleSave} busy={busy} />
