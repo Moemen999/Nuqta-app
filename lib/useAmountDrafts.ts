@@ -1,4 +1,5 @@
 import { planWalletAmountCommit, type WalletAmountPlan } from '@/lib/finance';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from '@/components/ConfirmProvider';
 
@@ -46,7 +47,15 @@ export type AmountDraftOptions = {
   onReject?: (id: string) => void;
   /** رقم مرفوض والشاشة اتشالت (نفس `onDroppedConfirm`) — مفيش كتابة، والشاشة بتقول برّه */
   onDroppedReject?: (id: string) => void;
+  /**
+   * خانة **فاضية** (بعد التنضيف — «,» لوحدها فاضية) اتحفظت صفر لما سبتها أو سبت الشاشة. سحبة على الشاشة بتقفل الكيبورد
+   * وبتعمل blur، فالمسح كان بيتحفظ ساكت (الجولة الأخيرة، L2): الكتابة زي ما هي، والشاشة بتقول. صفر مكتوب بإيدك مش هنا
+   */
+  onBlankCleared?: (id: string) => void;
 };
+
+/** فاضية بعد التنضيف: «,» أو مسافات لوحدها = مفيش رقم اتكتب */
+const isBlank = (raw: string) => normalizeAmountInput(raw).trim() === '';
 
 /**
  * خانة رقم فلوس بتتحفظ لوحدها — رصيد محفظة، سقف ميزانية، دخل شهر، نسبة.
@@ -103,7 +112,7 @@ export function useAmountDrafts(
   const autosaveBlank = opts.autosaveBlank ?? true;
   const pick = () => ({
     storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm,
-    onReject: opts.onReject, onDroppedReject: opts.onDroppedReject, autosaveBlank,
+    onReject: opts.onReject, onDroppedReject: opts.onDroppedReject, onBlankCleared: opts.onBlankCleared, autosaveBlank,
   });
   const latest = useRef(pick());
   useEffect(() => { latest.current = pick(); });
@@ -125,7 +134,7 @@ export function useAmountDrafts(
 
   /** الحفظ التلقائي. بيرجّع true لو خلص الموضوع فعلاً */
   function autoCommit(id: string, raw: string): boolean {
-    if (!latest.current.autosaveBlank && raw.trim() === '') return false;
+    if (!latest.current.autosaveBlank && isBlank(raw)) return false;
     const p = latest.current.plan(raw, latest.current.storedFor(id));
     if (p.action !== 'write') return false;
     commitWrite(id, p.value);
@@ -150,8 +159,10 @@ export function useAmountDrafts(
       Object.entries(held.current).forEach(([id, raw]) => {
         // مفيش setState ولا ديالوج والشاشة بتتشال — فبنكتب الأكيد بس
         const p = latest.current.plan(raw, latest.current.storedFor(id));
-        if (p.action === 'write') latest.current.write(id, p.value);
-        else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
+        if (p.action === 'write') {
+          latest.current.write(id, p.value);
+          if (isBlank(raw)) latest.current.onBlankCleared?.(id);
+        } else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
         else if (p.action === 'reject') latest.current.onDroppedReject?.(id);
       });
       held.current = {};
@@ -194,7 +205,11 @@ export function useAmountDrafts(
     const p = plan(raw, latest.current.storedFor(id));
     if (p.action === 'none') { clearDraft(id); return; }
     if (p.action === 'reject') { clearDraft(id); latest.current.onReject?.(id); return; }
-    if (p.action === 'write') { commitWrite(id, p.value); return; }
+    if (p.action === 'write') {
+      commitWrite(id, p.value);
+      if (isBlank(raw)) latest.current.onBlankCleared?.(id);
+      return;
+    }
 
     const confirmed = p.value;
     // حد معروف (silent-failure-hunter): التطبيق اتقفل والتأكيد مفتوح، أو الـblur جه من القفل نفسه ←

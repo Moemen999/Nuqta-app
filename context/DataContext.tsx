@@ -37,6 +37,7 @@ import {
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import type { ListenerName } from '@/lib/listenerErrors';
+import { snapshotTrusted } from '@/lib/listenerTrust';
 import {
   anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
   subscriptionOpenCharges, subscriptionResumeDate, subscriptionTxId, type ChargeClosed, type ChargeMode,
@@ -954,14 +955,22 @@ type DataContextType = {
   deleteTransaction: (id: string, settlements?: Settlement[], opts?: { expectedTxs?: ExpectedTx[] }) => Promise<TxDeleteResult>;
   transactionLinkWarning: (id: string) => string | null;
   /**
-   * `false` = **ما اتبعتش** (مفيش حساب) — والرسالة اتقالت خلاص؛ الشاشة متمسحش المسوّدة كأنها اتحفظت. `true` = اتبعتت
-   * (من غير تأكيد السيرفر — قاعدة 7؛ الرفض بعدين بيتقال من `track`)
+   * `false` = **ما اتبعتش** (مفيش حساب) — والرسالة العامة باسم السجل اتقالت خلاص. `true` = اتبعتت (من غير تأكيد السيرفر —
+   * قاعدة 7؛ الرفض بعدين بيتقال من `track`). شاشة النسب بتسيب المسوّدة على `false`؛ خانات السقف والدخل (`useAmountDrafts`)
+   * بتمسح المسوّدة قبل الكتابة — مقبول: من غير حساب الشاشة نفسها رايحة، والرسالة اتقالت (الجولة الأخيرة، بند 4)
    */
   setBudget: (categoryId: string, limit: number) => Promise<boolean>;
   setMonthlyIncome: (month: string, income: number) => Promise<boolean>;
   setShakhbataPercents: (p: ShakhbataPercents) => Promise<boolean>;
-  /** مستند النسب وصل من السيرفر ومش مرفوض — قبلها النسب المعروضة هي الافتراضي 50/30/20 مش المحفوظة، فالتعديل مقفول */
+  /**
+   * مستند النسب اتشاف فعلاً (موجود، أو السيرفر رد إنه مش موجود) ومش مرفوض — قبلها النسب المعروضة هي الافتراضي 50/30/20
+   * مش المحفوظة، فالتعديل مقفول. مش موجود من الكاش بس ≠ جاهز (`snapshotTrusted`)
+   */
   percentsReady: boolean;
+  /** السقوف اتشافت (فيها حاجة، أو السيرفر رد) ومش مرفوضة — قبلها خانات الميزانية مقفولة عشان متكتبش فوق سقف مش ظاهر */
+  budgetsReady: boolean;
+  /** دخل الشهور اتشاف ومش مرفوض — نفس `budgetsReady` لخانة الدخل */
+  incomeReady: boolean;
   addDebt: (data: {
     direction: 'owed_to_me' | 'i_owe'; personName: string; personPhone?: string; personContactId?: string; totalAmount: number;
     isInstallment: boolean; installmentCount?: number; note?: string; walletId?: string; date: string;
@@ -1270,6 +1279,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // قبل ما الديون توصل كانت هتروح للمسار العادي وتسيب الدين على الرقم القديم)
   const [delivered, setDelivered] = useState<Set<ListenerName>>(() => new Set());
   const deliveredUid = useRef<string | null | undefined>(undefined);
+  // الخانات اللي بتكتب فوق رقم محفوظ (السقوف، دخل الشهر، النسب): `delivered` مش كفاية — snapshot فاضي من الكاش وصل
+  // برضه. هنا بس اللي اتشاف فعلاً (فيه بيانات، أو السيرفر رد) — `snapshotTrusted` (الميزة 6، الجولة الأخيرة)
+  const [trusted, setTrusted] = useState<Set<ListenerName>>(() => new Set());
   const [setupStatus, setSetupStatus] = useState<SetupStatus>('checking');
   // بيتزوّد مع "جرّب تاني" فالـeffect بتاع الـlisteners يفتحهم من الأول
   const [listenRetry, setListenRetry] = useState(0);
@@ -1395,6 +1407,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setShakhbataPercentsState(DEFAULT_PERCENTS);
       setDebts([]); setSubscriptions([]); setGamiyas([]); setIncomes([]);
       setDelivered(new Set());
+      setTrusted(new Set());
       setPendingTxIds(new Set());
       setServerReachable(false);
       serverReachableRef.current = false;
@@ -1576,7 +1589,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) { setLoadErrors([]); return; }
     // حساب اتبدّل بحساب من غير ما يعدّي على null: `delivered` بتاع الأول كان هيخلّي التاني `ready` قبل ما ديونه توصل
     // (silent-failure-hunter جولة 1، بند 11). على "جرّب تاني" لأ — اللي وصل لسه وصل
-    if (deliveredUid.current !== uid) { deliveredUid.current = uid; setDelivered(new Set()); }
+    if (deliveredUid.current !== uid) { deliveredUid.current = uid; setDelivered(new Set()); setTrusted(new Set()); }
 
     /**
      * فايربيز بتقفل الـlistener نهائي لما يترفض — من غير الـcallback ده كان
@@ -1598,6 +1611,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setLoadErrors(prev => (prev.includes(name) ? prev.filter(n => n !== name) : prev));
       setDelivered(prev => (prev.has(name) ? prev : new Set(prev).add(name)));
     };
+    /** `includeMetadataChanges` على الـlisteners دي: الرد الفاضي من السيرفر بعد كاش فاضي مبيوصلش من غيرها (نفس المحتوى) */
+    const seen = (name: ListenerName, fromCache: boolean, hasData: boolean) => {
+      if (!snapshotTrusted({ fromCache, hasData })) return;
+      setTrusted(prev => (prev.has(name) ? prev : new Set(prev).add(name)));
+    };
+    /** نفس الـstate لو مفيش تغيير — الـlisteners اللي بـ`includeMetadataChanges` بترد مع كل تغيير metadata */
+    const sameOr = <T,>(next: T) => (prev: T) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
       loaded('wallets');
@@ -1633,32 +1653,36 @@ export function DataProvider({ children }: { children: ReactNode }) {
       noteConnection(snap.metadata.fromCache);
       noteFigures('transactions', snap.metadata.fromCache);
     }, failed('transactions'));
-    const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), (snap) => {
+    const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), { includeMetadataChanges: true }, (snap) => {
       loaded('budgets');
       const b: Budgets = {};
       // رقم محدود بس (بند B): `undefined`/نص كان بيدخل حسبة "قربت تخلص" NaN
       snap.docs.forEach(d => { const v = numberField(d.data(), 'limit', 'budgets'); if (v !== undefined) b[d.id] = v; });
-      setBudgets(b);
+      setBudgets(sameOr(b));
+      seen('budgets', snap.metadata.fromCache, !snap.empty);
     }, failed('budgets'));
-    const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), (snap) => {
+    const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), { includeMetadataChanges: true }, (snap) => {
       loaded('shakhbata_income');
       const s: ShakhbataIncome = {};
       snap.docs.forEach(d => { const v = numberField(d.data(), 'income', 'shakhbata_income'); if (v !== undefined) s[d.id] = v; });
-      setShakhbataIncome(s);
+      setShakhbataIncome(sameOr(s));
+      seen('shakhbata_income', snap.metadata.fromCache, !snap.empty);
     }, failed('shakhbata_income'));
-    const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), (snap) => {
+    const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), { includeMetadataChanges: true }, (snap) => {
       loaded('shakhbata_settings');
       if (snap.exists()) {
         const data = snap.data();
         // `??` كان بيعدّي نص ("50") وNaN — المجموع كان بيتلزق نص (بند B)
-        setShakhbataPercentsState({
+        setShakhbataPercentsState(sameOr({
           needs: finiteOr(data.needs, DEFAULT_PERCENTS.needs, ['shakhbata_settings', 'needs']),
           wants: finiteOr(data.wants, DEFAULT_PERCENTS.wants, ['shakhbata_settings', 'wants']),
           future: finiteOr(data.future, DEFAULT_PERCENTS.future, ['shakhbata_settings', 'future']),
-        });
+        }));
       } else {
-        setShakhbataPercentsState(DEFAULT_PERCENTS);
+        setShakhbataPercentsState(sameOr(DEFAULT_PERCENTS));
       }
+      // مستند مش موجود من الكاش ≠ «مفيش نسب» — الافتراضي 50/30/20 بيتعرض، بس التعديل مستني السيرفر
+      seen('shakhbata_settings', snap.metadata.fromCache, snap.exists());
     }, failed('shakhbata_settings'));
     const unsubDebts = onSnapshot(collection(db, 'users', uid, 'debts'), (snap) => {
       loaded('debts');
@@ -4495,7 +4519,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),
         transfersStatus: transfersStatusFrom(delivered, loadErrors),
-        percentsReady: delivered.has('shakhbata_settings') && !loadErrors.includes('shakhbata_settings'),
+        percentsReady: trusted.has('shakhbata_settings') && !loadErrors.includes('shakhbata_settings'),
+        budgetsReady: trusted.has('budgets') && !loadErrors.includes('budgets'),
+        incomeReady: trusted.has('shakhbata_income') && !loadErrors.includes('shakhbata_income'),
         readAllFromServer, deleteAllMyData, deletionPending,
         addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
         addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,

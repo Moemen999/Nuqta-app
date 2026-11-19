@@ -529,19 +529,39 @@ export function projectBalances(opts: {
  * اللي بيتعرض، والفحص **بعد** التقريب (1e307 بيطلع Infinity). الفاضي صفر (= مسح السقف)؛ السالب والكلام `null`.
  */
 export function parseBudgetInput(raw: string): number | null {
+  if (ambiguousDecimalComma(raw)) return null;
   const clean = normalizeAmountInput(raw).trim();
   if (clean === '') return 0;
-  const num = roundMoney(Number(clean));
+  const exact = Number(clean);
+  const num = roundMoney(exact);
   if (!isFinite(num) || num < 0) return null;
-  return num;
+  // «0.004» كان بيتحفظ صفر (= مسح السقف) ساكت، و«-0.004»/«-0» كانوا بيعدّوا -0 (الجولة الأخيرة)
+  if (num === 0 && exact !== 0) return null;
+  return num === 0 ? 0 : num;
+}
+
+/**
+ * «1,5» و«12,5» و«1,50»: الفاصلة هنا كسر (كيبورد بيكتب الكسر بفاصلة) ولا آلاف ناقصة؟ `normalizeAmountInput` بيشيل
+ * الفواصل فكانوا بيتحفظوا 15 و125 و150 ساكت (money-reviewer، الجولة الأخيرة). منخمّنش: فاصلة قبل رقم أو رقمين في الآخر
+ * = مرفوض والشاشة بتقول. «1,500» آلاف واضحة وبتتقري. أول شاشة (`normalizeAmountInput` نفسه) مبتتغيّرش.
+ */
+export function ambiguousDecimalComma(raw: string): boolean {
+  const digits = String(raw ?? '')
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06f0))
+    .trim();
+  return /[,٬]\d{1,2}$/.test(digits);
 }
 
 /** رسالة الرقم المرفوض في الميزانية وتوزيع الدخل — بتتقال عند الخروج من الخانة أو من الشاشة، مش رجوع ساكت */
 export const AMOUNT_REJECT_TITLE = 'الرقم ده ما اتحفظش';
 /** `field`: «سقف "أكل"»، «الميزانية الإجمالية»، «الدخل» */
 export function amountRejectBody(field: string) {
-  return `${field} لازم يكون رقم من صفر وطالع، فاللي اتكتب ما اتحفظش ورجّعنا الرقم اللي كان محفوظ.`;
+  return `${field} لازم يكون رقم من صفر وطالع، والكسر بنقطة (1.5)، فاللي اتكتب ما اتحفظش ورجّعنا الرقم اللي كان محفوظ.`;
 }
+/** خانة اتسابت فاضية (خروج منها أو من الشاشة) فاتحفظت صفر — بتتقال عشان سحبة على الشاشة متمسحش رقم ساكت */
+export const amountClearedTitle = (field: string) => `اتشال ${field}`;
+export const AMOUNT_CLEARED_BODY = 'سبت الخانة فاضية، فالرقم اللي كان محفوظ اتشال. لو مش قصدك، اكتبه تاني.';
 export const budgetFieldName = (categoryName?: string) => (categoryName === undefined ? 'السقف الإجمالي' : namedLabel('سقف', categoryName));
 export const INCOME_FIELD_NAME = 'الدخل';
 /** خانة بتتحفظ لوحدها — قارئ الشاشة لازم يعرف إن مفيش زرار حفظ (a11y-architect، الميزة 6) */
@@ -565,7 +585,10 @@ export const NO_CATEGORIES_TEXT = 'مفيش فئات لسه — ضيف فئة م
  * ويطلع منها كان رصيد المحفظة كله بيروح. التفريق ده هو كل الحكاية.
  */
 export function parseWalletAmountInput(raw: string): number | null {
-  const num = Number(String(raw ?? '').trim());
+  // «٢٠٠٠» و«1,500» بيتقروا زي الميزانية، و«1,5» الغامض مرفوض (الجولة الأخيرة، بند 7) — قبل كده كانوا بيترفضوا ساكت.
+  // أول شاشة بتبعت نص متنضّف أصلاً (`normalizeAmountInput` مرتين = مرة)، فمبتتغيّرش
+  if (ambiguousDecimalComma(raw)) return null;
+  const num = Number(normalizeAmountInput(raw).trim());
   if (!isFinite(num)) return null;
   return num;
 }
@@ -672,6 +695,7 @@ export const PERCENT_MAX = 100;
  * ناعم زي ما كان.
  */
 export function parsePercentInput(raw: string): number | null {
+  if (ambiguousDecimalComma(raw)) return null;
   // الفاضي **غلط** مش صفر (الميزة 6): خانة اتمسحت ونسيتها كانت بتتحفظ 0% ساكت
   const clean = normalizeAmountInput(raw).trim();
   if (clean === '') return null;
@@ -679,7 +703,10 @@ export function parsePercentInput(raw: string): number | null {
   if (!isFinite(num)) return null;
   if (num < PERCENT_MIN || num > PERCENT_MAX) return null;
   // رقمين بعد العلامة بالكتير — 33.333333 مبتتخزّنش ولا بتتعرض كده
-  return Math.round(num * 100) / 100;
+  const rounded = Math.round(num * 100) / 100;
+  // «0.004» مش صفر اتكتب — مرفوض بدل ما يتحفظ 0% ساكت؛ و«-0» بيتكتب 0 مش -0
+  if (rounded === 0 && num !== 0) return null;
+  return rounded === 0 ? 0 : rounded;
 }
 
 /** مجموع النسب للعرض: رقمين بعد العلامة بالكتير (10.1+20.2+30.3 = «60.6» مش «60.599999») */
@@ -693,6 +720,9 @@ export function percentSumOff(sum: number) {
 }
 
 export const PERCENTS_UNSAVED_TITLE = 'النسب ما اتحفظتش';
+/** «حفظ النسب» والنسب المحفوظة مش ظاهرة (لسه ما وصلتش أو اترفضت بعد ما فتحت التعديل) — مفيش كتابة، والمسوّدة بتفضل */
+export const PERCENTS_NOT_READY_TITLE = 'النسب ما اتحفظتش';
+export const PERCENTS_NOT_READY_BODY = 'نسبك المحفوظة مش واصلة من السيرفر دلوقتي، فما كتبناش فوقها. استنى لحد ما توصل ودوس «حفظ النسب» تاني.';
 export const PERCENTS_UNSAVED_BODY = 'خرجت من توزيع الدخل والنسب الجديدة لسه ما اتحفظتش، فرجعت زي ما كانت. لو عايزها، عدّلها تاني ودوس «حفظ النسب».';
 
 

@@ -6,6 +6,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
 import { useNotice } from '@/components/NoticeProvider';
+import { WRITE_ERROR_TITLE, writeErrorBody } from '@/lib/writeError';
 import { Money } from '@/components/Money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { spendingExpenses, transferTransactionIds } from '@/lib/spending';
@@ -14,7 +15,8 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, quietSelectionStyle } from '@/lib/selection';
 import {
-  AMOUNT_REJECT_TITLE, AUTOSAVE_HINT, INCOME_FIELD_NAME, NO_CATEGORIES_TEXT, PERCENTS_UNSAVED_BODY, PERCENTS_UNSAVED_TITLE, amountRejectBody,
+  AMOUNT_CLEARED_BODY, AMOUNT_REJECT_TITLE, AUTOSAVE_HINT, INCOME_FIELD_NAME, NO_CATEGORIES_TEXT, PERCENTS_NOT_READY_BODY, PERCENTS_NOT_READY_TITLE,
+  PERCENTS_UNSAVED_BODY, PERCENTS_UNSAVED_TITLE, amountClearedTitle, amountRejectBody,
   categoryLabel, currentMonth, parsePercentInput, percentInvalidBody, percentInvalidTitle, percentSumOff, percentSumText,
   planIncomeCommit, snapPiastre,
 } from '@/lib/finance';
@@ -54,12 +56,14 @@ export default function ShakhbataView() {
   const { categoryColors } = useChartColors();
   const {
     categories: allCategories, transactions, shakhbataIncome, shakhbataPercents, updateCategory, setMonthlyIncome, setShakhbataPercents,
-    debts, gamiyas, transfersStatus, loadErrors = [], figuresPending = [], percentsReady,
+    debts, gamiyas, transfersStatus, loadErrors = [], figuresPending = [], percentsReady, incomeReady,
   } = useData();
   // الميزة 6: النسب الافتراضية (50/30/20) كانت بتتعرض كأنها المحفوظة لو المستند ما وصلش، و«حفظ النسب» كان بيكتب فوق
   // نسب المستخدم الحقيقية. التعديل مقفول لحد ما المستند يوصل
   const percentsFailed = loadErrors.includes('shakhbata_settings');
   const incomeFailed = loadErrors.includes('shakhbata_income');
+  // الدخل لسه ما اتشافش (snapshot فاضي من الكاش بس) ← الخانة مقفولة برضه (الجولة الأخيرة، بند 1)
+  const incomeEditable = incomeReady === true && !incomeFailed;
   // بند 11: "اتصرف" مبيظهرش لحد ما الديون والجمعية يوصلوا
   // والعمليات نفسها لسه ما وصلتش ← «بنحمّل» مش «اتصرف 0» (زي الميزانية والرئيسية، الميزة 6)
   const spendLoading = transfersStatus === 'loading' || figuresPending.includes('transactions');
@@ -86,9 +90,12 @@ export default function ShakhbataView() {
     (month, value) => {
       void Promise.resolve(setMonthlyIncome(month, value)).then(ok => {
         if (ok) AccessibilityInfo.announceForAccessibility('اتحفظ دخل الشهر');
-      });
+      }).catch(() => notice(WRITE_ERROR_TITLE, writeErrorBody('دخل الشهر')));
     },
-    { plan: planIncomeCommit, blankWhenZero: true, autosaveBlank: false, onReject: sayIncomeRejected, onDroppedReject: sayIncomeRejected },
+    {
+      plan: planIncomeCommit, blankWhenZero: true, autosaveBlank: false, onReject: sayIncomeRejected, onDroppedReject: sayIncomeRejected,
+      onBlankCleared: () => notice(amountClearedTitle(INCOME_FIELD_NAME), AMOUNT_CLEARED_BODY),
+    },
   );
   const income = incomeDrafts.numberFor(nowMonth, shakhbataIncome[nowMonth] || 0);
 
@@ -104,20 +111,23 @@ export default function ShakhbataView() {
   const percentSum = percents.needs + percents.wants + percents.future;
 
   // تعديل نسب ما اتحفظش والشاشة اتشالت (تاب فرعي تاني، تاب تاني) — كان بيضيع ساكت. الرسالة برّه الشاشة (`notice` في الجذر)
-  const unsaved = useRef({ percentDrafts, shakhbataPercents, notice });
-  unsaved.current = { percentDrafts, shakhbataPercents, notice };
+  // المقارنة بالقيم اللي التعديل اتفتح بيها (مقرّبة)، مش المحفوظ دلوقتي: نسب قديمة 33.333، أو نسب اتغيّرت من جهاز تاني
+  // وانت فاتح من غير ما تكتب، كانوا بيطلّعوا الرسالة ومفيش حاجة اتغيّرت (الجولة الأخيرة، بند 3)
+  const openedWith = useRef<{ needs: number; wants: number; future: number } | null>(null);
+  const unsaved = useRef({ percentDrafts, notice });
+  unsaved.current = { percentDrafts, notice };
   useEffect(() => () => {
-    const { percentDrafts: d, shakhbataPercents: stored, notice: say } = unsaved.current;
-    if (d && BUCKET_META.some(b => parsePercentInput(d[b.key]) !== stored[b.key])) say(PERCENTS_UNSAVED_TITLE, PERCENTS_UNSAVED_BODY);
+    const { percentDrafts: d, notice: say } = unsaved.current;
+    const opened = openedWith.current;
+    if (d && opened && BUCKET_META.some(b => parsePercentInput(d[b.key]) !== opened[b.key])) say(PERCENTS_UNSAVED_TITLE, PERCENTS_UNSAVED_BODY);
   }, []);
 
   function startEditingPercents() {
     if (!percentsReady) return;
-    setPercentDrafts({
-      needs: String(shakhbataPercents.needs),
-      wants: String(shakhbataPercents.wants),
-      future: String(shakhbataPercents.future),
-    });
+    const r = (v: number) => Math.round(v * 100) / 100;
+    const opened = { needs: r(shakhbataPercents.needs), wants: r(shakhbataPercents.wants), future: r(shakhbataPercents.future) };
+    openedWith.current = opened;
+    setPercentDrafts({ needs: String(opened.needs), wants: String(opened.wants), future: String(opened.future) });
   }
 
   /**
@@ -133,6 +143,11 @@ export default function ShakhbataView() {
    */
   function savePercents() {
     if (!percentDrafts) return;
+    // النسب المحفوظة بطّلت ظاهرة بعد ما فتحت التعديل (رفض، حساب اتبدّل) ← منكتبش فوقها، والمسوّدة بتفضل (الجولة الأخيرة، بند 1)
+    if (!percentsReady) {
+      notice(PERCENTS_NOT_READY_TITLE, PERCENTS_NOT_READY_BODY);
+      return;
+    }
     const parsed = {
       needs: parsePercentInput(percentDrafts.needs),
       wants: parsePercentInput(percentDrafts.wants),
@@ -184,7 +199,7 @@ export default function ShakhbataView() {
         style={styles.incomeInput}
         accessibilityLabel={`دخل شهر ${MONTH_NAMES[Number(nowMonth.slice(5, 7)) - 1]}`}
         accessibilityHint={AUTOSAVE_HINT}
-        editable={!incomeFailed}
+        editable={incomeEditable}
         keyboardType="numeric"
         placeholder="0"
         placeholderTextColor={colors.textSecondary}

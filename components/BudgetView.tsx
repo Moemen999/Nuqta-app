@@ -10,9 +10,10 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useData } from '@/context/DataContext';
 import { monthSpendTotal, spendingExpenses, transferTransactionIds } from '@/lib/spending';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { AMOUNT_REJECT_TITLE, AUTOSAVE_HINT, NO_CATEGORIES_TEXT, amountRejectBody, budgetFieldName, categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
+import { AMOUNT_CLEARED_BODY, AMOUNT_REJECT_TITLE, AUTOSAVE_HINT, amountClearedTitle, NO_CATEGORIES_TEXT, amountRejectBody, budgetFieldName, categoryLabel, monthSpend, planBudgetCommit, snapPiastre, todayStr } from '@/lib/finance';
 import { moneyText, speakable } from '@/lib/money';
 import { useNotice } from '@/components/NoticeProvider';
+import { WRITE_ERROR_TITLE, writeErrorBody } from '@/lib/writeError';
 import { budgetForecastText, budgetLevel, budgetLevelColor, budgetRunOutDay } from '@/lib/budgetForecast';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
@@ -31,13 +32,15 @@ export default function BudgetView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { categoryColors } = useChartColors();
-  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus, loadErrors = [], figuresPending = [] } = useData();
+  const { categories: allCategories, transactions, budgets, setBudget, debts, gamiyas, transfersStatus, loadErrors = [], figuresPending = [], budgetsReady } = useData();
   const notice = useNotice();
   // بند 11: رقم المصروف (والتوقع) مبيظهرش لحد ما الديون والجمعية يوصلوا — **والعمليات نفسها** زي الرئيسية (الميزة 6):
   // قبلها «0 اتصرف» كان بيتعرض رقم حقيقي. لو مبتوصلش، `SpendLoading` بيقول بعد المهلة إن النت هو السبب
   const spendLoading = transfersStatus === 'loading' || figuresPending.includes('transactions');
   // الميزانيات اترفضت ← السقوف المعروضة فاضية مش حقيقية؛ الكتابة كانت هتكتب فوق سقف المستخدم مش شايفه
   const budgetsFailed = loadErrors.includes('budgets');
+  // ولسه ما اتشافتش (snapshot فاضي من الكاش بس) — نفس الخطر من غير رفض (الجولة الأخيرة، بند 1)
+  const budgetsEditable = budgetsReady === true && !budgetsFailed;
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money, amountsHidden } = usePrivacy();
   // الفئة المؤرشفة مالهاش ميزانية أصلاً (بتتمسح وقت الأرشفة)، فوجودها هنا
@@ -73,9 +76,13 @@ export default function BudgetView() {
     (key, value) => {
       void Promise.resolve(setBudget(key, value)).then(ok => {
         if (ok) AccessibilityInfo.announceForAccessibility(speakable(`اتحفظ ${fieldName(key)}`));
-      });
+      }).catch(() => notice(WRITE_ERROR_TITLE, writeErrorBody(fieldName(key))));
     },
-    { plan: planBudgetCommit, blankWhenZero: true, autosaveBlank: false, onReject: sayRejected, onDroppedReject: sayRejected },
+    {
+      plan: planBudgetCommit, blankWhenZero: true, autosaveBlank: false, onReject: sayRejected, onDroppedReject: sayRejected,
+      // سحبة بتقفل الكيبورد وخانة فاضية ← السقف بيتشال؛ بيتقال مش ساكت (الجولة الأخيرة، L2)
+      onBlankCleared: key => notice(amountClearedTitle(fieldName(key)), AMOUNT_CLEARED_BODY),
+    },
   );
 
   const totalBudget = budgets[TOTAL_KEY] || 0;
@@ -125,7 +132,7 @@ export default function BudgetView() {
               style={styles.input}
               accessibilityLabel="الميزانية الإجمالية الشهرية"
               accessibilityHint={AUTOSAVE_HINT}
-              editable={!budgetsFailed}
+              editable={budgetsEditable}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={colors.textSecondary}
@@ -204,7 +211,7 @@ export default function BudgetView() {
                   placeholderTextColor={colors.textMuted}
                   accessibilityLabel={`سقف ${name}`}
                   accessibilityHint={AUTOSAVE_HINT}
-                  editable={!budgetsFailed}
+                  editable={budgetsEditable}
                   onFocus={() => pinGroup(c.id, gi === 0 ? 0 : 1)}
                   value={valueFor(c.id, budgets[c.id] || 0)}
                   onChangeText={v => onChange(c.id, v)}

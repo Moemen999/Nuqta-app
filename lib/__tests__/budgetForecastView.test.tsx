@@ -26,7 +26,7 @@ function setup(day: string, extraTx: unknown[] = []) {
       { id: 't1c', type: 'expense', amount: 100, date: day, walletId: 'w', categoryId: 'c1' },
       ...extraTx,
     ],
-    debts: [], gamiyas: [], setBudget: jest.fn(),
+    debts: [], gamiyas: [], setBudget: jest.fn(), budgetsReady: true,
   });
 }
 

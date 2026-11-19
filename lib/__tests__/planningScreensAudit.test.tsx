@@ -23,7 +23,7 @@ function setData(extra: Record<string, unknown> = {}) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     wallets: [], categories: [{ id: 'c1', name: 'أكل', bucket: 'needs' }], transactions: [], budgets: {},
-    debts: [], gamiyas: [], loadErrors: [], figuresPending: [], percentsReady: true,
+    debts: [], gamiyas: [], loadErrors: [], figuresPending: [], percentsReady: true, budgetsReady: true, incomeReady: true,
     shakhbataIncome: {}, shakhbataPercents: { needs: 50, wants: 30, future: 20 },
     setBudget: jest.fn(async () => true), setMonthlyIncome: jest.fn(async () => true),
     setShakhbataPercents: jest.fn(async () => true), updateCategory: jest.fn(),

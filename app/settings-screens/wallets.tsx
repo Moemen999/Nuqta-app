@@ -1,6 +1,6 @@
 import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
 import { planWalletOpeningCommit } from '@/lib/finance';
-import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice, openingStaleNotice } from '@/lib/walletCopy';
+import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice, openingStaleNotice, walletAmountRejectNotice } from '@/lib/walletCopy';
 import { plainAmount } from '@/lib/money';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList from '@/components/ArchivedList';
@@ -56,6 +56,7 @@ export default function WalletsScreen() {
     id: string; name: string; items: ReassignItem[]; targets: ReassignTarget[];
   } | null>(null);
 
+  const walletName = (id: string) => wallets.find(x => x.id === id)?.name ?? '';
   const opening = useAmountDrafts(
     // `openingInvalid` ← NaN: الخطة بتكتب أي رقم صالح (حتى 0 اللي معروض) عشان العلامة تتشال (بند B)
     id => { const w = wallets.find(x => x.id === id); return w?.openingInvalid ? NaN : (w?.openingBalance ?? 0); },
@@ -67,11 +68,18 @@ export default function WalletsScreen() {
       // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
       onDroppedConfirm: id => notice(...openingDroppedNotice(wallets.find(x => x.id === id)?.name ?? '')),
       onStaleConfirm: id => notice(...openingStaleNotice(wallets.find(x => x.id === id)?.name ?? '')),
+      // «abc» أو «1,5» كانوا بيرجعوا للمحفوظ ساكت (الجولة الأخيرة، بند 7)
+      onReject: id => notice(...walletAmountRejectNotice('الرصيد الابتدائي', walletName(id))),
+      onDroppedReject: id => notice(...walletAmountRejectNotice('الرصيد الابتدائي', walletName(id))),
     },
   );
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
     (id, value) => updateWallet(id, { lowAlert: value }),
+    {
+      onReject: id => notice(...walletAmountRejectNotice('حد التنبيه', walletName(id))),
+      onDroppedReject: id => notice(...walletAmountRejectNotice('حد التنبيه', walletName(id))),
+    },
   );
   const { busy: adding, run: runAdd } = useBusy();
   const { busyKey: deletingKey, run: runDelete } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
