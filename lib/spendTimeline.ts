@@ -43,8 +43,8 @@ type Row = { date: string; amount: number; categoryId?: string };
 type Span = { from: string; to: string; label: string; sublabel: string; spoken: string; short: boolean };
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-/** أيام الأسبوع زي ما بتتقال — `getUTCDay` بيبدأ بالحد. التواريخ كلها على UTC زي `lib/finance.ts` */
-const WEEKDAYS = ['حد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
+/** أيام الأسبوع زي ما بتتقال — `getUTCDay` بيبدأ بالأحد. التواريخ كلها على UTC زي `lib/finance.ts` */
+const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
 
 const year = (d: string) => Number(d.slice(0, 4));
 const month = (d: string) => Number(d.slice(5, 7)); // 1..12
@@ -214,6 +214,14 @@ export function spendTimeline(
 }
 
 /** عنوان الرسم بيقول الأعمدة بتتقسم إزاي — بيتغير مع الفترة */
+/** تحت الأعمدة لما فيه عمود ناقص (arabic-copy-reviewer — نفس الجملة في دليل الاستخدام) */
+export const TIMELINE_PARTIAL_NOTE = 'الأعمدة الأفتح اللي عليها إطار هي فترات أقصر من الباقي أو لسه ما خلصتش.';
+/**
+ * فوق 6 أعمدة الرقم على العمود متقرّب للجنيه (العرض ~36 نقطة) — مجموعهم ممكن يفرق بقروش عن الرقم البطل اللي بالقرش
+ * (Feature 9 بند 6). سطر واحد أبسط من قروش مقصوصة
+ */
+export const TIMELINE_ROUNDED_NOTE = 'الأرقام على الأعمدة متقرّبة للجنيه.';
+
 export const TIMELINE_TITLE: Record<TimelineUnit, string> = {
   day: 'مصروفك يوم بيوم',
   week: 'مصروفك أسبوع بأسبوع',

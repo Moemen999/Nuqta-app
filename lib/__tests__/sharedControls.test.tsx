@@ -50,7 +50,8 @@ it('PeriodChips: سطر واحد بيتسحب (horizontal) من غير flexWrap�
   expect(content.flexDirection).toBe('row-reverse');
   expect(content.paddingHorizontal).toBe(16);
   expect(StyleSheet.flatten(row.parent!.props.style).marginHorizontal).toBe(-16);
-  expect(row.props.accessibilityRole).toBe('radiogroup');
+  // من غير حاوية radiogroup (lib/selection.ts) — الشرايح نفسها radio
+  expect(row.props.accessibilityRole).toBeUndefined();
 });
 
 describe('PeriodChips: البداية يمين والتدرّج', () => {

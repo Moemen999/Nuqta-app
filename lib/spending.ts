@@ -59,6 +59,12 @@ export function transfersStatusFrom(delivered: ReadonlySet<string>, loadErrors: 
 }
 
 export const TRANSFERS_LOADING = 'بنحمّل…';
+/** listener العمليات اترفض (Feature 9 بند 2) — مكان أي رقم مصروف/دخل، بدل «0» و«مفيش مصاريف» (نفس كارت الرئيسية) */
+export const TX_LOAD_ERROR = 'مقدرناش نجيب عملياتك';
+/** الفئات اترفضت: المصروف بفئة مش لاقيين اسمها مش «ممسوحة» — إحنا اللي مش عارفين الاسم */
+export const CATEGORY_NAMES_MISSING = 'أسامي الفئات ما وصلتش';
+/** كشف حساب الأشخاص في التقارير لما الديون اترفضت */
+export const DEBTS_LOAD_FAILED = 'ما قدرناش نجيب الديون';
 /** بعد `TRANSFERS_SLOW_MS` وهو لسه بيحمّل (غالبًا مفيش نت) — من غيره "بنحمّل…" كانت هتفضل للأبد ساكتة */
 export const TRANSFERS_SLOW = 'لسه بنحمّل — اتأكد إن النت شغال';
 export const TRANSFERS_SLOW_MS = 10_000;
@@ -76,11 +82,21 @@ export function isCreditPurchase(d: Pick<Debt, 'direction' | 'initialTransaction
  */
 export const CREDIT_PURCHASE_HINT = 'متسجلش الشرا نفسه مصروف — السداد هو اللي بيتحسب';
 
-type Tx = { id: string; type: string; amount: number; date: string };
+type Tx = { id: string; type: string; amount: number; date: string; gamiyaId?: string };
+
+/**
+ * العملية دي تحويل (مش مصروف ولا دخل)؟ معرّفها جوه دين أو جمعية (`transferTransactionIds`)، **أو عليها `gamiyaId`**:
+ * عملية جمعية ربطها بالشهر اتشال (مسح النص البايظ من «صلّح العملية» بيرجّع الشهر يسأل ويشيل معرّفاته، والعملية التانية
+ * بتفضل — `deleteGamiyaLinkedTransaction` بـ`onlyThis`). من غير الفحص ده الاستلام كان بيتعدّ دخل والقسط مصروف
+ * (Feature 9 بند 4). كل الإجماليات وعلامة «تحويل» بتعدّي من هنا.
+ */
+export function isTransferTx(t: { id: string; gamiyaId?: string }, transfers: Set<string>): boolean {
+  return transfers.has(t.id) || !!t.gamiyaId;
+}
 
 /** المصروف الحقيقي: `expense` ومش سلفة ولا قسط جمعية */
 export function spendingExpenses<T extends Tx>(tx: T[], transfers: Set<string>): T[] {
-  return tx.filter(t => t.type === 'expense' && !transfers.has(t.id));
+  return tx.filter(t => t.type === 'expense' && !isTransferTx(t, transfers));
 }
 
 /**
@@ -116,7 +132,7 @@ export function cashTotals(tx: Tx[], transfers: Set<string>): { income: number; 
   let skipped = 0;
   for (const t of tx) {
     if (t.type !== 'income' && t.type !== 'expense') continue;
-    if (transfers.has(t.id)) { skipped++; continue; }
+    if (isTransferTx(t, transfers)) { skipped++; continue; }
     if (t.type === 'income') income += t.amount; else expense += t.amount;
   }
   return { income, expense, transfers: skipped };

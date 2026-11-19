@@ -69,7 +69,7 @@ export function PeriodChips<K extends PeriodPresetKey>({ keys, value, onChange, 
   return (
     <View style={bleed ? { marginHorizontal: -bleed } : undefined}>
       <ScrollView ref={scroller} horizontal showsHorizontalScrollIndicator={false} testID={`${testIDPrefix}_row`}
-        accessibilityRole="radiogroup"
+        // من غير `radiogroup`: الحاوية مبتوصلش لأندرويد (`lib/selection.ts`) — كل شريحة radio وفيها اسمها
         contentContainerStyle={[styles.row, { paddingHorizontal: bleed }]}
         scrollEventThrottle={16}
         onScroll={e => {

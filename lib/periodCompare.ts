@@ -34,3 +34,15 @@ export function comparisonWindows(
 
   return { current, previous: { from: addDays(current.from, -days), to: addDays(current.from, -1) } };
 }
+
+/**
+ * نص نسبة التغيّر عن الفترة اللي فاتت (Feature 9). بالكلام مش بإشارة: «+41%» في سطر RTL كانت بتترسم «%41+»،
+ * و«—» لما مفيش فترة سابقة كانت بتتقري «شرطة». `label` لقارئ الشاشة («بالمية» بدل «%»).
+ */
+export function changeText(change: number | null): { text: string; label: string } {
+  if (change === null) return { text: 'مفيش فترة سابقة نقارن بيها', label: 'مفيش فترة سابقة نقارن بيها' };
+  if (change === 0) return { text: 'زي ما هو', label: 'زي ما هو' };
+  const word = change > 0 ? 'زاد' : 'قلّ';
+  const n = Math.abs(change);
+  return { text: `${word} ${n}%`, label: `${word} ${n} بالمية` };
+}

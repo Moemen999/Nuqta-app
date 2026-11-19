@@ -13,7 +13,7 @@ import TransferMark from '@/components/TransferMark';
 import { LineIcon } from '@/components/LineIcon';
 import { HeroIcon } from '@/components/HeroIcon';
 import { useData } from '@/context/DataContext';
-import { transferTransactionIds } from '@/lib/spending';
+import { isTransferTx, transferTransactionIds } from '@/lib/spending';
 import { monthSummary } from '@/lib/monthSummary';
 import { requestReports } from '@/lib/reportsRequest';
 import MonthSummaryCard, { type MonthCardState } from '@/components/MonthSummaryCard';
@@ -30,6 +30,7 @@ import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, e
 import { HERO_LOADING_TEXT, HERO_WAITING_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel, outboxLinePhrase, recentEmptyText } from '@/lib/homeFigures';
 import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import { plainAmount } from '@/lib/money';
+import { txRowLabel } from '@/lib/txRowLabel';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { dayText } from '@/lib/dateText';
 import { router } from 'expo-router';
@@ -452,12 +453,10 @@ function HomeScreen() {
           const title = txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
           const when = [dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' ');
           // عقدة واحدة زي صف الكاش (الميزة 7 — a11y-architect): النوع، العنوان، المحفظة والنوت، المبلغ بـ«جنيه»، اليوم، والعلامات
-          const typeWord = TX_TYPE_WORD[t.type];
-          const marks = [pendingTxIds.has(t.id) && 'لسه بترفع', t.autoRecorded && 'اتسجلت لوحدها', transfers.has(t.id) && 'تحويل'].filter(Boolean);
-          const rowLabel = [
-            title === typeWord ? typeWord : `${typeWord}: ${title}`,
-            walletLabel, t.note || '', `${plainAmount(t.amount)} جنيه`, when, ...marks,
-          ].filter(Boolean).join('، ');
+          const rowLabel = txRowLabel({
+            type: t.type, title, walletLabel, note: t.note, amount: t.amount, when,
+            pending: pendingTxIds.has(t.id), autoRecorded: !!t.autoRecorded, transfer: isTransferTx(t, transfers),
+          });
           return (
             <TouchableOpacity accessibilityRole="button"
               key={t.id}
@@ -484,7 +483,7 @@ function HomeScreen() {
                 <Text style={styles.txDate}>{[dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' · ')}</Text>
                 {pendingTxIds.has(t.id) && <PendingSyncMark />}
                 {t.autoRecorded && <AutoRecordedMark />}
-                {transfers.has(t.id) && <TransferMark />}
+                {isTransferTx(t, transfers) && <TransferMark />}
               </View>
             </TouchableOpacity>
           );
@@ -508,9 +507,6 @@ function HomeScreen() {
 }
 
 export { VERIFY_SPAM_HINT };
-
-/** كلمة النوع اللي قارئ الشاشة بيبدأ بيها صف العملية */
-const TX_TYPE_WORD: Record<string, string> = { expense: 'مصروف', income: 'دخل', withdraw: 'تحويل' };
 
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({

@@ -212,9 +212,10 @@ type SpendRow = { categoryId?: string; amount: number };
 export function buildCategorySpend(
   expenses: SpendRow[],
   categories: { id: string; name: string; icon?: string; archived?: boolean }[],
-  opts: { colorFor: (id: string) => string; deletedColor: string; visibleIds?: string[] },
+  // `deletedName`: الفئات اترفضت ← المصروف بفئة مش لاقيينها مش «ممسوحة»، إحنا اللي مش عارفين اسمها (Feature 9)
+  opts: { colorFor: (id: string) => string; deletedColor: string; visibleIds?: string[]; deletedName?: string },
 ): PieSlice[] {
-  const { colorFor, deletedColor, visibleIds } = opts;
+  const { colorFor, deletedColor, visibleIds, deletedName = DELETED_SLICE_NAME } = opts;
   const allowed = visibleIds ? new Set(visibleIds) : null;
 
   const known = new Map(categories.map(c => [c.id, c]));
@@ -241,7 +242,7 @@ export function buildCategorySpend(
     if (amount > 0) slices.push({ id: c.id, name: categoryLabel(c), amount, color: colorFor(c.id) });
   }
   if (deleted > 0) {
-    slices.push({ id: DELETED_SLICE_ID, name: DELETED_SLICE_NAME, amount: deleted, color: deletedColor });
+    slices.push({ id: DELETED_SLICE_ID, name: deletedName, amount: deleted, color: deletedColor });
   }
   if (uncategorised > 0) {
     slices.push({ id: UNCATEGORISED_SLICE_ID, name: UNCATEGORISED_SLICE_NAME, amount: uncategorised, color: deletedColor });

@@ -1,5 +1,6 @@
 import { brokenReasonsOf } from '@/lib/fromDoc';
 import { BROKEN_REASON_LABEL } from '@/lib/brokenDocs';
+import { DELETED_CATEGORY_LABEL, DELETED_WALLET_LABEL } from '@/lib/finance';
 import type { Budgets, Category, Debt, Gamiya, ShakhbataIncome, ShakhbataPercents, Subscription, Transaction, Wallet } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
@@ -57,8 +58,10 @@ const n = (x: number | undefined | null) => (typeof x === 'number' && Number.isF
 const DEFAULT_PERCENTS = { needs: 50, wants: 30, future: 20 };
 
 export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
-  const walletName = (id?: string) => d.wallets.find(w => w.id === id)?.name ?? '';
-  const categoryName = (id?: string) => d.categories.find(c => c.id === id)?.name ?? '';
+  // معرّف موجود واسمه مش لاقيينه = اتمسح ← نفس كلمة تصدير الفترة (`walletHistoryName`) مش خلية فاضية (Feature 9، L).
+  // الخلية الفاضية معناها "مفيش معرّف" بس (سحب من غير محفظة مستلمة، عملية من غير فئة)
+  const walletName = (id?: string) => (id ? d.wallets.find(w => w.id === id)?.name ?? DELETED_WALLET_LABEL : '');
+  const categoryName = (id?: string) => (id ? d.categories.find(c => c.id === id)?.name ?? DELETED_CATEGORY_LABEL : '');
   // التاريخ ممكن ميبقاش نص في عملية بايظة (بند B — silent-failure-hunter: كان TypeError بيوقّع التصدير كله)
   const byDate = <T extends { date: string }>(xs: T[]) => [...xs].sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
   const byKey = <V>(rec: Record<string, V> | undefined) => Object.entries(rec || {}).sort(([a], [b]) => a.localeCompare(b));
@@ -179,11 +182,13 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   NextDueDate: 'المعاد الجاي', AnchorDay: 'يوم المعاد الأصلي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
   Auto: 'اتسجلت لوحدها', Skipped: 'اتفوّتت', Reopened: 'رجعت تسأل', At: 'اتقفلت في', MonthlyAmount: 'القسط الشهري',
   TotalMonths: 'عدد الشهور', PayoutMonthIndex: 'رقم شهر الاستلام', PayoutAmount: 'مبلغ الاستلام', StartDate: 'تاريخ البداية',
-  MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',
+  MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع (0 = الأحد)',
   Mode: 'طريقة التسجيل', MonthlyLimit: 'الحد الشهري', Month: 'الشهر', Needs: 'احتياجات', Wants: 'رفاهيات', Future: 'خطط مستقبلية',
   IsDefault: 'الافتراضي',
-  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
-  Platform: 'النظام', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار النظام',
+  // تصدير الفترة (`lib/periodExport.ts`)
+  Time: 'الوقت', SignedAmount: 'المبلغ بالإشارة', CountedInTotals: 'محسوبة في الإجماليات', Pending: 'لسه بترفع',
+  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار الكامل', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
+  Platform: 'نظام التشغيل', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار نظام التشغيل',
 };
 
 /** نفس الأوراق والقيم، بالأسامي العربي (عمود من غير ترجمة بيفضل باسمه — الاختبار بيمنع ده) */

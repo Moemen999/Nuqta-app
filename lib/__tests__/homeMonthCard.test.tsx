@@ -115,7 +115,8 @@ describe('الكارت = الرقم البطل في التقارير (نفس ا�
     expect(homeText).toBeDefined();
     expect(reportsText).toBe(homeText);
     // قارئ الشاشة: الرقم والوحدة جملة واحدة
-    expect(screen.getByLabelText('380.6 ج.م')).toBeTruthy();
+    // قارئ الشاشة: الرقم والوحدة جملة واحدة، بـ«جنيه» زي باقي الأرقام المقرية (Feature 9، a11y-architect)
+    expect(screen.getByLabelText('380.6 جنيه')).toBeTruthy();
     // سطر الرسم تحت «مصروفك أسبوع بأسبوع»: السنة مش بتتكرر لما الفترة كلها في السنة دي (13 نوفمبر 2026)
     expect(flat(screen.getByTestId('reports_trend_range').props.children)).toBe('من 1 نوفمبر لحد 30 نوفمبر');
   });

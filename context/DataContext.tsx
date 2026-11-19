@@ -919,6 +919,11 @@ type DataContextType = {
    */
   debtsReady: boolean;
   /**
+   * الفئات وصلت (أول snapshot) ومش مرفوضة (Feature 9 بند 2). قبلها المصروف اللي بفئة مش لاقيين اسمها مش «فئة ممسوحة» —
+   * التقارير بتستنى بدل ما تحطه في «فئات ممسوحة»
+   */
+  categoriesReady: boolean;
+  /**
    * الديون والجمعية وصلوا (بند 11، قرار مؤمن 2026-11-05): من غيرهم `transferTransactionIds` فاضية والسلفة وقسط
    * الجمعية بيتعدّوا مصروف. `loading` ← الشاشة مبتعرضش رقم المصروف خالص؛ `failed` ← بتعرضه بسطر إنه ممكن يكون فيه سلف
    */
@@ -4654,6 +4659,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),
+        categoriesReady: delivered.has('categories') && !loadErrors.includes('categories'),
         transfersStatus: transfersStatusFrom(delivered, loadErrors),
         percentsReady: trusted.has('shakhbata_settings') && !loadErrors.includes('shakhbata_settings'),
         budgetsReady: trusted.has('budgets') && !loadErrors.includes('budgets'),

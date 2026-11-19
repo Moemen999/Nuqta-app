@@ -1,4 +1,4 @@
-import { comparisonWindows } from '@/lib/periodCompare';
+import { changeText, comparisonWindows } from '@/lib/periodCompare';
 
 const w = (cf: string, ct: string, pf: string, pt: string) => ({
   current: { from: cf, to: ct },
@@ -89,5 +89,23 @@ describe('comparisonWindows', () => {
   it('custom بيبدأ النهارده: يوم واحد', () => {
     expect(comparisonWindows({ from: '2026-11-12', to: '2026-11-20' }, '2026-11-12', 'custom'))
       .toEqual(w('2026-11-12', '2026-11-12', '2026-11-11', '2026-11-11'));
+  });
+});
+
+/**
+ * Feature 9 (arabic-copy-reviewer): «+41%» و«-5%» في سطر RTL بيترسموا «%41+» و«%5-» (الإشارة محايدة فبتروح ناحية
+ * الفقرة)، و«—» لوحدها بتتقري «شرطة». الكلام بدل الإشارة، وقارئ الشاشة بيسمع «بالمية».
+ */
+describe('changeText', () => {
+  it.each([
+    [12, 'زاد 12%', 'زاد 12 بالمية'],
+    [-5, 'قلّ 5%', 'قلّ 5 بالمية'],
+    [0, 'زي ما هو', 'زي ما هو'],
+    [null, 'مفيش فترة سابقة نقارن بيها', 'مفيش فترة سابقة نقارن بيها'],
+  ])('%p ← %s', (change, text, label) => {
+    expect(changeText(change)).toEqual({ text, label });
+  });
+  it('مفيش إشارة +/- ولا شرطة لوحدها في أي نص', () => {
+    for (const c of [57, -3, 0, null]) expect(changeText(c).text).not.toMatch(/^[+\-—]|[+\-]\d/);
   });
 });

@@ -154,7 +154,7 @@ describe('الميزة 8 (مراجعة التطبيق كله)', () => {
     await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
     await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
     expect(screen.getByTestId('broken_fix_save')).toBeTruthy();
-    expect(screen.getByTestId('broken_fix_error').props.children).toBe('التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني');
+    expect(screen.getByTestId('broken_fix_error').props.children).toBe('التعديل ما اتحفظش والعملية زي ما كانت، جرّب تاني');
     expect(announce).not.toHaveBeenCalledWith('العملية اتحفظت');
     announce.mockRestore();
   });

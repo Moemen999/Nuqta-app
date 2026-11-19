@@ -14,7 +14,7 @@ import { namedLabel } from '@/lib/writeError';
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { gamiyaPairedTxIds, selectableOptions, type TxChange } from '@/lib/archiving';
-import { transferTransactionIds } from '@/lib/spending';
+import { isTransferTx, transferTransactionIds } from '@/lib/spending';
 import { dateText } from '@/lib/dateText';
 import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/lib/finance';
 import { activeWalletIds, defaultWalletId, lastTransferToWalletId } from '@/lib/defaultWallet';
@@ -88,7 +88,7 @@ export default function AddTransactionModal() {
   const linkChanged = frozenLink !== undefined && liveLinkKind !== frozenLink;
   const typeLocked = !!linkKind || !!existing?.isSettlement;
   // عملية تحويل (سلفة، استلاف، جمعية) مبتتعدّش في أي فئة — شريحة الفئة كانت هتتحفظ ومتتعدّش (money-reviewer 2026-11-05)
-  const isTransfer = useMemo(() => !!existing && transferTransactionIds(debts, gamiyas).has(existing.id), [existing, debts, gamiyas]);
+  const isTransfer = useMemo(() => !!existing && isTransferTx(existing, transferTransactionIds(debts, gamiyas)), [existing, debts, gamiyas]);
   // ضد الدوسة المزدوجة قبل ما `syncing` يترسم: كل لفة ذرية بتعمل تسوية بمعرّف جديد
   const inFlight = useRef(false);
   const deleting = useRef(false);

@@ -202,8 +202,8 @@ export const OUTBOX_KEPT_BODY = 'السيرفر ما قبلهاش دلوقتي،
  */
 export const OUTBOX_SWEPT_TITLE = 'ممكن يكون فيه عمليات ما اترفعتش';
 export function outboxSweptBody(n: number): string {
-  const two = n === 2;
-  return `ممكن يكون فيه ${transactionsPhrase(n)} ${two ? 'ما اترفعوش' : 'ما اترفعتش'} من الموبايل ده — بص على عملياتك قبل ما ${two ? 'تسجّلهم' : 'تسجّلها'} تاني.`;
+  // المفرد المؤنث لكل الأعداد — جمع غير العاقل («عمليتين ما اترفعتش… تسجّلها»، arabic-copy-reviewer)
+  return `ممكن يكون فيه ${transactionsPhrase(n)} ما اترفعتش من الموبايل ده — بص على عملياتك في الأرشيف قبل ما تسجّلها تاني.`;
 }
 
 /** المحفظة اتأرشفت أو اتمسحت قبل ما العملية ترفع — مبنكتبهاش على محفظة مقفولة */

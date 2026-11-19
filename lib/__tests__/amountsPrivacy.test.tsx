@@ -196,7 +196,8 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/AmountPreview.tsx': { count: 1, why: 'صدى الرقم اللي بيتكتب في الخانة دلوقتي' },
   'app/(tabs)/debts.tsx': { count: 1, why: 'تأكيد قبل مسح دفعة أو زيادة — الرقم هو اللي بيتمسح' },
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
-  'app/(tabs)/index.tsx': { count: 3, why: 'قارئ الشاشة لصف الكاش وصف العملية الحقيقي — مبلغ العملية ظاهر أصلاً (العين للأرصدة بس)؛ و«N جنيه» للإجمالي بس والعين مفتوحة (الميزة 7)' },
+  // صف العملية الحقيقي بقى من `lib/txRowLabel.ts` (مشترك مع الأرشيف — Feature 9)، فواحدة أقل هنا
+  'app/(tabs)/index.tsx': { count: 2, why: 'قارئ الشاشة لصف الكاش — مبلغ العملية ظاهر أصلاً (العين للأرصدة بس)؛ و«N جنيه» للإجمالي بس والعين مفتوحة (الميزة 7)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
@@ -284,8 +285,10 @@ describe('جرد الإخفاء في كل الشاشات', () => {
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'app', 'archive.tsx'), 'utf8');
+    // صفوف تصدير الفترة اتنقلت لـ`lib/periodExport.ts` (Feature 9)، والأرشيف بيبنيها من هناك
+    const src = fs.readFileSync(path.join(ROOT, 'lib', 'periodExport.ts'), 'utf8');
     expect(src).toMatch(/Amount: t\.amount,/);
+    expect(fs.readFileSync(path.join(ROOT, 'app', 'archive.tsx'), 'utf8')).toContain('buildPeriodExportRows(filtered');
   });
 
   /**

@@ -17,6 +17,7 @@ import {
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { markUserSignOut } from '@/lib/outboxStore';
+import { sweepExportFiles } from '@/lib/exportFiles';
 
 type AuthContextType = {
   user: User | null;
@@ -53,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      // الخروج ومسح الحساب (deleteUser بيخرّج): أي ملف تصدير فاضل في الكاش بيتمسح (Feature 9 بند 3) — مبيرميش
+      if (!u) void sweepExportFiles();
       setLoading(false);
     });
     return unsubscribe;

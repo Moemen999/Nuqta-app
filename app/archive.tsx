@@ -10,17 +10,19 @@ import { PeriodChips } from '@/components/PeriodChips';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { dateText, dayText } from '@/lib/dateText';
-import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel, walletHistoryName } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
-import { TRANSFERS_NOTE, cashTotals, transferTransactionIds } from '@/lib/spending';
+import { TRANSFERS_NOTE, TX_LOAD_ERROR, cashTotals, isTransferTx, transferTransactionIds } from '@/lib/spending';
+import { brokenInRange, buildPeriodExportRows, buildPeriodWorkbook, periodExportBlock, periodExportFileName } from '@/lib/periodExport';
+import { EXPORT_FAIL, exportFailure, writeAndShare } from '@/lib/exportFiles';
+import { txRowLabel } from '@/lib/txRowLabel';
+import { rangeText } from '@/lib/spendTimeline';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
 import { CategoryIcon, CategoryIconSpacer, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import { memo, useCallback, useMemo, useState } from 'react';
 import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -37,18 +39,29 @@ export const FULL_EXPORT_WAIT = 'الزرار هيشتغل أول ما النت 
 /** نتيجة التصدير الكامل لما ميكملش — جملة ثابتة مش نص الخطأ الخام */
 export const FULL_EXPORT_FAIL: Record<'no-connection' | 'failed', [string, string]> = {
   'no-connection': ['الملف ما اتعملش', 'مفيش نت دلوقتي، والملف لازم يتعمل من السيرفر عشان ميطلعش ناقص. جرّب تاني أول ما النت يرجع.'],
-  failed: ['الملف ما اتعملش', 'حصلت مشكلة وإحنا بنجهّز الملف. جرّب تاني.'],
+  failed: EXPORT_FAIL.failed,
 };
+/** زرار تصدير الفترة — الاسم الظاهر ولقارئ الشاشة (بالعدد) */
+export const PERIOD_EXPORT_TITLE = 'صدّر عمليات الفترة (إكسيل)';
 
 export default function ArchiveScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const notice = useNotice();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer, transfersStatus } = useData();
+  const {
+    transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer, transfersStatus,
+    brokenTransactions = [], figuresPending = [], loadErrors = [],
+  } = useData();
   const { categoryColors } = useChartColors();
-  // بند 11: الإجماليات مبتظهرش لحد ما الديون والجمعية يوصلوا (السلفة كانت هتتعدّ مصروف والسداد دخل)
-  const totalsLoading = transfersStatus === 'loading';
+  // بند 11: الإجماليات مبتظهرش لحد ما الديون والجمعية يوصلوا (السلفة كانت هتتعدّ مصروف والسداد دخل) — **ولا لحد ما
+  // العمليات نفسها توصل** (Feature 9 بند 1: نفس شرط الرئيسية؛ قبل كده «0 ج.م» لحد أول snapshot)
+  const txPending = figuresPending.includes('transactions');
+  const totalsLoading = transfersStatus === 'loading' || txPending;
+  // listener العمليات اترفض (بند 2): رسالة مكان الإجماليات و«مفيش عمليات»
+  const txError = loadErrors.includes('transactions');
+  // تصدير الفترة من اللي على الشاشة ← مقفول لحد ما يوصل كله، وسطر السبب (بند 3)
+  const exportBlock = periodExportBlock({ figuresPending, loadErrors, transfersStatus });
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
@@ -89,48 +102,30 @@ export default function ArchiveScreen() {
 
   const { income: totalIn, expense: totalOut, transfers: transfersInPeriod } = cashTotals(filtered, transfers);
 
+  const exportDisabled = filtered.length === 0 || exporting || exportBlock !== null;
   async function handleExport() {
-    if (filtered.length === 0) return;
+    if (exportDisabled) return;
     setExporting(true);
+    AccessibilityInfo.announceForAccessibility('بنجهّز الملف');
     try {
-      const rows = filtered.map(t => {
-        return {
-          Date: t.date,
-          Time: entryTime(t.date, t.createdAt),
-          Type: TYPE_LABELS[t.type]?.label || t.type,
-          Wallet: walletHistoryName(wallets, t.walletId),
-          ToWallet: t.type === 'withdraw' ? walletHistoryName(wallets, t.toWalletId) : '',
-          // من غير أيقونة: عمود الإكسيل المفروض يتفرز ويتفلتر، والإيموجي بيلخبط ده
-          Category: categoryLabelById(categories, t.categoryId, { icon: false }),
-          Amount: t.amount,
-          Note: t.note || '',
-        };
+      // الأعمدة بالعربي ومن اليمين للشمال زي التصدير الكامل، ومعاها المعرّف وعلامة التحويل والإشارة و«لسه بترفع» (بند 5)
+      const rows = buildPeriodExportRows(filtered, {
+        wallets, categories, transfers, transfersFailed: transfersStatus === 'failed', pendingTxIds,
       });
-
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Transactions');
-      await saveAndShare(wb, `nuqta-export-${range.from}-to-${range.to}.xlsx`, 'تصدير العمليات');
-    } catch (e: any) {
-      notice('حصل خطأ في التصدير', String(e?.message || e));
+      const wb = buildPeriodWorkbook(rows, brokenInRange(brokenTransactions, range));
+      await saveAndShare(wb, periodExportFileName(preset, range, todayStr()), 'تصدير العمليات');
+    } catch (e) {
+      // نص الخطأ الخام إنجليزي وفيه مسارات — للّوج اسمه بس، والمستخدم جملة ثابتة (بند 3)
+      notice(...exportFailure(e, 'period export'));
     } finally {
       setExporting(false);
     }
   }
 
-  /** نفس الكتابة والمشاركة للتصديرين — الملف في مجلد التطبيق، والمشاركة لو متاحة */
+  /** نفس الكتابة والمشاركة للتصديرين (`lib/exportFiles.ts`): الكاش، والملف بيتمسح بعد المشاركة */
   async function saveAndShare(wb: XLSX.WorkBook, filename: string, dialogTitle: string) {
     const wbout: string = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-    // الكاش الأول (silent-failure-hunter): الملف فيه بيانات مالية كاملة، والمشاركة بتاخد نسخة — مش لازم يفضل في
-    // مجلد التطبيق الدائم (حتى بعد مسح الحساب). ومن غير مجلد خالص ← خطأ صريح مش مسار نسبي ساكت
-    const baseDir = ((FileSystem as any).cacheDirectory ?? (FileSystem as any).documentDirectory) as string | undefined;
-    if (!baseDir) throw new Error('no-directory');
-    const uri = `${baseDir}${filename}`;
-    await FileSystem.writeAsStringAsync(uri, wbout, { encoding: 'base64' });
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(uri, { mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', dialogTitle });
-    } else {
-      notice('اتحفظ الملف', `الملف اتحفظ هنا:\n${uri}`);
-    }
+    await writeAndShare(wbout, filename, dialogTitle);
   }
 
   /**
@@ -162,8 +157,7 @@ export default function ArchiveScreen() {
       await saveAndShare(wb, `nuqta-all-data-${todayStr()}.xlsx`, 'تصدير كل بياناتك');
     } catch (e) {
       // نص الخطأ الخام إنجليزي وفيه مسارات — للّوج (اسمه بس)، والمستخدم جملة ثابتة (arabic-copy + silent-failure)
-      console.warn('[export] full export failed', e instanceof Error ? e.name : 'unknown');
-      notice(...FULL_EXPORT_FAIL.failed);
+      notice(...exportFailure(e, 'full export'));
     } finally {
       setExportingAll(false);
     }
@@ -192,31 +186,47 @@ export default function ArchiveScreen() {
           </TouchableOpacity>
         </View>
       )}
+      {/* لو «من» بعد «لحد» الفترة بتتقلب لوحدها — السطر ده بيقول الفترة اللي اتطبّقت فعلاً (زي التقارير) */}
+      {preset === 'custom' && (
+        <Text testID="archive_range" style={styles.rangeText}>{rangeText(range.from, range.to, todayStr())}</Text>
+      )}
 
-      <View style={styles.metricRow}>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
-          {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricLoading} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
+      {txError ? (
+        // العمليات اترفضت: مفيش إجماليات خالص — «0 ج.م» كانت ادّعاء إن مفيش حركة
+        <Text testID="archive_tx_error" style={styles.errorText} accessibilityLiveRegion="polite">{TX_LOAD_ERROR}</Text>
+      ) : (
+        <View style={styles.metricRow}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>إجمالي الإيرادات</Text>
+            {totalsLoading ? <SpendLoading testID="archive_income_loading" style={styles.metricLoading} /> : <Money value={totalIn} style={[styles.metricValue, { color: colors.incomeText }]} />}
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
+            {totalsLoading ? <SpendLoading announce={false} style={styles.metricValue} /> : <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />}
+          </View>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricLabel}>إجمالي المصروفات</Text>
-          {totalsLoading ? <SpendLoading style={styles.metricValue} /> : <Money value={totalOut} style={[styles.metricValue, { color: colors.expenseText }]} />}
-        </View>
-      </View>
-      {transfersStatus === 'failed' && <TransfersFailedNote testID="archive_transfers_failed" />}
-      {!totalsLoading && transfersInPeriod > 0 && (
+      )}
+      {transfersStatus === 'failed' && !txError && <TransfersFailedNote testID="archive_transfers_failed" />}
+      {!totalsLoading && !txError && transfersInPeriod > 0 && (
         <Text testID="archive_transfers_note" style={styles.transfersNote}>{TRANSFERS_NOTE}</Text>
       )}
 
       <TouchableOpacity accessibilityRole="button"
         testID="archive_export_button"
-        style={[styles.exportBtn, { opacity: filtered.length === 0 || exporting ? 0.5 : 1 }]}
+        style={[styles.exportBtn, { opacity: exportDisabled ? 0.5 : 1 }]}
         onPress={handleExport}
-        disabled={filtered.length === 0 || exporting}>
+        disabled={exportDisabled}
+        // اسم ثابت فيه العدد: وقت التجهيز اللفّافة بتاخد مكان النص (نفس زرار التصدير الكامل — a11y-architect)
+        accessibilityLabel={exporting ? 'بنجهّز ملف عمليات الفترة' : `${PERIOD_EXPORT_TITLE}، ${transactionsPhrase(filtered.length)}`}
+        accessibilityState={{ disabled: exportDisabled, busy: exporting }}
+        accessibilityHint={exportBlock ?? undefined}>
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
-          <CountedText title="تصدير إكسيل" count={transactionsPhrase(filtered.length)} style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }} />
+          <CountedText title={PERIOD_EXPORT_TITLE} count={transactionsPhrase(filtered.length)} style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }} />
         )}
       </TouchableOpacity>
+      {exportBlock && (
+        <Text testID="archive_export_block" style={styles.fullExportWait} accessibilityLiveRegion="polite">{exportBlock}</Text>
+      )}
 
       {/* كل البيانات (مش الفترة بس): المحافظ والديون والاشتراكات والجمعية والدخل والميزانية والشخبطة */}
       <TouchableOpacity
@@ -255,7 +265,7 @@ export default function ArchiveScreen() {
       catTint={t.categoryId ? categoryColors.get(t.categoryId) : undefined}
       walletLabel={transactionWalletLabel(t, wallets)}
       pending={pendingTxIds.has(t.id)}
-      transfer={transfers.has(t.id)}
+      transfer={isTransferTx(t, transfers)}
       today={today}
       styles={styles}
       colors={colors}
@@ -274,11 +284,16 @@ export default function ArchiveScreen() {
         extraData={rowsExtra}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          <Text style={styles.emptyState}>
-            {!serverReachable && transactions.length === 0
-              ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
-              : 'مفيش عمليات في الفترة دي'}
-          </Text>
+          txPending && serverReachable ? (
+            <SpendLoading announce={false} testID="archive_list_loading" shape="bars" style={styles.emptyState} />
+          ) : (
+            <Text testID="archive_empty" style={styles.emptyState} accessibilityLiveRegion="polite">
+              {txError ? TX_LOAD_ERROR
+                : !serverReachable && transactions.length === 0
+                ? 'مفيش نت دلوقتي — العمليات مش ضايعة، مستنيين النت عشان نجيبها'
+                : preset === 'all' ? 'مفيش عمليات لسه' : 'مفيش عمليات في الفترة دي'}
+            </Text>
+          )
         }
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
         keyboardShouldPersistTaps="handled"
@@ -304,6 +319,8 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
   t: Tx; catLabel: string; catIcon?: string; catFound: boolean; catTint?: string; walletLabel: string; pending: boolean; transfer: boolean; today: string; styles: Styles; colors: ThemeColors;
 }) {
   const T = TYPE_LABELS[t.type];
+  const title = t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
+  const when = [dayText(t.date, today), entryTime(t.date, t.createdAt)].filter(Boolean).join(' ');
   return (
     // نفس مودال الرئيسية — فيه التسوية والتأكيد والقيود، مفيش مسار تاني.
     // من غير ده العملية اللي نزلت تحت أحدث 10 مالهاش تصليح (بند 14)
@@ -311,6 +328,8 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
       testID={`archive_tx_${t.id}`}
       style={styles.txRow}
       accessibilityRole="button"
+      // عقدة واحدة زي صف الرئيسية (`lib/txRowLabel.ts`) — كان القارئ بيقف على كل نص لوحده
+      accessibilityLabel={txRowLabel({ type: t.type, title, walletLabel, note: t.note, amount: t.amount, when, pending, autoRecorded: !!t.autoRecorded, transfer })}
       accessibilityHint="بيفتح العملية عشان تعدّلها أو تمسحها"
       onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
       <View style={styles.txMid}>
@@ -319,7 +338,7 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
           {catFound
             ? <CategoryIcon icon={catIcon} size={categoryIconSize.row} tint={catTint} />
             : <CategoryIconSpacer />}
-          <Text style={[styles.txTitle, { flexShrink: 1 }]}>{t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+          <Text style={[styles.txTitle, { flexShrink: 1 }]}>{title}</Text>
         </View>
         <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
       </View>
@@ -343,6 +362,8 @@ function makeStyles(c: ThemeColors) {
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
+    rangeText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm },
+    errorText: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: 14 },
     metricRow: { flexDirection: 'row-reverse', gap: 10, marginTop: 14 },
     // دراسة الشكل خطوة 5: من غير إطارات، المقاسات من `typeScale`
     metricCard: { flex: 1, backgroundColor: c.surface, borderRadius: radius.xl, padding: space.lg },
