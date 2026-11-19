@@ -276,12 +276,12 @@ describe('الخانات', () => {
     } finally { jest.useRealTimers(); }
   });
 
-  it('رصيد ابتدائي كبير قوي ← رسالة «كبير قوي» ومفيش تأكيد', async () => {
+  it('رصيد ابتدائي كبير أوي ← رسالة «كبير أوي» ومفيش تأكيد', async () => {
     await render(wallets());
     await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_opening_input_w1'), '1e300'); });
     await act(async () => { fireEvent(screen.getByTestId('wallet_opening_input_w1'), 'blur'); });
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
-    expect(screen.getByTestId('notice_title').props.children).toBe('الرقم ده كبير قوي');
+    expect(screen.getByTestId('notice_title').props.children).toBe('الرقم ده كبير أوي');
   });
 
   it('تأكيد الرصيد الابتدائي والمحفظة اتأرشفت وهو مفتوح ← مفيش كتابة', async () => {

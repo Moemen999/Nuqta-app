@@ -48,7 +48,22 @@ export default function LockScreen_Settings() {
   const notice = useNotice();
   // الحفظ في التخزين الآمن ممكن يفشل — الاختيار القديم بيفضل ظاهر، والرسالة بتقول (بند A؛ كان unhandled rejection ساكت)
   const saveSetting = (p: Promise<boolean>) => { p.then(ok => { if (!ok) notice(LOCK_SETTING_NOT_SAVED.title, LOCK_SETTING_NOT_SAVED.body); }); };
-  const [modalMode, setModalMode] = useState<'enable' | 'change' | 'disable' | null>(null);
+  const [modalMode, setModalMode] = useState<'enable' | 'change' | 'disable' | 'verify' | null>(null);
+  /**
+   * تخفيف القفل (الميزة 11، بند 13): «عند الفتح بس» بدل «كل مرة»، أو مهلة أطول = نفس أثر الإلغاء جزئيًا، فبيطلب الكود الأول
+   * زي الإلغاء. التشديد على طول. الاختيار بيتحفظ بعد الكود الصح بس
+   */
+  const [weaken, setWeaken] = useState<(() => Promise<boolean>) | null>(null);
+  function chooseFrequency(f: 'onOpen' | 'everyResume') {
+    if (f === frequency) return;
+    if (frequency === 'everyResume' && f === 'onOpen') { setWeaken(() => () => setFrequency(f)); setModalMode('verify'); return; }
+    saveSetting(setFrequency(f));
+  }
+  function chooseGrace(m: number) {
+    if (m === graceMinutes) return;
+    if (m > graceMinutes) { setWeaken(() => () => setGraceMinutes(m)); setModalMode('verify'); return; }
+    saveSetting(setGraceMinutes(m));
+  }
 
   return (
     <ScrollView
@@ -74,19 +89,19 @@ export default function LockScreen_Settings() {
             القفل مفعّل ({LOCK_TYPE_LABEL[lockType] ?? lockType})
           </Text>
 
-          <Text style={styles.hint}>يطلب الباسورد إمتى؟</Text>
+          <Text style={styles.hint}>يطلب الكود إمتى؟</Text>
           <View style={styles.row}>
             <TouchableOpacity
               testID="lock_freq_on_open"
               {...selectionA11y(frequency === 'onOpen', 'radio')}
-              onPress={() => saveSetting(setFrequency('onOpen'))}
+              onPress={() => chooseFrequency('onOpen')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_freq_every_resume"
               {...selectionA11y(frequency === 'everyResume', 'radio')}
-              onPress={() => saveSetting(setFrequency('everyResume'))}
+              onPress={() => chooseFrequency('everyResume')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
             </TouchableOpacity>
@@ -101,7 +116,7 @@ export default function LockScreen_Settings() {
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
                     {...selectionA11y(graceMinutes === opt.m, 'radio')}
-                    onPress={() => saveSetting(setGraceMinutes(opt.m))}
+                    onPress={() => chooseGrace(opt.m)}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>
                   </TouchableOpacity>
@@ -116,7 +131,7 @@ export default function LockScreen_Settings() {
               accessibilityRole="button"
               style={styles.changeBtn}
               onPress={() => setModalMode('change')}>
-              <Text style={styles.btnLabel}>تغيير الباسورد</Text>
+              <Text style={styles.btnLabel}>تغيير الكود</Text>
             </TouchableOpacity>
             <TouchableOpacity
               testID="lock_disable_button"
@@ -130,7 +145,9 @@ export default function LockScreen_Settings() {
       )}
 
       {modalMode && (
-        <SetLockModal visible={!!modalMode} mode={modalMode} onClose={() => setModalMode(null)} />
+        <SetLockModal visible={!!modalMode} mode={modalMode}
+          onClose={() => { setModalMode(null); if (modalMode === 'verify') setWeaken(null); }}
+          onVerified={weaken ? () => { saveSetting(weaken()); setWeaken(null); } : undefined} />
       )}
     </ScrollView>
   );

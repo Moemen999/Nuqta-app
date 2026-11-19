@@ -46,7 +46,14 @@ export function walletAmountRejectNotice(
   const owner = name.trim() ? `لمحفظة "${name.trim()}"` : 'للمحفظة دي';
   const tail = 'فاللي اتكتب ما اتحفظش ورجّعنا الرقم اللي كان محفوظ.';
   if (reason === 'too-large') {
-    return ['الرقم ده كبير قوي', `${field} ${owner} لازم يكون أقل من ${fmt(WALLET_AMOUNT_MAX)}، ${tail}`];
+    return ['الرقم ده كبير أوي', `${field} ${owner} لازم يكون أقل من ${fmt(WALLET_AMOUNT_MAX)}، ${tail}`];
+  }
+  if (reason === 'too-small') {
+    return ['الرقم ده صغير أوي', `${field} ${owner} بيتحسب بالقرش، وأقل من قرش بيبقى صفر، ${tail}`];
+  }
+  // الرصيد الابتدائي بيقبل السالب — اللي اترفض فيه بالسالب سببه الحجم («-1e16»)
+  if (reason === 'negative' && field === 'الرصيد الابتدائي') {
+    return ['الرقم ده كبير أوي', `${field} ${owner} لازم يكون بين سالب ${fmt(WALLET_AMOUNT_MAX)} و${fmt(WALLET_AMOUNT_MAX)}، ${tail}`];
   }
   if (reason === 'negative') {
     return ['الرقم ده ما اتحفظش', `${field} ${owner} لازم يكون مبلغ من صفر وطالع، ${tail}`];
@@ -56,8 +63,18 @@ export function walletAmountRejectNotice(
 
 /** «أيوه» اتداست بس المحفظة اتأرشفت أو اتمسحت والتأكيد مفتوح (الميزة 10، L2) — مفيش كتابة */
 export function openingGoneNotice(name: string): [string, string] {
-  return ['ما اتحفظش', `رصيد محفظة "${name}" الابتدائي ما اتغيّرش — المحفظة اتأرشفت أو اتمسحت وانت بتأكّد.`];
+  // المحفظة اتمسحت ← مفيش اسم نوصله، فـ«محفظة ""» كانت بتطلع (الميزة 10، جولة 2)
+  const owner = name.trim() ? `محفظة "${name.trim()}"` : 'المحفظة دي';
+  return ['ما اتحفظش', `رصيد ${owner} الابتدائي ما اتغيّرش — المحفظة اتأرشفت أو اتمسحت وانت بتأكّد.`];
 }
+
+/** الدوسة على تأكيد مسح/أرشفة والحاجة اتمسحت من جهاز تاني — بدل الرجوع الساكت (الميزة 10، جولة 2) */
+export function goneFromAnotherDeviceNotice(kind: 'المحفظة' | 'الفئة', name: string, action: 'delete' | 'archive'): [string, string] {
+  return [`${kind} دي اتمسحت`, `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة ${action === 'delete' ? 'تتمسح' : 'تتأرشف'}.`];
+}
+
+/** حاجة شغالة جديدة اتربطت والشيت مفتوح ← الشيت بيتفتح من جديد بعد السطر ده (الميزة 10، جولة 2) */
+export const SHEET_RELINKED_NOTICE: [string, string] = ['فيه حاجة جديدة اتربطت', 'حاجة شغالة جديدة اتربطت بيها وانت بتأرشف — اختار لها مكان هي كمان.'];
 
 /** الاسم اتمسح والخانة اتسابت فاضية ← رجع للقديم، والشاشة بتقول بدل الرجوع الساكت (الميزة 10) */
 export function nameEmptyNotice(kind: 'المحفظة' | 'الفئة'): [string, string] {

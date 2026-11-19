@@ -91,7 +91,7 @@ describe('القفل مفعّل: كل زرار ضاع في إعادة التنظ
     await renderScreen();
     expect(screen.getByTestId('lock_freq_on_open')).toBeTruthy();
     expect(screen.getByTestId('lock_freq_every_resume')).toBeTruthy();
-    expect(screen.getByText('يطلب الباسورد إمتى؟')).toBeTruthy();
+    expect(screen.getByText('يطلب الكود إمتى؟')).toBeTruthy();
   });
 
   it('اختيار وقت الطلب بيتحفظ فعلاً', async () => {
@@ -123,8 +123,9 @@ describe('مهلة السماح', () => {
     expect(GRACE_OPTIONS.map(o => o.label)).toEqual(['فورًا', 'بعد دقيقة', 'بعد 5 دقايق', 'بعد 15 دقيقة']);
   });
 
-  it('اختيار المهلة بيتحفظ فعلاً', async () => {
+  it('اختيار المهلة بيتحفظ فعلاً (أقصر من الحالية — الأطول بيطلب الكود الأول، lockSettingsHardening)', async () => {
     mockLock.frequency = 'everyResume';
+    mockLock.graceMinutes = 15;
     await renderScreen();
     await act(async () => { fireEvent.press(screen.getByTestId('lock_grace_5')); });
     expect(mockLock.setGraceMinutes).toHaveBeenCalledWith(5);

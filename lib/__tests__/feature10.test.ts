@@ -42,7 +42,7 @@ describe('H1: البيانات لسه بتوصل', () => {
     expect(categoryActionLoading([], ['budgets', 'gamiyas'])).toEqual(['budgets']);
   });
   it('الرسالة', () => {
-    expect(DATA_LOADING_BODY).toBe('بياناتك لسه بتوصل — استنى شوية وجرّب تاني.');
+    expect(DATA_LOADING_BODY).toBe('بياناتك لسه بتوصل، فما اتعملش حاجة. استنى شوية وجرّب تاني.');
   });
 });
 

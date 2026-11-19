@@ -15,7 +15,7 @@ import { setAppFontReady } from '@/lib/appFont';
 import { APP_FONT_SOURCES } from '@/lib/appFontSources';
 import { holdSplash, releaseSplash } from '@/lib/splash';
 
-import LockScreen from '@/components/LockScreen';
+import LockGate, { usePrivacyCover } from '@/components/LockGate';
 import { AppLockProvider, shouldShowLock, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
@@ -69,8 +69,11 @@ function RootNavigator() {
   }, []);
 
   const ready = !loading && !lockLoading && onboardingDone !== null;
+  const lockShown = shouldShowLock({ enabled, isLocked, readFailed });
+  // غطا الخصوصية لما التطبيق يروح الخلفية والقفل مفعّل (الميزة 11، بند 6)
+  const covered = usePrivacyCover(enabled);
   // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)
-  useHoldNotices(lockLoading || shouldShowLock({ enabled, isLocked, readFailed }));
+  useHoldNotices(lockLoading || lockShown);
   useClearNoticesOnAccountChange(user?.uid ?? null);
   useEffect(() => {
     if (ready) releaseSplash();
@@ -88,33 +91,22 @@ function RootNavigator() {
     );
   }
 
-  if (shouldShowLock({ enabled, isLocked, readFailed })) {
-    return (
-      <NavThemeProvider value={navTheme}>
-        <LockScreen />
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      </NavThemeProvider>
-    );
-  }
-
   // "نبدأ بإيه؟" للحساب الجديد بس — بعد القفل. `needed` معناها السيرفر أكّد إنه
   // جديد؛ `unknown` (مفيش نت) مبيقفلش التطبيق، والسؤال بيتعاد (DataContext).
   // `checking` لمحة قصيرة أول مرة بس — بعدها الحالة متفكرة على الجهاز.
-  if (user && (setupStatus === 'needed' || setupStatus === 'checking')) {
-    return (
-      <NavThemeProvider value={navTheme}>
-        {setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />}
-        <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
-      </NavThemeProvider>
-    );
-  }
-
+  //
+  // القفل **فوق** الشجرة مش بدلها (الميزة 11، بند 7 — `components/LockGate.tsx`): الشجرة بتفضل متركّبة ومستخبية، فالرجوع
+  // من جوجل ومسح الحساب والفورم اللي ما اتحفظش مبيضيعوش مع القفل. الترتيب لسه: الترحيب، وبعده القفل فوق أي حاجة تانية
+  const setupShown = !!user && (setupStatus === 'needed' || setupStatus === 'checking');
   return (
     <NavThemeProvider value={navTheme}>
+      <LockGate locked={lockShown} covered={covered}>
+      {setupShown ? (setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />) : (
+      <>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}
       <DataLoadErrorBanner />
-      {/* الدوس على إشعار ← المكان المناسب. هنا (بعد القفل والـonboarding) مش فوق: الدوسة بتستنى لحد ما التطبيق يتفتح */}
-      <NotificationTapRouter />
+      {/* الدوس على إشعار ← المكان المناسب. مبيتركّبش والقفل ظاهر: الدوسة بتستنى لحد ما التطبيق يتفتح */}
+      {!lockShown && <NotificationTapRouter />}
       {/* مفيش هيدر النظام لأي شاشة (كل شاشة ليها عنوانها وزرار رجوع بالعربي). شاشة "مسح الحساب" كانت ناسية
           سطرها تحت فطلع فوقها اسم المسار بالإنجليزي وسهم إنجليزي (اتلقى على الجهاز 2026-11-06) */}
       <Stack screenOptions={{ headerShown: false }}>
@@ -147,6 +139,9 @@ function RootNavigator() {
         {/* بره الحماية: لازم يشتغل قبل تسجيل الدخول كمان، لأنه بيستقبل رجوع جوجل والمستخدم لسه مش داخل */}
         <Stack.Screen name="oauth2redirect" options={{ headerShown: false }} />
       </Stack>
+      </>
+      )}
+      </LockGate>
       <StatusBar style={theme === 'dark' ? 'light' : 'dark'} />
     </NavThemeProvider>
   );

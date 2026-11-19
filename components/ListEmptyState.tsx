@@ -35,8 +35,8 @@ export const emptyOfflineText = (kind: Kind) => COPY[kind].offline;
  *
  * تلات حالات غير "فاضية فعلاً" (الميزة 10، الجولة الأخيرة):
  * - الـlistener اترفض ← مبنقولش "اعمل واحدة" (هيعمل نسخة من حاجة موجودة)، بنقول دوس "جرّب تاني" اللي في البانر فوق.
- * - مفيش نت ← جملة النت لوحدها، بتقول استنى قبل ما تعمل جديدة.
- * - لسه ما وصلتش والنت شغال ← ولا حاجة (ثواني بعد الفتح) — "مفيش" كانت بتلمع قبل ما القايمة توصل.
+ * - لسه ما وصلتش (بنت أو من غيره) ← ولا حاجة (ثواني بعد الفتح) — "مفيش" كانت بتلمع قبل ما القايمة توصل.
+ * - وصلت فاضية ومفيش نت ← جملة النت لوحدها، بتقول استنى قبل ما تعمل جديدة.
  */
 export default function ListEmptyState({ testID, kind }: { testID: string; kind: Kind }) {
   const { colors } = useTheme();
@@ -47,7 +47,8 @@ export default function ListEmptyState({ testID, kind }: { testID: string; kind:
   // المحافظ: `figuresPending` (لسه ما جاش snapshot)؛ الفئات: `undelivered`
   const arriving = kind === 'wallets' ? figuresPending.includes('wallets') : undelivered.includes('categories');
   const copy = COPY[kind];
-  const text = failed ? copy.failed : !serverReachable ? copy.offline : arriving ? null : copy.empty;
+  // المرفوض الأول، وبعدين «لسه بتوصل» (حتى من غير نت — أول snapshot من الكاش بيوصل في ثواني)، وبعدين النت (جولة 2)
+  const text = failed ? copy.failed : arriving ? null : !serverReachable ? copy.offline : copy.empty;
   if (text === null) return null;
 
   return (

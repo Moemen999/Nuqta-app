@@ -94,7 +94,8 @@ const isBlank = (raw: string) => normalizeAmountInput(raw).trim() === '';
  */
 export function useAmountDrafts(
   storedFor: (id: string) => number,
-  write: (id: string, value: number) => void,
+  /** `false` = ما اتكتبش (السجل مشي) ← مفيش «اتشال» (الميزة 10، جولة 2). أي حاجة تانية = اتكتب */
+  write: (id: string, value: number) => void | boolean,
   opts: AmountDraftOptions = {},
 ) {
   const plan = opts.plan ?? planWalletAmountCommit;
@@ -127,9 +128,9 @@ export function useAmountDrafts(
   }
 
   /** الكتابة دايمًا بتشيل المسوّدة معاها، فالخانة ترجع تقرا من المصدر الحقيقي */
-  function commitWrite(id: string, value: number) {
+  function commitWrite(id: string, value: number): boolean {
     clearDraft(id);
-    latest.current.write(id, value);
+    return latest.current.write(id, value) !== false;
   }
 
   /** الحفظ التلقائي. بيرجّع true لو خلص الموضوع فعلاً */
@@ -160,8 +161,8 @@ export function useAmountDrafts(
         // مفيش setState ولا ديالوج والشاشة بتتشال — فبنكتب الأكيد بس
         const p = latest.current.plan(raw, latest.current.storedFor(id));
         if (p.action === 'write') {
-          latest.current.write(id, p.value);
-          if (isBlank(raw)) latest.current.onBlankCleared?.(id);
+          const wrote = latest.current.write(id, p.value) !== false;
+          if (wrote && isBlank(raw)) latest.current.onBlankCleared?.(id);
         } else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
         else if (p.action === 'reject') latest.current.onDroppedReject?.(id);
       });
@@ -206,8 +207,7 @@ export function useAmountDrafts(
     if (p.action === 'none') { clearDraft(id); return; }
     if (p.action === 'reject') { clearDraft(id); latest.current.onReject?.(id); return; }
     if (p.action === 'write') {
-      commitWrite(id, p.value);
-      if (isBlank(raw)) latest.current.onBlankCleared?.(id);
+      if (commitWrite(id, p.value) && isBlank(raw)) latest.current.onBlankCleared?.(id);
       return;
     }
 

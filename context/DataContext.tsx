@@ -1831,7 +1831,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return { outcome: 'done' };
     // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
     // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
-    if (latestWallets.current.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
+    // جولة 2: «آخر شغالة» بس لو المحفظة دي نفسها شغالة — نفس `walletDeleteBlock` (مؤرشفة/ممسوحة مبتعدّش من الشغالة)
+    const lastActive = walletDeleteBlock(id, latestWallets.current);
+    if (lastActive) return { outcome: 'blocked', block: lastActive };
     // بند 3 (الميزة 10): المحفظة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح ← منكتبش اشتراك على مؤرشفة
     const targets = [...Object.values(reassign.subscriptions || {}), ...Object.values(reassign.gamiyas || {}), ...Object.values(reassign.incomes || {})];
     const targetBlock = reassignTargetsBlock(targets, latestWallets.current, id);
@@ -1902,7 +1904,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function archiveCategory(id: string, reassign: Record<string, string>): Promise<WalletWriteResult> {
     if (!uid) return { outcome: 'done' };
     // بند 2 (الميزة 10): آخر فئة شغالة مبتتأرشفش هنا كمان (الشاشة بتفحص، بس اللي نسي الفحص بيترفض)
-    if (latestCategories.current.filter(c => !c.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
+    const lastActive = categoryDeleteBlock(id, latestCategories.current);
+    if (lastActive) return { outcome: 'blocked', block: lastActive };
     // بند 3: الفئة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح
     const targetBlock = reassignTargetsBlock(Object.values(reassign), latestCategories.current, id);
     if (targetBlock) return { outcome: 'blocked', block: targetBlock };

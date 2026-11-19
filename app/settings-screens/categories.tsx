@@ -11,11 +11,11 @@ import {
   categoryReferences, reassignTargetsBlock, type ArchiveBlock,
 } from '@/lib/archiving';
 import {
-  DATA_LOADING_BODY, WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryActionLoading, categoryBlockedBody,
+  WALLET_BLOCKED_TITLE, dataLoadingBody, categoryActionBlockedBy, categoryActionLoading, categoryBlockedBody,
 } from '@/lib/listenerErrors';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { AUTOSAVED_ANNOUNCEMENT, nameEmptyNotice } from '@/lib/walletCopy';
+import { AUTOSAVED_ANNOUNCEMENT, SHEET_RELINKED_NOTICE, goneFromAnotherDeviceNotice, nameEmptyNotice } from '@/lib/walletCopy';
 import { useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
@@ -111,10 +111,10 @@ export default function CategoriesScreen() {
 
   /** لو بيانات الاستخدام ما وصلتش (اترفضت أو لسه بتوصل — H1)، بيقول كده وبيرجّع true. وقت الفتح **ولحظة الدوسة** */
   function blockedByMissingData() {
-    const { loadErrors, figuresPending, undelivered } = live.current;
+    const { loadErrors, figuresPending, undelivered, serverReachable } = live.current;
     const missing = categoryActionBlockedBy(loadErrors);
     if (missing.length > 0) { notice(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing)); return true; }
-    if (categoryActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, DATA_LOADING_BODY); return true; }
+    if (categoryActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, dataLoadingBody(serverReachable)); return true; }
     return false;
   }
 
@@ -129,7 +129,7 @@ export default function CategoriesScreen() {
   /** المسح نفسه بعد فحص أخير لحظة الدوسة — ونفس حماية المحافظ للي بيترمي (بند 9) */
   function deleteNow(id: string, name: string, fromSimple = false) {
     if (blockedByMissingData()) return;
-    if (!live.current.categories.some(c => c.id === id)) return;
+    if (!live.current.categories.some(c => c.id === id)) { notice(...goneFromAnotherDeviceNotice('الفئة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
     if (fromSimple && categoryHasHistory(refsFor(id))) { confirmDelete(id, name); return; }
     runDelete(id, async () => {
@@ -166,8 +166,8 @@ export default function CategoriesScreen() {
 
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (!live.current.categories.some(c => c.id === id)) { notice(...goneFromAnotherDeviceNotice('الفئة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
-    if (!live.current.categories.some(c => c.id === id)) return;
     confirm('مسح نهائي', categoryDeleteConsequences(refsFor(id)).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
@@ -242,7 +242,7 @@ export default function CategoriesScreen() {
     if (block) { refuse(() => showBlock(block, name, 'archive')); return; }
     // اشتراك شغال جديد اتربط والشيت مفتوح ← الشيت من جديد (بند 2). اللي اتمسح بيتفوّت في DataContext
     const now = refsFor(id).activeSubscriptions;
-    if (now.some(n => !items.some(i => i.id === n.id))) { setSheet(null); startArchive(id, name); return; }
+    if (now.some(n => !items.some(i => i.id === n.id))) { refuse(() => notice(...SHEET_RELINKED_NOTICE, () => startArchive(id, name))); return; }
     const targetBlock = reassignTargetsBlock(Object.values(assignments), live.current.categories, id);
     if (targetBlock) { refuse(() => showBlock(targetBlock, name, 'archive')); return; }
     setArchiving(true);

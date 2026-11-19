@@ -11,15 +11,19 @@ import {
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { glyphSize, radius, space, typeScale } from '@/lib/tokens';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export const RESET_LABEL = 'نسيت الباسورد؟';
 export const RESET_NEEDS_EMAIL = 'اكتب إيميلك الأول، وبعدين دوس "نسيت الباسورد؟"';
-export const RESET_TITLE = 'بعتنالك رابط';
+export const RESET_TITLE = 'راجع إيميلك';
+/** مبتأكدش إن الحساب موجود (arabic-copy-reviewer، الميزة 11) — «بعتنا» كانت بتأكّد حاجة إحنا مخبّينها عن قصد */
 export function resetSentBody(email: string) {
-  return `بعتنا رابط على ${email} تقدر تغيّر منه الباسورد. لو ملقتهوش في الوارد، بصّ في الـSpam.`;
+  return `لو فيه حساب على ${email}، هيوصله رابط تغيّر منه الباسورد. لو ملقتهوش في الوارد، بصّ في الـSpam.`;
 }
+/** كل فشل جوجل بجملة واحدة (arabic-copy-reviewer)؛ النت بجملته من `mapError` */
+export const GOOGLE_FAILED = 'مقدرناش ندخلك بجوجل. جرّب تاني';
 /**
  * جوجل مبتقولش "الإيميل ده مش موجود" عن قصد (عشان محدش يعرف مين مسجّل
  * ومين لأ)، وفايربيز بقت بتعمل نفس الحاجة. فالرسالة دي مبتأكدش إن الحساب
@@ -49,7 +53,7 @@ export default function AuthScreen() {
     []
   );
 
-  const [, response, promptAsync] = Google.useAuthRequest({
+  const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     androidClientId: GOOGLE_ANDROID_CLIENT_ID,
     redirectUri,
@@ -59,27 +63,39 @@ export default function AuthScreen() {
     (async () => {
       if (response?.type === 'success') {
         const idToken = response.params?.id_token;
-        if (idToken) {
-          setGoogleBusy(true);
-          try {
-            await signInWithGoogleCredential(idToken);
-          } catch {
-            setError('حصل خطأ في تسجيل الدخول بجوجل، جرب تاني');
-          } finally {
-            setGoogleBusy(false);
-          }
+        // نجاح من غير توكن = فشل (الميزة 11، بند 10) — كان بيتبلع والزرار ميعملش حاجة
+        if (!idToken) { reportAtomicFailure('فتح جوجل', { code: 'missing-id-token' }); setError(GOOGLE_FAILED); return; }
+        setGoogleBusy(true);
+        try {
+          await signInWithGoogleCredential(idToken);
+        } catch (e: any) {
+          // كود فايربيز بيعدّي على mapError (النت، الحساب متوقف…)، وSentry بالكود بس
+          reportAtomicFailure('دخول جوجل', e);
+          const msg = mapError(e?.code);
+          setError(msg === GENERIC_ERROR ? GOOGLE_FAILED : msg);
+        } finally {
+          setGoogleBusy(false);
         }
       } else if (response?.type === 'error') {
-        setError('حصل خطأ في تسجيل الدخول بجوجل');
+        reportAtomicFailure('فتح جوجل', { code: typeof response.error?.code === 'string' ? response.error.code : 'unknown' });
+        setError(GOOGLE_FAILED);
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- يتشغّل لما response يتغيّر بس؛ signInWithGoogleCredential بتتعمل من جديد كل render وإضافتها كانت هتكرر تسجيل الدخول
   }, [response]);
 
+  /** فتح صفحة جوجل — رميتها كانت unhandled، والزرار شغال قبل ما الطلب يجهز (بند 10) */
+  async function openGoogle() {
+    if (!request || googleBusy) return;
+    setError('');
+    try { await promptAsync(); }
+    catch (e) { reportAtomicFailure('فتح جوجل', e); setError(GOOGLE_FAILED); }
+  }
+
   async function handleSubmit() {
     setError('');
     if (!email.trim() || !password.trim() || (mode === 'signup' && !name.trim())) {
-      setError('من فضلك املأ كل الحقول');
+      setError('لازم تكتب كل الحقول');
       return;
     }
     setBusy(true);
@@ -134,9 +150,10 @@ export default function AuthScreen() {
         showsVerticalScrollIndicator={false}>
       <Text style={styles.title}>نقطة</Text>
       <Text style={styles.tagline}>نقطة على السطر</Text>
-      <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'أنشئ حسابك'}</Text>
+      <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'اعمل حسابك'}</Text>
 
-      <TouchableOpacity accessibilityRole="button" style={styles.googleBtn} onPress={() => promptAsync()} disabled={googleBusy}>
+      <TouchableOpacity testID="auth_google_button" accessibilityRole="button" style={[styles.googleBtn, !request && { opacity: 0.6 }]}
+        onPress={openGoogle} disabled={googleBusy || !request} accessibilityState={{ disabled: googleBusy || !request, busy: googleBusy }}>
         {googleBusy ? <ActivityIndicator color={colors.text} /> : (
           <Text style={{ color: colors.text, fontWeight: '600', fontSize: typeScale.body }}>تسجيل الدخول بحساب جوجل</Text>
         )}
@@ -168,14 +185,14 @@ export default function AuthScreen() {
       {mode === 'login' && (
         <TouchableOpacity hitSlop={{ top: 12, bottom: 6 }} accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
           <Text style={[styles.resetText, resetBusy && { opacity: 0.6 }]}>
-            {resetBusy ? '...' : RESET_LABEL}
+            {resetBusy ? 'بنبعت…' : RESET_LABEL}
           </Text>
         </TouchableOpacity>
       )}
 
-      <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
+      <TouchableOpacity testID="auth_switch_mode" hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
         <Text style={styles.switchText}>
-          {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب بالفعل؟ سجّل دخول'}
+          {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب؟ سجّل دخول'}
         </Text>
       </TouchableOpacity>
       </ScrollView>
@@ -183,18 +200,25 @@ export default function AuthScreen() {
   );
 }
 
-function mapError(code: string) {
+const GENERIC_ERROR = 'حصل خطأ، جرّب تاني';
+
+/** كود فايربيز ← جملة (الميزة 11، بند 10: الأكواد اللي كانت بتطلع «حصل خطأ» من غير سبب) */
+export function mapError(code: string) {
   switch (code) {
     case 'auth/invalid-email': return 'الإيميل مش صحيح';
     case 'auth/user-not-found':
     case 'auth/wrong-password':
+    case 'auth/invalid-login-credentials':
     case 'auth/invalid-credential': return 'الإيميل أو الباسورد غلط';
-    case 'auth/email-already-in-use': return 'الإيميل ده مستخدم قبل كده';
+    case 'auth/email-already-in-use': return 'الإيميل ده مستخدم قبل كده. لو سجّلت بجوجل، ادخل بزرار جوجل.';
+    case 'auth/user-disabled': return 'الحساب ده متوقف، ومينفعش تدخل بيه.';
+    case 'auth/account-exists-with-different-credential': return 'فيه حساب بالإيميل ده متسجّل بطريقة تانية. ادخل بالطريقة اللي سجّلت بيها أول مرة.';
+    case 'auth/operation-not-allowed': return 'الطريقة دي مش متاحة دلوقتي. جرّب طريقة تانية.';
     case 'auth/weak-password': return 'الباسورد لازم يكون 6 حروف/أرقام على الأقل';
     case 'auth/missing-email': return 'اكتب إيميلك الأول';
     case 'auth/too-many-requests': return 'جرّبت كتير أوي. استنى شوية وحاول تاني';
     case 'auth/network-request-failed': return 'مفيش نت. وصّل النت وحاول تاني';
-    default: return 'حصل خطأ، جرب تاني';
+    default: return GENERIC_ERROR;
   }
 }
 

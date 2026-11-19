@@ -68,3 +68,16 @@ it('المحفظة: النقل لمحفظة مؤرشفة ← blocked والاش�
   expect(await h.api().archiveWallet(a.id, { subscriptions: { [id]: c.id } })).toEqual({ outcome: 'done' });
   await h.waitForData(api => api.subscriptions[0]?.walletId === c.id);
 });
+
+it('جولة 2: «آخر شغالة» بس لو هي نفسها شغالة — مؤرشفة وفيه شغالة واحدة ← مش last-active', async () => {
+  const last = h.api().categories[0];
+  await archiveAllBut(last.id);
+  const archived = h.api().categories.find(x => x.id !== last.id)!;
+  expect(await h.api().archiveCategory(archived.id, {})).not.toEqual({ outcome: 'blocked', block: { kind: 'last-active' } });
+  const ws = h.api().wallets;
+  for (const w of ws.slice(1)) {
+    expect(await h.api().archiveWallet(w.id, {})).toEqual({ outcome: 'done' });
+    await h.waitForData(api => !!api.wallets.find(x => x.id === w.id)?.archived);
+  }
+  expect(await h.api().archiveWallet(ws[1].id, {})).not.toEqual({ outcome: 'blocked', block: { kind: 'last-active' } });
+});

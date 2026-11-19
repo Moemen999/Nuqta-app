@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors, type ThemePreference } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
-import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
+import { categoriesPhrase, pendingWritesSentence, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import { OUTBOX_UNKNOWN_LOGOUT_BODY, OUTBOX_UNKNOWN_LOGOUT_TITLE, outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -15,17 +15,12 @@ import { useMemo, useState } from 'react';
 import { ActionSheet } from '@/components/ActionSheet';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
+import { useNotice } from '@/components/NoticeProvider';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
 
-/** عشان الجملة تطلع بلغة طبيعية مع كل عدد بدل "1 تعديلات" */
-function pendingSentence(n: number) {
-  if (n === 1) return 'فيه تعديل واحد لسه بيترفع';
-  if (n === 2) return 'فيه تعديلين لسه بيترفعوا';
-  return `فيه ${n} تعديلات لسه بترفع`;
-}
 
 type SettingsRow = {
   key: string;
@@ -68,6 +63,12 @@ export default function SettingsScreen() {
   const notifs = useNotifications();
   const { wallets, categories, pendingWrites, outboxCount, outboxCountUnknown, deletionPending } = useData();
   const confirm = useConfirm();
+  const notice = useNotice();
+
+  /** الخروج وقع ← رسالة (الميزة 11، بند 11) — كان unhandled rejection ساكت والمستخدم فاكر إنه خرج */
+  function signOut() {
+    Promise.resolve().then(() => logOut({ clearOutbox: true })).catch(() => notice('ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فلسه داخل. جرّب تاني.'));
+  }
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived).length, [categories]);
@@ -76,7 +77,7 @@ export default function SettingsScreen() {
     confirm('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'تمام',
+        text: 'اعرضها تاني',
         onPress: async () => {
           try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {}
         },
@@ -95,7 +96,7 @@ export default function SettingsScreen() {
     if (outboxCountUnknown) {
       confirm(OUTBOX_UNKNOWN_LOGOUT_TITLE, OUTBOX_UNKNOWN_LOGOUT_BODY, [
         { text: 'أستنى', style: 'cancel' },
-        { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+        { text: 'اخرج برضه', style: 'destructive', onPress: signOut },
       ]);
       return;
     }
@@ -103,10 +104,10 @@ export default function SettingsScreen() {
     if (outboxCount > 0) {
       confirm(
         outboxLogoutTitle(outboxCount),
-        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها.`,
+        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص ${outboxCount === 2 ? 'رفعهم' : 'رفعها'}.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: signOut },
         ]
       );
       return;
@@ -114,17 +115,17 @@ export default function SettingsScreen() {
     if (pendingWrites > 0) {
       confirm(
         'لسه فيه بيانات بترفع',
-        `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
+        `${pendingWritesSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+          { text: 'اخرج برضه', style: 'destructive', onPress: signOut },
         ]
       );
       return;
     }
     confirm('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'خروج', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+      { text: 'خروج', style: 'destructive', onPress: signOut },
     ]);
   }
 

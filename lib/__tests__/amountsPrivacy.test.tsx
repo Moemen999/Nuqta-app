@@ -298,7 +298,7 @@ describe('جرد الإخفاء في كل الشاشات', () => {
   it('الجمل اللي فيها مبلغ في lib/ في الاستثناءات المكتوبة بس', () => {
     const LIB_FMT_ALLOWED: Record<string, { count: number; why: string }> = {
       'lib/money.ts': { count: 1, why: 'moneyText نفسها — بتختار القناع أو الرقم' },
-      'lib/walletCopy.ts': { count: 4, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)؛ وسقف الخانة (رقم تقني ثابت مش فلوس المستخدم)' },
+      'lib/walletCopy.ts': { count: 6, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)؛ وسقف الخانة (رقم تقني ثابت مش فلوس المستخدم) — والسقف مرتين كمان في رسالة «بين سالب X وX» (الميزة 10، جولة 2)' },
       'lib/scheduleAllReminders.ts': { count: 2, why: 'محكومة بـ hideAmounts — الإشعار من غير رقم لو مخفي' },
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },

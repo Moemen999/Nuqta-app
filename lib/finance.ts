@@ -617,18 +617,25 @@ export function parseWalletAmountInput(raw: string): number | null {
 
 /**
  * سقف خانات المحفظة (الرصيد الابتدائي وحد التنبيه) — **تقني** مش سقف فلوس، زي حد القواعد (`finite` في `firestore.rules`:
- * 10^18). أقل منه بكتير عشان التقريب لقرشين يفضل مضبوط (فوق 2^53/100 الكسور بتضيع) — والرقم ده أكبر من أي رصيد حقيقي.
+ * 10^18). تحت 2^53/100 (≈ 9.007×10^13) عشان التقريب لقرشين يفضل مضبوط — فوقه الكسور بتضيع (الميزة 10، جولة 2: كان
+ * 10^15 والتعليق بيقول عكسه). أول شاشة (`FirstRunSetup`) بتقرا بنفس `parseWalletAmountInput` فنفس السقف.
  */
-export const WALLET_AMOUNT_MAX = 1e15;
+export const WALLET_AMOUNT_MAX = 9e13;
 
 /** ليه خانة المحفظة رفضت الرقم — عشان الرسالة تقول السبب (`walletAmountRejectNotice`) */
-export type WalletAmountRejectReason = 'invalid' | 'negative' | 'too-large';
+export type WalletAmountRejectReason = 'invalid' | 'negative' | 'too-large' | 'too-small';
+/**
+ * الترتيب (الميزة 10، جولة 2): السالب الأول («-1e16» في حد التنبيه سببه إنه سالب مش إنه كبير)، وبعدين الكبير، وبعدين
+ * الصغير اللي بيتقرّب لصفر («0.004» كانت بتقول «لازم يكون رقم» وهو رقم)
+ */
 export function walletAmountRejectReason(raw: string | undefined): WalletAmountRejectReason {
   if (raw === undefined || ambiguousDecimalComma(raw)) return 'invalid';
   const num = Number(normalizeAmountInput(raw).trim());
   if (Number.isNaN(num)) return 'invalid';
-  if (!isFinite(num) || Math.abs(num) >= WALLET_AMOUNT_MAX) return 'too-large';
-  return num < 0 ? 'negative' : 'invalid';
+  if (num < 0) return 'negative';
+  if (!isFinite(num) || num >= WALLET_AMOUNT_MAX) return 'too-large';
+  if (num > 0 && roundMoney(num) === 0) return 'too-small';
+  return 'invalid';
 }
 
 /**
@@ -1815,9 +1822,9 @@ export function categoryIconValid(icon: string) {
  * بالإنجليزي على أجهزة كتير ومش ثابت بين أندرويد وأندرويد.
  */
 export const CATEGORY_ICON_LABELS: Record<string, string> = {
-  '🚗': 'عربية', '🍳': 'طبخ', '🛒': 'سوبر ماركت', '🍔': 'أكل برّه', '💡': 'كهربا ونور', '🏠': 'بيت', '👕': 'هدوم', '💊': 'دوا',
+  '🚗': 'عربية', '🍳': 'طبخ', '🛒': 'سوبر ماركت', '🍔': 'أكل برّه', '💡': 'لمبة', '🏠': 'بيت', '👕': 'هدوم', '💊': 'دوا',
   '🎓': 'تعليم', '🎮': 'ألعاب', '✈️': 'سفر', '🎁': 'هدايا', '💰': 'فلوس', '📱': 'موبايل', '☕': 'قهوة', '💼': 'شغل',
-  '🐾': 'حيوانات أليفة', '🧾': 'فواتير', '⚡': 'كهربا', '❓': 'حاجات تانية',
+  '🐾': 'حيوانات', '🧾': 'فواتير', '⚡': 'كهربا', '❓': 'علامة استفهام',
 };
 /** المكتوبة من الكيبورد مالهاش اسم عندنا — «أيقونة مخصصة» بدل اسم الإيموجي من النظام */
 export function categoryIconLabel(icon: string): string {

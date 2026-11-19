@@ -9,6 +9,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { setupDoneKey } from '@/lib/firstRunSetup';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REDIRECT_URI, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { cancelAllReminders } from '@/lib/notifications';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale } from '@/lib/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
@@ -86,7 +87,7 @@ export default function DeleteAccountScreen() {
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const [, googleResponse, promptGoogle] = Google.useAuthRequest({
+  const [googleRequest, googleResponse, promptGoogle] = Google.useAuthRequest({
     webClientId: GOOGLE_WEB_CLIENT_ID, androidClientId: GOOGLE_ANDROID_CLIENT_ID, redirectUri: GOOGLE_REDIRECT_URI,
   });
   useEffect(() => {
@@ -95,10 +96,19 @@ export default function DeleteAccountScreen() {
       setGoogleToken(googleResponse.params.id_token);
       AccessibilityInfo.announceForAccessibility('اتأكدنا إنك انت');
     } else if (googleResponse.type === 'error' || googleResponse.type === 'success') {
-      // نجاح من غير توكن = زي الفشل — كان بيتبلع (silent-failure-hunter). الإلغاء من المستخدم مش خطأ
+      // نجاح من غير توكن = زي الفشل — كان بيتبلع (silent-failure-hunter). الإلغاء من المستخدم مش خطأ. Sentry بالكود بس (بند 10)
+      const code = googleResponse.type === 'error' && typeof googleResponse.error?.code === 'string' ? googleResponse.error.code : 'missing-id-token';
+      reportAtomicFailure('فتح جوجل', { code });
       notice(...DELETE_MSG.googleError);
     }
   }, [googleResponse, notice]);
+
+  /** فتح صفحة جوجل — رميتها كانت unhandled، والزرار مقفول لحد ما الطلب يجهز (بند 10، نفس شاشة الدخول) */
+  async function openGoogle() {
+    if (!googleRequest || busy) return;
+    try { await promptGoogle(); }
+    catch (e) { reportAtomicFailure('فتح جوجل', e); notice(...DELETE_MSG.googleError); }
+  }
 
   // الرجوع ممنوع طول المسح — الخروج في النص كان بيسيب مسح نص-خلصان من غير ما المستخدم يشوف النتيجة
   useEffect(() => {
@@ -140,7 +150,8 @@ export default function DeleteAccountScreen() {
       }
       if (uid) await clearAccountMarks(uid);
       // قفل التطبيق ومهلته (بحث + قرار مؤمن 2026-11-03): الثيم والترحيب بيفضلوا — إعدادات جهاز مش بيانات حساب
-      try { await wipeLockForDeletedAccount(); } catch (e) { console.warn('[delete-account] wipe lock failed', e instanceof Error ? e.name : 'unknown'); }
+      // بند 14: الفشل بيوصل Sentry (console.warn مكانش بيوصل) — wipeLockForDeletedAccount بيبلّغ كل مفتاح جوّاه كمان
+      try { await wipeLockForDeletedAccount(); } catch (e) { reportAtomicFailure('مسح القفل', e); }
       // user بقى null ← التطبيق بيرجع لشاشة الدخول لوحده؛ الرسالة في الجذر فبتفضل ظاهرة
       notice(...DELETE_MSG.done);
     } finally {
@@ -176,7 +187,7 @@ export default function DeleteAccountScreen() {
           accessibilityHint="لازم تكتبها زي ما هي، وبعدها زرار المسح بيتفتح" />
 
         {usesGoogle ? (
-          <TouchableOpacity testID="delete_google" style={styles.secondaryBtn} onPress={() => promptGoogle()} disabled={busy} accessibilityRole="button"
+          <TouchableOpacity testID="delete_google" style={styles.secondaryBtn} onPress={openGoogle} disabled={busy || !googleRequest} accessibilityRole="button"
             accessibilityLabel={googleToken ? 'اتأكدنا إنك انت' : 'أكّد إنك انت بحساب جوجل'}
             accessibilityHint={googleToken ? undefined : 'بيفتح تسجيل جوجل'}>
             <Text style={styles.secondaryText}>{googleToken ? 'اتأكدنا إنك انت ✓' : 'أكّد إنك انت بحساب جوجل'}</Text>

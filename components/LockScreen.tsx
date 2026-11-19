@@ -10,6 +10,7 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
+import { pendingWritesSentence } from '@/lib/archiving';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 import { LineIcon } from '@/components/LineIcon';
 
@@ -34,6 +35,21 @@ export const FORGOT_BODY =
   + 'باسورد حسابك كمان، هتلاقي "نسيت الباسورد؟" في شاشة الدخول. وبعد ما ترجع '
   + 'تقدر تفعّل القفل من جديد بكود تفتكره.\n\nمحتاج نت عشان ترجع تدخل.';
 export const FORGOT_CONFIRM = 'شيل القفل واخرج';
+
+/**
+ * تعديلات لسه بترفع **برّه** الطابور المتشفّر (`pendingWrites - outboxCount`، الميزة 11 بند 11) — طابور فايربيز في الذاكرة
+ * بيتلغي مع الخروج، فـ«بياناتك كلها زي ما هي» كانت وعد مش صحيح. العدد بنفس صيغة الإعدادات (`pendingWritesSentence`)
+ */
+export function forgotBody(lost: number): string {
+  if (lost <= 0) return FORGOT_BODY;
+  return FORGOT_BODY.replace('وبياناتك كلها زي ما هي مستنياك.',
+    `واللي اترفع من بياناتك زي ما هو مستنيك. بس ${pendingWritesSentence(lost)} — لو خرجت دلوقتي ممكن يضيع، فاستنى النت يخلص رفعه لو تقدر.`);
+}
+
+/** الخروج نفسه وقع (`logOut` رمى) — القفل ما اتشالش ولسه داخل */
+export const LOGOUT_FAILED_NOTICE: [string, string] = ['ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فالقفل زي ما هو. جرّب تاني.'];
+/** خرج من الحساب بس مسح القفل وقع (arabic-copy-reviewer) */
+export const LOCK_LEFT_AFTER_LOGOUT: [string, string] = ['القفل لسه موجود', 'خرجنا من حسابك بس ما قدرناش نشيل القفل. دوس "نسيت الكود؟" تاني.'];
 
 /**
  * من غير نت، شيل القفل + خروج = المستخدم برّه التطبيق ومش قادر يرجع.
@@ -97,7 +113,7 @@ export default function LockScreen() {
     if (res === false) setRetryFailed(true);
   }
   const { logOut } = useAuth();
-  const { serverReachable } = useData();
+  const { serverReachable, pendingWrites, outboxCount } = useData();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const styles = makeStyles(colors);
@@ -124,14 +140,16 @@ export default function LockScreen() {
    */
   async function runForgot() {
     // من غير `clearOutbox` عن قصد: FORGOT_BODY بيقول إن البيانات في أمان، فالعمليات اللي مستنية النت بتفضل (الطابور المتشفّر)
-    await logOut();
+    // الخروج وقع ← القفل بيفضل (منشيلوش والجلسة لسه موجودة)، والرسالة بتقول — كان unhandled rejection ساكت (بند 11)
+    try { await logOut(); }
+    catch { Alert.alert(...LOGOUT_FAILED_NOTICE); return; }
     // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter)
     try { await clearLock(); }
-    catch { Alert.alert(LOCK_STORAGE_ERROR); }
+    catch { Alert.alert(...LOCK_LEFT_AFTER_LOGOUT); }
   }
 
   function confirmForgot() {
-    Alert.alert(FORGOT_TITLE, FORGOT_BODY, [
+    Alert.alert(FORGOT_TITLE, forgotBody((pendingWrites ?? 0) - (outboxCount ?? 0)), [
       { text: 'إلغاء', style: 'cancel' },
       { text: FORGOT_CONFIRM, style: 'destructive', onPress: runForgot },
     ]);
@@ -140,7 +158,7 @@ export default function LockScreen() {
   function handleForgot() {
     if (!serverReachable) {
       Alert.alert(FORGOT_OFFLINE_TITLE, FORGOT_OFFLINE_BODY, [
-        { text: 'تمام', style: 'cancel' },
+        { text: 'إلغاء', style: 'cancel' },
         { text: FORGOT_OFFLINE_CONTINUE, onPress: confirmForgot },
       ]);
       return;
@@ -220,7 +238,7 @@ export default function LockScreen() {
           {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_STORAGE_ERROR}</Text>}
           <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
-            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>{retrying ? '...' : LOCK_RETRY}</Text>
+            <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>{retrying ? 'بنجرّب…' : LOCK_RETRY}</Text>
           </TouchableOpacity>
         </View>
       ) : lockType === 'pin' ? (

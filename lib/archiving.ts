@@ -264,6 +264,17 @@ export function contactsPhrase(n: number) {
   return countPhrase(n, 'مفيش جهات اتصال', 'جهة اتصال واحدة', 'جهتين اتصال', 'جهات اتصال', 'جهة اتصال');
 }
 
+/**
+ * «فيه N تعديل لسه بيترفع» بالاتفاق مع العدد (arabic-copy-reviewer، الميزة 11): 1 / 2 / 3–10 جمع / 11+ مفرد. كانت في
+ * `settings.tsx` لوحدها و«11 تعديلات» غلط؛ دلوقتي الإعدادات و«نسيت الكود؟» من هنا
+ */
+export function pendingWritesSentence(n: number) {
+  if (n === 1) return 'فيه تعديل واحد لسه بيترفع';
+  if (n === 2) return 'فيه تعديلين لسه بيترفعوا';
+  if (n >= 3 && n <= 10) return `فيه ${n} تعديلات لسه بتترفع`;
+  return `فيه ${n} تعديل لسه بيترفع`;
+}
+
 export function transactionsPhrase(n: number) {
   return countPhrase(n, 'مفيش عمليات', 'عملية واحدة', 'عمليتين', 'عمليات', 'عملية');
 }

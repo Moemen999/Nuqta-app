@@ -15,7 +15,8 @@ jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn(), canGoBack: () => true } }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
-jest.mock('expo-auth-session/providers/google', () => ({ useAuthRequest: () => [null, null, jest.fn()] }));
+const mockGoogle: { request: unknown; prompt: jest.Mock } = { request: null, prompt: jest.fn() };
+jest.mock('expo-auth-session/providers/google', () => ({ useAuthRequest: () => [mockGoogle.request, null, mockGoogle.prompt] }));
 const mockCancel = jest.fn(async () => {});
 jest.mock('@/lib/notifications', () => ({ cancelAllReminders: () => mockCancel() }));
 const mockWipeLock = jest.fn(async () => {});
@@ -122,4 +123,23 @@ it.each(['requires-recent-login', 'no-connection', 'failed'] as const)('البي
   expect(mockWipeLock).not.toHaveBeenCalled();
   // الباسورد بيتمسح بس لما فايربيز تطلب دخول تاني
   expect(screen.getByTestId('delete_password').props.value).toBe(acc === 'requires-recent-login' ? '' : 'x');
+});
+
+describe('الميزة 11، بند 10: جوجل في إعادة الدخول', () => {
+  const asGoogle = () => { setUp(); (mockAuth.user as { providerData: unknown[] }).providerData = [{ providerId: 'google.com' }]; };
+  it('الطلب لسه ما اتجهزش ← زرار جوجل مقفول', async () => {
+    asGoogle();
+    mockGoogle.request = null;
+    await mount();
+    await act(async () => { fireEvent.press(screen.getByTestId('delete_google')); });
+    expect(mockGoogle.prompt).not.toHaveBeenCalled();
+  });
+  it('فتح جوجل رمى ← رسالة مش unhandled', async () => {
+    asGoogle();
+    mockGoogle.request = {};
+    mockGoogle.prompt = jest.fn(async () => { throw new Error('browser'); });
+    await mount();
+    await act(async () => { fireEvent.press(screen.getByTestId('delete_google')); });
+    expect(screen.getByTestId('notice_title').props.children).toBe(DELETE_MSG.googleError[0]);
+  });
 });

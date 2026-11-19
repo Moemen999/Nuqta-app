@@ -5,7 +5,10 @@ import { MIN_TOUCH, typeScale } from '@/lib/tokens';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
-/** بيتقال لقارئ الشاشة بعد ما الرجوع يتأكد (a11y-architect، الميزة 10): الصف بيختفي من القسم والتركيز بيضيع */
+/**
+ * بيتقال لقارئ الشاشة لحظة الدوسة على «رجّعها» في التأكيد (a11y-architect، الميزة 10): الصف بيختفي من القسم والتركيز
+ * بيضيع. الكتابة بتتبعت من غير انتظار السيرفر (`track`)، فده مش تأكيد من السيرفر — لو فشلت، رسالة الكتابة بتقول
+ */
 export const restoredAnnouncement = (name: string) => `رجعت ${name}`;
 
 /**

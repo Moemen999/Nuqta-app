@@ -48,7 +48,9 @@ it('الماسك اتشال (خروج) ← الرسايل مبتفضلش مست�
 
 it('_layout بيمسك الرسايل وقت شاشة القفل ووقت قراية إعداد القفل', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'app', '_layout.tsx'), 'utf8');
-  expect(src).toContain('useHoldNotices(lockLoading || shouldShowLock({ enabled, isLocked, readFailed }))');
+  // الميزة 11 بند 7: البوابة بقت متغيّر واحد (`lockShown`) للقفل فوق الشجرة ومسك الرسايل
+  expect(src).toContain('const lockShown = shouldShowLock({ enabled, isLocked, readFailed });');
+  expect(src).toContain('useHoldNotices(lockLoading || lockShown)');
   expect(src).toContain('useClearNoticesOnAccountChange(user?.uid ?? null)');
 });
 

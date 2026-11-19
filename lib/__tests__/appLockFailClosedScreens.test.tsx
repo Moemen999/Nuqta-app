@@ -1,6 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import LockScreen from '@/components/LockScreen';
+import LockScreen, { LOCK_LEFT_AFTER_LOGOUT } from '@/components/LockScreen';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { LOCK_READ_FAILED, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 
@@ -78,7 +78,8 @@ it('"نسيت الكود؟" ومسح القفل رمى بعد الخروج ← �
   await renderLock();
   await act(async () => { fireEvent.press(screen.getByTestId('lock_forgot_button')); });
   await act(async () => {});
-  expect(spy).toHaveBeenCalledWith(LOCK_STORAGE_ERROR);
+  // «القفل لسه موجود» بدل رسالة التخزين العامة (arabic-copy-reviewer، الميزة 11)
+  expect(spy).toHaveBeenCalledWith(...LOCK_LEFT_AFTER_LOGOUT);
   spy.mockRestore();
 });
 

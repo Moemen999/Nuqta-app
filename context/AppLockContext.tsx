@@ -1,10 +1,11 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, type AppStateStatus } from 'react-native';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
-  bytesToHex, capFails, formatStoredHash, maxFails, NO_FAILS, parseLockFails, parseStoredHash, recordFailure, remainingWaitMs,
+  PIN_PATTERN, bytesToHex, capFails, formatStoredHash, maxFails, NO_FAILS, parseLockFails, parseStoredHash, recordFailure, remainingWaitMs,
   type LockFails,
 } from '@/lib/lockThrottle';
 
@@ -81,6 +82,40 @@ const K_GRACE = 'nuqta_lock_grace';
 /** عدّاد الغلط ورا بعض + امتى المحاولة الجاية (JSON) — في التخزين الآمن عشان قفل التطبيق وفتحه ميصفّرهوش */
 const K_FAILS = 'nuqta_lock_fails';
 
+/**
+ * علامة **مش سرية** برّه التخزين الآمن (الميزة 11، HIGH): «القفل كان مفعّل على الموبايل ده». expo-secure-store 15.0.8 بيرجّع
+ * `null` (مش رمية) لما مفتاح الـkeystore يضيع أو الفك يقع (BadPadding) — فالقراية كانت بتتقري «مفيش قفل» والتطبيق يتفتح
+ * من غير كود. العلامة بتتكتب مع التفعيل وبتتشال مع أي مسح للقفل؛ null + علامة = `readFailed` (مقفول). مفيهاش أي حاجة عن الكود
+ */
+export const LOCK_MARKER_KEY = 'nuqta_lock_was_enabled';
+
+
+/** الكود اتقرا null والعلامة بتقول إن القفل كان مفعّل — الاسم بس هو اللي بيوصل Sentry */
+class LockKeyLostError extends Error {
+  constructor() { super('lock key lost'); this.name = 'LockKeyLostError'; }
+}
+
+/** ساعة مبتتأثرش بتغيير ساعة الجهاز (لو موجودة في RN) — `performance.now` */
+function monotonicNow(): number | null {
+  try {
+    const p = (globalThis as { performance?: { now?: () => number } }).performance;
+    return typeof p?.now === 'function' ? p.now() : null;
+  } catch { return null; }
+}
+
+/**
+ * بعد قد إيه رجع (الميزة 11، بند 5): الساعة رجعت لورا (فرق سالب) ← ما لا نهاية = يقفل (fail closed). والأكبر من الساعتين:
+ * الساعة الثابتة (`performance.now`) ممكن متعدّش وقت نوم الموبايل، فلوحدها كانت هتقصّر الغياب — الأكبر بيقع في اتجاه القفل
+ */
+export function awayMsFrom(wallStart: number | null, wallNow: number, monoStart: number | null, monoNow: number | null): number {
+  if (wallStart === null) return Infinity;
+  const wall = wallNow - wallStart;
+  if (!(wall >= 0)) return Infinity;
+  const mono = monoStart !== null && monoNow !== null ? monoNow - monoStart : 0;
+  if (!(mono >= 0)) return Infinity;
+  return Math.max(wall, mono);
+}
+
 /** محاولات قراية الإعدادات وقت الفتح قبل ما نعتبرها فشلت — الـkeystore ساعات بيرمي مرة ويرجع */
 const READ_ATTEMPTS = 3;
 const READ_RETRY_MS = 300;
@@ -110,6 +145,7 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   const verifyChain = useRef<Promise<unknown>>(Promise.resolve());
   const appState = useRef(AppState.currentState);
   const backgroundedAt = useRef<number | null>(null);
+  const backgroundedAtMono = useRef<number | null>(null);
   // كل قراية ليها رقم؛ القراية الأقدم أو اللي جت بعد فتح/تفعيل/مسح مبتكتبش فوق الحالة الأحدث (security-reviewer)
   const readSeq = useRef(0);
   const reading = useRef(false);
@@ -141,7 +177,16 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
         return false;
       };
       if (!ok) return fail(lastError);
+      // null والعلامة موجودة ← المفتاح ضاع مش «مفيش قفل» (بند 4). فشل قراية العلامة نفسها = مفيش علامة (زي قبلها)
+      if (en === null) {
+        let marker: string | null = null;
+        try { marker = await AsyncStorage.getItem(LOCK_MARKER_KEY); } catch { /* زي مفيش علامة */ }
+        if (seq !== readSeq.current) return null;
+        if (marker === '1') return fail(new LockKeyLostError());
+      }
       const isEnabled = en === '1';
+      // قفل اتفعّل قبل العلامة ← بتتكتب دلوقتي (محاولة؛ فشلها مبيغيّرش حاجة النهارده)
+      if (isEnabled) AsyncStorage.setItem(LOCK_MARKER_KEY, '1').catch(() => {});
       // القفل مفعّل ← النوع وامتى يقفل **حرجين** كمان: نوع غلط = لوحة أرقام لصاحب باسورد (مقفول برّه)، وامتى غلط = قفل أضعف
       // من غير ما حد يعرف (security-reviewer + silent-failure-hunter جولة 2). المهلة بس بترجع للافتراضي — وبتتبلّغ
       let t: string | null = null; let f: string | null = null; let g: string | null = null;
@@ -176,13 +221,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      const wasBackground = appState.current.match(/inactive|background/);
-      if (next.match(/inactive|background/)) {
+      const isAway = (st: unknown) => /inactive|background/.test(String(st ?? ''));
+      const wasBackground = isAway(appState.current);
+      if (isAway(next) && !wasBackground) {
         backgroundedAt.current = Date.now();
+        backgroundedAtMono.current = monotonicNow();
       }
       if (enabled && frequency === 'everyResume' && wasBackground && next === 'active') {
-        // لو المستخدم حدد مهلة، منقفلش إلا لو عدّت المهلة دي وهو بره التطبيق
-        const awayMs = backgroundedAt.current ? Date.now() - backgroundedAt.current : Infinity;
+        // لو المستخدم حدد مهلة، منقفلش إلا لو عدّت المهلة دي وهو بره التطبيق — والساعة اللي رجعت لورا = قفل (بند 5)
+        const awayMs = awayMsFrom(backgroundedAt.current, Date.now(), backgroundedAtMono.current, monotonicNow());
         if (awayMs >= graceMinutes * 60 * 1000) {
           setIsLocked(true);
         }
@@ -197,6 +244,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * كود يفتح. دلوقتي الوقوع قبل العلم = "مفيش قفل" (القديم زي ما هو)، والشاشة بتقول إن التفعيل ما اتمش
    */
   async function setupLock(type: LockType, code: string) {
+    if (type === 'pin' && !PIN_PATTERN.test(code)) throw new Error('invalid pin');
+    let freq: LockFrequency = 'onOpen';
     try {
       const h = await newStoredHash(code);
       await SecureStore.setItemAsync(K_HASH, h);
@@ -204,7 +253,10 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       await resetStoredFails();
       await SecureStore.setItemAsync(K_TYPE, type);
       const existingFreq = await SecureStore.getItemAsync(K_FREQ);
-      if (!existingFreq) await SecureStore.setItemAsync(K_FREQ, 'onOpen');
+      if (existingFreq === 'onOpen' || existingFreq === 'everyResume') freq = existingFreq;
+      else await SecureStore.setItemAsync(K_FREQ, 'onOpen');
+      // العلامة **قبل** العلم (بند 4): وقوع بينهم = علامة من غير قفل ← «مقدرناش نقرا» و«نسيت الكود؟» — في الاتجاه الآمن
+      await AsyncStorage.setItem(LOCK_MARKER_KEY, '1');
       await SecureStore.setItemAsync(K_ENABLED, '1');
     } catch (e) {
       reportAtomicFailure('حفظ القفل', e);
@@ -214,7 +266,14 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setEnabled(true);
     setReadFailed(false);
     setLockType(type);
+    // اللي متخزّن هو اللي بيتعرض (بند 8): «امتى» فاضل من قفل قبل كده كان بيشتغل والشاشة بتقول «عند الفتح»
+    setFrequencyState(freq);
     setWaitUntil(0);
+  }
+
+  /** العلامة بتتشال بعد ما القفل اتشال فعلاً. فشلها = «مقدرناش نقرا» بعدين (اتجاه آمن) — وبيتبلّغ */
+  async function removeMarker() {
+    try { await AsyncStorage.removeItem(LOCK_MARKER_KEY); } catch (e) { reportAtomicFailure('مسح القفل', e); }
   }
 
   /**
@@ -230,10 +289,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setIsLocked(false);
     setReadFailed(false);
     setWaitUntil(0);
+    setFrequencyState('onOpen');
     failsRef.current = NO_FAILS;
     for (const k of [K_TYPE, K_HASH, K_FREQ, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
+    await removeMarker();
   }
 
   async function disableLock(code: string): Promise<VerifyResult> {
@@ -255,12 +316,15 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setIsLocked(false);
     setReadFailed(false);
     setGraceMinutesState(0);
+    setFrequencyState('onOpen');
     setWaitUntil(0);
     failsRef.current = NO_FAILS;
     for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(key); }
-      catch (e) { console.warn('[lock] wipe key failed', key, e instanceof Error ? e.name : 'unknown'); }
+      // console.warn مبيوصلش Sentry (الـbreadcrumbs بتتشال) — مفتاح فاضل لحساب اتمسح لازم يتعرف (بند 14)
+      catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
+    await removeMarker();
   }
 
   /**
@@ -268,6 +332,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    * (باسورد بحروف على لوحة أرقام = مقفول برّه). فلو التاني فشل بنرجّع الهاش القديم ونقول "ما اتغيّرش"
    */
   async function changeCode(oldCode: string, newCode: string, newType: LockType): Promise<VerifyResult> {
+    // رقم سري مش 4 أرقام ← مفيش تغيير (بند 9، حماية تانية ورا الشاشة)
+    if (newType === 'pin' && !PIN_PATTERN.test(newCode)) return 'error';
     const res = await verify(oldCode);
     if (res !== 'ok') return res;
     let oldHash: string | null = null;

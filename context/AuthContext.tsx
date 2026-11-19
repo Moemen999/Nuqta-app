@@ -18,6 +18,7 @@ import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { markUserSignOut } from '@/lib/outboxStore';
 import { sweepExportFiles } from '@/lib/exportFiles';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 type AuthContextType = {
   user: User | null;
@@ -71,7 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signUp(email: string, password: string, displayName: string) {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(cred.user, { displayName });
+    // الاسم لوحده (الميزة 11، بند 12): كان `await` من غير try، فوقوعه (النت) كان بيرمي **بعد** ما الحساب اتعمل — فلا بيانات
+    // المستخدم اتكتبت ولا إيميل التأكيد اتبعت، والشاشة بتقول "حصل خطأ" على حساب موجود. الاسم بيتحفظ في users/{uid} برضه
+    try { await updateProfile(cred.user, { displayName }); }
+    catch (e) { reportAtomicFailure('التسجيل: الاسم', e); }
     // مش بنستنى تأكيد السيرفر على الكتابة دي: الحساب اتعمل خلاص، وفايربيز بتكتب
     // محليًا وبترفع لوحدها أول ما النت يسمح. لو استنيناها والنت واقف، المستخدم
     // كان بيفضل قاعد قدام "بيحمّل" وإيميل التأكيد نفسه (اللي تحت) مكانش بيتبعت
@@ -80,15 +84,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       displayName,
       email,
       createdAt: serverTimestamp(),
-    }, { merge: true }).catch(() => {
-      // البيانات دي تكميلية — مش شرط لدخول المستخدم، وفايربيز بتعيد المحاولة لوحدها
+    }, { merge: true }).catch(e => {
+      // البيانات دي تكميلية — مش شرط لدخول المستخدم. الرفض (مش النت) بيوصل Sentry بالكود بس (بند 12)
+      reportAtomicFailure('التسجيل: بيانات المستخدم', e);
     });
     try {
       await sendEmailVerification(cred.user);
     } catch (err) {
-      // لو إرسال إيميل التأكيد فشل لأي سبب، الحساب لسه اتعمل بنجاح، منمنعش المستخدم من الاستخدام.
-      // بنسجل السبب الحقيقي هنا بس (مش في واجهة المستخدم) عشان نقدر نشخّص أي فشل حقيقي
-      console.error('[auth] sendEmailVerification (signup) failed:', err);
+      // لو إرسال إيميل التأكيد فشل لأي سبب، الحساب لسه اتعمل بنجاح، منمنعش المستخدم من الاستخدام (بانر الإيميل بيعيد).
+      // console.error مبيوصلش Sentry (الـbreadcrumbs بتتشال) — الكود بس بيوصل (بند 12)
+      reportAtomicFailure('التسجيل: إيميل التأكيد', err);
     }
   }
 
@@ -101,8 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       displayName: cred.user.displayName || '',
       email: cred.user.email || '',
       createdAt: serverTimestamp(),
-    }, { merge: true }).catch(() => {
-      // نفس الكلام: بيانات تكميلية بترفع لوحدها بعدين
+    }, { merge: true }).catch(e => {
+      // نفس الكلام: بيانات تكميلية — الرفض بيوصل Sentry بالكود بس
+      reportAtomicFailure('دخول جوجل: بيانات المستخدم', e);
     });
   }
 
@@ -171,9 +177,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function resendVerificationEmail() {
-    if (auth.currentUser) {
-      await sendEmailVerification(auth.currentUser);
-    }
+    // مفيش مستخدم ← رمية (بند 12): كانت بترجع عادي والشاشة تقول "بعتنالك" ومفيش حاجة اتبعتت
+    if (!auth.currentUser) throw Object.assign(new Error('no current user'), { code: 'auth/no-current-user' });
+    await sendEmailVerification(auth.currentUser);
   }
 
   return (

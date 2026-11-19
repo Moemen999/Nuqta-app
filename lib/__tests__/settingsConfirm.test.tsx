@@ -73,3 +73,29 @@ it('الجولة 2، بند 6: فيه عدد معروف بس القراية فش
   await openLogout();
   expect(screen.getByTestId('confirm_title').props.children).toBe('مش متأكدين إن كل عملياتك اترفعت');
 });
+
+describe('الميزة 11 (arabic-copy-reviewer + silent-failure-hunter)', () => {
+  it('11 تعديل ← «فيه 11 تعديل لسه بيترفع» (مش «تعديلات»)', async () => {
+    mockPending = 11;
+    await openLogout();
+    expect(screen.getByTestId('confirm_body').props.children).toContain('فيه 11 تعديل لسه بيترفع');
+  });
+  it('عمليتين في الطابور ← «يخلص رفعهم»', async () => {
+    mockOutboxCount = 2;
+    await openLogout();
+    expect(screen.getByTestId('confirm_body').props.children).toContain('يخلص رفعهم');
+  });
+  it('الخروج وقع ← رسالة (مش رمية ساكتة)', async () => {
+    mockLogOut.mockRejectedValueOnce(Object.assign(new Error('x'), { code: 'auth/network-request-failed' }));
+    const { NoticeProvider } = require('@/components/NoticeProvider');
+    await render(<ThemeProvider><NoticeProvider><ConfirmProvider><SettingsScreen /></ConfirmProvider></NoticeProvider></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByText('تسجيل الخروج')); });
+    await act(async () => { fireEvent.press(screen.getByText('خروج')); });
+    expect(screen.getByTestId('notice_title').props.children).toBe('ما خرجناش');
+  });
+  it('شاشة الترحيب: الزرار «اعرضها تاني»', async () => {
+    await render(<ThemeProvider><ConfirmProvider><SettingsScreen /></ConfirmProvider></ThemeProvider>);
+    await act(async () => { fireEvent.press(screen.getByText('إعادة عرض شاشة الترحيب')); });
+    expect(screen.getByTestId('confirm_action_0')).toHaveTextContent('اعرضها تاني');
+  });
+});

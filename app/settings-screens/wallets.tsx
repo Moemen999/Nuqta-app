@@ -2,7 +2,7 @@ import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
 import { AMOUNT_CLEARED_BODY, amountClearedTitle, planLowAlertCommit, planWalletOpeningCommit, walletAmountRejectReason } from '@/lib/finance';
 import {
   AUTOSAVED_ANNOUNCEMENT, OPENING_PENDING_HINT, nameEmptyNotice, openingConfirmCopy, openingDroppedNotice, openingGoneNotice,
-  openingStaleNotice, walletAmountRejectNotice,
+  openingStaleNotice, walletAmountRejectNotice, goneFromAnotherDeviceNotice, SHEET_RELINKED_NOTICE,
 } from '@/lib/walletCopy';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList, { restoredAnnouncement } from '@/components/ArchivedList';
@@ -17,7 +17,7 @@ import {
   walletDeleteBlock, walletDeleteConsequences, walletHasHistory, walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
 import {
-  DATA_LOADING_BODY, WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletActionLoading, walletBlockedBody,
+  WALLET_BLOCKED_TITLE, dataLoadingBody, walletActionBlockedBy, walletActionLoading, walletBlockedBody,
 } from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
@@ -74,7 +74,7 @@ export default function WalletsScreen() {
     id: string; name: string; items: ReassignItem[]; targets: ReassignTarget[];
   } | null>(null);
   const [archiving, setArchiving] = useState(false);
-  // آخر حاجة اتكتبت في كل خانة رقم — عشان رسالة الرفض تقول السبب (سالب / كبير قوي / مش رقم)
+  // آخر حاجة اتكتبت في كل خانة رقم — عشان رسالة الرفض تقول السبب (سالب / كبير أوي / صغير أوي / مش رقم)
   const typed = useRef<Record<string, string>>({});
 
   const walletName = (id: string) => live.current.wallets.find(x => x.id === id)?.name ?? '';
@@ -96,8 +96,12 @@ export default function WalletsScreen() {
       confirmCopy: (id, value, stored) => openingConfirmCopy(walletName(id), stored, value),
       // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
       onDroppedConfirm: id => notice(...openingDroppedNotice(walletName(id))),
-      onStaleConfirm: id => notice(...openingStaleNotice(walletName(id))),
-      // «abc» أو «1,5» كانوا بيرجعوا للمحفوظ ساكت (الجولة الأخيرة، بند 7)؛ و«1e300» كبير قوي (الميزة 10، بند 7)
+      // المحفظة اتمسحت/اتأرشفت والتأكيد مفتوح ← الرقم المتخزّن «اتغيّر» (بقى 0)، بس السبب الحقيقي إنها مشيت (جولة 2)
+      onStaleConfirm: id => {
+        const w = live.current.wallets.find(x => x.id === id);
+        notice(...(!w || w.archived ? openingGoneNotice(w?.name ?? '') : openingStaleNotice(walletName(id))));
+      },
+      // «abc» أو «1,5» كانوا بيرجعوا للمحفوظ ساكت (الجولة الأخيرة، بند 7)؛ و«1e300» كبير أوي (الميزة 10، بند 7)
       onReject: rejectWith('الرصيد الابتدائي', 'opening'),
       onDroppedReject: rejectWith('الرصيد الابتدائي', 'opening'),
     },
@@ -106,9 +110,11 @@ export default function WalletsScreen() {
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
     (id, value) => {
-      if (!live.current.wallets.some(x => x.id === id)) return;
+      // المحفظة مشيت ← مفيش كتابة، و`false` بيقول لـ`useAmountDrafts` ميقولش «اتشال» (جولة 2)
+      if (!live.current.wallets.some(x => x.id === id)) return false;
       updateWallet(id, { lowAlert: value });
       announce(AUTOSAVED_ANNOUNCEMENT);
+      return true;
     },
     {
       plan: planLowAlertCommit,
@@ -129,10 +135,10 @@ export default function WalletsScreen() {
    * بيتنادى وقت فتح التأكيد **ولحظة الدوسة عليه**.
    */
   function blockedByMissingData() {
-    const { loadErrors, figuresPending, undelivered } = live.current;
+    const { loadErrors, figuresPending, undelivered, serverReachable } = live.current;
     const missing = walletActionBlockedBy(loadErrors);
     if (missing.length > 0) { notice(WALLET_BLOCKED_TITLE, walletBlockedBody(missing)); return true; }
-    if (walletActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, DATA_LOADING_BODY); return true; }
+    if (walletActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, dataLoadingBody(serverReachable)); return true; }
     return false;
   }
 
@@ -207,7 +213,7 @@ export default function WalletsScreen() {
    */
   function deleteNow(id: string, name: string, fromSimple = false) {
     if (blockedByMissingData()) return;
-    if (!live.current.wallets.some(x => x.id === id)) return;
+    if (!live.current.wallets.some(x => x.id === id)) { notice(...goneFromAnotherDeviceNotice('المحفظة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
     if (fromSimple && walletHasHistory(refsFor(id))) { confirmDelete(id, name); return; }
     // DataContext بيرفض هو كمان (بند 13) — لو المحافظ اتغيّرت بين الفحص والكتابة
@@ -251,8 +257,8 @@ export default function WalletsScreen() {
   /** التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي */
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (!live.current.wallets.some(x => x.id === id)) { notice(...goneFromAnotherDeviceNotice('المحفظة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
-    if (!live.current.wallets.some(x => x.id === id)) return;
     confirm('مسح نهائي', walletDeleteConsequences({ balance: balanceOf(id), refs: refsFor(id), money }).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
@@ -370,7 +376,8 @@ export default function WalletsScreen() {
     }
     // حاجة شغالة جديدة اتربطت بالمحفظة والشيت مفتوح ← الشيت بيتفتح من جديد بيها (بند 2)
     const now = activeItemsFor(id);
-    if (now.some(n => !items.some(i => i.id === n.id))) { setSheet(null); startArchive(id, name); return; }
+    // سطر الأول وبعده الشيت (جولة 2): الشيت كان بيتبدّل تحت إيدك من غير ما يقول ليه
+    if (now.some(n => !items.some(i => i.id === n.id))) { refuse(() => notice(...SHEET_RELINKED_NOTICE, () => startArchive(id, name))); return; }
     // بند 3: المحفظة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح
     const targetBlock = reassignTargetsBlock(Object.values(assignments), live.current.wallets, id);
     if (targetBlock) { refuse(() => showBlock(targetBlock, name, 'archive')); return; }
