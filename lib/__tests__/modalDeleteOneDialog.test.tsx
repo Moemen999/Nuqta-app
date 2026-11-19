@@ -9,9 +9,9 @@ import { warmUp } from '@/test-utils/warmUp';
 
 /**
  * D3 (بند 8): مسح عملية من المودال = **حوار واحد** مش اتنين فوق بعض.
- * - مفيش محفظة مؤرشفة هتتأثر ← `Alert` واحد 'حذف العملية' فيه سطر العدد
+ * - مفيش محفظة مؤرشفة هتتأثر ← `Alert` واحد 'تمسح العملية؟' فيه سطر العدد
  * - فيه مؤرشفة ← مفيش `Alert`: شيت التسوية نفسها بتسأل "متأكد؟" وبتعرض التحذير
- *   وسطر العدد، وزرارها 'حذف' مش 'احفظ'
+ *   وسطر العدد، وزرارها 'امسحها' مش 'احفظ'
  * - فيه مؤرشفة ومفيش ولا شغالة ← شيت الممنوع من غير سؤال "متأكد؟"
  * الشيت الحقيقية (مش متمثّلة)؛ المحافظ في `useData` المتمثّل.
  */
@@ -63,15 +63,15 @@ warmUp(() => { seed([active], 'w'); return ui(); });
 async function openAndPressDelete() {
   await render(ui());
   await act(async () => {});
-  await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+  await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
 }
 
-it('مفيش مؤرشفة ← Alert واحد "حذف العملية" فيه سطر العدد، ومفيش شيت', async () => {
+it('مفيش مؤرشفة ← Alert واحد "تمسح العملية؟" فيه سطر العدد، ومفيش شيت', async () => {
   seed([active], 'w');
   await openAndPressDelete();
   expect(alertSpy).toHaveBeenCalledTimes(1);
   const [title, message] = alertSpy.mock.calls[0];
-  expect(title).toBe('حذف العملية');
+  expect(title).toBe('تمسح العملية؟');
   expect(message).toContain(QUESTION);
   expect(message).toContain(LINK);
   expect(message).toContain(COUNT_LINE);
@@ -79,7 +79,7 @@ it('مفيش مؤرشفة ← Alert واحد "حذف العملية" فيه سط
   expect(screen.queryByTestId('settle_blocked')).toBeNull();
 });
 
-it('مؤرشفة هتتأثر ← مفيش Alert، والشيت بتسأل وبتعرض التحذير وسطر العدد وزرارها "حذف"', async () => {
+it('مؤرشفة هتتأثر ← مفيش Alert، والشيت بتسأل وبتعرض التحذير وسطر العدد وزرارها "امسحها"', async () => {
   seed([archived, active], 'a');
   await openAndPressDelete();
   expect(alertSpy).not.toHaveBeenCalled();
@@ -88,13 +88,13 @@ it('مؤرشفة هتتأثر ← مفيش Alert، والشيت بتسأل وب�
   expect(within(sheet).getByText(new RegExp(LINK))).toBeTruthy();
   expect(within(sheet).getByText(new RegExp(COUNT_LINE.replace('.', '\\.')))).toBeTruthy();
   const confirm = screen.getByTestId('settle_confirm');
-  expect(within(confirm).getByText('حذف')).toBeTruthy();
+  expect(within(confirm).getByText('امسحها')).toBeTruthy();
   expect(within(confirm).queryByText('احفظ')).toBeNull();
   // لسه ما اتمسحش حاجة قبل التأكيد
   expect(mockData.deleteTransaction).not.toHaveBeenCalled();
 });
 
-it('الشيت: اختيار المحفظة ثم "حذف" ← deleteTransaction بتسوية واحدة', async () => {
+it('الشيت: اختيار المحفظة ثم "امسحها" ← deleteTransaction بتسوية واحدة', async () => {
   seed([archived, active], 'a');
   await openAndPressDelete();
   const sheet = screen.getByTestId('settle_sheet');
@@ -131,7 +131,7 @@ it('الإلغاء من الشيت ← مفيش مسح', async () => {
  * الجولة 1 على D3 (2026-10-30): silent-failure-hunter + react-reviewer + a11y-architect.
  */
 describe('الجولة 1 على D3', () => {
-  it('دوستين على "حذف" في الشيت في نفس اللحظة ← المسح والتسوية مرة واحدة (مش تحويلين)', async () => {
+  it('دوستين على "امسحها" في الشيت في نفس اللحظة ← المسح والتسوية مرة واحدة (مش تحويلين)', async () => {
     seed([archived, active], 'a');
     await openAndPressDelete();
     const sheet = screen.getByTestId('settle_sheet');
@@ -163,7 +163,7 @@ describe('الجولة 1 على D3', () => {
     router.back.mockClear();
     await openAndPressDelete();
     const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => { await buttons.find(b => b.text === 'امسحها')!.onPress!(); });
     await act(async () => {});
     expect(router.back).not.toHaveBeenCalled();
     expect(screen.getByText('العملية ما اتمسحتش وهي لسه موجودة، جرب تاني')).toBeTruthy();
@@ -202,7 +202,7 @@ describe('الجولة 2 على D3', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('settle_confirm')); });
     await act(async () => {});
     expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
-    await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
+    await act(async () => { fireEvent.press(screen.getAllByText('امسحها')[0]); });
     expect(screen.getByTestId('tx_error').props.children).toBe('');
   });
 });
@@ -217,14 +217,14 @@ describe('نتيجة مسح عملية الدين', () => {
   async function pressDeleteViaAlert() {
     await openAndPressDelete();
     const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => { await buttons.find(b => b.text === 'امسحها')!.onPress!(); });
     await act(async () => {});
   }
   const ui2 = () => <ThemeProvider><NoticeProvider><PrivacyProvider><AddTransactionModal /></PrivacyProvider></NoticeProvider></ThemeProvider>;
   async function openWithNotice() {
     await render(ui2());
     await act(async () => {});
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
   }
 
   it.each(['no-connection', 'failed', 'uncertain'] as const)('%s ← المودال مفتوح والرسالة بتاعة الحالة', async (outcome) => {
@@ -234,13 +234,13 @@ describe('نتيجة مسح عملية الدين', () => {
     router.back.mockClear();
     await openWithNotice();
     const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => { await buttons.find(b => b.text === 'امسحها')!.onPress!(); });
     await act(async () => {});
     expect(router.back).not.toHaveBeenCalled();
     expect(screen.getByText(TX_DELETE_OUTCOME_ALERT[outcome].title)).toBeTruthy();
     // الزرار رجع يشتغل: محاولة تانية بتنادي تاني
     alertSpy.mockClear();
-    await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
+    await act(async () => { fireEvent.press(screen.getAllByText('امسحها')[0]); });
     expect(alertSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -251,7 +251,7 @@ describe('نتيجة مسح عملية الدين', () => {
     router.back.mockClear();
     await openWithNotice();
     const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => { await buttons.find(b => b.text === 'امسحها')!.onPress!(); });
     await act(async () => {});
     expect(screen.getByText(DUE_NOT_RESTORED_PAYMENT.body)).toBeTruthy();
     expect(router.back).toHaveBeenCalledTimes(1);
@@ -292,9 +292,9 @@ describe('مسح عملية من شهر استلام الجمعية', () => {
   async function deleteViaAlert() {
     await render(ui2());
     await act(async () => {});
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
     const buttons = alertSpy.mock.calls[0][2] as { text: string; onPress?: () => unknown }[];
-    await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
+    await act(async () => { await buttons.find(b => b.text === 'امسحها')!.onPress!(); });
     await act(async () => {});
   }
 

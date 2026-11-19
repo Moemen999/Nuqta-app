@@ -79,12 +79,15 @@ export type LinkKind = 'debt' | 'subscription' | 'gamiya' | 'income';
  */
 export function transactionLinkKind(txId: string, src: {
   debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[]; incomes: RecurringIncome[];
-}, tx?: { incomeId?: string }): LinkKind | null {
+}, tx?: { incomeId?: string; gamiyaId?: string }): LinkKind | null {
   if (src.debts.some(d => debtRoleOf(d, txId))) return 'debt';
   if (src.subscriptions.some(s => (s.history || []).some(h => h.transactionId === txId))) return 'subscription';
   if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId || m.installmentTransactionId === txId))) return 'gamiya';
   if (src.incomes.some(inc => Object.values(inc.closed || {}).some(c => c.txId === txId))) return 'income';
   if (tx?.incomeId && src.incomes.some(inc => inc.id === tx.incomeId)) return 'income';
+  // ربطها بالشهر اتشال والعملية فاضلة بـ`gamiyaId` (Feature 9، الجولة الأخيرة): `isTransferTx` بيعدّها تحويل، فالنوع
+  // لازم يتقفل برضه — من غيره كانت تتحوّل دخل/مصروف وهي لسه برّه الإجماليات
+  if (tx?.gamiyaId) return 'gamiya';
   return null;
 }
 

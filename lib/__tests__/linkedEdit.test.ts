@@ -183,6 +183,12 @@ describe('transactionLinkKind', () => {
   it('incomeId من غير علامة ← income', () => {
     expect(transactionLinkKind('income_inc_2026-02', sources, { incomeId: 'inc' })).toBe('income');
   });
+  // Feature 9، الجولة الأخيرة: عملية جمعية ربطها بالشهر اتشال (`gamiyaId` من غير معرّف في الشهر) — `isTransferTx` بيعدّها
+  // تحويل، فالمودال لازم يقفل نوعها برضه (كانت تتحوّل دخل/مصروف وهي محسوبة تحويل)
+  it('gamiyaId من غير ربط بالشهر ← gamiya (زي isTransferTx)', () => {
+    expect(transactionLinkKind('tx_orphan', sources, { gamiyaId: 'g' })).toBe('gamiya');
+    expect(transactionLinkKind('tx_orphan', { debts: [], subscriptions: [], gamiyas: [], incomes: [] }, { gamiyaId: 'gone' })).toBe('gamiya');
+  });
 });
 
 describe('storableAmount — التقريب الأول وبعدين الفحص (R1)', () => {

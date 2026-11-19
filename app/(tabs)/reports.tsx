@@ -44,7 +44,7 @@ export default function ReportsScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     categories, transactions, debts, gamiyas, transfersStatus, brokenTransactions = [],
-    figuresPending = [], loadErrors = [], categoriesReady = true,
+    figuresPending = [], loadErrors = [], categoriesReady = true, debtsReady = true,
   } = useData();
   // بند 11: من غير الديون والجمعية السلفة بتتعدّ مصروف — الأرقام مبتظهرش لحد ما يوصلوا. **والعمليات نفسها** (Feature 9
   // بند 1): نفس شرط الرئيسية والميزانية — من غيره التقارير كانت بتقول «0» و«مفيش مصاريف» لحد أول snapshot للعمليات
@@ -54,9 +54,10 @@ export default function ReportsScreen() {
   const categoriesFailed = loadErrors.includes('categories');
   // الفئات لسه ما وصلتش: المصروف بفئة مش لاقيين اسمها كان هيتحط في «فئات ممسوحة» ← الأعمدة بتستنى
   const barsLoading = spendLoading || (!categoriesReady && !categoriesFailed);
-  // كشف حساب الأشخاص: الديون بس
+  // كشف حساب الأشخاص: الديون بس — `debtsReady` مش `transfersStatus` (الجولة الأخيرة): ده الديون والجمعية مع بعض، فالجمعية
+  // لسه بتحمّل كانت بتخبّي الأشخاص، والجمعية اترفضت والديون لسه كانت بتقول «مفيش حركة ديون»
   const debtsFailed = loadErrors.includes('debts');
-  const debtsLoading = transfersStatus === 'loading' && !debtsFailed;
+  const debtsLoading = !debtsReady && !debtsFailed;
   // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
   const { money } = usePrivacy();
@@ -155,7 +156,9 @@ export default function ReportsScreen() {
     const prevExpenses = allSpending
       .filter(t => t.date >= previous.from && t.date <= previous.to);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
-    return Math.abs(prevExpense) < PIASTRE_EPS ? null : Math.round(((curExpense - prevExpense) / prevExpense) * 100);
+    if (Math.abs(prevExpense) < PIASTRE_EPS) return null;
+    // الفرق الخام كمان: النسبة المقرّبة لصفر مش معناها «زي ما هو» (`changeText`)
+    return { pct: Math.round(((curExpense - prevExpense) / prevExpense) * 100), diff: curExpense - prevExpense };
   }, [range, today, preset, visibleIds, allSpending]);
 
   // الأعمدة من الفترة والفئات المختارين ومن نفس صفوف الرقم البطل — `lib/spendTimeline.ts`
@@ -255,7 +258,8 @@ export default function ReportsScreen() {
       .filter(s => s.outFlow > 0 || s.inFlow > 0 || s.balance !== 0);
   }, [debts, range]);
 
-  const changeShown = changeText(change);
+  const changeShown = changeText(change?.pct ?? null, change?.diff ?? 0);
+  const changePct = change?.pct ?? null;
   // نفس جملة العمودين (arabic-copy-reviewer): «مفيش مصاريف للفئات دي في الفترة دي» لما فيه فلتر
   const noSpendText = `مفيش مصاريف${catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي`;
   const personLabel = (s: PersonSummary) => [
@@ -299,7 +303,7 @@ export default function ReportsScreen() {
             <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
             {spendLoading ? <SpendLoading announce={false} shape="line" style={styles.changeValue} /> : (
               <Text testID="reports_change" accessibilityLabel={changeShown.label}
-                style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
+                style={[styles.changeValue, { color: changePct === null || changePct === 0 ? colors.textSecondary : changePct > 0 ? colors.dangerText : colors.incomeText }]}>
                 {changeShown.text}
               </Text>
             )}

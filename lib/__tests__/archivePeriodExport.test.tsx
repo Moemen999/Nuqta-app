@@ -8,7 +8,8 @@ import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { todayStr } from '@/lib/finance';
 import { EXPORT_FAIL, sweepExportFiles } from '@/lib/exportFiles';
-import { PERIOD_EXPORT_LOAD_FAILED, PERIOD_EXPORT_WAIT, periodExportFileName } from '@/lib/periodExport';
+import { PERIOD_EXPORT_LOAD_FAILED, PERIOD_EXPORT_WAIT, PERIOD_EXPORT_WAIT_OFFLINE, UNSURE_COUNTED_NOTE, periodExportFileName } from '@/lib/periodExport';
+import { CATEGORY_NAMES_MISSING } from '@/lib/spending';
 
 /**
  * Feature 9 بند 3 و5: تصدير عمليات الفترة.
@@ -67,6 +68,11 @@ describe('الزرار مقفول لحد ما البيانات توصل', () => 
     ['العمليات اترفضت', { loadErrors: ['transactions'] }, PERIOD_EXPORT_LOAD_FAILED],
     ['المحافظ اترفضت', { loadErrors: ['wallets'] }, PERIOD_EXPORT_LOAD_FAILED],
     ['الفئات اترفضت', { loadErrors: ['categories'] }, PERIOD_EXPORT_LOAD_FAILED],
+    // الجولة الأخيرة: الفئات أو المحافظ لسه ما وصلوش ← الأسامي كانت هتطلع «ممسوحة» في الملف
+    ['الفئات لسه ما وصلتش', { categoriesReady: false }, PERIOD_EXPORT_WAIT],
+    ['المحافظ لسه ما وصلتش', { figuresPending: ['wallets'] }, PERIOD_EXPORT_WAIT],
+    // من غير نت: السطر بيقول إن النت هو اللي مستنينه
+    ['من غير نت والعمليات لسه', { figuresPending: ['transactions'], serverReachable: false }, PERIOD_EXPORT_WAIT_OFFLINE],
   ])('%s ← مقفول، وسطر السبب، ومفيش ملف', async (_n, over, reason) => {
     setData(over);
     await mount();
@@ -102,8 +108,9 @@ describe('الملف', () => {
     expect(byId.get('food')![col('المبلغ بالإشارة')]).toBe(-150);
     expect(byId.get('food')![col('محسوبة في الإجماليات')]).toBe('أيوه');
     expect(byId.get('pay')![col('المبلغ بالإشارة')]).toBe(8000);
-    expect(byId.get('pay')![col('لسه بترفع')]).toBe(true);
-    expect(byId.get('food')![col('لسه بترفع')]).toBe(false);
+    // الجولة الأخيرة: «أيوه»/«لأ» زي عمود «محسوبة في الإجماليات»، مش TRUE/FALSE بالإنجليزي
+    expect(byId.get('pay')![col('لسه بترفع')]).toBe('أيوه');
+    expect(byId.get('food')![col('لسه بترفع')]).toBe('لأ');
     // السلفة: أثرها على المحفظة سالب، بس مش محسوبة في الإجماليات
     expect(byId.get('lend')![col('المبلغ بالإشارة')]).toBe(-2000);
     expect(byId.get('lend')![col('محسوبة في الإجماليات')]).toBe('لأ — دين أو جمعية');
@@ -123,6 +130,14 @@ describe('الملف', () => {
     expect(String(rows[rows.length - 1][0])).toBe('ملحوظة: فيه عمليتين بياناتها ناقصة ومش في الملف ده — صلّحها من الأرشيف.');
   });
 
+  it('الديون والجمعية اترفضوا ← سطر ملحوظة إن «مش متأكدين» محسوبة في الإجماليات اللي على الشاشة', async () => {
+    setData({ transfersStatus: 'failed', loadErrors: ['debts'] });
+    await mount();
+    await press();
+    const { rows } = writtenSheet();
+    expect(rows.some(r => String(r[0] ?? '') === UNSURE_COUNTED_NOTE)).toBe(true);
+  });
+
   it('مفيش بايظ ← مفيش سطر ملحوظة', async () => {
     await mount();
     await press();
@@ -135,7 +150,8 @@ describe('الملف', () => {
     expect(periodExportFileName('thisMonth', { from: '2026-11-01', to: '2026-11-30' }, '2026-11-19')).toBe('nuqta-export-2026-11-01-to-2026-11-30.xlsx');
   });
 
-  it('بعد المشاركة الملف بيتمسح من الكاش', async () => {
+  // أندرويد: الملف بيفضل للكنس الجاي (`exportFiles.test.ts`)
+  it('بعد المشاركة الملف بيتمسح من الكاش (iOS)', async () => {
     await mount();
     await press();
     const { uri } = writtenSheet();
@@ -160,6 +176,22 @@ describe('الفشل جملة ثابتة', () => {
     await press();
     expect(FileSystem.writeAsStringAsync).not.toHaveBeenCalled();
     expect(screen.getByTestId('notice_body').props.children).toBe(EXPORT_FAIL['no-share'][1]);
+  });
+});
+
+describe('الجولة الأخيرة: اسم الفئة في صفوف الأرشيف', () => {
+  const catTx = () => [tx('food', 'expense', 150, { categoryId: 'c1' })];
+  it('الفئات اترفضت ← «أسامي الفئات ما وصلتش» مش «فئة ممسوحة»', async () => {
+    setData({ transactions: catTx(), categories: [], loadErrors: ['categories'] });
+    await mount();
+    expect(screen.getByTestId('archive_tx_food').props.accessibilityLabel).toContain(CATEGORY_NAMES_MISSING);
+    expect(screen.getByTestId('archive_tx_food').props.accessibilityLabel).not.toContain('ممسوحة');
+  });
+  it('الفئات لسه ما وصلتش ← «مصروف» من غير اسم (مش «فئة ممسوحة»)', async () => {
+    setData({ transactions: catTx(), categories: [], categoriesReady: false });
+    await mount();
+    expect(screen.getByTestId('archive_tx_food').props.accessibilityLabel.startsWith('مصروف،')).toBe(true);
+    expect(screen.getByTestId('archive_tx_food').props.accessibilityLabel).not.toContain('ممسوحة');
   });
 });
 

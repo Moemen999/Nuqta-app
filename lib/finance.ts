@@ -3,6 +3,9 @@ import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine
 import { installmentsPhrase } from '@/lib/archiving';
 import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import { namedLabel } from '@/lib/writeError';
+import { isTransferTx } from '@/lib/spending';
+
+const NO_TRANSFERS: ReadonlySet<string> = new Set();
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -21,11 +24,14 @@ export function walletBalance(tx: Transaction[], walletId: string, opening: numb
  * مصروف فئة في شهر. `transfers` (السلفة وقسط الجمعية، `lib/spending.ts`)
  * بتتشال: عادةً ملهاش فئة، بس المستخدم يقدر يعدّل العملية ويديها فئة — ساعتها
  * كانت هتدخل الفئة وتطلع من الإجمالي، فمجموع الفئات يعدّي الإجمالي (money-reviewer).
+ * بنفس `isTransferTx` بتاعة `spendingExpenses` (Feature 9، الجولة الأخيرة): عملية عليها `gamiyaId` وربطها بالشهر اتشال
+ * كانت برّه الإجمالي وجوّه الفئة. من غير `transfers` (اختبارات قديمة) ← المعرّفات بس متشالتش، و`gamiyaId` برّه برضه.
  */
 export function monthSpend(tx: Transaction[], categoryId: string, month: string, transfers?: Set<string>) {
+  const known = transfers ?? NO_TRANSFERS;
   return tx
     .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month
-      && !transfers?.has(t.id))
+      && !isTransferTx(t, known))
     .reduce((s, t) => s + t.amount, 0);
 }
 
@@ -337,7 +343,8 @@ export function buildPieSlices(
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   expense: { label: 'مصروف', color: '#D97878', sign: '-' },
   income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
-  withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
+  // «تحويل» مش «سحب» (قرار مؤمن 2026-11-19) — القيمة المتخزّنة لسه `withdraw`
+  withdraw: { label: 'تحويل', color: '#C9A961', sign: '-' },
 };
 
 /**

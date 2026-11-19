@@ -55,7 +55,20 @@ jest.mock('expo-crypto', () => {
 });
 
 const mockNotice = jest.fn();
-jest.mock('@/components/NoticeProvider', () => ({ useNotice: () => mockNotice }));
+/**
+ * رسايل بروفايدر من اختبار قبل كده (اتشال) مبتتعدّش هنا: `unprotected` بيسيب مؤقّت 8 ثواني (`OUTBOX_UNPROTECTED_RECHECK_MS`)
+ * لما الحفظ يفشل والنت شغال، والمؤقّت ده كان بيرن في نص اختبار بعده ويتعدّ رسالة زيادة (بند 4 كان بيطلع 2 في السويت
+ * كله وواحدة لوحده — اتأكد بالستاك: `Timeout.showUnprotected` قبل ما بروفايدر الاختبار يترسم). كل اختبار ليه رقم
+ * (`mockNoticeGen`)، والبروفايدر بياخد رقم الاختبار اللي اترسم فيه.
+ */
+let mockNoticeGen = 0;
+const mockStaleNotice = jest.fn();
+jest.mock('@/components/NoticeProvider', () => ({
+  useNotice: () => {
+    const gen = mockNoticeGen;
+    return (...args: unknown[]) => (gen === mockNoticeGen ? mockNotice : mockStaleNotice)(...args);
+  },
+}));
 jest.mock('@/components/ConfirmProvider', () => ({ useConfirm: () => jest.fn() }));
 
 const secure = (SecureStore as unknown as { __store: Record<string, string> }).__store;
@@ -68,6 +81,7 @@ let h: Awaited<ReturnType<typeof renderDataProvider>> | undefined;
 let uid: string;
 
 beforeEach(async () => {
+  mockNoticeGen++;
   mockNotice.mockClear();
   await AsyncStorage.clear();
   Object.keys(secure).forEach(k => delete secure[k]);
@@ -722,12 +736,16 @@ describe('الميزة 8 — الجولة 2 (الأخيرة) على f0badf9', ()
     await disableNetwork(db);
     try {
       await h.waitForData(api => !api.serverReachable, 10000);
+      // الفشل بيفضل لحد ما الحفظين يخلصوا فعلاً (العدد يرجع صفر = الاتنين فشلوا واتشالوا) وبعد الهدوء: `addTransaction`
+      // بيرجع بعد `OUTBOX_PERSIST_TIMEOUT_MS` حتى لو الحفظ لسه شغال، فالرجوع قبلها كان بيخلي حفظ متأخر ينجح —
+      // ساعات صفر رسايل (الاختبار كان متقلّب، مش منتج بيكرر)
       const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
       try {
         await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true });
         await h.api().addTransaction({ type: 'expense', amount: 11, walletId: w, date: todayStr() }, { durable: true });
+        await h.waitForData(api => api.outboxCount === 0, 10000, 'r2-4:both-failed');
+        await settle(1500);
       } finally { restore(); }
-      await settle(1500);
       expect(mockNotice.mock.calls.filter(c => c[0] === OUTBOX_ADD_UNPROTECTED_TITLE)).toHaveLength(1);
     } finally {
       await enableNetwork(db);

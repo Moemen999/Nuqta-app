@@ -86,6 +86,14 @@ describe('المراجعة: سلفة اتدّت فئة بالتعديل مبتت
   it('من غير transfers (زي قبل) بتتحسب — الفرق هو التصليح', () => {
     expect(monthSpend(txs as never, 'food', '2026-09')).toBe(2150);
   });
+
+  // Feature 9، الجولة الأخيرة: نفس `isTransferTx` بتاعة `spendingExpenses` — قسط جمعية ربطه بالشهر اتشال (`gamiyaId` بس)
+  // كان بيدخل ميزانية الفئة وتوقّعها وبانر الرئيسية، وهو برّه الإجمالي
+  it('عملية عليها gamiyaId من غير معرّف في الجمعية ← برّه الفئة زي الإجمالي', () => {
+    const withGam = [...txs, { id: 'orphan_inst', type: 'expense', amount: 500, date: '2026-09-12', categoryId: 'food', gamiyaId: 'g' }];
+    expect(monthSpend(withGam as never, 'food', '2026-09', transfers)).toBe(150);
+    expect(monthSpendTotal(withGam, '2026-09', transfers)).toBe(150);
+  });
 });
 
 describe('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك له" من غير محفظة سداده مصروف', () => {

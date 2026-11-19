@@ -191,7 +191,7 @@ describe('الحذف', () => {
       return new Promise<{ outcome: 'done' }>(r => { resolveDelete = () => r({ outcome: 'done' }); });
     });
     await openEdit();
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(mockData.deleteTransaction).toHaveBeenCalledTimes(1);
     await act(async () => { navRef.goBack(); });
@@ -205,7 +205,7 @@ describe('الحذف', () => {
   it('الحذف فشل ← رسالة على الشاشة والرجوع بيتفتح تاني', async () => {
     mockData.deleteTransaction = jest.fn(async () => { throw new Error('stage'); });
     await openEdit();
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();

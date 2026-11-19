@@ -11,13 +11,22 @@ import { transactionsPhrase } from '@/lib/archiving';
  * العمليات أو المحافظ أو الفئات اترفضت: الملف كان هيطلع ناقص أو بأسامي «ممسوحة» غلط من غير ما يقول.
  */
 export const PERIOD_EXPORT_WAIT = 'الزرار هيشتغل أول ما عملياتك توصل — عشان الملف ميطلعش ناقص.';
+/** نفس الاستنى من غير نت: اللي مستنينه هو النت (الجولة الأخيرة) */
+export const PERIOD_EXPORT_WAIT_OFFLINE = 'الزرار هيشتغل أول ما النت يرجع وعملياتك توصل — عشان الملف ميطلعش ناقص.';
 export const PERIOD_EXPORT_LOAD_FAILED = 'مقدرناش نجيب كل بياناتك، فالملف كان هيطلع ناقص. جرّب تاني لما توصل.';
 
+/**
+ * بيستنى العمليات والديون والجمعية **والمحافظ والفئات** (الجولة الأخيرة): من غيرهم الأسامي كانت هتطلع «ممسوحة» في الملف.
+ * `categoriesReady` من DataContext؛ المحافظ من `figuresPending`.
+ */
 export function periodExportBlock(i: {
   figuresPending: readonly string[]; loadErrors: readonly string[]; transfersStatus: TransfersStatus;
+  categoriesReady: boolean; serverReachable: boolean;
 }): string | null {
   if (['transactions', 'wallets', 'categories'].some(n => i.loadErrors.includes(n))) return PERIOD_EXPORT_LOAD_FAILED;
-  if (i.figuresPending.includes('transactions') || i.transfersStatus === 'loading') return PERIOD_EXPORT_WAIT;
+  const waiting = i.figuresPending.includes('transactions') || i.figuresPending.includes('wallets')
+    || i.transfersStatus === 'loading' || !i.categoriesReady;
+  if (waiting) return i.serverReachable ? PERIOD_EXPORT_WAIT : PERIOD_EXPORT_WAIT_OFFLINE;
   return null;
 }
 
@@ -31,6 +40,11 @@ export const COUNTED_TRANSFER = 'لأ — دين أو جمعية';
 export const COUNTED_BETWEEN_WALLETS = 'لأ — بين محافظك';
 /** الديون أو الجمعية اترفضوا: مش عارفين العملية دي سلفة ولا لأ */
 export const COUNTED_UNKNOWN = 'مش متأكدين — الديون والجمعية ما وصلوش';
+/** سطر في آخر الورقة لو فيه «مش متأكدين»: الإجماليات اللي على الشاشة حسبتهم (`cashTotals` من غير تحويلات معروفة) */
+export const UNSURE_COUNTED_NOTE = 'ملحوظة: العمليات اللي مكتوب عندها «مش متأكدين» محسوبة في الإجماليات اللي على الشاشة.';
+/** عمود «لسه بترفع» بنفس كلام «محسوبة في الإجماليات» — مش TRUE/FALSE بالإنجليزي */
+export const PENDING_YES = 'أيوه';
+export const PENDING_NO = 'لأ';
 
 type Tx = {
   id: string; type: string; amount: number; date: string; createdAt?: string; walletId: string; toWalletId?: string;
@@ -63,7 +77,7 @@ export function buildPeriodExportRows(tx: Tx[], i: {
       Amount: t.amount,
       SignedAmount: t.type === 'expense' ? -t.amount : t.type === 'income' ? t.amount : '',
       CountedInTotals: counted,
-      Pending: i.pendingTxIds.has(t.id),
+      Pending: i.pendingTxIds.has(t.id) ? PENDING_YES : PENDING_NO,
       Note: t.note || '',
     };
     return row;
@@ -79,12 +93,15 @@ export function brokenExportNote(n: number): string {
   return `ملحوظة: فيه ${transactionsPhrase(n)} بياناتها ناقصة ومش في الملف ده — صلّحها من الأرشيف.`;
 }
 
-/** الملف كله: ورقة «العمليات» بالعربي ومن اليمين للشمال، وسطر ملحوظة في الآخر لو فيه بايظ */
+/** الملف كله: ورقة «العمليات» بالعربي ومن اليمين للشمال، وسطور ملحوظة في الآخر (بايظ، «مش متأكدين») */
 export function buildPeriodWorkbook(rows: ExportRow[], brokenCount: number): XLSX.WorkBook {
   const [sheet] = localizeSheets([{ name: 'Transactions', rows }]);
   const wb = XLSX.utils.book_new();
   const ws = sheet.rows.length ? XLSX.utils.json_to_sheet(sheet.rows) : XLSX.utils.aoa_to_sheet([['(مفيش بيانات)']]);
-  if (brokenCount > 0) XLSX.utils.sheet_add_aoa(ws, [[], [brokenExportNote(brokenCount)]], { origin: -1 });
+  const notes: string[] = [];
+  if (rows.some(r => r.CountedInTotals === COUNTED_UNKNOWN)) notes.push(UNSURE_COUNTED_NOTE);
+  if (brokenCount > 0) notes.push(brokenExportNote(brokenCount));
+  if (notes.length) XLSX.utils.sheet_add_aoa(ws, [[], ...notes.map(n => [n])], { origin: -1 });
   XLSX.utils.book_append_sheet(wb, ws, sheet.name);
   wb.Workbook = { ...(wb.Workbook ?? {}), Views: [{ RTL: true }] };
   return wb;

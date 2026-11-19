@@ -98,14 +98,24 @@ describe('comparisonWindows', () => {
  */
 describe('changeText', () => {
   it.each([
-    [12, 'زاد 12%', 'زاد 12 بالمية'],
-    [-5, 'قلّ 5%', 'قلّ 5 بالمية'],
-    [0, 'زي ما هو', 'زي ما هو'],
-    [null, 'مفيش فترة سابقة نقارن بيها', 'مفيش فترة سابقة نقارن بيها'],
-  ])('%p ← %s', (change, text, label) => {
-    expect(changeText(change)).toEqual({ text, label });
+    [12, 30, 'زاد 12%', 'زاد 12 بالمية'],
+    [-5, -10, 'قلّ 5%', 'قلّ 5 بالمية'],
+    [0, 0, 'زي ما هو', 'زي ما هو'],
+    [null, 0, 'مفيش فترة سابقة نقارن بيها', 'مفيش فترة سابقة نقارن بيها'],
+  ])('%p ← %s', (change, diff, text, label) => {
+    expect(changeText(change, diff)).toEqual({ text, label });
+  });
+  // الجولة الأخيرة: 1000 ← 1003 بتتقرّب لـ0% — «زي ما هو» كانت كدبة صغيرة. «زي ما هو» بس لو الفرق أقل من نص قرش
+  it.each([
+    [0, 3, 'تقريبًا زي ما هو'],
+    [0, -0.4, 'تقريبًا زي ما هو'],
+    [0, 0.004, 'زي ما هو'],
+    [-0, -0.001, 'زي ما هو'],
+  ])('النسبة %p والفرق %p ← %s', (change, diff, text) => {
+    expect(changeText(change, diff).text).toBe(text);
+    expect(changeText(change, diff).label).toBe(text);
   });
   it('مفيش إشارة +/- ولا شرطة لوحدها في أي نص', () => {
-    for (const c of [57, -3, 0, null]) expect(changeText(c).text).not.toMatch(/^[+\-—]|[+\-]\d/);
+    for (const c of [57, -3, 0, null]) expect(changeText(c, 1).text).not.toMatch(/^[+\-—]|[+\-]\d/);
   });
 });

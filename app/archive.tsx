@@ -13,8 +13,9 @@ import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, transactionAmountColor, addDays, categoryLabelById, endOfMonth, entryTime, startOfMonth, todayStr, transactionWalletLabel } from '@/lib/finance';
 import { buildFullExportSheets, localizeSheets } from '@/lib/fullExport';
 import { transactionsPhrase } from '@/lib/archiving';
-import { TRANSFERS_NOTE, TX_LOAD_ERROR, cashTotals, isTransferTx, transferTransactionIds } from '@/lib/spending';
+import { CATEGORY_NAMES_MISSING, TRANSFERS_NOTE, TX_LOAD_ERROR, cashTotals, isTransferTx, transferTransactionIds } from '@/lib/spending';
 import { brokenInRange, buildPeriodExportRows, buildPeriodWorkbook, periodExportBlock, periodExportFileName } from '@/lib/periodExport';
+import { useReleaseAfterReturn } from '@/lib/useReleaseAfterReturn';
 import { EXPORT_FAIL, exportFailure, writeAndShare } from '@/lib/exportFiles';
 import { txRowLabel } from '@/lib/txRowLabel';
 import { rangeText } from '@/lib/spendTimeline';
@@ -51,7 +52,7 @@ export default function ArchiveScreen() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const {
     transactions, wallets, categories, debts, gamiyas, pendingTxIds, serverReachable, readAllFromServer, transfersStatus,
-    brokenTransactions = [], figuresPending = [], loadErrors = [],
+    brokenTransactions = [], figuresPending = [], loadErrors = [], categoriesReady = true,
   } = useData();
   const { categoryColors } = useChartColors();
   // بند 11: الإجماليات مبتظهرش لحد ما الديون والجمعية يوصلوا (السلفة كانت هتتعدّ مصروف والسداد دخل) — **ولا لحد ما
@@ -61,7 +62,9 @@ export default function ArchiveScreen() {
   // listener العمليات اترفض (بند 2): رسالة مكان الإجماليات و«مفيش عمليات»
   const txError = loadErrors.includes('transactions');
   // تصدير الفترة من اللي على الشاشة ← مقفول لحد ما يوصل كله، وسطر السبب (بند 3)
-  const exportBlock = periodExportBlock({ figuresPending, loadErrors, transfersStatus });
+  const exportBlock = periodExportBlock({ figuresPending, loadErrors, transfersStatus, categoriesReady, serverReachable });
+  // اسم الفئة في الصف (الجولة الأخيرة): اترفضت ← «أسامي الفئات ما وصلتش»؛ لسه ← فاضي (العنوان «مصروف») — مش «فئة ممسوحة»
+  const categoriesFailed = loadErrors.includes('categories');
   // السلفة والجمعية تحويل مش دخل ولا مصروف (خطوة 8) — في القايمة، مش في الإجماليات
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
 
@@ -73,6 +76,9 @@ export default function ArchiveScreen() {
   const [pickerFor, setPickerFor] = useState<'from' | 'to' | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportingAll, setExportingAll] = useState(false);
+  // المشاركة ممكن ما ترجعش خالص — رجع للتطبيق والزرار لسه بيلف ← بيتفك بعد شوية (الجولة الأخيرة)
+  useReleaseAfterReturn(exporting, () => setExporting(false));
+  useReleaseAfterReturn(exportingAll, () => setExportingAll(false));
 
   const range = useMemo(() => {
     const today = todayStr();
@@ -259,7 +265,7 @@ export default function ArchiveScreen() {
   const renderTx = useCallback(({ item: t }: { item: (typeof filtered)[number] }) => (
     <TxRow
       t={t}
-      catLabel={categoryLabelById(categories, t.categoryId, { icon: false })}
+      catLabel={!t.categoryId ? '' : categoriesFailed ? CATEGORY_NAMES_MISSING : !categoriesReady ? '' : categoryLabelById(categories, t.categoryId, { icon: false })}
       catIcon={t.type === 'expense' && t.categoryId ? categories.find(c => c.id === t.categoryId)?.icon : undefined}
       catFound={t.type === 'expense' && !!t.categoryId && categories.some(c => c.id === t.categoryId)}
       catTint={t.categoryId ? categoryColors.get(t.categoryId) : undefined}
@@ -270,7 +276,7 @@ export default function ArchiveScreen() {
       styles={styles}
       colors={colors}
     />
-  ), [categories, categoryColors, wallets, pendingTxIds, transfers, today, styles, colors]);
+  ), [categories, categoriesFailed, categoriesReady, categoryColors, wallets, pendingTxIds, transfers, today, styles, colors]);
   // الصفوف memo: أي تغيير في "بترفع" أو التحويلات (الديون وصلت) لازم يوصلها
   const rowsExtra = useMemo(() => ({ pendingTxIds, transfers, today }), [pendingTxIds, transfers, today]);
 

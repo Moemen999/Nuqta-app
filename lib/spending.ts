@@ -90,7 +90,7 @@ type Tx = { id: string; type: string; amount: number; date: string; gamiyaId?: s
  * بتفضل — `deleteGamiyaLinkedTransaction` بـ`onlyThis`). من غير الفحص ده الاستلام كان بيتعدّ دخل والقسط مصروف
  * (Feature 9 بند 4). كل الإجماليات وعلامة «تحويل» بتعدّي من هنا.
  */
-export function isTransferTx(t: { id: string; gamiyaId?: string }, transfers: Set<string>): boolean {
+export function isTransferTx(t: { id: string; gamiyaId?: string }, transfers: ReadonlySet<string>): boolean {
   return transfers.has(t.id) || !!t.gamiyaId;
 }
 

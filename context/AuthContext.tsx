@@ -52,10 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // أول ما التطبيق يفتح على حساب داخل: كنس مرة واحدة — على أندرويد ملف التصدير بيفضل بعد المشاركة (المستقبِل لسه
+    // بيقراه، `lib/exportFiles.ts`)، فاللي فاضل من جلسة قبل كده بيتمسح هنا. مش مع كل تسجيل دخول في نفس الجلسة
+    let sweptAtStart = false;
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       // الخروج ومسح الحساب (deleteUser بيخرّج): أي ملف تصدير فاضل في الكاش بيتمسح (Feature 9 بند 3) — مبيرميش
-      if (!u) void sweepExportFiles();
+      if (!u) { sweptAtStart = true; void sweepExportFiles(); }
+      else if (!sweptAtStart) { sweptAtStart = true; void sweepExportFiles(); }
       setLoading(false);
     });
     return unsubscribe;

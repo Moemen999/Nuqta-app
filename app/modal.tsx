@@ -25,7 +25,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { NavigationContext, usePreventRemove } from '@react-navigation/native';
+import { NavigationContext, usePreventRemove, type NavigationAction } from '@react-navigation/native';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -61,7 +61,8 @@ function walletNotUsable(wallets: { id: string; name: string; archived?: boolean
 const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
   { key: 'expense', label: 'مصروف', tone: 'danger' },
   { key: 'income', label: 'إيراد', tone: 'success' },
-  { key: 'withdraw', label: 'سحب', tone: 'accent' },
+  // «تحويل» مش «سحب» (قرار مؤمن 2026-11-19) — القيمة المتخزّنة لسه `withdraw`
+  { key: 'withdraw', label: 'تحويل', tone: 'accent' },
 ];
 
 export default function AddTransactionModal() {
@@ -204,6 +205,10 @@ export default function AddTransactionModal() {
   // إعلان الخطأ (iOS) وأندرويد (المنطقة الحية) في `useFormError` — نفس الرسالة مرتين بتتقال تاني
   // أي إدخال بيمسح رسالة قديمة — كانت بتفضل ظاهرة والمشكلة اتحلت (الميزة 8)
   const edited = () => { touch(); if (error) setError(''); };
+  // المستخدم غيّر حاجة (قرار مؤمن 2026-11-19) ← الخروج من غير حفظ بيسأل الأول (`LeaveUnsaved`). بيتعلّم مع التغيير الفعلي
+  // بس: دوسة على النوع أو المحفظة اللي مختارين أصلاً مش تغيير
+  const [dirty, setDirty] = useState(false);
+  const changed = () => { if (!dirty) setDirty(true); };
 
   // الرجوع (زرار أندرويد / سحب المودال) ممنوع طول ما الحفظ شغال — قبل كده المودال كان بيتقفل والحفظ
   // مكمّل (لحد ~800ms مستنيين نسخة الـoutbox)، وبعدين `router.back()` بتاع الحفظ يشيل الشاشة اللي ورا
@@ -243,6 +248,15 @@ export default function AddTransactionModal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- الرجوع مرة واحدة لما `leaving` يبقى true؛ nav/releaseSave مش لازم يعيدوه
   }, [leaving]);
   const blockLeave = (saveGuard || busy || deletingBusy || syncing) && !leaving;
+  // السؤال قبل الخروج: مش وقت الحفظ (المنع بتاعه شغال)، ولا بعد حفظ أو مسح نجح (`leaving`/`saved`)
+  const askBeforeLeave = dirty && !blockLeave && !leaving && !saved.current;
+  function confirmLeave(proceed: () => void) {
+    confirm('فيه حاجة ما اتحفظتش، تخرج؟',
+      isEdit ? 'لو خرجت، التعديل مش هيتحفظ والعملية هتفضل زي ما هي.' : 'لو خرجت، العملية مش هتتسجل.', [
+        { text: 'كمّل', style: 'cancel' },
+        { text: 'اخرج', style: 'destructive', onPress: proceed },
+      ]);
+  }
 
   /**
    * فشل بعد ما الشاشة ممكن تكون اتشالت (رد شيت التسوية، الحذف): على الشاشة لو لسه موجودة، وإلا رسالة التطبيق.
@@ -461,13 +475,14 @@ export default function AddTransactionModal() {
     // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
     // السؤال نفسه (فيها "متأكد؟" والتحذير وزرار "حذف") — مش Alert وبعده شيت فوق بعض
     if (settle.needsSettlement(changes)) {
-      settle.request(changes, run, { intro: message, confirmLabel: 'حذف' });
+      settle.request(changes, run, { intro: message, confirmLabel: 'امسحها' });
       return;
     }
-    confirm('حذف العملية', message, [
+    // «تمسح العملية؟» و«امسحها» (قرار مؤمن 2026-11-19) — الفعل نفسه على الزرار مش اسم «حذف»
+    confirm('تمسح العملية؟', message, [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'حذف', style: 'destructive', onPress: () => {
+        text: 'امسحها', style: 'destructive', onPress: () => {
           if (deleting.current) return;
           try {
             // `run` بتمسك الرجوع (`deletingBusy`) لحد ما الحذف يرجع — مفيش `setBusy(false)` هنا (كان بيفك المنع والحذف شغال)
@@ -551,6 +566,7 @@ export default function AddTransactionModal() {
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
     {nav && <BlockLeave when={blockLeave} />}
+    {nav && <LeaveUnsaved when={askBeforeLeave} ask={confirmLeave} />}
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
       <ScreenTitle style={styles.screenTitle}>{isEdit ? 'تعديل عملية' : 'عملية جديدة'}</ScreenTitle>
 
@@ -564,7 +580,7 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { edited(); setType(t.key); }}
+          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { edited(); if (t.key !== type) changed(); setType(t.key); }}
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ checked: type === t.key, disabled: typeLocked && type !== t.key }}
             accessibilityHint={typeLocked ? 'النوع ثابت للعملية دي — السبب مكتوب تحت' : undefined}
@@ -586,7 +602,7 @@ export default function AddTransactionModal() {
       {/* "+" بيودّي على كتابة الرقم على طول (2026-09-29): الكيبورد بيفتح لوحده في عملية
           جديدة. مش في التعديل (جه يبص الأول)، ولا من غير محفظة (الكيبورد كان هيغطي
           "ضيف محفظة" عشان رقم مش هيتحفظ). زرار الحفظ في فوتر لاصق فوق الكيبورد */}
-      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={v => { edited(); setAmount(v); }}
+      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={v => { edited(); changed(); setAmount(v); }}
         autoFocus={!id && !noActiveWallets} accessibilityLabel="المبلغ" accessibilityHint="رقم بالجنيه"
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
       <AmountPreview amount={amount} value={amountValue} projections={projections} />
@@ -594,7 +610,7 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); fromW.pickWallet(w.id); }}
+          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== walletId) changed(); fromW.pickWallet(w.id); }}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
@@ -606,7 +622,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); fromW.freeze(); toW.pickWallet(w.id); }}
+              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== toWalletId) changed(); fromW.freeze(); toW.pickWallet(w.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -620,7 +636,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { edited(); setCategoryId(c.id); }}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { edited(); if (c.id !== categoryId) changed(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
@@ -639,13 +655,13 @@ export default function AddTransactionModal() {
       </TouchableOpacity>
 
       <Text style={styles.label} accessible={false} importantForAccessibility="no">ملاحظة</Text>
-      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { edited(); setNote(v); }} accessibilityLabel="ملاحظة"
+      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { edited(); changed(); setNote(v); }} accessibilityLabel="ملاحظة"
         placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
       <CalendarPickerModal
         visible={showDatePicker}
         value={date}
-        onSelect={d => { edited(); setDate(d); }}
+        onSelect={d => { edited(); if (d !== date) changed(); setDate(d); }}
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
@@ -657,7 +673,7 @@ export default function AddTransactionModal() {
 
     <View style={styles.footer}>
       {isEdit && (
-        <Button testID="tx_delete_button" variant="danger" label="حذف" style={styles.deleteBtn} onPress={handleDelete}
+        <Button testID="tx_delete_button" variant="danger" label="امسحها" style={styles.deleteBtn} onPress={handleDelete}
           disabled={busy || saveGuard || syncing} busy={deletingBusy} />
       )}
       <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || deletingBusy || syncing} />
@@ -705,5 +721,18 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
  */
 function BlockLeave({ when }: { when: boolean }) {
   usePreventRemove(when, () => { /* الرجوع اتمنع والحفظ لسه شغال — الزرار بيلف، ومفيش حاجة تتعمل */ });
+  return null;
+}
+
+/**
+ * الخروج بعد ما غيّر حاجة (قرار مؤمن 2026-11-19): رجوع أندرويد، سحب المودال، و«إلغاء» (`router.back()`) كلهم بيعدّوا
+ * من `beforeRemove` ← السؤال، و«اخرج» بيكمّل نفس الرجوع (`data.action`). التطبيق اتقفل والسؤال مفتوح ← `ConfirmProvider`
+ * بيلغيه (= «كمّل»). نفس سبب `BlockLeave` إنه كومبوننت لوحده (محتاج navigator)، ومش مع `BlockLeave` في نفس الوقت.
+ */
+function LeaveUnsaved({ when, ask }: { when: boolean; ask: (proceed: () => void) => void }) {
+  const nav = useContext(NavigationContext);
+  usePreventRemove(when, ({ data }: { data: { action: NavigationAction } }) => {
+    ask(() => nav?.dispatch(data.action));
+  });
   return null;
 }

@@ -69,7 +69,22 @@ it('الفئات اترفضت ← المصروف تحت «أسامي الفئا�
 });
 
 it('الديون لسه بتحمّل ← «بنحمّل» مكان «مفيش حركة ديون»', async () => {
-  setData({ transfersStatus: 'loading' });
+  setData({ transfersStatus: 'loading', debtsReady: false });
+  await mount();
+  expect(screen.getByTestId('reports_people_loading')).toBeTruthy();
+  expect(screen.queryByText('مفيش حركة ديون في الفترة دي')).toBeNull();
+});
+
+// الجولة الأخيرة: كشف الأشخاص من الديون بس (`debtsReady`)، مش من `transfersStatus` (الديون + الجمعية)
+it('الديون وصلت والجمعية لسه ← الأشخاص ظاهرين (مش «بنحمّل»)', async () => {
+  setData({ transfersStatus: 'loading', debtsReady: true });
+  await mount();
+  expect(screen.queryByTestId('reports_people_loading')).toBeNull();
+  expect(screen.getByText('مفيش حركة ديون في الفترة دي')).toBeTruthy();
+});
+
+it('الجمعية اترفضت والديون لسه ← «بنحمّل» مش «مفيش حركة ديون»', async () => {
+  setData({ transfersStatus: 'failed', loadErrors: ['gamiyas'], debtsReady: false });
   await mount();
   expect(screen.getByTestId('reports_people_loading')).toBeTruthy();
   expect(screen.queryByText('مفيش حركة ديون في الفترة دي')).toBeNull();
