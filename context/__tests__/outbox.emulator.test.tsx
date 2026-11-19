@@ -657,7 +657,8 @@ describe('الميزة 8 (مراجعة التطبيق كله)', () => {
     // صاحب المدخلات دخل على نفس الموبايل
     setMockUid(other as never);
     await act(async () => { h!.rerender(); });
-    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.any(Function)), { timeout: 5000 });
+    // الحساب التاني مالوش وصول للسيرفر في المحاكي ← بعد سقف الاستنى (10 ثواني) العدد كله بـ«ممكن» (الجولة 2، بند 2)
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.any(Function)), { timeout: 20000 });
     const ok = mockNotice.mock.calls.find(c => c[0] === OUTBOX_SWEPT_TITLE)![2] as () => void;
     await act(async () => { ok(); });
     mockNotice.mockClear();
@@ -693,4 +694,69 @@ describe('الميزة 8 (مراجعة التطبيق كله)', () => {
       expect('toWalletId' in (snap.data() ?? {})).toBe(false);
     }, { timeout: 30000 });
   }, 90000);
+});
+
+describe('الميزة 8 — الجولة 2 (الأخيرة) على f0badf9', () => {
+  it('بند 2: كنس حساب تاني ← لما صاحبها يدخل والنت شغال، اللي وصلت السيرفر مش بتتعدّ («ممكن يكون فيه عملية واحدة»)', async () => {
+    const w = await preparedAccount();
+    const onServer = newTxId();
+    const lost = newTxId();
+    const data = { type: 'expense', amount: 5, walletId: w, date: todayStr() };
+    await putOutboxEntry(uid, onServer, data);
+    await putOutboxEntry(uid, lost, data);
+    await setDoc(txDoc(uid, onServer), data);
+    // حساب تاني دخل على نفس الموبايل ← مدخلات الحساب ده بتتكنس
+    setMockUid('someoneElse' as never);
+    h = await renderDataProvider();
+    await waitFor(async () => expect(await outboxKeysOf(uid)).toEqual([]), { timeout: 10000 });
+    setMockUid(uid);
+    await act(async () => { h!.rerender(); });
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(1), expect.any(Function)), { timeout: 20000 });
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.anything());
+  }, 60000);
+
+  it('بند 4: من غير نت وعمليتين نسختهم ما اتحفظتش ← رسالة «مش محمية» مرة واحدة بس', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+      try {
+        await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true });
+        await h.api().addTransaction({ type: 'expense', amount: 11, walletId: w, date: todayStr() }, { durable: true });
+      } finally { restore(); }
+      await settle(1500);
+      expect(mockNotice.mock.calls.filter(c => c[0] === OUTBOX_ADD_UNPROTECTED_TITLE)).toHaveLength(1);
+    } finally {
+      await enableNetwork(db);
+    }
+  }, 60000);
+
+  it('بند 5: رفض مش نهائي ← «محفوظة على الموبايل» بس بعد ما الحفظ يخلص ويطلع نجح (مش قبله)', () => {
+    const src: string = require('fs').readFileSync('context/DataContext.tsx', 'utf8');
+    expect(src).toMatch(/void put\.then\(\(\) => noteOutboxKept\(forUid, id, e\)\)/);
+  });
+
+  it('بند 6: قراية قديمة للطابور فشلت بعد ما الإعادة قرته ← العدد مش «مجهول»', async () => {
+    const w = await preparedAccount();
+    await putOutboxEntry(uid, newTxId(), { type: 'expense', amount: 5, walletId: w, date: todayStr() });
+    const mg = AsyncStorage.multiGet as unknown as jest.Mock;
+    const orig = mg.getMockImplementation()!;
+    let first = true;
+    mg.mockImplementation(async (...args: any[]) => {
+      // أول قراية للطابور نفسه (`listOutboxEntries` بيبعت المفاتيح لوحدها؛ `getItem` بيعدّي على `multiGet` بمعامل تاني)
+      const isList = args.length === 1 && Array.isArray(args[0]) && args[0].some((k: string) => k.startsWith(OUTBOX_PREFIX));
+      if (first && isList) { first = false; await new Promise(r => setTimeout(r, 4000)); throw new Error('disk'); }
+      return orig(...args);
+    });
+    try {
+      h = await renderDataProvider();
+      await h.waitForReady();
+      await h.waitForData(api => api.outboxCount === 1, 4000, 'r2-6:listed');
+      await settle(4500);
+      expect(h.api().outboxCountUnknown).toBe(false);
+    } finally { mg.mockImplementation(orig); }
+  }, 60000);
 });

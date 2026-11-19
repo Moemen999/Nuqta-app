@@ -55,7 +55,7 @@ import {
   walletGoneReplayBody, type StoredEntry,
 } from '@/lib/outbox';
 import {
-  OutboxEntriesClearError, OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, clearOutboxSweptCount, readOutboxSweptCount, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
+  OutboxEntriesClearError, OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, clearOutboxSweptIds, readOutboxSweptIds, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
   logOutboxFailure, mergeOrRewriteOutboxEntry, noteOutboxKeyReadFailure, outboxIdsAfterPendingSaves, outboxSessionId, putOutboxEntry,
   readOutboxKey, removeOutboxEntry, replayOutboxDoc, reportOutboxEvent, serverTxStatus, setOutboxClearedIds, sweepOtherOutboxes, updateOutboxMeta,
   writeOutboxTombstone,
@@ -1128,6 +1128,10 @@ const OUTBOX_PERSIST_TIMEOUT_MS = 800;
 const OUTBOX_REPLAY_TIMEOUT_MS = 20000;
 /** أقصى عدد مرات الإعادة في الجلسة الواحدة (مع كل رجوع للنت) */
 const OUTBOX_REPLAY_RUNS_PER_SESSION = 3;
+/** رسالة «عمليات اتكنست»: نستنى السيرفر لحد كده عشان نشيل اللي وصلت منها، وبعدها بنقول العدد كله بـ«ممكن» (الجولة 2، بند 2) */
+const OUTBOX_SWEPT_REACH_WAIT_MS = 10000;
+/** النسخة ما اتحفظتش والنت كان شغال: العملية لسه بترفع بعد كده ← نفس رسالة «مش محمية» (الجولة 2، بند 4) */
+const OUTBOX_UNPROTECTED_RECHECK_MS = 8000;
 
 /** بيرفض بعد وقت محدد — عشان سؤال السيرفر ميعلّقش الشاشة أوفلاين */
 /** بيستنى الوعد بحد أقصى `ms` ومبيرميش — بعد السقف الشغل بيكمّل ورا (حفظ الطابور المتشفّر قبل الكتابة) */
@@ -1246,6 +1250,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const outboxDropped = useRef(new Set<string>());
   const latestTransactions = useRef(transactions);
   latestTransactions.current = transactions;
+  /** رسالة «العملية مش محمية» اتعرضت في انقطاع النت ده (بتتصفّر لما النت يرجع أو الحساب يتغيّر) — مرة مش مع كل عملية */
+  const addUnprotectedShown = useRef(false);
+  /** آخر قراية للطابور بدأت — فشل قراية أقدم (بعد ما واحدة أحدث نجحت) مبيرجّعش «العدد مش معروف» (الجولة 2، بند 6) */
+  const outboxListGen = useRef(0);
+  const latestPendingTxIds = useRef<Set<string>>(new Set());
   const errorShown = useRef(false);
   const notice = useNotice();
   // بنبدأ بـ false لحد ما أول snapshot ييجي من السيرفر فعلاً: أول ثانية من فتح
@@ -1320,6 +1329,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (serverReachableRef.current === reachable) return;
     serverReachableRef.current = reachable;
     setServerReachable(reachable);
+    if (reachable) addUnprotectedShown.current = false;
     if (!reachable) {
       offlineWaiters.current.forEach(notify => notify());
       offlineWaiters.current.clear();
@@ -1562,6 +1572,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setOutboxReplaying(false);
     outboxNoticeShown.current = new Set();
     outboxDropped.current = new Set();
+    addUnprotectedShown.current = false;
+    latestPendingTxIds.current = new Set();
     if (prev && prev !== uid) {
       if (consumeUserSignOut(prev)) {
         // علامة "اتمسح قبل كده" الأول (بالمعرّفات، بعد ما أي حفظ لسه شغال يخلص — مفيش حفظ متأخر يفلت منها): لو المسح
@@ -1586,13 +1598,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     sweepOtherOutboxes(uid, () => uidNow.current)
       .then(n => { if (n > 0) { console.warn('[outbox] swept entries of another account', n); reportOutboxEvent('swept-other-account'); } })
       .catch(e => logOutboxFailure('sweep failed', e));
-    // الحساب ده اتكنست مدخلاته على الموبايل ده قبل كده (حساب تاني دخل) ← يعرف عشان يسجّلها تاني. العلامة بتتشال بعد "تمام"
-    readOutboxSweptCount(uid)
-      .then(n => {
-        if (n <= 0 || uidNow.current !== uid) return;
-        notice(OUTBOX_SWEPT_TITLE, outboxSweptBody(n), () => { clearOutboxSweptCount(uid).catch(e => logOutboxFailure('swept marker clear failed', e)); });
-      })
-      .catch(e => logOutboxFailure('swept marker read failed', e));
+    // الحساب ده اتكنست مدخلاته على الموبايل ده قبل كده (حساب تاني دخل) ← يعرف قبل ما يسجّلها تاني. العلامة بتتشال بعد "تمام"
+    void noteSweptEntries(uid).catch(e => logOutboxFailure('swept marker read failed', e));
+    const gen = ++outboxListGen.current;
     listOutboxEntries(uid)
       .then(list => {
         if (uidNow.current !== uid) return;
@@ -1603,7 +1611,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // العدد مش معروف: رسالة الخروج بتتعامل معاه "مش آمن" (settings)، وسبب Sentry من غير بيانات (الميزة 8، L)
         logOutboxFailure('list failed', e);
         reportOutboxEvent('list-failed');
-        if (uidNow.current === uid) setOutboxCountUnknown(true);
+        // قراية أحدث بدأت (الإعادة) ← هي اللي بتقول؛ الفشل القديم ده مبيرجّعش «مش معروف» بعد ما هي نجحت (الجولة 2، بند 6)
+        if (uidNow.current === uid && gen === outboxListGen.current) setOutboxCountUnknown(true);
       });
   }, [uid]);
 
@@ -1689,6 +1698,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setBrokenTransactions(prev => (JSON.stringify(prev) === JSON.stringify(split.broken) ? prev : split.broken));
       const stillUploading = snap.docs.filter(d => d.metadata.hasPendingWrites).map(d => d.id);
       setPendingTxIds(prev => (sameIds(prev, stillUploading) ? prev : new Set(stillUploading)));
+      latestPendingTxIds.current = new Set(stillUploading);
       // الطابور المتشفّر: العملية ظهرت من غير كتابة معلّقة ← السيرفر عنده نسختها، المدخلة ملهاش لازمة
       // (من غير تخزين على القرص: مستند من غير `hasPendingWrites` في الكاش ده اتشاف من السيرفر في الجلسة دي)
       if (outboxIds.current.size > 0) {
@@ -1932,9 +1942,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setOutboxCount(outboxIds.current.size);
     // النسخة ما اتحفظتش (الحد اتملى أو التخزين فشل) ← نفس رسالة التعديل (الميزة 8، M): من غير نت بس — والنت شغال
     // الكتابة بتوصل في ثواني، و«لو قفلت قبل ما النت يرجع» مالهاش معنى. كانت Sentry بس والمستخدم فاكرها محمية
-    const unprotected = () => {
-      if (uidNow.current !== forUid || serverReachableRef.current) return;
+    // مرة لكل انقطاع نت (مش مع كل عملية — الجولة 2، بند 4). والنت كان شغال لحظة الفشل ← مش كفاية نصدّقه: لو العملية لسه
+    // بترفع بعد `OUTBOX_UNPROTECTED_RECHECK_MS` (النت وقع بعدها أو بطيء) نفس الرسالة
+    const showUnprotected = () => {
+      if (uidNow.current !== forUid || addUnprotectedShown.current) return;
+      addUnprotectedShown.current = true;
       notice(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY);
+    };
+    const unprotected = () => {
+      if (uidNow.current !== forUid) return;
+      if (!serverReachableRef.current) { showUnprotected(); return; }
+      setTimeout(() => {
+        if (uidNow.current === forUid && (!serverReachableRef.current || latestPendingTxIds.current.has(id))) showUnprotected();
+      }, OUTBOX_UNPROTECTED_RECHECK_MS);
     };
     const put = putOutboxEntry(forUid, id, clean).then(
       r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); reportOutboxEvent('limit-reached'); forgetOutboxId(id); unprotected(); } },
@@ -1952,7 +1972,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // restricted mode من غير ما يرفض حاجة. يعني الفرع ده عمليًا أكواد نادرة (failed-precondition، data-loss…) مش خروج
     track(setDoc(ref, clean).catch(e => {
       if (isFinalWriteRejection(e)) { dropOutbox(forUid, id); throw e; }
-      noteOutboxKept(forUid, id, e);
+      // بعد ما الحفظ يخلص (الجولة 2، بند 5): «لسه محفوظة على الموبايل» قبله كانت ممكن تتقال والحفظ لسه هيفشل
+      void put.then(() => noteOutboxKept(forUid, id, e));
     }), 'العملية');
     return id;
   }
@@ -1969,6 +1990,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
     logOutboxFailure('write rejected, entry kept', e);
     reportOutboxEvent('write-rejected-kept');
     notice(OUTBOX_KEPT_TITLE, OUTBOX_KEPT_BODY);
+  }
+
+  /**
+   * رسالة «ممكن يكون فيه عمليات ما اترفعتش» لصاحب مدخلات اتكنست (الجولة 2، بند 2). بنستنى السيرفر (بسقف): اللي مستندها
+   * موجود عليه وصلت فعلاً ومش بتتعدّ، وكلهم وصلوا ← العلامة بتتشال من غير رسالة. السيرفر مش متاح ← العدد كله، والنص بـ«ممكن»
+   */
+  async function noteSweptEntries(forUid: string) {
+    let ids = await readOutboxSweptIds(forUid);
+    if (ids.length === 0) return;
+    const until = Date.now() + OUTBOX_SWEPT_REACH_WAIT_MS;
+    while (!serverReachableRef.current && Date.now() < until && uidNow.current === forUid) {
+      await new Promise(r => setTimeout(r, 250));
+    }
+    if (uidNow.current !== forUid) return;
+    if (serverReachableRef.current) {
+      const status = await Promise.all(ids.map(id => serverTxStatus(forUid, id, OUTBOX_REPLAY_TIMEOUT_MS)));
+      ids = ids.filter((_, i) => status[i] !== 'present');
+      if (ids.length === 0) { await clearOutboxSweptIds(forUid); return; }
+    }
+    if (uidNow.current !== forUid) return;
+    notice(OUTBOX_SWEPT_TITLE, outboxSweptBody(ids.length), () => {
+      clearOutboxSweptIds(forUid).catch(e => logOutboxFailure('swept marker clear failed', e));
+    });
   }
 
   function forgetOutboxId(id: string) {
@@ -2001,9 +2045,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
    */
   async function replayOutbox(forUid: string): Promise<boolean> {
     let listed: { txId: string; stored: StoredEntry | null }[];
+    const gen = ++outboxListGen.current;
     try { listed = await listOutboxEntries(forUid); } catch (e) { logOutboxFailure('list failed', e); reportOutboxEvent('list-failed'); return false; }
     if (uidNow.current !== forUid) return false;
-    setOutboxCountUnknown(false);
+    if (gen === outboxListGen.current) setOutboxCountUnknown(false);
     if (listed.length === 0) return true;
     // اللي اتشال في الجلسة دي أو مستني "تمام" على رسالته ← لا بيتعدّ تاني ولا بيتعاد
     listed = listed.filter(e => !outboxDropped.current.has(e.txId) && !outboxNoticeShown.current.has(e.txId));

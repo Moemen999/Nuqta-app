@@ -1,6 +1,7 @@
 import React from 'react';
-import { AccessibilityInfo } from 'react-native';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { AccessibilityInfo, Platform } from 'react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { storableAmount } from '@/lib/linkedEdit';
 import { router } from 'expo-router';
 import AddTransactionModal from '@/app/modal';
 import { PrivacyProvider } from '@/context/PrivacyContext';
@@ -96,7 +97,7 @@ describe('M: قارئ واحد للمبلغ', () => {
     await save();
     expect(errorText()).toBe('اكتب مبلغ أكبر من صفر');
     await type('5');
-    expect(screen.queryByTestId('tx_error')).toBeNull();
+    expect(errorText()).toBe('');
   });
 });
 
@@ -158,10 +159,93 @@ describe('الوصولية', () => {
     await act(async () => { finish(); });
   });
 
-  it('الحفظ بيتقال قبل الرجوع', async () => {
+  it('الحفظ بيتقال بعد الرجوع بشوية (التنقل كان بيقطعه — الجولة 2، بند 8)', async () => {
     await open();
     await type('10');
     await save();
-    expect(announce).toHaveBeenCalledWith('اتسجلت');
+    expect(announce).not.toHaveBeenCalledWith('اتسجلت');
+    await waitFor(() => expect(announce).toHaveBeenCalledWith('اتسجلت'), { timeout: 2000 });
+  });
+});
+
+describe('الجولة 2 (الأخيرة) على f0badf9', () => {
+  const legacy = { id: 'tx_l', type: 'expense', amount: 10.005, walletId: 'w1', date: '2026-03-20', categoryId: 'c1' };
+  const tiny = { id: 'tx_t', type: 'expense', amount: 0.004, walletId: 'w1', date: '2026-03-20', categoryId: 'c1' };
+  const note = (v: string) => act(async () => { fireEvent.changeText(screen.getByLabelText('ملاحظة'), v); });
+
+  it('M1: مبلغ قديم مش مقرّب (10.005) والمبلغ ما اتلمسش ← مفيش كتابة للمبلغ (كان بيتقرّب 10.01 والمؤرشفة تبعد)', async () => {
+    seed({ transactions: [legacy, freeTx] });
+    await open('tx_l');
+    await note('عشا');
+    await save();
+    expect(mockData.updateTransaction).toHaveBeenCalledTimes(1);
+    const [, payload, settlements] = (mockData.updateTransaction as jest.Mock).mock.calls[0];
+    expect(payload).not.toHaveProperty('amount');
+    expect(payload).toEqual(expect.objectContaining({ note: 'عشا' }));
+    expect(settlements).toEqual([]);
+  });
+
+  it('M1: على محفظة مؤرشفة والمبلغ ما اتلمسش ← مفيش شيت تسوية ولا فرق', async () => {
+    seed({ wallets: [{ ...cash, archived: true }, bank], transactions: [legacy] });
+    await open('tx_l');
+    await note('عشا');
+    await save();
+    expect(screen.queryByTestId('settle_sheet')).toBeNull();
+    const [, payload, settlements] = (mockData.updateTransaction as jest.Mock).mock.calls[0];
+    expect(payload).not.toHaveProperty('amount');
+    expect(settlements).toEqual([]);
+  });
+
+  it('M1: المبلغ اتغيّر من جهاز تاني بعد الفتح والخانة ما اتلمستش ← مفيش كتابة ولا تسوية على الرقم القديم', async () => {
+    seed({ wallets: [{ ...cash, archived: true }, bank], transactions: [legacy] });
+    const r = await open('tx_l');
+    mockData.transactions = [{ ...legacy, amount: 12 }];
+    await r.rerender(ui());
+    await note('عشا');
+    await save();
+    expect(screen.queryByTestId('settle_sheet')).toBeNull();
+    const [, payload, settlements] = (mockData.updateTransaction as jest.Mock).mock.calls[0];
+    expect(payload).not.toHaveProperty('amount');
+    expect(settlements).toEqual([]);
+  });
+
+  it('M1: مبلغ قديم أقل من نص قرش (0.004) والمبلغ ما اتلمسش ← تعديل الملاحظة مش ممنوع', async () => {
+    seed({ transactions: [tiny, freeTx] });
+    await open('tx_t');
+    await note('قديمة');
+    await save();
+    expect(errorText()).toBe('');
+    expect(mockData.updateTransaction).toHaveBeenCalledTimes(1);
+    expect((mockData.updateTransaction as jest.Mock).mock.calls[0][1]).not.toHaveProperty('amount');
+  });
+
+  it('M1: المبلغ اتكتب من جديد ← بيتقرّب ويتكتب زي الأول', async () => {
+    seed({ transactions: [legacy, freeTx] });
+    await open('tx_l');
+    await type('10.005');
+    await type('10.0050');
+    await save();
+    expect((mockData.updateTransaction as jest.Mock).mock.calls[0][1]).toEqual(expect.objectContaining({ amount: storableAmount(10.005) }));
+  });
+
+  it('M3: سطر الخطأ متركّب دايمًا (فاضي من غير خطأ) عشان منطقة أندرويد الحية تتقري', async () => {
+    await open();
+    const line = screen.getByTestId('tx_error');
+    expect(line.props.accessibilityLiveRegion).toBe('polite');
+    expect(line.props.children).toBe('');
+  });
+
+  it('M3: نفس الخطأ مرتين ← بيتقال تاني (أندرويد: الاسم بيتغيّر؛ iOS: إعلان تاني)', async () => {
+    const os = Platform.OS;
+    Platform.OS = 'ios';
+    try {
+      await open();
+      await save();
+      const first = screen.getByTestId('tx_error').props.accessibilityLabel;
+      await save();
+      const second = screen.getByTestId('tx_error').props.accessibilityLabel;
+      expect(first).not.toBe(second);
+      expect(announce.mock.calls.filter(c => c[0] === 'اكتب مبلغ أكبر من صفر')).toHaveLength(2);
+    } finally { Platform.OS = os; }
   });
 });

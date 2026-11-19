@@ -90,6 +90,15 @@ export default function SettingsScreen() {
    * المستخدم يعرف قبل ما يخرج، مش يكتشف إن عمليات ناقصة بعدين.
    */
   function confirmLogout() {
+    // قراية الطابور فشلت ← العدد مش معروف، فمش "صفر" (الميزة 8، L) — **قبل** العدد: العدد اللي في الذاكرة (اللي اتسجل في
+    // الجلسة دي) ممكن يكون أقل من اللي على الموبايل، فـ«فيه عمليتين» كانت هتبقى أقل من الحقيقة (الجولة 2، بند 6)
+    if (outboxCountUnknown) {
+      confirm(OUTBOX_UNKNOWN_LOGOUT_TITLE, OUTBOX_UNKNOWN_LOGOUT_BODY, [
+        { text: 'أستنى', style: 'cancel' },
+        { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+      ]);
+      return;
+    }
     // الطابور المتشفّر بيتمسح مع الخروج (قرار مؤمن 1) — فالعدد بيتقال صريح إنه هيضيع
     if (outboxCount > 0) {
       confirm(
@@ -100,14 +109,6 @@ export default function SettingsScreen() {
           { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
         ]
       );
-      return;
-    }
-    // قراية الطابور فشلت ← العدد مش معروف، فمش "صفر" (الميزة 8، L)
-    if (outboxCountUnknown) {
-      confirm(OUTBOX_UNKNOWN_LOGOUT_TITLE, OUTBOX_UNKNOWN_LOGOUT_BODY, [
-        { text: 'أستنى', style: 'cancel' },
-        { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
-      ]);
       return;
     }
     if (pendingWrites > 0) {

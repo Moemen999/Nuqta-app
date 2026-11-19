@@ -108,7 +108,7 @@ describe('حفظ عملية جديدة', () => {
     await render(wrap(<AddTransactionModal />));
     await type(screen.getByTestId('tx_amount_input'), '50');
     await press(screen.getByTestId('tx_save_button'));
-    expect(screen.queryByTestId('tx_error')).toBeNull();
+    expect(screen.getByTestId('tx_error').props.children).toBe('');
     expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
     expect(router.back).toHaveBeenCalledTimes(1);
   });

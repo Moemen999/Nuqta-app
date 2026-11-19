@@ -308,7 +308,8 @@ export function consumeUserSignOut(uid: string): boolean {
 const reported = new Set<string>();
 export type OutboxEventReason =
   | 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed' | 'account-delete-key-failed'
-  | 'account-delete-entries-failed' | 'key-registry-unreadable' | 'swept-other-account' | 'list-failed' | 'write-rejected-kept';
+  | 'account-delete-entries-failed' | 'key-registry-unreadable' | 'swept-other-account' | 'list-failed' | 'write-rejected-kept'
+  | 'swept-marker-failed';
 export function reportOutboxEvent(reason: OutboxEventReason) {
   if (reported.has(reason)) return;
   reported.add(reason);
@@ -356,41 +357,68 @@ export async function sweepOtherOutboxes(uid: string, currentUid: () => string |
   const keys = await AsyncStorage.getAllKeys();
   const stale = keys.filter(k => { const p = parseStorageKey(k); return !!p && p.uid !== uid; });
   const staleMeta = keys.filter(k => { const m = metaUid(k); return !!m && m !== uid; });
-  // الميزة 8 (M): العدد لكل حساب **قبل** المسح، في علامة برّه البادئتين — صاحبها بيشوف رسالة أول ما يدخل. اللي في علامة
-  // "اتمسح قبل كده" (مسح الخروج فشل) المستخدم اختار إنه يضيع، فمش بيتعدّ. فشل العلامة مبيوقّفش الكنس (لوج بس)
+  // الميزة 8 (M) + الجولة 2 (بند 2): **معرّفات** المدخلات لكل حساب (مش عدّ — كنسة اتعادت بعد شيل فشل كانت بتعدّها مرتين)،
+  // في علامة برّه البادئتين — صاحبها بيشوف رسالة أول ما يدخل. مش بتتعدّ: اللي في علامة "اتمسح قبل كده" (مسح الخروج فشل:
+  // المستخدم اختار إنه يضيع)، واللي عليها علامة مسح (المستخدم مسحها). العلامة **قبل** الشيل؛ فشلها ← مدخلات الحساب ده
+  // وعلاماته ومفتاحه بيفضلوا للكنسة الجاية (بدل ما يتشالوا من غير ما صاحبهم يعرف)
   const perUid = new Map<string, string[]>();
   for (const k of stale) { const p = parseStorageKey(k)!; perUid.set(p.uid, [...(perUid.get(p.uid) ?? []), p.txId]); }
+  const kept = new Set<string>();
   for (const [other, ids] of perUid) {
     try {
       const cleared = await getOutboxClearedIds(other);
-      const lost = ids.filter(id => !cleared.has(id)).length;
-      if (lost > 0) await AsyncStorage.setItem(sweptKey(other), String((await readOutboxSweptCount(other)) + lost));
-    } catch (e) { logOutboxFailure('swept marker failed', e); }
+      const lost: string[] = [];
+      for (const id of ids) if (!cleared.has(id) && !(await hasOutboxTombstone(other, id))) lost.push(id);
+      if (lost.length > 0) await addOutboxSweptIds(other, lost);
+    } catch (e) {
+      logOutboxFailure('swept marker failed', e);
+      reportOutboxEvent('swept-marker-failed');
+      kept.add(other);
+    }
   }
-  if (stale.length || staleMeta.length) await AsyncStorage.multiRemove([...stale, ...staleMeta]);
-  await sweepOtherKeys(uid, currentUid);
-  return stale.length;
+  const remove = [
+    ...stale.filter(k => !kept.has(parseStorageKey(k)!.uid)),
+    ...staleMeta.filter(k => !kept.has(metaUid(k)!)),
+  ];
+  if (remove.length) await AsyncStorage.multiRemove(remove);
+  const keepKeys = new Set(await Promise.all([...kept].map(keyName)));
+  await sweepOtherKeys(uid, currentUid, keepKeys);
+  return stale.length - stale.filter(k => kept.has(parseStorageKey(k)!.uid)).length;
 }
 
 /** علامة "عمليات اتكنست" — بادئة لوحدها عشان لا `parseStorageKey` ولا `metaUid` يشوفوها (الكنس الجاي ميمسحهاش) */
 const SWEPT_PREFIX = 'nuqta-outbox-swept:v1:';
 const sweptKey = (uid: string) => `${SWEPT_PREFIX}${uid}`;
-/** عدد عمليات الحساب ده اللي اتكنست لما حساب تاني دخل (0 = مفيش). العدد بس — مفيش مبالغ */
-export async function readOutboxSweptCount(uid: string): Promise<number> {
-  const n = Number(await AsyncStorage.getItem(sweptKey(uid)));
-  return Number.isInteger(n) && n > 0 ? n : 0;
+/**
+ * معرّفات عمليات الحساب ده اللي اتكنست لما حساب تاني دخل (فاضي = مفيش). معرّفات بس — مفيش مبالغ. علامة مش مقروءة (أو بشكل
+ * قديم: عدد) ← فاضي، مع لوج
+ */
+export async function readOutboxSweptIds(uid: string): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(sweptKey(uid));
+  if (!raw) return [];
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) return [...new Set(v.filter((x): x is string => typeof x === 'string' && !!x))];
+  } catch (e) { logOutboxFailure('swept marker unreadable', e); }
+  return [];
 }
-/** بعد "تمام" على الرسالة */
-export function clearOutboxSweptCount(uid: string): Promise<void> {
+/** اتحاد مع اللي موجود (نفس المعرّف مبيتعدّش مرتين). العلامة مش مقروءة ← بنكتب فوقها (مفيهاش غير معرّفات) */
+async function addOutboxSweptIds(uid: string, ids: string[]): Promise<void> {
+  const next = [...new Set([...(await readOutboxSweptIds(uid)), ...ids])];
+  await AsyncStorage.setItem(sweptKey(uid), JSON.stringify(next));
+}
+/** بعد "تمام" على الرسالة، أو لما يتأكد إن كلهم على السيرفر */
+export function clearOutboxSweptIds(uid: string): Promise<void> {
   return AsyncStorage.removeItem(sweptKey(uid));
 }
 
 /** مفاتيح SecureStore لحسابات تانية (من السجل، بشكل الاسم بس) — مدخلاتها اتكنست فوق. فشل واحد مبيوقّفش الباقي */
-async function sweepOtherKeys(uid: string, currentUid: () => string | null | undefined): Promise<void> {
+async function sweepOtherKeys(uid: string, currentUid: () => string | null | undefined, keep: ReadonlySet<string> = new Set()): Promise<void> {
   const own = await keyName(uid);
   const list = await readRegistry();
   if (!list) return;
-  for (const n of list.filter(x => x !== own)) {
+  // `keep`: حسابات علامتها ما اتكتبتش ← مدخلاتها لسه موجودة، ومن غير مفتاحها كانت هتبقى مش مقروءة
+  for (const n of list.filter(x => x !== own && !keep.has(x))) {
     try { await deleteKeyUnlessCurrent(n, currentUid); }
     catch (e) { logOutboxFailure('stale key delete failed', e); }
   }

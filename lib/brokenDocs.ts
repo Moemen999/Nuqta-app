@@ -49,11 +49,16 @@ export const FIX_WAITING = 'لسه بنجيب الديون والاشتراكا�
 export const FIX_SAVED = 'العملية اتحفظت';
 /** الحفظ رمى قبل الكتابة (الميزة 8، L) — الورقة بتفضل مفتوحة */
 export const FIX_SAVE_FAILED = 'التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني';
+/** نفس الفشل والورقة اتقفلت قبل ما الحفظ يخلص (الجولة 2، بند 7) — رسالة التطبيق بدل سطر على ورقة مش موجودة */
+export const FIX_SAVE_FAILED_TITLE = 'التعديل ما اتحفظش';
+export const FIX_SAVE_FAILED_BODY = 'العملية زي ما كانت. افتحها تاني من الأرشيف وعدّل.';
 /** صف مفيهوش نوع ولا فئة ولا محفظة ولا ملاحظة — بدل «—» اللي قارئ الشاشة بيقراه «شرطة» */
 export const BROKEN_NO_DETAILS = 'عملية من غير تفاصيل';
 export const FIX_DELETED = 'العملية اتمسحت';
 /** المسح رمى (مش نتيجة) — حاجة مش متوقعة؛ وصلت Sentry باسم العملية */
 export const FIX_DELETE_FAILED = 'العملية ما اتمسحتش وهي لسه موجودة. جرّب تاني.';
+export const FIX_DELETE_FAILED_TITLE = 'العملية ما اتمسحتش';
+export const FIX_DELETE_FAILED_BODY = 'هي لسه موجودة زي ما هي. افتحها تاني من الأرشيف وامسحها.';
 
 export type FixBlock = 'type' | 'linked' | 'wallet';
 export const FIX_BLOCK_TEXT: Record<FixBlock, string> = {

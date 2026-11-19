@@ -201,9 +201,9 @@ describe('الجولة 2 على D3', () => {
     await act(async () => { fireEvent.press(within(screen.getByTestId('settle_sheet')).getByText('كاش')); });
     await act(async () => { fireEvent.press(screen.getByTestId('settle_confirm')); });
     await act(async () => {});
-    expect(screen.getByTestId('tx_error')).toBeTruthy();
+    expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
     await act(async () => { fireEvent.press(screen.getAllByText('حذف')[0]); });
-    expect(screen.queryByTestId('tx_error')).toBeNull();
+    expect(screen.getByTestId('tx_error').props.children).toBe('');
   });
 });
 

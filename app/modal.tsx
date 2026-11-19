@@ -26,7 +26,7 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavigationContext, usePreventRemove } from '@react-navigation/native';
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
@@ -34,6 +34,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
 import { hapticSuccess } from '@/lib/haptics';
 import { useBusy } from '@/lib/useBusy';
+import { useFormError } from '@/lib/useFormError';
+import { announceAfterLeave } from '@/lib/announceLater';
 
 /** حقول النوع الجديد مبيستخدمهاش — تغيير النوع في التعديل بيشيلها (الميزة 8، L) */
 const UNUSED_FIELDS: Record<'expense' | 'income' | 'withdraw', TxClearableField[]> = {
@@ -115,7 +117,7 @@ export default function AddTransactionModal() {
   const [note, setNote] = useState('');
   const [date, setDate] = useState(todayStr());
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [error, setError] = useState('');
+  const { error, setError, errorA11y } = useFormError();
   const [busy, setBusy] = useState(false);
   // المسح لوحده (الميزة 8): قبل كده `busy` واحد، فـ«حذف» كان بيلف وقت الحفظ ويتقري «جاري التنفيذ»
   const [deletingBusy, setDeletingBusy] = useState(false);
@@ -130,6 +132,10 @@ export default function AddTransactionModal() {
   // بتسأل الفرق يروح فين — ولو مفيش محفظة مؤرشفة متأثرة بتعدّي من غير ما تبان
   const settle = useArchivedSettlement();
 
+  // المبلغ زي ما اتقرا من العملية وقت الفتح (الجولة 2، بند 1): لو الخانة لسه عليه بالظبط، المبلغ مبيتكتبش ولا بيتقرّب —
+  // مبلغ قديم مش مقرّب (10.005) كان بيتكتب 10.01 لما بس الملاحظة اتعدّلت، والتسوية بتقرّب الفرق (−0.005) لصفر فالمؤرشفة
+  // تبعد. وأقل من نص قرش (0.004) مكانش بيسيب يعدّل أي حقل تاني
+  const [loadedAmount, setLoadedAmount] = useState<number | null>(null);
   const categoryInit = useRef(false);
   useEffect(() => {
     if (existing && !loaded && linkSourcesReady) {
@@ -137,6 +143,7 @@ export default function AddTransactionModal() {
       opened.current = { amount: existing.amount, walletId: existing.walletId, type: existing.type };
       setType(existing.type);
       setAmount(String(existing.amount));
+      setLoadedAmount(existing.amount);
       fromW.pickWallet(existing.walletId);
       toW.pickWallet(existing.toWalletId);
       setCategoryId(existing.categoryId);
@@ -156,7 +163,8 @@ export default function AddTransactionModal() {
   // القديم لسه محسوب، فمن غير الاستثناء التعديل بيتحسب مرتين.
   // قارئ واحد (الميزة 8، M): الحفظ والتسوية والمعاينة كلهم من الرقم ده — المعروض = المتخزّن
   const parsed = useMemo(() => parseTxAmountInput(amount), [amount]);
-  const amountValue = parsed.ok ? parsed.value : null;
+  const amountKept = loadedAmount !== null && amount === String(loadedAmount);
+  const amountValue = amountKept ? loadedAmount : parsed.ok ? parsed.value : null;
   const projections = useMemo(() => projectBalances({
     transactions, wallets, type, amount: amountValue ?? NaN, walletId,
     toWalletId: type === 'withdraw' ? toWalletId : undefined,
@@ -188,14 +196,12 @@ export default function AddTransactionModal() {
     announceDone(kind);
     leave();
   }
+  // بعد الرجوع بشوية (الجولة 2، بند 8): وقت الرجوع نفسه التركيز بيتنقل للشاشة اللي ورا والإعلان بيتقطع
   function announceDone(kind: keyof typeof DONE_ANNOUNCE) {
-    try { AccessibilityInfo.announceForAccessibility(DONE_ANNOUNCE[kind]); } catch { /* زينة */ }
+    announceAfterLeave(DONE_ANNOUNCE[kind]);
   }
 
-  // iOS بس: أندرويد بيقرا الرسالة من `accessibilityLiveRegion` على السطر، والاتنين كانوا هيقولوها مرتين
-  useEffect(() => {
-    if (error && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(error);
-  }, [error]);
+  // إعلان الخطأ (iOS) وأندرويد (المنطقة الحية) في `useFormError` — نفس الرسالة مرتين بتتقال تاني
   // أي إدخال بيمسح رسالة قديمة — كانت بتفضل ظاهرة والمشكلة اتحلت (الميزة 8)
   const edited = () => { touch(); if (error) setError(''); };
 
@@ -261,8 +267,13 @@ export default function AddTransactionModal() {
     }
     // الفحص على المبلغ **بعد** التقريب (`parseTxAmountInput` ← `storableAmount`): "1e307" محدود بس بيبقى Infinity لما يتقرّب.
     // والرقم ده نفسه هو اللي بيتحفظ وبتتحسب منه التسوية والمعاينة (الميزة 8، M)
-    if (!parsed.ok) { setError(TX_AMOUNT_ERROR[parsed.reason]); return; }
-    const amt = parsed.value;
+    // المبلغ ما اتلمسش في التعديل ← زي ما هو على العملية (مش مقرّب) ومبيتكتبش (الجولة 2، بند 1). التسوية بالمبلغ اللي على
+    // العملية **دلوقتي** (`existing`، مش وقت الفتح): مبلغ اتغيّر من جهاز تاني ومش هنكتب فوقه ← الفرق صفر مش تسوية على رقم قديم
+    const keepAmount = isEdit && amountKept && !!existing;
+    let amt: number;
+    if (keepAmount && existing) amt = existing.amount;
+    else if (parsed.ok) amt = parsed.value;
+    else { setError(TX_AMOUNT_ERROR[parsed.reason]); return; }
     if (!walletId) { setError(TX_AMOUNT_ERROR.wallet); return; }
     if (type === 'withdraw' && (!toWalletId || toWalletId === walletId)) {
       setError('اختار محفظة وجهة مختلفة'); return;
@@ -281,6 +292,9 @@ export default function AddTransactionModal() {
         date,
         ...(isEdit ? {} : { createdAt: new Date().toISOString() }),
       };
+      // المبلغ ما اتلمسش ← مبيتبعتش خالص (مفيش كتابة للمبلغ، فلا تقريب ولا فرق على مؤرشفة)
+      const { amount: _keptAmount, ...withoutAmount } = payload;
+      const editPayload = keepAmount ? withoutAmount : payload;
       if (isEdit && existing) {
         const changes: TxChange[] = [{
           before: existing,
@@ -311,8 +325,8 @@ export default function AddTransactionModal() {
           try {
             // بترجع بعد الكتابة المحلية (`track`) مش بعد السيرفر — قاعدة 7
             // النوع اتغيّر ← الحقول اللي النوع الجديد مبيستخدمهاش بتتشال (الميزة 8، L)
-            if (existing.type !== type) await updateTransaction(existing.id, payload, settlements, { clear: UNUSED_FIELDS[type] });
-            else await updateTransaction(existing.id, payload, settlements);
+            if (existing.type !== type) await updateTransaction(existing.id, editPayload, settlements, { clear: UNUSED_FIELDS[type] });
+            else await updateTransaction(existing.id, editPayload, settlements);
           } catch (e) {
             // فشل التجهيز: مفيش حاجة اتحفظت، فالحارس يتفك والشاشة متترجعش
             saved.current = false;
@@ -638,7 +652,8 @@ export default function AddTransactionModal() {
 
     {/* برّه الـScrollView، فوق الأزرار اللاصقة: على فورم طويل كانت بتتعرض تحت آخر حقل
         والمستخدم يدوس "حذف" والشيت تتقفل ومفيش حاجة باينة (silent-failure-hunter، الجولة 2 على D3) */}
-    {!!error && <Text testID="tx_error" style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
+    {/* متركّب دايمًا وفاضي من غير خطأ — المنطقة الحية على أندرويد بتتقري (الجولة 2، بند 3) */}
+    <Text testID="tx_error" style={error ? styles.error : styles.errorEmpty} {...errorA11y}>{error}</Text>
 
     <View style={styles.footer}>
       {isEdit && (
@@ -671,6 +686,7 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.sm, paddingHorizontal: space.xxxl },
+    errorEmpty: { height: 0, margin: 0, padding: 0 },
     lockedHint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: 18 },
     noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: radius.lg, padding: space.xl, gap: space.md, marginBottom: space.sm },
     noWalletsText: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },

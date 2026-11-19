@@ -12,6 +12,7 @@ import React from 'react';
 const mockLogOut = jest.fn();
 let mockPending = 0;
 let mockOutboxUnknown = false;
+let mockOutboxCount = 0;
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { email: 'test@nuqta.app' }, logOut: mockLogOut }),
 }));
@@ -22,13 +23,13 @@ jest.mock('@/context/NotificationsContext', () => ({
   useNotifications: () => ({ enabled: false, dailyEnabled: false, dailyHour: 20 }),
 }));
 jest.mock('@/context/DataContext', () => ({
-  useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending, outboxCount: 0, outboxCountUnknown: mockOutboxUnknown }),
+  useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending, outboxCount: mockOutboxCount, outboxCountUnknown: mockOutboxUnknown }),
 }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-beforeEach(() => { mockLogOut.mockClear(); mockPending = 0; mockOutboxUnknown = false; });
+beforeEach(() => { mockLogOut.mockClear(); mockPending = 0; mockOutboxUnknown = false; mockOutboxCount = 0; });
 
 async function openLogout() {
   await render(<ThemeProvider><ConfirmProvider><SettingsScreen /></ConfirmProvider></ThemeProvider>);
@@ -64,4 +65,11 @@ it('الميزة 8 (L): قراية الطابور فشلت (العدد مش مع
   expect(screen.getByTestId('confirm_title').props.children).toBe('مش متأكدين إن كل عملياتك اترفعت');
   await act(async () => { fireEvent.press(screen.getByText('أستنى')); });
   expect(mockLogOut).not.toHaveBeenCalled();
+});
+
+it('الجولة 2، بند 6: فيه عدد معروف بس القراية فشلت ← نص «مش متأكدين» (مش «فيه عمليتين» وبس — ممكن يكونوا أكتر)', async () => {
+  mockOutboxUnknown = true;
+  mockOutboxCount = 2;
+  await openLogout();
+  expect(screen.getByTestId('confirm_title').props.children).toBe('مش متأكدين إن كل عملياتك اترفعت');
 });

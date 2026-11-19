@@ -207,7 +207,7 @@ describe('الحذف', () => {
     await openEdit();
     await act(async () => { fireEvent.press(screen.getByText('حذف')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
-    expect(screen.getByTestId('tx_error')).toBeTruthy();
+    expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     await act(async () => { navRef.goBack(); });
     expect(routeNames()).toEqual(['root', 'home']);
@@ -239,7 +239,7 @@ describe('التعديل بعد رد شيت التسوية', () => {
       await openEdit();
       await act(async () => { fireEvent.press(screen.getByTestId('tx_save_button')); });
       await act(async () => { await mockSettleReply!([]); });
-      expect(screen.getByTestId('tx_error')).toBeTruthy();
+      expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
       await act(async () => { navRef.goBack(); });
       expect(routeNames()).toEqual(['root', 'home']);
     } finally { warn.mockRestore(); }
