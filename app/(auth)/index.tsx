@@ -213,11 +213,11 @@ export function mapError(code: string) {
     case 'auth/email-already-in-use': return 'الإيميل ده مستخدم قبل كده. لو سجّلت بجوجل، ادخل بزرار جوجل.';
     case 'auth/user-disabled': return 'الحساب ده متوقف، ومينفعش تدخل بيه.';
     case 'auth/account-exists-with-different-credential': return 'فيه حساب بالإيميل ده متسجّل بطريقة تانية. ادخل بالطريقة اللي سجّلت بيها أول مرة.';
-    case 'auth/operation-not-allowed': return 'الطريقة دي مش متاحة دلوقتي. جرّب طريقة تانية.';
+    case 'auth/operation-not-allowed': return 'الطريقة دي مش متاحة دلوقتي. جرّب تاني بعد شوية أو بطريقة تانية.';
     case 'auth/weak-password': return 'الباسورد لازم يكون 6 حروف/أرقام على الأقل';
     case 'auth/missing-email': return 'اكتب إيميلك الأول';
-    case 'auth/too-many-requests': return 'جرّبت كتير أوي. استنى شوية وحاول تاني';
-    case 'auth/network-request-failed': return 'مفيش نت. وصّل النت وحاول تاني';
+    case 'auth/too-many-requests': return 'جرّبت كتير أوي. استنى شوية وجرّب تاني';
+    case 'auth/network-request-failed': return 'مفيش نت. وصّل النت وجرّب تاني';
     default: return GENERIC_ERROR;
   }
 }

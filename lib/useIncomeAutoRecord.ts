@@ -65,7 +65,8 @@ const warnNotifyFailed = (e: unknown) => console.warn('[income] notify failed', 
  * التاني بيتقال في كارت على الرئيسية: "ما اتسجلش ومفيش حاجة
  * اتكتبت" — مش إشعار، لأنه محتاج المستخدم يعمل حاجة.
  */
-export function useIncomeAutoRecord() {
+/** `paused` = التطبيق مقفول (الميزة 11، security M1) — نفس `useChargeAutoRecord` */
+export function useIncomeAutoRecord({ paused = false }: { paused?: boolean } = {}) {
   const { incomes, serverReachable, recordIncomePeriods } = useData();
   const { enabled: notificationsOn } = useNotifications();
   // الإشعار بيتبع التفضيل مش النطاق (بيظهر على شاشة القفل)
@@ -157,7 +158,7 @@ export function useIncomeAutoRecord() {
 
   useEffect(() => {
     // مستنيين تفضيل الإخفاء: من غيره أول إشعار كان ممكن يطلع بالرقم
-    if (!serverReachable || !privacyLoaded) return;
+    if (paused || !serverReachable || !privacyLoaded) return;
     if (running.current) { missedRerun.current = true; return; }
     const today = todayStr();
     const due = incomes
@@ -276,7 +277,7 @@ export function useIncomeAutoRecord() {
         if (retry) retryTimer.current = setTimeout(() => { timerWake.current = true; setWake(w => w + 1); }, INCOME_RETRY_MS);
       }
     })();
-  }, [incomes, serverReachable, privacyLoaded, wake, recheck, recordIncomePeriods, notificationsOn, amountsHidden, resolveUncertain]);
+  }, [paused, incomes, serverReachable, privacyLoaded, wake, recheck, recordIncomePeriods, notificationsOn, amountsHidden, resolveUncertain]);
 
   const dismiss = useCallback((id: string) => {
     setNotices(prev => prev.filter(n => n.id !== id));

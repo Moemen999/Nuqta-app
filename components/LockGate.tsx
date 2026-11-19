@@ -41,15 +41,18 @@ export default function LockGate({ locked, covered, children }: { locked: boolea
   return (
     <>
       <View style={styles.fill} {...(hide ? HIDDEN : null)}>{children}</View>
+      {/* الغطا المعتم **مع** القفل كمان (silent M2): الـModal نافذة لوحدها، ولحظة ما بيتقفل أو بيترسم الشجرة اللي تحت
+          كانت بتبان في نفس النافذة. والقفل فوقه */}
+      {hide ? (
+        <View testID={PRIVACY_COVER_TEST_ID} style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: colors.bg }]}
+          {...(locked ? { importantForAccessibility: 'no-hide-descendants' as const, accessibilityElementsHidden: true } : { accessible: true, accessibilityLabel: 'نقطة' })}>
+          <Text style={{ color: colors.accentText, fontSize: glyphSize.logo, fontWeight: '700' }}>نقطة</Text>
+        </View>
+      ) : null}
       {locked ? (
         <Modal visible animationType="none" statusBarTranslucent onRequestClose={() => {}}>
           <LockScreen />
         </Modal>
-      ) : covered ? (
-        <View testID={PRIVACY_COVER_TEST_ID} style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: colors.bg }]}
-          accessible accessibilityLabel="نقطة">
-          <Text style={{ color: colors.accentText, fontSize: glyphSize.logo, fontWeight: '700' }}>نقطة</Text>
-        </View>
       ) : null}
     </>
   );

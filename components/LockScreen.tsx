@@ -9,10 +9,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
-import { LOCK_READ_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
+import { LOCK_READ_FAILED, LOCK_READ_RETRY_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { pendingWritesSentence } from '@/lib/archiving';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 import { LineIcon } from '@/components/LineIcon';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 
 // أرقام لوحة القفل (مفتاح 78 ودايرة 18): الدواير نص العرض، وخط الرقم مالوش درجة
 const LOCK_DOT_RADIUS = 9;
@@ -29,27 +30,33 @@ export const FORGOT_TITLE = 'نسيت كود القفل؟';
  * بتقول "بنفس الطريقة اللي سجّلت بيها"، وبتوريه إن فيه "نسيت الباسورد؟"
  * في شاشة الدخول لو ده كمان ضايع منه.
  */
-export const FORGOT_BODY =
-  'هنشيل القفل ونخرجك من حسابك. ترجع تدخل بنفس الطريقة اللي سجّلت بيها — '
-  + 'بجوجل أو بالإيميل والباسورد — وبياناتك كلها زي ما هي مستنياك. ولو نسيت '
+const FORGOT_BODY_START = 'هنشيل القفل ونخرجك من حسابك. ترجع تدخل بنفس الطريقة اللي سجّلت بيها — '
+  + 'بجوجل أو بالإيميل والباسورد — ';
+const FORGOT_DATA_SAFE = 'وبياناتك كلها زي ما هي مستنياك.';
+const FORGOT_BODY_END = ' ولو نسيت '
   + 'باسورد حسابك كمان، هتلاقي "نسيت الباسورد؟" في شاشة الدخول. وبعد ما ترجع '
   + 'تقدر تفعّل القفل من جديد بكود تفتكره.\n\nمحتاج نت عشان ترجع تدخل.';
+export const FORGOT_BODY = FORGOT_BODY_START + FORGOT_DATA_SAFE + FORGOT_BODY_END;
 export const FORGOT_CONFIRM = 'شيل القفل واخرج';
 
 /**
- * تعديلات لسه بترفع **برّه** الطابور المتشفّر (`pendingWrites - outboxCount`، الميزة 11 بند 11) — طابور فايربيز في الذاكرة
- * بيتلغي مع الخروج، فـ«بياناتك كلها زي ما هي» كانت وعد مش صحيح. العدد بنفس صيغة الإعدادات (`pendingWritesSentence`)
+ * تعديلات لسه بترفع **برّه** الطابور المتشفّر (`countUnprotectedPendingWrites`، الميزة 11 بند 11) — طابور فايربيز في الذاكرة
+ * بيتلغي مع الخروج، فـ«بياناتك كلها زي ما هي» كانت وعد مش صحيح. العدد بنفس صيغة الإعدادات (`pendingWritesSentence`).
+ * الجملة بتتبني صريح (مش `.replace` على النص الكامل)، والضمير على العدد: «نخسره/رفعه» لواحد و«نخسرهم/رفعهم» لأكتر
  */
 export function forgotBody(lost: number): string {
   if (lost <= 0) return FORGOT_BODY;
-  return FORGOT_BODY.replace('وبياناتك كلها زي ما هي مستنياك.',
-    `واللي اترفع من بياناتك زي ما هو مستنيك. بس ${pendingWritesSentence(lost)} — لو خرجت دلوقتي ممكن يضيع، فاستنى النت يخلص رفعه لو تقدر.`);
+  const [lose, upload] = lost === 1 ? ['نخسره', 'رفعه'] : ['نخسرهم', 'رفعهم'];
+  return FORGOT_BODY_START
+    + `واللي اترفع من بياناتك زي ما هو مستنيك. بس ${pendingWritesSentence(lost)} — لو خرجت دلوقتي ممكن ${lose}، فاستنى النت يخلّص ${upload} لو تقدر.`
+    + FORGOT_BODY_END;
 }
 
 /** الخروج نفسه وقع (`logOut` رمى) — القفل ما اتشالش ولسه داخل */
 export const LOGOUT_FAILED_NOTICE: [string, string] = ['ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فالقفل زي ما هو. جرّب تاني.'];
 /** خرج من الحساب بس مسح القفل وقع (arabic-copy-reviewer) */
-export const LOCK_LEFT_AFTER_LOGOUT: [string, string] = ['القفل لسه موجود', 'خرجنا من حسابك بس ما قدرناش نشيل القفل. دوس "نسيت الكود؟" تاني.'];
+/** القفل بيتشال من الذاكرة للجلسة دي (`clearLock` — آخر مخرج)، بس التخزين لسه فيه ← بيرجع مع الفتحة الجاية */
+export const LOCK_LEFT_AFTER_LOGOUT: [string, string] = ['القفل لسه موجود', 'خرجنا من حسابك بس ما قدرناش نشيل القفل من الموبايل. لو طلعلك تاني لما تفتح التطبيق، دوس "نسيت الكود؟".'];
 
 /**
  * من غير نت، شيل القفل + خروج = المستخدم برّه التطبيق ومش قادر يرجع.
@@ -113,7 +120,7 @@ export default function LockScreen() {
     if (res === false) setRetryFailed(true);
   }
   const { logOut } = useAuth();
-  const { serverReachable, pendingWrites, outboxCount } = useData();
+  const { serverReachable, countUnprotectedPendingWrites } = useData();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const styles = makeStyles(colors);
@@ -142,14 +149,15 @@ export default function LockScreen() {
     // من غير `clearOutbox` عن قصد: FORGOT_BODY بيقول إن البيانات في أمان، فالعمليات اللي مستنية النت بتفضل (الطابور المتشفّر)
     // الخروج وقع ← القفل بيفضل (منشيلوش والجلسة لسه موجودة)، والرسالة بتقول — كان unhandled rejection ساكت (بند 11)
     try { await logOut(); }
-    catch { Alert.alert(...LOGOUT_FAILED_NOTICE); return; }
-    // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter)
+    catch (e) { reportAtomicFailure('نسيت الكود: الخروج', e); Alert.alert(...LOGOUT_FAILED_NOTICE); return; }
+    // مسح القفل ممكن يرمي (التخزين) بعد الخروج — كان unhandled ساكت والقفل فاضل (silent-failure-hunter). `clearLock`
+    // بيشيله من الذاكرة للجلسة دي برضه (آخر مخرج)، فالرسالة بتقول إنه ممكن يرجع مع الفتحة الجاية
     try { await clearLock(); }
-    catch { Alert.alert(...LOCK_LEFT_AFTER_LOGOUT); }
+    catch (e) { reportAtomicFailure('نسيت الكود: مسح القفل', e); Alert.alert(...LOCK_LEFT_AFTER_LOGOUT); }
   }
 
   function confirmForgot() {
-    Alert.alert(FORGOT_TITLE, forgotBody((pendingWrites ?? 0) - (outboxCount ?? 0)), [
+    Alert.alert(FORGOT_TITLE, forgotBody(countUnprotectedPendingWrites?.() ?? 0), [
       { text: 'إلغاء', style: 'cancel' },
       { text: FORGOT_CONFIRM, style: 'destructive', onPress: runForgot },
     ]);
@@ -235,7 +243,8 @@ export default function LockScreen() {
         // الإعدادات ما اتقرتش: مقفول (مش مفتوح) ومفيش لوحة كود — منعرفش نوعه. المخرج: جرّب تاني أو "نسيت الكود؟" (بند A)
         <View style={styles.passwordArea}>
           <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
-          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_STORAGE_ERROR}</Text>}
+          {/* «جرّب تاني» فشلت ← الرسالة بتشاور على المخرج، مش على نفس الزرار تاني (silent L2) */}
+          {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_READ_RETRY_FAILED}</Text>}
           <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>{retrying ? 'بنجرّب…' : LOCK_RETRY}</Text>

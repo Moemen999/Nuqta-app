@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors, type ThemePreference } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { categoriesPhrase, pendingWritesSentence, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
 import { OUTBOX_UNKNOWN_LOGOUT_BODY, OUTBOX_UNKNOWN_LOGOUT_TITLE, outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
@@ -67,7 +68,11 @@ export default function SettingsScreen() {
 
   /** الخروج وقع ← رسالة (الميزة 11، بند 11) — كان unhandled rejection ساكت والمستخدم فاكر إنه خرج */
   function signOut() {
-    Promise.resolve().then(() => logOut({ clearOutbox: true })).catch(() => notice('ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فلسه داخل. جرّب تاني.'));
+    // الفشل بيوصل Sentry كمان (silent M3) — اسم ثابت وكود الخطأ بس
+    Promise.resolve().then(() => logOut({ clearOutbox: true })).catch(e => {
+      reportAtomicFailure('الخروج من الحساب', e);
+      notice('ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فلسه داخل. جرّب تاني.');
+    });
   }
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);

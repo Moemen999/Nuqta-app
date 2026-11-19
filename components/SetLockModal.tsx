@@ -19,7 +19,9 @@ function verifyError(res: VerifyResult, wrongText: string): string {
 /** `verify`: تخفيف القفل (الميزة 11، بند 13) — الكود الحالي بس، وبعده `onVerified` بيحفظ الاختيار */
 type Mode = 'enable' | 'change' | 'disable' | 'verify';
 
-const TITLE: Record<Mode, string> = { enable: 'تفعيل القفل', change: 'تغيير الكود', disable: 'إلغاء القفل', verify: 'أكّد إنه انت' };
+const TITLE: Record<Mode, string> = { enable: 'تفعيل القفل', change: 'تغيير الكود', disable: 'إلغاء القفل', verify: 'أكّد إنك انت' };
+/** سطر تحت العنوان في التأكيد بس — ليه بنطلب الكود (arabic-copy-reviewer) */
+export const VERIFY_SUBLINE = 'عشان نخفّف القفل لازم نتأكد إنك انت.';
 /** زرار التأكيد بيقول هيعمل إيه (arabic-copy-reviewer) — كان «تأكيد» في الأربعة */
 const SUBMIT: Record<Mode, string> = { enable: 'فعّل القفل', change: 'غيّر الكود', disable: 'الغي القفل', verify: 'كمّل' };
 export const PIN_FORMAT_ERROR = 'الرقم السري لازم يكون 4 أرقام بس، من غير حروف ولا مسافات';
@@ -120,6 +122,7 @@ export default function SetLockModal({ visible, mode, onClose, onVerified }: {
           <Text style={styles.title} accessibilityRole="header">
             {TITLE[mode]}
           </Text>
+          {mode === 'verify' && <Text testID="setlock_verify_subline" style={styles.subline}>{VERIFY_SUBLINE}</Text>}
 
           {mode !== 'enable' && (
             <>
@@ -186,6 +189,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
+    subline: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.lg, marginBottom: space.xs },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, padding: space.lg, fontSize: typeScale.title },
     row: { flexDirection: 'row-reverse', gap: space.sm },

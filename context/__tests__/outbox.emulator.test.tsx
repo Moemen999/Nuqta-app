@@ -778,3 +778,34 @@ describe('الميزة 8 — الجولة 2 (الأخيرة) على f0badf9', ()
     } finally { mg.mockImplementation(orig); }
   }, 60000);
 });
+
+describe('الميزة 11 — money M1: عدد التعديلات اللي هتضيع مع «نسيت الكود؟»', () => {
+  it('3 مدخلات في الطابور من قبل الفتحة + تعديلين عاديين من غير نت + عملية محمية ← 2 مش محميين', async () => {
+    const w = await preparedAccount();
+    for (let i = 0; i < 3; i++) await putOutboxEntry(uid, newTxId(), { type: 'expense', amount: 10 + i, walletId: w, date: todayStr() });
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await h.waitForData(api => api.outboxCount === 3, 10000, 'm1:listed');
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      await act(async () => {
+        h!.api().updateWallet(w, { lowAlert: 5 });
+        await h!.api().addTransaction({ type: 'expense', amount: 7, walletId: w, date: todayStr() });
+      });
+      await h.waitForData(api => api.pendingWrites === 2, 10000, 'm1:plain');
+      expect(h.api().countUnprotectedPendingWrites()).toBe(2);
+      // الطرح القديم كان بيدّي -1 (= «مفيش») والتعديلين هيضيعوا
+      expect(h.api().pendingWrites - h.api().outboxCount).toBe(-1);
+      // عملية محمية (في الطابور) بتزوّد الاتنين ومبتغيّرش العدد اللي هيضيع
+      await act(async () => {
+        await h!.api().addTransaction({ type: 'expense', amount: 8, walletId: w, date: todayStr() }, { durable: true });
+      });
+      await h.waitForData(api => api.pendingWrites === 3 && api.outboxCount === 4, 10000, 'm1:durable');
+      expect(h.api().countUnprotectedPendingWrites()).toBe(2);
+    } finally {
+      await enableNetwork(db);
+    }
+    await h.waitForData(api => api.serverReachable, 30000, 'm1:reconnect');
+  }, 60000);
+});

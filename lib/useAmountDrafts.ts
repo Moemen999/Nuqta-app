@@ -36,8 +36,11 @@ export type AmountDraftOptions = {
    * تضيع ساكت (silent-failure-hunter + money-reviewer 2026-11-07)
    */
   onDroppedConfirm?: (id: string, value: number) => void;
-  /** "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول */
-  onStaleConfirm?: (id: string) => void;
+  /**
+   * "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول. `'drop'` = السجل
+   * نفسه مشي (اتمسح/اتأرشف) ← المسوّدة بتتشال، فرسالة `onDroppedConfirm` مبتطلعش تاني على نفس الحاجة وقت الخروج (money L1)
+   */
+  onStaleConfirm?: (id: string) => void | 'drop';
   /**
    * خانة فاضية تتحفظ لوحدها بعد ثانية؟ الافتراضي أيوه (رصيد المحفظة). الميزانية والدخل بيبعتوا `false` (الميزة 6):
    * المسح عشان تكتب رقم جديد كان بيحفظ صفر بعد ثانية والكارت ينط للمطوي. الفاضي بيتحفظ بس لما تسيب الخانة أو الشاشة
@@ -227,7 +230,7 @@ export function useAmountDrafts(
           if (!(Object.is(now, shownStored) || now === shownStored)) {
             // مفيش كتابة — بس منسكتش (silent-failure-hunter جولة 2): المسوّدة بترجع "مستنية" والشاشة بتقول
             pending.current[id] = raw;
-            latest.current.onStaleConfirm?.(id);
+            if (latest.current.onStaleConfirm?.(id) === 'drop') { delete pending.current[id]; clearDraft(id); }
             return;
           }
           commitWrite(id, confirmed);

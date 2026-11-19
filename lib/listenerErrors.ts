@@ -127,6 +127,6 @@ export const DATA_LOADING_BODY = 'بياناتك لسه بتوصل، فما ات
  * نفس المنع بس **من غير نت** (الميزة 10، جولة 2 — money-reviewer + silent-failure-hunter): «استنى شوية» كانت بتوعد بحاجة
  * مش هتحصل لحد ما النت يرجع، فالسبب بيتقال بالاسم
  */
-export const DATA_OFFLINE_BODY = 'مفيش نت دلوقتي، فمش قادرين نتأكد من اللي مربوط بيها — جرّب لما النت يرجع.';
+export const DATA_OFFLINE_BODY = 'مفيش نت دلوقتي، فمقدرناش نتأكد إيه اللي مربوط بيها، وما اتعملش حاجة. جرّب لما النت يرجع.';
 /** نص منع «لسه بتوصل» حسب النت */
 export const dataLoadingBody = (serverReachable: boolean) => (serverReachable ? DATA_LOADING_BODY : DATA_OFFLINE_BODY);

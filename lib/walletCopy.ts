@@ -48,8 +48,9 @@ export function walletAmountRejectNotice(
   if (reason === 'too-large') {
     return ['الرقم ده كبير أوي', `${field} ${owner} لازم يكون أقل من ${fmt(WALLET_AMOUNT_MAX)}، ${tail}`];
   }
+  // `too-small` = بيتقرّب لصفر (`roundMoney` < نص قرش، `walletAmountRejectReason`) — 0.007 بيتحفظ 0.01، فـ«أقل من قرش» كانت غلط
   if (reason === 'too-small') {
-    return ['الرقم ده صغير أوي', `${field} ${owner} بيتحسب بالقرش، وأقل من قرش بيبقى صفر، ${tail}`];
+    return ['الرقم ده صغير أوي', `${field} ${owner} بيتحسب بالقرش، والرقم ده أقل من نص قرش فبيتقرّب لصفر، ${tail}`];
   }
   // الرصيد الابتدائي بيقبل السالب — اللي اترفض فيه بالسالب سببه الحجم («-1e16»)
   if (reason === 'negative' && field === 'الرصيد الابتدائي') {
@@ -68,13 +69,19 @@ export function openingGoneNotice(name: string): [string, string] {
   return ['ما اتحفظش', `رصيد ${owner} الابتدائي ما اتغيّرش — المحفظة اتأرشفت أو اتمسحت وانت بتأكّد.`];
 }
 
+/** حد التنبيه اتكتب والمحفظة مشيت (silent L6) — نفس رسالة الرصيد الابتدائي */
+export function lowAlertGoneNotice(name: string): [string, string] {
+  const owner = name.trim() ? `محفظة "${name.trim()}"` : 'المحفظة دي';
+  return ['ما اتحفظش', `حد التنبيه بتاع ${owner} ما اتغيّرش — المحفظة اتأرشفت أو اتمسحت.`];
+}
+
 /** الدوسة على تأكيد مسح/أرشفة والحاجة اتمسحت من جهاز تاني — بدل الرجوع الساكت (الميزة 10، جولة 2) */
 export function goneFromAnotherDeviceNotice(kind: 'المحفظة' | 'الفئة', name: string, action: 'delete' | 'archive'): [string, string] {
   return [`${kind} دي اتمسحت`, `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة ${action === 'delete' ? 'تتمسح' : 'تتأرشف'}.`];
 }
 
 /** حاجة شغالة جديدة اتربطت والشيت مفتوح ← الشيت بيتفتح من جديد بعد السطر ده (الميزة 10، جولة 2) */
-export const SHEET_RELINKED_NOTICE: [string, string] = ['فيه حاجة جديدة اتربطت', 'حاجة شغالة جديدة اتربطت بيها وانت بتأرشف — اختار لها مكان هي كمان.'];
+export const SHEET_RELINKED_NOTICE: [string, string] = ['اتضاف حاجة جديدة مربوطة بيها', 'اتضاف حاجة جديدة مربوطة بيها وانت بتأرشف، فهنفتحلك الأرشفة من الأول عشان تختار لها مكان هي كمان.'];
 
 /** الاسم اتمسح والخانة اتسابت فاضية ← رجع للقديم، والشاشة بتقول بدل الرجوع الساكت (الميزة 10) */
 export function nameEmptyNotice(kind: 'المحفظة' | 'الفئة'): [string, string] {

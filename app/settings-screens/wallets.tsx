@@ -2,7 +2,7 @@ import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
 import { AMOUNT_CLEARED_BODY, amountClearedTitle, planLowAlertCommit, planWalletOpeningCommit, walletAmountRejectReason } from '@/lib/finance';
 import {
   AUTOSAVED_ANNOUNCEMENT, OPENING_PENDING_HINT, nameEmptyNotice, openingConfirmCopy, openingDroppedNotice, openingGoneNotice,
-  openingStaleNotice, walletAmountRejectNotice, goneFromAnotherDeviceNotice, SHEET_RELINKED_NOTICE,
+  openingStaleNotice, walletAmountRejectNotice, goneFromAnotherDeviceNotice, SHEET_RELINKED_NOTICE, lowAlertGoneNotice,
 } from '@/lib/walletCopy';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList, { restoredAnnouncement } from '@/components/ArchivedList';
@@ -97,9 +97,11 @@ export default function WalletsScreen() {
       // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
       onDroppedConfirm: id => notice(...openingDroppedNotice(walletName(id))),
       // المحفظة اتمسحت/اتأرشفت والتأكيد مفتوح ← الرقم المتخزّن «اتغيّر» (بقى 0)، بس السبب الحقيقي إنها مشيت (جولة 2)
+      // المحفظة مشيت ← `'drop'`: المسوّدة بتتشال، فرسالة «ما اتغيّرش» وقت الخروج مبتطلعش تاني على نفس الحاجة (money L1)
       onStaleConfirm: id => {
         const w = live.current.wallets.find(x => x.id === id);
-        notice(...(!w || w.archived ? openingGoneNotice(w?.name ?? '') : openingStaleNotice(walletName(id))));
+        if (!w || w.archived) { notice(...openingGoneNotice(w?.name ?? '')); return 'drop'; }
+        notice(...openingStaleNotice(walletName(id)));
       },
       // «abc» أو «1,5» كانوا بيرجعوا للمحفوظ ساكت (الجولة الأخيرة، بند 7)؛ و«1e300» كبير أوي (الميزة 10، بند 7)
       onReject: rejectWith('الرصيد الابتدائي', 'opening'),
@@ -110,8 +112,10 @@ export default function WalletsScreen() {
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
     (id, value) => {
-      // المحفظة مشيت ← مفيش كتابة، و`false` بيقول لـ`useAmountDrafts` ميقولش «اتشال» (جولة 2)
-      if (!live.current.wallets.some(x => x.id === id)) return false;
+      // المحفظة مشيت ← مفيش كتابة، و`false` بيقول لـ`useAmountDrafts` ميقولش «اتشال» (جولة 2). ومش ساكت (silent L6):
+      // نفس رسالة الرصيد الابتدائي
+      const w = live.current.wallets.find(x => x.id === id);
+      if (!w || w.archived) { notice(...lowAlertGoneNotice(w?.name ?? walletName(id))); return false; }
       updateWallet(id, { lowAlert: value });
       announce(AUTOSAVED_ANNOUNCEMENT);
       return true;

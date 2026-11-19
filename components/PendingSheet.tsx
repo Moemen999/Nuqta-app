@@ -7,7 +7,8 @@ import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/banner
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
 
 /**
@@ -58,14 +59,16 @@ export default function PendingSummary() {
   // **حاجة جديدة** مش «العدد زاد» (LOW، الجولة الأخيرة): رد على حاجة وجت غيرها بنفس العدد ← بيتقال برضه (نفس فكرة مفتاح الـ✕)
   const mountedAt = useRef(Date.now());
   const lastKeys = useRef<Set<string>>(new Set());
+  // والتطبيق مقفول بيتشال (security M1) — نفس `AttentionSheet`
+  const announce = useLockAwareAnnounce();
   useEffect(() => {
     const keys = dismissKey ? dismissKey.split(',') : [];
     const hasNew = keys.some(k => !lastKeys.current.has(k));
     if (Date.now() - mountedAt.current >= PENDING_ANNOUNCE_AFTER_MS && hasNew && phrase) {
-      AccessibilityInfo.announceForAccessibility(phrase);
+      announce(phrase, 'drop');
     }
     lastKeys.current = new Set(keys);
-  }, [dismissKey, phrase]);
+  }, [dismissKey, phrase, announce]);
 
   if (!phrase || hidden('pending', dismissKey)) return null;
 

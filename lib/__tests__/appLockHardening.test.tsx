@@ -160,3 +160,84 @@ describe('14: مسح القفل بعد مسح الحساب', () => {
     expect(reportAtomicFailure).toHaveBeenCalledWith('مسح القفل', expect.anything());
   });
 });
+
+describe('silent M1: علامة من غير قفل (phantom)', () => {
+  const failMarkerRemove = () => (AsyncStorage.removeItem as jest.Mock).mockImplementationOnce(async () => { throw new Error('disk'); });
+
+  it('إلغاء القفل وشيل العلامة وقع ← «error» والقفل كله زي ما هو (العلم مااتمسحش)', async () => {
+    await mount();
+    await act(async () => { await lock().setupLock('pin', '1234'); });
+    failMarkerRemove();
+    let res: string | undefined;
+    await act(async () => { res = await lock().disableLock('1234'); });
+    expect(res).toBe('error');
+    expect(mockStore.nuqta_lock_enabled).toBe('1');
+    expect(await AsyncStorage.getItem(LOCK_MARKER_KEY)).toBe('1');
+    expect(lock().enabled).toBe(true);
+  });
+
+  it('العلامة بتتشال قبل العلم', async () => {
+    await mount();
+    await act(async () => { await lock().setupLock('pin', '1234'); });
+    const order: string[] = [];
+    (AsyncStorage.removeItem as jest.Mock).mockImplementationOnce(async () => { order.push('marker'); });
+    const orig = (SecureStore.deleteItemAsync as jest.Mock).getMockImplementation()!;
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (k: string) => { order.push(k); delete mockStore[k]; });
+    try { await act(async () => { await lock().disableLock('1234'); }); }
+    finally { (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(orig); }
+    expect(order.slice(0, 2)).toEqual(['marker', 'nuqta_lock_enabled']);
+  });
+
+  it('مسح الحساب وشيل العلامة وقع ← بيرمي، والعلم مااتمسحش (مش علامة من غير قفل)', async () => {
+    await mount();
+    await act(async () => { await lock().setupLock('pin', '1234'); });
+    failMarkerRemove();
+    let threw = false;
+    await act(async () => { try { await lock().wipeLockForDeletedAccount(); } catch { threw = true; } });
+    expect(threw).toBe(true);
+    expect(mockStore.nuqta_lock_enabled).toBe('1');
+    expect(await AsyncStorage.getItem(LOCK_MARKER_KEY)).toBe('1');
+  });
+
+  it('التفعيل: العلامة اتكتبت والعلم وقع ← العلامة بتتشال (الفتحة الجاية مفيش «مقدرناش نقرا»)', async () => {
+    await mount();
+    const orig = (SecureStore.setItemAsync as jest.Mock).getMockImplementation()!;
+    (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (k: string, v: string) => {
+      if (k === 'nuqta_lock_enabled') throw new Error('keystore');
+      mockStore[k] = v;
+    });
+    try { await expect(lock().setupLock('pin', '1234')).rejects.toThrow('keystore'); }
+    finally { (SecureStore.setItemAsync as jest.Mock).mockImplementation(orig); }
+    expect(mockStore.nuqta_lock_enabled).toBeUndefined();
+    expect(await AsyncStorage.getItem(LOCK_MARKER_KEY)).toBeNull();
+  });
+});
+
+describe('silent L1/L4: التبليغ وآخر مخرج', () => {
+  it('قراية العلامة وقعت ← Sentry (ومفتوح زي مفيش علامة)', async () => {
+    (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(async () => { throw new Error('disk'); });
+    await mount();
+    expect(reportAtomicFailure).toHaveBeenCalledWith('قراية علامة القفل', expect.anything());
+    expect(lock().readFailed).toBe(false);
+  });
+
+  it('كتابة العلامة لقفل قديم وقعت ← Sentry', async () => {
+    mockStore.nuqta_lock_enabled = '1'; mockStore.nuqta_lock_hash = 'h:1234';
+    (AsyncStorage.setItem as jest.Mock).mockImplementationOnce(async () => { throw new Error('disk'); });
+    await mount();
+    await waitFor(() => expect(reportAtomicFailure).toHaveBeenCalledWith('حفظ علامة القفل', expect.anything()));
+  });
+
+  it('clearLock (بعد الخروج) والعلم ما اتمسحش ← بيرمي، بس القفل بيتشال من الذاكرة للجلسة دي', async () => {
+    mockStore.nuqta_lock_enabled = '1'; mockStore.nuqta_lock_hash = 'h:1234';
+    await mount();
+    expect(lock().isLocked).toBe(true);
+    (SecureStore.deleteItemAsync as jest.Mock).mockImplementationOnce(async () => { throw new Error('keystore'); });
+    let threw = false;
+    await act(async () => { try { await lock().clearLock(); } catch { threw = true; } });
+    expect(threw).toBe(true);
+    expect(mockStore.nuqta_lock_enabled).toBe('1');
+    expect(lock().isLocked).toBe(false);
+    expect(lock().enabled).toBe(false);
+  });
+});

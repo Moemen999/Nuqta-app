@@ -6,7 +6,7 @@ import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { DATA_LOADING_BODY, DATA_OFFLINE_BODY } from '@/lib/listenerErrors';
 import { WALLET_AMOUNT_MAX, planWalletOpeningCommit, roundMoney, walletAmountRejectReason } from '@/lib/finance';
-import { openingGoneNotice, walletAmountRejectNotice } from '@/lib/walletCopy';
+import { lowAlertGoneNotice, openingGoneNotice, walletAmountRejectNotice } from '@/lib/walletCopy';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
 import { warmUp } from '@/test-utils/warmUp';
@@ -57,7 +57,7 @@ const type = async (id: string, v: string) => {
 
 describe('1: البيانات لسه بتوصل ومفيش نت ← السبب النت', () => {
   it('النص نفسه', () => {
-    expect(DATA_OFFLINE_BODY).toBe('مفيش نت دلوقتي، فمش قادرين نتأكد من اللي مربوط بيها — جرّب لما النت يرجع.');
+    expect(DATA_OFFLINE_BODY).toBe('مفيش نت دلوقتي، فمقدرناش نتأكد إيه اللي مربوط بيها، وما اتعملش حاجة. جرّب لما النت يرجع.');
     expect(DATA_LOADING_BODY).toBe('بياناتك لسه بتوصل، فما اتعملش حاجة. استنى شوية وجرّب تاني.');
   });
   it('المحافظ: فتح المسح', async () => {
@@ -110,6 +110,10 @@ describe('2: سقف خانات المحفظة', () => {
   it('الكلام: «كبير أوي» و«صغير أوي»', () => {
     expect(walletAmountRejectNotice('حد التنبيه', 'كاش', 'too-large')[0]).toBe('الرقم ده كبير أوي');
     expect(walletAmountRejectNotice('حد التنبيه', 'كاش', 'too-small')[0]).toBe('الرقم ده صغير أوي');
+    // too-small = بيتقرّب لصفر (أقل من نص قرش)، مش «أقل من قرش» (0.007 بيتحفظ 0.01)
+    expect(walletAmountRejectNotice('حد التنبيه', 'كاش', 'too-small')[1]).toContain('أقل من نص قرش فبيتقرّب لصفر');
+    expect(walletAmountRejectReason('0.007')).not.toBe('too-small');
+    expect(roundMoney(0.007)).toBe(0.01);
   });
   it('حد التنبيه 0.004 ← «صغير أوي» على الشاشة', async () => {
     await render(wallets());
@@ -133,6 +137,29 @@ describe('3: تأكيد الرصيد الابتدائي والمحفظة اتم�
     await press('confirm_action_0');
     expect(mockData.updateWallet).not.toHaveBeenCalled();
     expect(noticeBody()).toBe(openingGoneNotice('')[1]);
+  });
+  it('money L1: بعد رسالة «اتأرشفت أو اتمسحت» والخروج من الشاشة ← مفيش رسالة «ما اتغيّرش» تانية', async () => {
+    seed({ wallets: [{ ...cash, openingBalance: 50 }, bank] });
+    await render(wallets());
+    await type('wallet_opening_input_w1', '100');
+    mockData.wallets = [bank];
+    await screen.rerender(wallets());
+    await press('confirm_action_0');
+    expect(noticeBody()).toBe(openingGoneNotice('')[1]);
+    // الشاشة بتتشال (البروفايدرز فاضلين) ← flush الخروج
+    await screen.rerender(wrap(<></>));
+    await press('notice_ok');
+    expect(screen.queryByTestId('notice_title')).toBeNull();
+  });
+  it('silent L6: حد التنبيه اتكتب والمحفظة اتمسحت قبل الحفظ ← نفس رسالة «ما اتحفظش»، ومفيش كتابة', async () => {
+    await render(wallets());
+    await act(async () => { fireEvent.changeText(screen.getByTestId('wallet_alert_input_w1'), '300'); });
+    mockData.wallets = [bank];
+    await screen.rerender(wallets());
+    await act(async () => { await new Promise(r => setTimeout(r, 1200)); });
+    expect(mockData.updateWallet).not.toHaveBeenCalled();
+    expect(noticeTitle()).toBe('ما اتحفظش');
+    expect(noticeBody()).toBe(lowAlertGoneNotice('')[1]);
   });
 });
 
@@ -163,7 +190,9 @@ describe('3: الرجوع الساكت لما الحاجة اتمسحت', () => 
     mockData.wallets = [bank];
     await act(async () => { fireEvent(screen.getByTestId('wallet_alert_input_w1'), 'blur'); });
     expect(mockData.updateWallet).not.toHaveBeenCalled();
-    expect(screen.queryByTestId('notice_dialog')).toBeNull();
+    // silent L6: مش ساكت — رسالة «ما اتحفظش» (المحفظة مشيت)، مش «اتشال»
+    expect(noticeTitle()).toBe('ما اتحفظش');
+    expect(noticeBody()).toBe(lowAlertGoneNotice('')[1]);
   });
 });
 

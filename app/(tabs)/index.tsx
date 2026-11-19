@@ -35,7 +35,8 @@ import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { dayText } from '@/lib/dateText';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { CategoryIcon, CategoryIconSpacer } from '@/components/CategoryIcon';
@@ -153,10 +154,12 @@ function HomeScreen() {
   const noWalletsState = useNoWallets();
   const noWallets = loadWindowPassed && noWalletsState.none;
   const onlyArchived = loadWindowPassed && noWalletsState.onlyArchived;
-  // الحالة بتظهر بعد 2.5 ثانية — قارئ الشاشة يكون عدّى المكان ده خلاص (a11y-architect)
+  // الحالة بتظهر بعد 2.5 ثانية — قارئ الشاشة يكون عدّى المكان ده خلاص (a11y-architect). والتطبيق مقفول الإعلانات
+  // بتستنى الفتح (security M1 — الشجرة متركّبة تحت القفل)
+  const announce = useLockAwareAnnounce();
   useEffect(() => {
-    if (noWallets) AccessibilityInfo.announceForAccessibility('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
-  }, [noWallets]);
+    if (noWallets) announce('مفيش ولا محفظة. ضيف محفظة عشان تقدر تسجل مصاريفك ودخلك.');
+  }, [noWallets, announce]);
   // الكاش اختفى والأرقام الحقيقية وصلت ← بنقول كده (التبديل بيحصل في رسمة واحدة والفوكس ممكن يقع —
   // a11y-architect). مش في أول فتحة: بس لما الكاش **كان** معروض في الجلسة دي. **وبس لما الأرقام من السيرفر**
   // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
@@ -173,9 +176,9 @@ function HomeScreen() {
     if (cold) { wasCold.current = true; return; }
     if (wasCold.current && settled) {
       wasCold.current = false;
-      if (wallets.length > 0) AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت');
+      if (wallets.length > 0) announce('الأرقام اتحدّثت');
     }
-  }, [cold, settled, wallets.length]);
+  }, [cold, settled, wallets.length, announce]);
 
   // البانرات اللي بتظهر متأخر — نفس النمط (a11y-architect، الميزة 7)
   // M4 (الجولة الأخيرة): بيبان طول ما فيه مدخلات والإعادة مش شغالة — مش من غير نت بس (الإعادة ممكن تقف والنت شغال)

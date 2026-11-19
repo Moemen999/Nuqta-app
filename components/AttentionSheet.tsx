@@ -12,7 +12,8 @@ import {
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
 
 /**
@@ -56,13 +57,15 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
   // إعلان لقارئ الشاشة لما العدد **يزيد** بعد مهلة التحميل — مش في أول فتحة (نفس نمط `announced` في كروت الدخل).
   // قبل المهلة بنحدّث العدد من غير إعلان، فاللي كان موجود من أول الفتح مبيتقالش
   const lastCount = useRef(0);
+  // والتطبيق مقفول بيتشال (security M1) — بعد الفتح السطر نفسه قدامه، والعدد اللي زاد بيبقى قديم
+  const announce = useLockAwareAnnounce();
   useEffect(() => {
     // عنصر واحد بيتعرض هو نفسه ← الإعلان بـlabel بتاعه (اللي قارئ الشاشة بيقراه على السطر)، مش الجملة العامة اللي مش ظاهرة
     const announcement = single ? single.label : phrase;
-    if (loadWindowPassed && count > lastCount.current && announcement) AccessibilityInfo.announceForAccessibility(announcement);
+    if (loadWindowPassed && count > lastCount.current && announcement) announce(announcement, 'drop');
     lastCount.current = count;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `single?.label` هو اللي بيتقري من `single`؛ إضافة الكائن كله كانت هتعيد الإعلان مع كل إعادة بناء للقايمة
-  }, [count, loadWindowPassed, phrase, single?.label]);
+  }, [count, loadWindowPassed, phrase, single?.label, announce]);
 
   if (!phrase) return null;
 

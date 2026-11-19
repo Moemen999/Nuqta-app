@@ -72,8 +72,9 @@ function RootNavigator() {
   const lockShown = shouldShowLock({ enabled, isLocked, readFailed });
   // غطا الخصوصية لما التطبيق يروح الخلفية والقفل مفعّل (الميزة 11، بند 6)
   const covered = usePrivacyCover(enabled);
-  // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)
-  useHoldNotices(lockLoading || lockShown);
+  // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)، **ولا فوق غطا
+  // الخصوصية** (security M2): رسالة بالاسم كانت بتطلع فوق الغطا في لقطة «التطبيقات الأخيرة»
+  useHoldNotices(lockLoading || lockShown || covered);
   useClearNoticesOnAccountChange(user?.uid ?? null);
   useEffect(() => {
     if (ready) releaseSplash();

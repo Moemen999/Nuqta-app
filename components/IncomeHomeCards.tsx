@@ -14,9 +14,11 @@ import {
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
+import { useLockShown } from '@/context/LockShownContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -49,7 +51,10 @@ export function usePendingIncomes() {
 export function IncomeAutoNotices() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { notices, dismiss } = useIncomeAutoRecord();
+  // التطبيق مقفول ← التسجيل التلقائي والإعلان بيستنوا الفتح (security M1)
+  const lockShown = useLockShown();
+  const { notices, dismiss } = useIncomeAutoRecord({ paused: lockShown });
+  const announce = useLockAwareAnnounce();
 
   // الرسايل دي نتيجة فلوس (اتسجل / ما اتسجلش) — `accessibilityLiveRegion` لوحده
   // أندرويد بس، فVoiceOver كان هيسكت عنها خالص. الإعلان على iOS بس عشان أندرويد
@@ -59,9 +64,9 @@ export function IncomeAutoNotices() {
     notices.forEach(n => {
       if (announced.current.has(n.id)) return;
       announced.current.add(n.id);
-      if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(n.text);
+      if (Platform.OS === 'ios') announce(n.text);
     });
-  }, [notices]);
+  }, [notices, announce]);
 
   if (notices.length === 0) return null;
 
@@ -93,6 +98,8 @@ export default function IncomeHomeCards() {
   const confirm = useConfirm();
   // دوسة على كارت تاني والأولى لسه بتلف كانت بتتسقط ساكت (الجولة الأخيرة 2026-11-18)
   const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
+  // النتيجة بعد ما التطبيق اتقفل ← بتتقال بعد الفتح (security M1)
+  const announce = useLockAwareAnnounce();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
 
@@ -113,7 +120,7 @@ export default function IncomeHomeCards() {
       // اتمسح/مش متأكدين/اتحسمت ← الشيت بيتقفل ("نزل" تاني ممكن يسجّل مرتين)؛ الفشل بيسيبه عشان الرقم مايضيعش
       ok = r.outcome === 'done' || r.outcome === 'missing' || r.outcome === 'uncertain';
       if (m) { notice(m.title, m.body); return; }
-      AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}"`);
+      announce(`اتسجل "${inc.name}"`);
     });
     return ok;
   }
@@ -126,7 +133,7 @@ export default function IncomeHomeCards() {
         text: 'ما نزلش', onPress: () => {
           skipIncomePeriod(inc.id, key);
           // زي كارت الاشتراك: الكارت بيختفي، فقارئ الشاشة لازم يسمع حصل إيه (silent-failure-hunter)
-          AccessibilityInfo.announceForAccessibility(`مش هنسجل "${inc.name}" عن ${label}`);
+          announce(`مش هنسجل "${inc.name}" عن ${label}`);
         },
       },
     ]);

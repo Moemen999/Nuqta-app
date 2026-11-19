@@ -21,9 +21,11 @@ import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
+import { useLockShown } from '@/context/LockShownContext';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -175,7 +177,10 @@ function yesLabel(p: PendingCharge) {
 export function ChargeAutoNotices() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { notices, dismiss } = useChargeAutoRecord();
+  // التطبيق مقفول ← التسجيل التلقائي والإعلان بيستنوا الفتح (security M1: إشعار وإعلان بالاسم فوق شاشة القفل)
+  const lockShown = useLockShown();
+  const { notices, dismiss } = useChargeAutoRecord({ paused: lockShown });
+  const announce = useLockAwareAnnounce();
 
   // نتيجة فلوس (اتسجل / ما اتسجلش): بتتقال بـ`announceForAccessibility` مرة واحدة (من غير liveRegion على نفس الرسالة — كانت بتتقال مرتين)
   const announced = useRef(new Set<string>());
@@ -183,9 +188,9 @@ export function ChargeAutoNotices() {
     notices.forEach(n => {
       if (announced.current.has(n.id)) return;
       announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
+      announce(n.text);
     });
-  }, [notices]);
+  }, [notices, announce]);
 
   if (notices.length === 0) return null;
 
@@ -215,6 +220,8 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const confirm = useConfirm();
   // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي) — نفس شاشة الاشتراكات
   const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
+  // النتيجة ممكن توصل والتطبيق اتقفل في النص (الذرة بتستنى السيرفر) ← بتتقال بعد الفتح مش فوق القفل
+  const announce = useLockAwareAnnounce();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
   const pending = usePendingCharges().filter(p => !kind || p.kind === kind);
@@ -286,7 +293,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من الالتزامات)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
       }
-      AccessibilityInfo.announceForAccessibility(`اتسجل "${p.name}"`);
+      announce(`اتسجل "${p.name}"`);
     });
     return ok;
   }
@@ -301,7 +308,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
           run(busyId(p), async () => {
             const r = await skipSubscriptionCharge(p.id, charge.key);
             // بند E (2026-11-17): كل نتيجة بتقول اللي حصل فعلاً — "مش هنسجل خصم" بس لما الفترة اتقفلت فعلاً من غير خصم
-            if (r === 'done') AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
+            if (r === 'done') announce(`مش هنسجل خصم "${p.name}" عن ${label}`);
             else if (r === 'already-recorded') notice(SKIP_ALREADY_RECORDED_ALERT.title, SKIP_ALREADY_RECORDED_ALERT.body);
             else if (r === 'stopped') notice(SKIP_STOPPED_ALERT.title, SKIP_STOPPED_ALERT.body);
             else if (r === 'missing') notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
@@ -371,7 +378,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
                 <Button variant="secondary" size="sm" label="لسه" disabled={busyKey !== null}
                   onPress={() => {
                     snooze(snoozeKey(p, today));
-                    AccessibilityInfo.announceForAccessibility(`"${p.name}" هيسألك تاني بكرة`);
+                    announce(`"${p.name}" هيسألك تاني بكرة`);
                   }}
                   accessibilityLabel={`"${p.name}" لسه`} accessibilityHint="الكارت هيستخبّى النهاردة بس" />
               )}

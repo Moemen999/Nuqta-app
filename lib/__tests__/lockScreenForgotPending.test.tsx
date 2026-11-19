@@ -14,15 +14,17 @@ const mockLock = {
   clearLock: jest.fn(async () => {}), readFailed: false, retryRead: jest.fn(async () => null as boolean | null), waitUntil: 0,
 };
 const mockAuth = { logOut: jest.fn(async () => {}) };
-const mockData = { serverReachable: true, pendingWrites: 0, outboxCount: 0 };
+const mockData = { serverReachable: true, pendingWrites: 0, outboxCount: 0, unprotected: 0, countUnprotectedPendingWrites: () => mockData.unprotected };
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => mockLock }));
 jest.mock('@/context/AuthContext', () => ({ useAuth: () => mockAuth }));
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));
+const mockReport = jest.fn();
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: (...a: unknown[]) => mockReport(...a) }));
 
 const alerts = () => (Alert.alert as unknown as jest.Mock).mock.calls;
 beforeEach(() => {
   jest.clearAllMocks();
-  Object.assign(mockData, { serverReachable: true, pendingWrites: 0, outboxCount: 0 });
+  Object.assign(mockData, { serverReachable: true, pendingWrites: 0, outboxCount: 0, unprotected: 0 });
   mockLock.readFailed = false;
   jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
@@ -36,8 +38,8 @@ describe('التعديلات اللي هتضيع', () => {
     await pressForgot();
     expect(alerts()[0][1]).toBe(FORGOT_BODY);
   });
-  it('5 بترفع منهم 2 في الطابور ← العدد 3 في الرسالة، ومفيش «كلها زي ما هي»', async () => {
-    Object.assign(mockData, { pendingWrites: 5, outboxCount: 2 });
+  it('3 مش محمية ← العدد 3 في الرسالة، ومفيش «كلها زي ما هي»', async () => {
+    Object.assign(mockData, { pendingWrites: 5, outboxCount: 2, unprotected: 3 });
     await renderLock();
     await pressForgot();
     expect(alerts()[0][1]).toBe(forgotBody(3));
@@ -45,10 +47,35 @@ describe('التعديلات اللي هتضيع', () => {
     expect(alerts()[0][1]).not.toContain('كلها زي ما هي');
   });
   it('الطابور بس (محفوظ) ← مفيش تحذير', async () => {
-    Object.assign(mockData, { pendingWrites: 2, outboxCount: 2 });
+    Object.assign(mockData, { pendingWrites: 2, outboxCount: 2, unprotected: 0 });
     await renderLock();
     await pressForgot();
     expect(alerts()[0][1]).toBe(FORGOT_BODY);
+  });
+
+  it('money M1: طابور من فتحة قبل كده (3) + تعديلين عاديين ← «تعديلين» (مش pendingWrites - outboxCount = -1)', async () => {
+    Object.assign(mockData, { pendingWrites: 2, outboxCount: 3, unprotected: 2 });
+    await renderLock();
+    await pressForgot();
+    expect(alerts()[0][1]).toBe(forgotBody(2));
+    expect(alerts()[0][1]).toContain('فيه تعديلين لسه بيترفعوا');
+  });
+});
+
+describe('forgotBody: الصياغة (copy 3)', () => {
+  it('واحد ← «نخسره/رفعه»، أكتر ← «نخسرهم/رفعهم»، ومن غير «ممكن يضيع»', () => {
+    expect(forgotBody(1)).toContain('فيه تعديل واحد لسه بيترفع — لو خرجت دلوقتي ممكن نخسره، فاستنى النت يخلّص رفعه لو تقدر.');
+    expect(forgotBody(2)).toContain('فيه تعديلين لسه بيترفعوا — لو خرجت دلوقتي ممكن نخسرهم، فاستنى النت يخلّص رفعهم لو تقدر.');
+    expect(forgotBody(5)).toContain('ممكن نخسرهم');
+    for (const n of [1, 2, 5, 11]) {
+      const b = forgotBody(n);
+      expect(b).not.toContain('ممكن يضيع');
+      expect(b).not.toContain('وبياناتك كلها زي ما هي مستنياك.');
+      expect(b.startsWith('هنشيل القفل ونخرجك من حسابك.')).toBe(true);
+      expect(b.endsWith('محتاج نت عشان ترجع تدخل.')).toBe(true);
+    }
+    expect(forgotBody(0)).toBe(FORGOT_BODY);
+    expect(FORGOT_BODY).toContain('وبياناتك كلها زي ما هي مستنياك. ولو نسيت');
   });
 });
 
@@ -61,6 +88,8 @@ describe('الخروج وقع', () => {
     await act(async () => { await confirm.onPress(); });
     expect(mockLock.clearLock).not.toHaveBeenCalled();
     expect(alerts()[1][0]).toBe(LOGOUT_FAILED_NOTICE[0]);
+    // silent M3: الفشل بيوصل Sentry باسم ثابت
+    expect(mockReport).toHaveBeenCalledWith('نسيت الكود: الخروج', expect.anything());
   });
   it('خرج والقفل ما اتشالش ← «القفل لسه موجود»', async () => {
     mockLock.clearLock.mockRejectedValueOnce(new Error('keystore'));
@@ -69,8 +98,9 @@ describe('الخروج وقع', () => {
     const confirm = alerts()[0][2].find((b: any) => b.text === FORGOT_CONFIRM);
     await act(async () => { await confirm.onPress(); });
     expect(alerts()[1][0]).toBe('القفل لسه موجود');
+    expect(mockReport).toHaveBeenCalledWith('نسيت الكود: مسح القفل', expect.anything());
     expect(alerts()[1][1]).toBe(LOCK_LEFT_AFTER_LOGOUT[1]);
-    expect(LOCK_LEFT_AFTER_LOGOUT[1]).toBe('خرجنا من حسابك بس ما قدرناش نشيل القفل. دوس "نسيت الكود؟" تاني.');
+    expect(LOCK_LEFT_AFTER_LOGOUT[1]).toBe('خرجنا من حسابك بس ما قدرناش نشيل القفل من الموبايل. لو طلعلك تاني لما تفتح التطبيق، دوس "نسيت الكود؟".');
   });
 });
 

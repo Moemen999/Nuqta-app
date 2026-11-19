@@ -54,6 +54,19 @@ describe('7: القفل فوق الشجرة', () => {
   });
 });
 
+describe('silent M2: الغطا المعتم تحت القفل كمان', () => {
+  it('مقفول ← الغطا موجود (تحت الـModal) ومش مقروء', async () => {
+    await render(wrap(true));
+    expect(screen.getByTestId('lock_screen')).toBeTruthy();
+    expect(screen.getByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: true })).toBeTruthy();
+    expect(screen.queryByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: false })).toBeNull();
+  });
+  it('مفتوح ومش مغطّي ← مفيش غطا', async () => {
+    await render(wrap(false));
+    expect(screen.queryByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: true })).toBeNull();
+  });
+});
+
 describe('6: غطا الخصوصية', () => {
   it('مغطّي ← الغطا ظاهر واللي تحت مستخبي', async () => {
     await render(wrap(false, true));

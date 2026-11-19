@@ -876,6 +876,12 @@ type DataContextType = {
    */
   outboxCount: number;
   /**
+   * كتابات لسه بترفع **ومش محمية** بالطابور المتشفّر (بتضيع مع الخروج) — بيتحسب وقت النداء (رسالة «نسيت الكود؟»).
+   * `pendingWrites - outboxCount` كان غلط: مدخلات الطابور من فتحة قبل كده مش جوه `pendingWrites` أصلاً، فكانت بتطرح
+   * كتابات عادية من العدد (money-reviewer M1)
+   */
+  countUnprotectedPendingWrites: () => number;
+  /**
    * قراية الطابور عند الدخول فشلت (الميزة 8، L): `outboxCount` ممكن يكون صفر وهو مش صفر — رسالة الخروج بتتعامل معاه
    * "مش آمن" زي لو فيه عمليات. بيرجع false أول ما قراية تانية (الإعادة) تنجح
    */
@@ -1251,6 +1257,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const pendingCount = useRef(0);
   /** معرّفات العمليات اللي ليها مدخلة في الطابور المتشفّر للحساب الحالي (`lib/outboxStore.ts`) */
   const outboxIds = useRef(new Set<string>());
+  /** كتابات مدخلات الطابور اللي لسه بترفع (جوه `pendingCount`) — بتتطرح منه في `countUnprotectedPendingWrites` */
+  const outboxInFlight = useRef(new Set<string>());
   const [outboxCount, setOutboxCount] = useState(0);
   const [outboxCountUnknown, setOutboxCountUnknown] = useState(false);
   const [outboxReplaying, setOutboxReplaying] = useState(false);
@@ -1440,6 +1448,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بنعمل id للمستند من عندنا بدل ما نستنى addDoc ترجع بيه من السيرفر، فالكود
    * اللي محتاج الـ id (زي ربط عملية بدين) بياخده على طول والكتابة تكمل ورا.
    */
+  function countUnprotectedPendingWrites(): number {
+    let protectedInFlight = 0;
+    outboxInFlight.current.forEach(id => { if (outboxIds.current.has(id)) protectedInFlight += 1; });
+    return Math.max(0, pendingCount.current - protectedInFlight);
+  }
+
   function addDocNoWait(path: string, data: any, label?: string): string {
     const ref = doc(collection(db, 'users', uid!, path));
     track(setDoc(ref, data), label);
@@ -2010,11 +2024,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // unimplemented، data-loss). **تغيير الحساب** (`syncEngineHandleCredentialChange`) بيرفض وعود `waitForPendingWrites`
     // بس (CANCELLED) — وعود الكتابة متخزّنة بمفتاح الحساب القديم ومبتتحلّش خالص. و**`terminate()`** بيدخل الطابور في
     // restricted mode من غير ما يرفض حاجة. يعني الفرع ده عمليًا أكواد نادرة (failed-precondition، data-loss…) مش خروج
+    outboxInFlight.current.add(id);
     track(setDoc(ref, clean).catch(e => {
       if (isFinalWriteRejection(e)) { dropOutbox(forUid, id); throw e; }
       // بعد ما الحفظ يخلص (الجولة 2، بند 5): «لسه محفوظة على الموبايل» قبله كانت ممكن تتقال والحفظ لسه هيفشل
       void put.then(() => noteOutboxKept(forUid, id, e));
-    }), 'العملية');
+    }).finally(() => { outboxInFlight.current.delete(id); }), 'العملية');
     return id;
   }
 
@@ -2053,6 +2068,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     notice(OUTBOX_SWEPT_TITLE, outboxSweptBody(ids.length), () => {
       clearOutboxSweptIds(forUid).catch(e => logOutboxFailure('swept marker clear failed', e));
     });
+  }
+
+  /** الإعادة جوه `pendingCount` ← بتتعلّم «محمية» (المدخلة لسه على الموبايل) */
+  function replayOutboxDocInFlight(forUid: string, txId: string, data: Record<string, unknown>) {
+    outboxInFlight.current.add(txId);
+    return replayOutboxDoc(forUid, txId, data).finally(() => { outboxInFlight.current.delete(txId); });
   }
 
   function forgetOutboxId(id: string) {
@@ -2152,7 +2173,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (await hasOutboxTombstone(forUid, r.txId)) { await dropOutbox(forUid, r.txId); continue; }
       } catch (e) { logOutboxFailure('tombstone read failed', e); allDone = false; continue; }
       try {
-        const res = await withTimeout(countPending(replayOutboxDoc(forUid, r.txId, r.data)), OUTBOX_REPLAY_TIMEOUT_MS);
+        const res = await withTimeout(countPending(replayOutboxDocInFlight(forUid, r.txId, r.data)), OUTBOX_REPLAY_TIMEOUT_MS);
         if (res === 'wallet-gone') { giveUp.push({ txId: r.txId, data: r.data, kind: 'wallet' }); continue; }
         await dropOutbox(forUid, r.txId);
       } catch (e) {
@@ -4690,7 +4711,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, brokenTransactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, outboxCountUnknown, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, countUnprotectedPendingWrites, outboxCountUnknown, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         undelivered: ALL_LISTENERS.filter(n => !delivered.has(n) && !loadErrors.includes(n)),

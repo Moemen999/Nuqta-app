@@ -104,3 +104,14 @@ it('مساحة الحالة ثابتة في الحالتين (اللوحة مب�
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'components', 'LockScreen.tsx'), 'utf8');
   expect(src).toMatch(/statusText: {[^}]*lineHeight: 20/);
 });
+
+it('مودال التأكيد (تخفيف القفل): «أكّد إنك انت» وسطر السبب — في التأكيد بس', async () => {
+  const mod = require('@/components/SetLockModal');
+  const SetLockModal = mod.default;
+  await render(<ThemeProvider><SetLockModal visible mode="verify" onClose={() => {}} /></ThemeProvider>);
+  expect(screen.getByText('أكّد إنك انت')).toBeTruthy();
+  expect(screen.getByTestId('setlock_verify_subline').props.children).toBe('عشان نخفّف القفل لازم نتأكد إنك انت.');
+  expect(mod.VERIFY_SUBLINE).toBe('عشان نخفّف القفل لازم نتأكد إنك انت.');
+  await screen.rerender(<ThemeProvider><SetLockModal visible mode="disable" onClose={() => {}} /></ThemeProvider>);
+  expect(screen.queryByTestId('setlock_verify_subline')).toBeNull();
+});

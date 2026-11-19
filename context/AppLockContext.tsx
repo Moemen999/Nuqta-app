@@ -4,10 +4,14 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, type AppStateStatus } from 'react-native';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
+import { LockShownContext } from '@/context/LockShownContext';
 import {
   PIN_PATTERN, bytesToHex, capFails, formatStoredHash, maxFails, NO_FAILS, parseLockFails, parseStoredHash, recordFailure, remainingWaitMs,
   type LockFails,
 } from '@/lib/lockThrottle';
+
+/** للي متعوّد يجيبه من هنا — المصدر `context/LockShownContext.tsx` */
+export { useLockShown } from '@/context/LockShownContext';
 
 type LockType = 'pin' | 'password';
 /**
@@ -180,13 +184,14 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       // null والعلامة موجودة ← المفتاح ضاع مش «مفيش قفل» (بند 4). فشل قراية العلامة نفسها = مفيش علامة (زي قبلها)
       if (en === null) {
         let marker: string | null = null;
-        try { marker = await AsyncStorage.getItem(LOCK_MARKER_KEY); } catch { /* زي مفيش علامة */ }
+        // فشلها بيتبلّغ (silent L1) — بس بيتعامل زي «مفيش علامة» زي قبلها
+        try { marker = await AsyncStorage.getItem(LOCK_MARKER_KEY); } catch (e) { reportAtomicFailure('قراية علامة القفل', e); }
         if (seq !== readSeq.current) return null;
         if (marker === '1') return fail(new LockKeyLostError());
       }
       const isEnabled = en === '1';
       // قفل اتفعّل قبل العلامة ← بتتكتب دلوقتي (محاولة؛ فشلها مبيغيّرش حاجة النهارده)
-      if (isEnabled) AsyncStorage.setItem(LOCK_MARKER_KEY, '1').catch(() => {});
+      if (isEnabled) AsyncStorage.setItem(LOCK_MARKER_KEY, '1').catch(e => reportAtomicFailure('حفظ علامة القفل', e));
       // القفل مفعّل ← النوع وامتى يقفل **حرجين** كمان: نوع غلط = لوحة أرقام لصاحب باسورد (مقفول برّه)، وامتى غلط = قفل أضعف
       // من غير ما حد يعرف (security-reviewer + silent-failure-hunter جولة 2). المهلة بس بترجع للافتراضي — وبتتبلّغ
       let t: string | null = null; let f: string | null = null; let g: string | null = null;
@@ -260,6 +265,11 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
       await SecureStore.setItemAsync(K_ENABLED, '1');
     } catch (e) {
       reportAtomicFailure('حفظ القفل', e);
+      // العلامة اتكتبت والعلم وقع ← علامة من غير قفل = «مقدرناش نقرا» في الفتحة الجاية لقفل مش موجود (silent M1).
+      // بنقرا العلم تاني: مش موجود ← نشيل العلامة (محاولة). القراية نفسها فشلت ← العلامة بتفضل (الاتجاه الآمن)
+      try {
+        if ((await SecureStore.getItemAsync(K_ENABLED)) === null) await AsyncStorage.removeItem(LOCK_MARKER_KEY);
+      } catch (e2) { reportAtomicFailure('مسح القفل', e2); }
       throw e;
     }
     readSeq.current++;
@@ -271,9 +281,12 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setWaitUntil(0);
   }
 
-  /** العلامة بتتشال بعد ما القفل اتشال فعلاً. فشلها = «مقدرناش نقرا» بعدين (اتجاه آمن) — وبيتبلّغ */
+  /**
+   * العلامة بتتشال **قبل** العلم (silent M1): بالعكس، فشل شيلها بعد ما العلم اتمسح كان بيسيب علامة من غير قفل — شاشة
+   * «مقدرناش نقرا» لقفل مش موجود في كل فتحة. دلوقتي فشلها بيرمي والقفل كله بيفضل زي ما هو (العلم والهاش موجودين)
+   */
   async function removeMarker() {
-    try { await AsyncStorage.removeItem(LOCK_MARKER_KEY); } catch (e) { reportAtomicFailure('مسح القفل', e); }
+    try { await AsyncStorage.removeItem(LOCK_MARKER_KEY); } catch (e) { reportAtomicFailure('مسح القفل', e); throw e; }
   }
 
   /**
@@ -282,7 +295,8 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
    */
   async function wipeLock() {
     // العلم بس هو اللي فشله بيرمي (القفل لسه شغال). بعده القفل اتشال فعلاً، فالباقي محاولة لوحده ومبيرميش —
-    // وإلا التخزين يقول "مفيش قفل" والحالة تقول "مقفول" (silent-failure-hunter)
+    // وإلا التخزين يقول "مفيش قفل" والحالة تقول "مقفول" (silent-failure-hunter). العلامة قبل العلم وفشلها بيرمي (silent M1)
+    await removeMarker();
     await SecureStore.deleteItemAsync(K_ENABLED);
     readSeq.current++;
     setEnabled(false);
@@ -294,7 +308,6 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     for (const k of [K_TYPE, K_HASH, K_FREQ, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(k); } catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
-    await removeMarker();
   }
 
   async function disableLock(code: string): Promise<VerifyResult> {
@@ -305,7 +318,18 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
   }
 
   async function clearLock() {
-    await wipeLock();
+    try {
+      await wipeLock();
+    } catch (e) {
+      // آخر مخرج (silent L4): `clearLock` بيتنادى بس بعد ما الخروج من الحساب **نجح** («نسيت الكود؟»). التخزين رفض يشيل
+      // القفل ← بنشيله من الذاكرة للجلسة دي بس: المستخدم برّه حسابه ومفيش بيانات تحت، وحبسه قدام قفل على شاشة الدخول
+      // مالوش لازمة. التخزين لسه بيقول «مفعّل»، فالفتحة الجاية القفل بيرجع ("نسيت الكود؟" تاني) — والرسالة بتقول كده
+      readSeq.current++;
+      setEnabled(false);
+      setIsLocked(false);
+      setReadFailed(false);
+      throw e;
+    }
   }
 
   async function wipeLockForDeletedAccount() {
@@ -319,12 +343,14 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
     setFrequencyState('onOpen');
     setWaitUntil(0);
     failsRef.current = NO_FAILS;
+    // العلامة قبل العلم (silent M1)، وفشلها بيرمي — `delete-account.tsx` بيبلّغ. العلم فاضل والعلامة فاضلة = قفل حقيقي
+    // بيرجع في الفتحة الجاية ("نسيت الكود؟")، مش علامة من غير قفل
+    await removeMarker();
     for (const key of [K_ENABLED, K_TYPE, K_HASH, K_FREQ, K_GRACE, K_FAILS]) {
       try { await SecureStore.deleteItemAsync(key); }
       // console.warn مبيوصلش Sentry (الـbreadcrumbs بتتشال) — مفتاح فاضل لحساب اتمسح لازم يتعرف (بند 14)
       catch (e) { reportAtomicFailure('مسح القفل', e); }
     }
-    await removeMarker();
   }
 
   /**
@@ -441,7 +467,9 @@ export function AppLockProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppLockContext.Provider value={{ enabled, lockType, frequency, isLocked, loading, readFailed, retryRead, setupLock, disableLock, clearLock, wipeLockForDeletedAccount, changeCode, setFrequency, graceMinutes, setGraceMinutes, verify, waitUntil, unlock }}>
-      {children}
+      <LockShownContext.Provider value={loading || shouldShowLock({ enabled, isLocked, readFailed })}>
+        {children}
+      </LockShownContext.Provider>
     </AppLockContext.Provider>
   );
 }

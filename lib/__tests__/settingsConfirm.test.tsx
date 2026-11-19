@@ -25,6 +25,8 @@ jest.mock('@/context/NotificationsContext', () => ({
 jest.mock('@/context/DataContext', () => ({
   useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending, outboxCount: mockOutboxCount, outboxCountUnknown: mockOutboxUnknown }),
 }));
+const mockReport = jest.fn();
+jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: (...a: unknown[]) => mockReport(...a) }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -92,6 +94,8 @@ describe('الميزة 11 (arabic-copy-reviewer + silent-failure-hunter)', () =>
     await act(async () => { fireEvent.press(screen.getByText('تسجيل الخروج')); });
     await act(async () => { fireEvent.press(screen.getByText('خروج')); });
     expect(screen.getByTestId('notice_title').props.children).toBe('ما خرجناش');
+    // silent M3: بيوصل Sentry كمان
+    expect(mockReport).toHaveBeenCalledWith('الخروج من الحساب', expect.anything());
   });
   it('شاشة الترحيب: الزرار «اعرضها تاني»', async () => {
     await render(<ThemeProvider><ConfirmProvider><SettingsScreen /></ConfirmProvider></ThemeProvider>);

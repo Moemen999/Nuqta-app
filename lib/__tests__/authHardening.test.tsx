@@ -63,11 +63,16 @@ const renderAuth = () => render(<ThemeProvider><AuthScreen /></ThemeProvider>);
 
 describe('mapError', () => {
   it('الأكواد الجديدة', () => {
-    expect(mapError('auth/network-request-failed')).toBe('مفيش نت. وصّل النت وحاول تاني');
+    expect(mapError('auth/network-request-failed')).toBe('مفيش نت. وصّل النت وجرّب تاني');
     expect(mapError('auth/user-disabled')).toMatch(/الحساب ده متوقف/);
     expect(mapError('auth/invalid-login-credentials')).toBe('الإيميل أو الباسورد غلط');
     expect(mapError('auth/account-exists-with-different-credential')).toMatch(/بطريقة تانية/);
     expect(mapError('auth/operation-not-allowed')).toMatch(/مش متاحة دلوقتي/);
+    expect(mapError('auth/operation-not-allowed')).toBe('الطريقة دي مش متاحة دلوقتي. جرّب تاني بعد شوية أو بطريقة تانية.');
+    // «جرّب» في كل الرسايل، مش «حاول» (arabic-copy-reviewer)
+    for (const c of ['auth/too-many-requests', 'auth/network-request-failed', 'auth/operation-not-allowed', 'x']) {
+      expect(mapError(c)).not.toMatch(/حاول/);
+    }
     expect(mapError('auth/email-already-in-use')).toContain('لو سجّلت بجوجل، ادخل بزرار جوجل.');
     expect(mapError('whatever')).toBe('حصل خطأ، جرّب تاني');
   });
@@ -86,7 +91,7 @@ describe('جوجل', () => {
     mockGoogle.response = { type: 'success', params: { id_token: 't' } };
     await renderAuth();
     await act(async () => {});
-    expect(screen.getByText('مفيش نت. وصّل النت وحاول تاني')).toBeTruthy();
+    expect(screen.getByText('مفيش نت. وصّل النت وجرّب تاني')).toBeTruthy();
     expect(reportAtomicFailure).toHaveBeenCalledWith('دخول جوجل', expect.objectContaining({ code: 'auth/network-request-failed' }));
   });
   it('جوجل رجّعت error ← نفس الرسالة الموحّدة', async () => {

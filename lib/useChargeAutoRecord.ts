@@ -58,7 +58,11 @@ function uncertainRecordedKeys(
  *
  * الحماية من الخصم مرتين مش هنا — في `recordCharges` (ذري). الـref هنا توفير بس.
  */
-export function useChargeAutoRecord() {
+/**
+ * `paused` = التطبيق مقفول (الميزة 11، security M1): الهوك متركّب تحت القفل، والتسجيل بيطلّع إشعار بالاسم والمبلغ —
+ * فبيستنى لحد ما يتفتح وبعدين بيكمّل عادي (المحاولة مبتتعلّمش إنها اتعملت)
+ */
+export function useChargeAutoRecord({ paused = false }: { paused?: boolean } = {}) {
   const { subscriptions, gamiyas, serverReachable, recordCharges } = useData();
   const { enabled: notificationsOn } = useNotifications();
   const { hidePreference: amountsHidden, loaded: privacyLoaded } = usePrivacy();
@@ -114,7 +118,7 @@ export function useChargeAutoRecord() {
   }, [serverReachable]);
 
   useEffect(() => {
-    if (!serverReachable || !privacyLoaded) return;
+    if (paused || !serverReachable || !privacyLoaded) return;
     if (running.current) { missedRerun.current = true; return; }
     const today = todayStr();
     const due: DueItem[] = [
@@ -227,7 +231,7 @@ export function useChargeAutoRecord() {
         if (retry) retryTimer.current = setTimeout(() => setWake(w => w + 1), INCOME_RETRY_MS);
       }
     })();
-  }, [subscriptions, gamiyas, serverReachable, privacyLoaded, wake, recheck, recordCharges, notificationsOn, amountsHidden, resolveUncertain]);
+  }, [paused, subscriptions, gamiyas, serverReachable, privacyLoaded, wake, recheck, recordCharges, notificationsOn, amountsHidden, resolveUncertain]);
 
   const dismiss = useCallback((id: string) => {
     setNotices(prev => prev.filter(n => n.id !== id));
