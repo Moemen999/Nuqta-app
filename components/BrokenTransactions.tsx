@@ -15,8 +15,8 @@ import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import {
-  BROKEN_MARK, BROKEN_REASON_LABEL, BROKEN_SECTION_TITLE, FIX_BLOCK_TEXT, FIX_DATE_MISSING, FIX_DELETE, FIX_DELETE_CONFIRM_TITLE,
-  FIX_DELETE_FAILED, FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
+  BROKEN_MARK, BROKEN_NO_DETAILS, BROKEN_REASON_LABEL, BROKEN_SECTION_TITLE, FIX_BLOCK_TEXT, FIX_DATE_MISSING, FIX_DELETE, FIX_DELETE_CONFIRM_TITLE,
+  FIX_DELETE_FAILED, FIX_DELETE_PLAIN_BODY, FIX_DELETED, FIX_INVALID_AMOUNT, FIX_LOAD_FAILED, FIX_RETRY, FIX_PICK_DATE, FIX_SAVED, FIX_SAVE_FAILED, FIX_TITLE, FIX_WAITING, brokenFixBlock,
 } from '@/lib/brokenDocs';
 import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, categoryLabelById, todayStr } from '@/lib/finance';
@@ -52,7 +52,7 @@ export function BrokenTransactionsSection() {
           <TouchableOpacity key={t.id} testID={`archive_broken_${t.id}`} accessibilityRole="button"
             accessibilityLabel={spoken} accessibilityHint={FIX_TITLE} style={styles.row} onPress={() => setOpen(t)}>
             <View style={styles.rowTop}>
-              <Text style={styles.rowTitle} numberOfLines={2}>{parts.join(' · ') || '—'}</Text>
+              <Text style={styles.rowTitle} numberOfLines={2}>{parts.join(' · ') || BROKEN_NO_DETAILS}</Text>
               {t.amount !== undefined ? <Money value={t.amount} style={styles.rowAmount} /> : <Text style={styles.rowAmount}>—</Text>}
             </View>
             <Text style={styles.rowMark}>{BROKEN_MARK} — {reasons}</Text>
@@ -84,19 +84,28 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
 
   function fail(msg: string) {
     setError(msg);
-    // بيتقال حتى لو نفس الرسالة اتكررت — نص مبيتغيّرش مبيتقريش تاني (a11y-architect)
-    AccessibilityInfo.announceForAccessibility(msg);
+    // بيتقال حتى لو نفس الرسالة اتكررت — نص مبيتغيّرش مبيتقريش تاني (a11y-architect). iOS بس: أندرويد بيقراها من
+    // `accessibilityLiveRegion` على السطر نفسه، والاتنين مع بعض كانوا بيقولوها مرتين (الميزة 8)
+    if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(msg);
   }
+  const [saving, setSaving] = useState(false);
   function save() {
-    if (!linkSourcesReady) return;
+    if (!linkSourcesReady || saving) return;
     const stored = storableAmount(Number(amount));
     if (stored === null) { fail(FIX_INVALID_AMOUNT); return; }
     if (!date) { fail(FIX_PICK_DATE); return; }
     // من غير تسوية: `brokenFixBlock` ضامن إن المحفظة (والوجهة) شغالة، والعملية مكانتش محسوبة قبل كده.
-    // فشل الكتابة بيتعرض من `track` (رسالة "الكتابة ما وصلتش")
-    void updateTransaction(t.id, { amount: stored, date });
-    onClose();
-    AccessibilityInfo.announceForAccessibility(FIX_SAVED);
+    // فشل الكتابة بيتعرض من `track` (رسالة "الكتابة ما وصلتش"). التجهيز نفسه ممكن يرمي (الطابور، بيانات مش صالحة) —
+    // قبل كده `void` والورقة بتتقفل و«اتحفظت» بتتقال والتعديل ما اتكتبش (الميزة 8، L)
+    setSaving(true);
+    Promise.resolve().then(() => updateTransaction(t.id, { amount: stored, date })).then(() => {
+      onClose();
+      AccessibilityInfo.announceForAccessibility(FIX_SAVED);
+    }, e => {
+      setSaving(false);
+      reportAtomicFailure('حفظ العملية', e);
+      fail(FIX_SAVE_FAILED);
+    });
   }
   function remove() {
     if (!linkSourcesReady || deleting) return;
@@ -174,9 +183,9 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
             <View style={styles.footer}>
               <Button variant="secondary" testID="broken_fix_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button variant="danger" testID="broken_fix_delete" label={FIX_DELETE} style={styles.deleteBtn}
-                disabled={waiting} busy={deleting} onPress={remove} />
+                disabled={waiting || saving} busy={deleting} onPress={remove} />
               {!block && !waiting && (
-                <Button testID="broken_fix_save" label="حفظ" style={styles.saveBtn} onPress={save} />
+                <Button testID="broken_fix_save" label="حفظ" style={styles.saveBtn} onPress={save} busy={saving} disabled={deleting} />
               )}
             </View>
           </View>

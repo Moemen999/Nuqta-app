@@ -200,7 +200,7 @@ export function updateOutboxMeta(uid: string, txId: string, patch: Pick<StoredEn
  *   مدخلة جديدة (`rewritten`)؛ مفيش بديل أو الكتابة فشلت ← `unprotected`.
  */
 export function mergeOrRewriteOutboxEntry(
-  uid: string, txId: string, patch: Record<string, unknown>, fallback: () => Record<string, unknown> | null,
+  uid: string, txId: string, patch: Record<string, unknown>, fallback: () => Record<string, unknown> | null, clear: readonly string[] = [],
 ): Promise<'merged' | 'absent' | 'rewritten' | 'unprotected'> {
   const sk = outboxStorageKey(uid, txId);
   return serial(sk, async () => {
@@ -211,7 +211,7 @@ export function mergeOrRewriteOutboxEntry(
       const key = await readOutboxKey(uid);
       const opened = openEntry(stored, uid, txId, key);
       if (opened.ok && key) {
-        const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch), sid: stored.sid, savedAt: stored.savedAt, key, rng, t: stored.t });
+        const next = sealEntry({ uid, txId, data: mergePatch(opened.data, patch, clear), sid: stored.sid, savedAt: stored.savedAt, key, rng, t: stored.t });
         await AsyncStorage.setItem(sk, JSON.stringify(next));
         return 'merged';
       }
@@ -308,7 +308,7 @@ export function consumeUserSignOut(uid: string): boolean {
 const reported = new Set<string>();
 export type OutboxEventReason =
   | 'persist-failed' | 'limit-reached' | 'signout-clear-failed' | 'meta-write-failed' | 'account-delete-key-failed'
-  | 'account-delete-entries-failed' | 'key-registry-unreadable';
+  | 'account-delete-entries-failed' | 'key-registry-unreadable' | 'swept-other-account' | 'list-failed' | 'write-rejected-kept';
 export function reportOutboxEvent(reason: OutboxEventReason) {
   if (reported.has(reason)) return;
   reported.add(reason);
@@ -336,7 +336,8 @@ export async function clearOutboxForUid(uid: string, currentUid?: () => string |
   if (currentUid && currentUid() === uid) { console.warn('[outbox]', 'clear skipped: same account signed back in'); return; }
   try {
     const all = await AsyncStorage.getAllKeys();
-    const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid);
+    // مسح الحساب (من غير `currentUid`) بيشيل علامة "اتكنست" كمان؛ الخروج لأ — الرسالة لسه ما اتشافتش
+    const keys = all.filter(k => parseStorageKey(k)?.uid === uid || metaUid(k) === uid || (!currentUid && k === sweptKey(uid)));
     if (keys.length) await AsyncStorage.multiRemove(keys);
   } catch (e) { logOutboxFailure('entries clear failed', e); throw new OutboxEntriesClearError(); }
   const name = await keyName(uid);
@@ -355,9 +356,33 @@ export async function sweepOtherOutboxes(uid: string, currentUid: () => string |
   const keys = await AsyncStorage.getAllKeys();
   const stale = keys.filter(k => { const p = parseStorageKey(k); return !!p && p.uid !== uid; });
   const staleMeta = keys.filter(k => { const m = metaUid(k); return !!m && m !== uid; });
+  // الميزة 8 (M): العدد لكل حساب **قبل** المسح، في علامة برّه البادئتين — صاحبها بيشوف رسالة أول ما يدخل. اللي في علامة
+  // "اتمسح قبل كده" (مسح الخروج فشل) المستخدم اختار إنه يضيع، فمش بيتعدّ. فشل العلامة مبيوقّفش الكنس (لوج بس)
+  const perUid = new Map<string, string[]>();
+  for (const k of stale) { const p = parseStorageKey(k)!; perUid.set(p.uid, [...(perUid.get(p.uid) ?? []), p.txId]); }
+  for (const [other, ids] of perUid) {
+    try {
+      const cleared = await getOutboxClearedIds(other);
+      const lost = ids.filter(id => !cleared.has(id)).length;
+      if (lost > 0) await AsyncStorage.setItem(sweptKey(other), String((await readOutboxSweptCount(other)) + lost));
+    } catch (e) { logOutboxFailure('swept marker failed', e); }
+  }
   if (stale.length || staleMeta.length) await AsyncStorage.multiRemove([...stale, ...staleMeta]);
   await sweepOtherKeys(uid, currentUid);
   return stale.length;
+}
+
+/** علامة "عمليات اتكنست" — بادئة لوحدها عشان لا `parseStorageKey` ولا `metaUid` يشوفوها (الكنس الجاي ميمسحهاش) */
+const SWEPT_PREFIX = 'nuqta-outbox-swept:v1:';
+const sweptKey = (uid: string) => `${SWEPT_PREFIX}${uid}`;
+/** عدد عمليات الحساب ده اللي اتكنست لما حساب تاني دخل (0 = مفيش). العدد بس — مفيش مبالغ */
+export async function readOutboxSweptCount(uid: string): Promise<number> {
+  const n = Number(await AsyncStorage.getItem(sweptKey(uid)));
+  return Number.isInteger(n) && n > 0 ? n : 0;
+}
+/** بعد "تمام" على الرسالة */
+export function clearOutboxSweptCount(uid: string): Promise<void> {
+  return AsyncStorage.removeItem(sweptKey(uid));
 }
 
 /** مفاتيح SecureStore لحسابات تانية (من السجل، بشكل الاسم بس) — مدخلاتها اتكنست فوق. فشل واحد مبيوقّفش الباقي */

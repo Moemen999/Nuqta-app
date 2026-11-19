@@ -148,14 +148,15 @@ describe('عملية جديدة', () => {
     expect(checked('جيم')).toBe(false);
   });
 
-  it('محفظة الافتراضي اتأرشفت وهو بيكتب ← الشيب لسه ظاهر ومختار (مبيختفيش وهو اللي هيتحفظ)', async () => {
+  it('محفظة الافتراضي اتأرشفت وهو بيكتب ← الشيب لسه ظاهر ومختار (مبيختفيش)، والحفظ بيرفض باسمها (الميزة 8، M)', async () => {
     seed({ transactions: lastUsedB() });
     const r = await render(ui());
     await type(screen.getByTestId('tx_amount_input'), '9');
     await dataChanges(r, ui, { wallets: [A, W('B', 'باء', true), C] });
     expect(checked('باء')).toBe(true);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }), { durable: true });
+    expect(mockData.addTransaction).not.toHaveBeenCalled();
+    expect(screen.getByTestId('tx_error').props.children).toContain('محفظة "باء" مبقتش شغالة');
   });
 
   it('الافتراضي عمره ما يبقى مؤرشفة: آخر محفظة مؤرشفة ← الأحدث بعدها', async () => {
@@ -750,9 +751,9 @@ describe('بنود ناقصة في المراجعة', () => {
     expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'C' }), { durable: true });
   });
 
-  // بيوثّق السلوك الحالي مش بيزكّيه: محفظة اتأرشفت والفورم مفتوح ← الشيب لسه ظاهر ومختار والحفظ بيبعتها.
-  // ده بند مفتوح لوحده (متتبّع)، ولو اتقرر سلوك تاني الاختبار ده هو اللي يتغيّر
-  it('[سلوك حالي موثّق — بند مفتوح منفصل] محفظة مختارة اتأرشفت والفورم مفتوح ← الشيب ظاهر ومختار والحفظ بيستقبلها', async () => {
+  // البند المفتوح اتقفل (الميزة 8، M — مراجعة التطبيق كله): الشيب لسه ظاهر ومختار (مبيختفيش من تحت إيده)، بس الحفظ
+  // بيرفض برسالة باسم المحفظة بدل ما يكتب عملية على محفظة مقفولة
+  it('محفظة مختارة اتأرشفت والفورم مفتوح ← الشيب ظاهر ومختار، والحفظ بيرفض باسمها', async () => {
     seed({ transactions: [T('A', at(1)), T('B', at(2))] });
     const r = await render(ui());
     await type(screen.getByTestId('tx_amount_input'), '9');
@@ -760,7 +761,8 @@ describe('بنود ناقصة في المراجعة', () => {
     expect(shown('باء')).toBe(true);
     expect(checked('باء')).toBe(true);
     await press(screen.getByTestId('tx_save_button'));
-    expect(mockData.addTransaction).toHaveBeenCalledWith(expect.objectContaining({ walletId: 'B' }), { durable: true });
+    expect(mockData.addTransaction).not.toHaveBeenCalled();
+    expect(screen.getByTestId('tx_error').props.children).toContain('محفظة "باء" مبقتش شغالة');
   });
 });
 

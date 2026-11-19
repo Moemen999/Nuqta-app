@@ -49,12 +49,13 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { hapticError } from '@/lib/haptics';
 import {
-  hasLinkFields, isFinalWriteRejection, mergePatch, OUTBOX_EDIT_UNPROTECTED_BODY, OUTBOX_EDIT_UNPROTECTED_TITLE, OUTBOX_KEY_FAIL_SESSIONS,
+  hasLinkFields, isFinalWriteRejection, mergePatch, OUTBOX_ADD_UNPROTECTED_BODY, OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_EDIT_UNPROTECTED_BODY,
+  OUTBOX_EDIT_UNPROTECTED_TITLE, OUTBOX_KEPT_BODY, OUTBOX_KEPT_TITLE, OUTBOX_KEY_FAIL_SESSIONS, OUTBOX_SWEPT_TITLE, outboxSweptBody,
   OUTBOX_MAX_FAILED_SESSIONS, OUTBOX_UNREADABLE_TITLE, planReplay, openEntry, rejectedReplayBody, repeatedFailReplayBody, unreadableReplayBody,
   walletGoneReplayBody, type StoredEntry,
 } from '@/lib/outbox';
 import {
-  OutboxEntriesClearError, OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
+  OutboxEntriesClearError, OutboxKeyDeleteError, clearOutboxForUid, clearOutboxKeyReadFailures, clearOutboxSweptCount, readOutboxSweptCount, consumeUserSignOut, getOutboxClearedIds, hasOutboxTombstone, listOutboxEntries,
   logOutboxFailure, mergeOrRewriteOutboxEntry, noteOutboxKeyReadFailure, outboxIdsAfterPendingSaves, outboxSessionId, putOutboxEntry,
   readOutboxKey, removeOutboxEntry, replayOutboxDoc, reportOutboxEvent, serverTxStatus, setOutboxClearedIds, sweepOtherOutboxes, updateOutboxMeta,
   writeOutboxTombstone,
@@ -850,6 +851,9 @@ export type Gamiya = {
   chargeAutoSince?: string;
 };
 
+/** الحقول اللي تغيير النوع في التعديل ممكن يشيلها (تحويل ← غيره: الوجهة؛ مصروف ← غيره: الفئة) */
+export type TxClearableField = 'toWalletId' | 'categoryId';
+
 type DataContextType = {
   wallets: Wallet[];
   categories: Category[];
@@ -870,6 +874,11 @@ type DataContextType = {
    * (قرار مؤمن 1: الخروج بيمسحها). أوسع من `pendingWrites`: فيها اللي من فتحة قبل كده ولسه مستنية النت.
    */
   outboxCount: number;
+  /**
+   * قراية الطابور عند الدخول فشلت (الميزة 8، L): `outboxCount` ممكن يكون صفر وهو مش صفر — رسالة الخروج بتتعامل معاه
+   * "مش آمن" زي لو فيه عمليات. بيرجع false أول ما قراية تانية (الإعادة) تنجح
+   */
+  outboxCountUnknown: boolean;
   /**
    * إعادة الطابور شغالة دلوقتي (M4، الجولة الأخيرة): سطر «لسه ما اترفعتش» في الرئيسية بيستخبى وهي شغالة بس — والنت شغال
    * والإعادة وقفت (فشلت أو سقف المحاولات) المدخلات لسه هنا ولازم تبان
@@ -945,7 +954,8 @@ type DataContextType = {
   restoreCategory: (id: string) => Promise<void>;
   /** `durable` = تتحفظ متشفّرة على الموبايل لحد ما السيرفر يأكدها (مودال العملية الجديدة بس — `lib/outbox.ts`) */
   addTransaction: (tx: Omit<Transaction, 'id'>, opts?: { durable?: true }) => Promise<string>;
-  updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[]) => Promise<void>;
+  /** `clear`: حقول النوع الجديد مبيستخدمهاش (تغيير النوع في التعديل) — بتتشال من المستند ومن نسخة الطابور */
+  updateTransaction: (id: string, tx: Partial<Transaction>, settlements?: Settlement[], opts?: { clear?: readonly TxClearableField[] }) => Promise<void>;
   /** تعديل عملية مربوطة بدين — العملية والدين في ذرة واحدة (`lib/linkedEdit.ts`) */
   updateDebtLinkedTransaction: (
     txId: string, tx: Partial<Transaction> & LinkedEditNext, expected: Pick<Transaction, 'amount' | 'walletId' | 'type'>,
@@ -1224,6 +1234,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   /** معرّفات العمليات اللي ليها مدخلة في الطابور المتشفّر للحساب الحالي (`lib/outboxStore.ts`) */
   const outboxIds = useRef(new Set<string>());
   const [outboxCount, setOutboxCount] = useState(0);
+  const [outboxCountUnknown, setOutboxCountUnknown] = useState(false);
   const [outboxReplaying, setOutboxReplaying] = useState(false);
   const uidNow = useRef(uid);
   uidNow.current = uid;
@@ -1546,6 +1557,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     outboxUidPrev.current = uid;
     outboxIds.current = new Set();
     setOutboxCount(0);
+    setOutboxCountUnknown(false);
     outboxReplay.current = { uid, running: false, done: false, runs: 0 };
     setOutboxReplaying(false);
     outboxNoticeShown.current = new Set();
@@ -1570,16 +1582,29 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     if (!uid) return;
+    // الكنس كان بيمسح مدخلات حساب تاني ساكت (الميزة 8، M): حدث Sentry من غير عدد، والعدد في علامة لصاحبها
     sweepOtherOutboxes(uid, () => uidNow.current)
-      .then(n => { if (n > 0) console.warn('[outbox] swept entries of another account', n); })
+      .then(n => { if (n > 0) { console.warn('[outbox] swept entries of another account', n); reportOutboxEvent('swept-other-account'); } })
       .catch(e => logOutboxFailure('sweep failed', e));
+    // الحساب ده اتكنست مدخلاته على الموبايل ده قبل كده (حساب تاني دخل) ← يعرف عشان يسجّلها تاني. العلامة بتتشال بعد "تمام"
+    readOutboxSweptCount(uid)
+      .then(n => {
+        if (n <= 0 || uidNow.current !== uid) return;
+        notice(OUTBOX_SWEPT_TITLE, outboxSweptBody(n), () => { clearOutboxSweptCount(uid).catch(e => logOutboxFailure('swept marker clear failed', e)); });
+      })
+      .catch(e => logOutboxFailure('swept marker read failed', e));
     listOutboxEntries(uid)
       .then(list => {
         if (uidNow.current !== uid) return;
         list.forEach(e => { if (!outboxDropped.current.has(e.txId)) outboxIds.current.add(e.txId); });
         setOutboxCount(outboxIds.current.size);
       })
-      .catch(e => logOutboxFailure('list failed', e));
+      .catch(e => {
+        // العدد مش معروف: رسالة الخروج بتتعامل معاه "مش آمن" (settings)، وسبب Sentry من غير بيانات (الميزة 8، L)
+        logOutboxFailure('list failed', e);
+        reportOutboxEvent('list-failed');
+        if (uidNow.current === uid) setOutboxCountUnknown(true);
+      });
   }, [uid]);
 
   /**
@@ -1905,17 +1930,45 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const id = ref.id;
     outboxIds.current.add(id);
     setOutboxCount(outboxIds.current.size);
+    // النسخة ما اتحفظتش (الحد اتملى أو التخزين فشل) ← نفس رسالة التعديل (الميزة 8، M): من غير نت بس — والنت شغال
+    // الكتابة بتوصل في ثواني، و«لو قفلت قبل ما النت يرجع» مالهاش معنى. كانت Sentry بس والمستخدم فاكرها محمية
+    const unprotected = () => {
+      if (uidNow.current !== forUid || serverReachableRef.current) return;
+      notice(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY);
+    };
     const put = putOutboxEntry(forUid, id, clean).then(
-      r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); reportOutboxEvent('limit-reached'); forgetOutboxId(id); } },
-      e => { logOutboxFailure('persist failed', e); reportOutboxEvent('persist-failed'); forgetOutboxId(id); },
+      r => { if (r === 'skipped') { console.warn('[outbox] limit reached, not persisted'); reportOutboxEvent('limit-reached'); forgetOutboxId(id); unprotected(); } },
+      e => { logOutboxFailure('persist failed', e); reportOutboxEvent('persist-failed'); forgetOutboxId(id); unprotected(); },
     );
     await waitAtMost(put, OUTBOX_PERSIST_TIMEOUT_MS);
-    // رفض نهائي بس (القواعد/شكل البيانات) بيشيل المدخلة — أي كود تاني (طابور اتلغى مع خروج غصب…) ← تفضل للإعادة
+    // رفض نهائي بس (القواعد/شكل البيانات) بيشيل المدخلة ورسالة `track` العادية ("اترجع… جرب من الأول") صح. أي كود تاني
+    // ← المدخلة تفضل للإعادة، والرسالة لازم متقولش «اترجع… جرب من الأول» (هيسجّلها تاني وتبقى نسختين لما الإعادة تنجح).
+    //
+    // **اللي اتأكد من SDK v12** (`@firebase/firestore` 4.16.0، `common-*.rn.js` — الميزة 8، بند 5): وعد الكتابة بتاع
+    // المستخدم بيترفض بس من `rejectFailedWrite` ← `processUserCallback`، وده بيتنادى بس على أكواد `isPermanentError`
+    // (invalid-argument، not-found، already-exists، permission-denied، failed-precondition، aborted، out-of-range،
+    // unimplemented، data-loss). **تغيير الحساب** (`syncEngineHandleCredentialChange`) بيرفض وعود `waitForPendingWrites`
+    // بس (CANCELLED) — وعود الكتابة متخزّنة بمفتاح الحساب القديم ومبتتحلّش خالص. و**`terminate()`** بيدخل الطابور في
+    // restricted mode من غير ما يرفض حاجة. يعني الفرع ده عمليًا أكواد نادرة (failed-precondition، data-loss…) مش خروج
     track(setDoc(ref, clean).catch(e => {
-      if (isFinalWriteRejection(e)) dropOutbox(forUid, id);
-      throw e;
+      if (isFinalWriteRejection(e)) { dropOutbox(forUid, id); throw e; }
+      noteOutboxKept(forUid, id, e);
     }), 'العملية');
     return id;
+  }
+
+  /**
+   * `setDoc` اترفض برفض مش نهائي. النسخة على الموبايل لسه موجودة ← «هنحاول نرفعها تاني» (الإعادة في الفتحة الجاية)؛
+   * مفيش نسخة (الحفظ فشل أو اتشالت) ← رسالة الكتابة العادية باسم السجل: العملية ضاعت فعلاً، و«جرب من الأول» صح
+   */
+  function noteOutboxKept(forUid: string, id: string, e: unknown) {
+    if (uidNow.current !== forUid || !outboxIds.current.has(id) || outboxDropped.current.has(id)) {
+      reportWriteError(e, 'العملية');
+      return;
+    }
+    logOutboxFailure('write rejected, entry kept', e);
+    reportOutboxEvent('write-rejected-kept');
+    notice(OUTBOX_KEPT_TITLE, OUTBOX_KEPT_BODY);
   }
 
   function forgetOutboxId(id: string) {
@@ -1939,12 +1992,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * **ثغرة معروفة ومقبولة (قرار مؤمن 3):** العملية وصلت السيرفر والتطبيق اتقفل قبل ما المدخلة تتشال، واتمسحت من جهاز
    * تاني في الثواني دي ← الإعادة هنا بتلاقيها مش موجودة فبترجّعها. مفيش علامة "اتمسحت" على السيرفر نفرّق بيها.
    *
+   * **ثغرة تانية معروفة (الميزة 8، L2 — متوثّقة، السلوك زي ما هو):** العملية الجديدة (`setDoc`) وصلت السيرفر، وبعدها
+   * المستخدم عدّلها من غير نت (التعديل اتدمج في المدخلة)، والتطبيق اتقفل قبل ما `updateDoc` يوصل. الإعادة هنا بتلاقي
+   * المستند موجود ← بتشيل المدخلة **من غير كتابة** (القاعدة اللي بتحمي تعديل جهاز تاني 100 ← 120)، فتعديله هو بيضيع
+   * والعملية بترجع بالرقم القديم. التفريق بين "اتعدّل من جهاز تاني" و"تعديلي ما وصلش" محتاج علامة نسخة على المستند.
+   *
    * بيرجّع `true` لو مفيش حاجة فاضلة تتعاد في الجلسة دي.
    */
   async function replayOutbox(forUid: string): Promise<boolean> {
     let listed: { txId: string; stored: StoredEntry | null }[];
-    try { listed = await listOutboxEntries(forUid); } catch (e) { logOutboxFailure('list failed', e); return false; }
+    try { listed = await listOutboxEntries(forUid); } catch (e) { logOutboxFailure('list failed', e); reportOutboxEvent('list-failed'); return false; }
     if (uidNow.current !== forUid) return false;
+    setOutboxCountUnknown(false);
     if (listed.length === 0) return true;
     // اللي اتشال في الجلسة دي أو مستني "تمام" على رسالته ← لا بيتعدّ تاني ولا بيتعاد
     listed = listed.filter(e => !outboxDropped.current.has(e.txId) && !outboxNoticeShown.current.has(e.txId));
@@ -2059,9 +2118,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return allDone;
   }
 
-  async function updateTransaction(id: string, tx: Partial<Transaction>, settlements: Settlement[] = []) {
+  async function updateTransaction(id: string, tx: Partial<Transaction>, settlements: Settlement[] = [], opts: { clear?: readonly TxClearableField[] } = {}) {
     if (!uid) return;
     const clean = Object.fromEntries(Object.entries(tx).filter(([, v]) => v !== undefined));
+    // تحويل ← مصروف كان بيسيب `toWalletId`، ومصروف ← دخل كان بيسيب `categoryId` (`undefined` بيتشال من `clean`): العملية
+    // بتتقري صح بالنوع، بس الحقل الفاضل بيلخبط أي حد بيقرا الحقل من غير النوع (الميزة 8، L) — `deleteField()` صريح
+    const clear = (opts.clear ?? []).filter(f => !(f in clean));
+    const docPatch: Record<string, unknown> = { ...clean, ...Object.fromEntries(clear.map(f => [f, deleteField()])) };
     // لسه في الطابور المتشفّر ← التعديل بيتدمج في المدخلة (قرار مؤمن 4) عشان الإعادة متكتبش الرقم القديم.
     // التسوية (محفظة مؤرشفة) برّه الطابور عن قصد — بتمشي مع الـbatch العادي
     // من غير سقف: تخزين محلي، ولازم يخلص قبل ما فايربيز تبعت التعديل
@@ -2074,10 +2137,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const base = latestTransactions.current.find(t => t.id === id);
         if (!base) return null;
         const { id: _id, ...rest } = base;
-        return mergePatch(rest, clean);
+        return mergePatch(rest, clean, clear);
       };
       let result: Awaited<ReturnType<typeof mergeOrRewriteOutboxEntry>>;
-      try { result = await mergeOrRewriteOutboxEntry(forUid, id, clean, fallback); }
+      try { result = await mergeOrRewriteOutboxEntry(forUid, id, clean, fallback, clear); }
       catch (e) { logOutboxFailure('merge failed', e); result = 'unprotected'; }
       if (result === 'unprotected' && outboxIds.current.has(id)) {
         // المدخلة القديمة (بالرقم القديم) أسوأ من مفيش: الإعادة كانت هتكتبه. بنشيلها ونقول للمستخدم إن العملية مش محمية
@@ -2087,13 +2150,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     }
     if (settlements.length === 0) {
-      track(updateDoc(doc(db, 'users', uid, 'transactions', id), clean), 'تعديل العملية');
+      track(updateDoc(doc(db, 'users', uid, 'transactions', id), docPatch), 'تعديل العملية');
       return;
     }
     // التعديل والتسوية مع بعض أو مفيش — تعديل من غير تسويته معناه فلوس اتحركت
     // في محفظة مخفية والإجمالي ما اتغيرش
+    //
+    // **ثغرة معروفة (الميزة 8، L — متوثّقة مش متصلّحة):** التسوية هنا batch من حالة الرياكت، مش ذرة بتقرا السيرفر زي
+    // الجمعية (`expectedTxs`). لو العملية اتعدّلت من جهاز تاني (مبلغ/محفظة) بعد ما المودال اتفتح، التسوية اتحسبت على
+    // الأرقام القديمة ورصيد المؤرشفة يفضل مش صفر. الفحص محتاج `runTransaction` ← محتاج نت (قاعدة 7) ونتيجة للمودال،
+    // يعني تعديل وحذف عادي على محفظة مؤرشفة يبطّلوا يشتغلوا أوفلاين — أكبر من البند. نفس الكلام على المسح العادي تحت
     const batch = writeBatch(db);
-    batch.update(doc(db, 'users', uid, 'transactions', id), clean);
+    batch.update(doc(db, 'users', uid, 'transactions', id), docPatch);
     stageSettlements(batch, settlements);
     track(batch.commit());
   }
@@ -2457,6 +2525,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // العملية دي بايظة ومحدش حسب تسوية (مسح من "صلّح العملية") ← هي بس، والتانية بتفضل (الجولة 2، بند 3)
     const onlyThis = !opts.expectedTxs && brokenTransactions.some(x => x.id === id);
     if (gamiyaId) return deleteGamiyaLinkedTransaction(id, gamiyaId, settlements, opts.expectedTxs, onlyThis);
+    // التسوية من غير فحص `expectedTxs` (الميزة 8، L — شوف التعليق في `updateTransaction`)
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'transactions', id));
     const { pruneSubscription } = stageReconcile(batch, id);
@@ -2667,7 +2736,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         return `دي من شهر الاستلام في جمعية "${g.name}" — لو مسحتها هتتمسح معاها عملية ${other} كمان، والشهر هيرجع يسألك "استلمت؟" في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
       if (m) {
-        return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع "لسه ما اتسددش" وهيسألك في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
+        return `دي عملية شهر في جمعية "${g.name}" — الشهر هيرجع يسألك «اتدفع؟» في الرئيسية، ومش هيتسجل لوحده تاني. لو المبلغ بس غلط، عدّلها بدل ما تمسحها.`;
       }
     }
     // عكس الجمعية والاشتراك عن قصد: الفترة **مبترجعش** — لو رجعت، التسجيل
@@ -4536,7 +4605,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, brokenTransactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, outboxCountUnknown, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),

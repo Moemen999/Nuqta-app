@@ -4,12 +4,13 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { txDeleteOutcomeAlert, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction } from '@/context/DataContext';
+import { txDeleteOutcomeAlert, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction, type TxClearableField } from '@/context/DataContext';
 import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import {
-  debtLinkedEditPlan, debtRoleOf, storableAmount, storedEditChange, transactionLinkKind, type LinkKind, type LinkedEditNext,
+  debtLinkedEditPlan, debtRoleOf, parseTxAmountInput, storedEditChange, transactionLinkKind, TX_AMOUNT_ERROR, type LinkKind, type LinkedEditNext,
 } from '@/lib/linkedEdit';
+import { namedLabel } from '@/lib/writeError';
 import { plainAmount } from '@/lib/money';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { gamiyaPairedTxIds, selectableOptions, type TxChange } from '@/lib/archiving';
@@ -25,7 +26,7 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavigationContext, usePreventRemove } from '@react-navigation/native';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
@@ -33,6 +34,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NOTE_MAX_LENGTH } from '@/lib/textLimits';
 import { hapticSuccess } from '@/lib/haptics';
 import { useBusy } from '@/lib/useBusy';
+
+/** حقول النوع الجديد مبيستخدمهاش — تغيير النوع في التعديل بيشيلها (الميزة 8، L) */
+const UNUSED_FIELDS: Record<'expense' | 'income' | 'withdraw', TxClearableField[]> = {
+  expense: ['toWalletId'],
+  income: ['toWalletId', 'categoryId'],
+  withdraw: ['categoryId'],
+};
+
+/** بيتقال لقارئ الشاشة قبل ما الشاشة تتشال — من غيره الحفظ بيبان بس بالرجوع (الميزة 8) */
+const DONE_ANNOUNCE = { add: 'اتسجلت', edit: 'اتعدّلت', delete: 'اتمسحت' } as const;
+
+/**
+ * المحفظة دي شغالة دلوقتي (وقت الحفظ، مش وقت الفتح)؟ جديدة ← لازم شغالة. تعديل ← لازم موجودة، والمؤرشفة مسموحة بس لو
+ * هي نفسها اللي على العملية (التسوية بتغطيها). `null` = تمام، غير كده الرسالة باسمها (الميزة 8، M)
+ */
+function walletNotUsable(wallets: { id: string; name: string; archived?: boolean }[], id: string | undefined, keep: string | undefined): string | null {
+  if (!id) return TX_AMOUNT_ERROR.wallet;
+  const w = wallets.find(x => x.id === id);
+  if (w && (!w.archived || id === keep)) return null;
+  return `${w ? namedLabel('محفظة', w.name) : 'المحفظة اللي اخترتها'} مبقتش شغالة (اتأرشفت أو اتمسحت)، فاختار محفظة تانية.`;
+}
 
 const TYPES: readonly { key: 'expense' | 'income' | 'withdraw'; label: string; tone: SelectionTone }[] = [
   { key: 'expense', label: 'مصروف', tone: 'danger' },
@@ -95,6 +117,8 @@ export default function AddTransactionModal() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // المسح لوحده (الميزة 8): قبل كده `busy` واحد، فـ«حذف» كان بيلف وقت الحفظ ويتقري «جاري التنفيذ»
+  const [deletingBusy, setDeletingBusy] = useState(false);
   // ref متزامن بيغطي: (أ) ضغطتين في نفس الفريم قبل الـre-render (`useBusy`)، (ب) أي دوسة بعد حفظ ناجح
   // وقبل ما الشاشة تتشال بالأنيميشن (`saved`: بيتعلّم قبل `router.back()` وعمره ما بيتفك)
   const { busy: saveGuard, run: runSave, release: releaseSave } = useBusy();
@@ -130,11 +154,14 @@ export default function AddTransactionModal() {
 
   // الرصيد رايح فين لو حفظنا. لازم نستثني العملية اللي بنعدّلها: رصيدها
   // القديم لسه محسوب، فمن غير الاستثناء التعديل بيتحسب مرتين.
+  // قارئ واحد (الميزة 8، M): الحفظ والتسوية والمعاينة كلهم من الرقم ده — المعروض = المتخزّن
+  const parsed = useMemo(() => parseTxAmountInput(amount), [amount]);
+  const amountValue = parsed.ok ? parsed.value : null;
   const projections = useMemo(() => projectBalances({
-    transactions, wallets, type, amount: Number(amount), walletId,
+    transactions, wallets, type, amount: amountValue ?? NaN, walletId,
     toWalletId: type === 'withdraw' ? toWalletId : undefined,
     excludeTransactionId: existing?.id,
-  }), [transactions, wallets, type, amount, walletId, toWalletId, existing]);
+  }), [transactions, wallets, type, amountValue, walletId, toWalletId, existing]);
 
   // اتفتح على عملية (`id`) ومش لاقيينها: اتمسحت من جهاز تاني، أو اتمسحت وانت
   // فاتح الفورم. ممنوع الفورم يتحول لـ"عملية جديدة" — الحفظ هيضيف نسخة تانية
@@ -156,10 +183,21 @@ export default function AddTransactionModal() {
    * بعد حفظ **نجح** (`saved` اتعلّم قبلها). الهابتك والرجوع برّه أي `catch` بيقول «ما اتحفظش»:
    * لو واحد منهم رمى، العملية اتحفظت فعلاً — الهابتك زينة بتتبلع، والرجوع بيتبلّغ بس
    */
-  function afterSave() {
+  function afterSave(kind: keyof typeof DONE_ANNOUNCE = isEdit ? 'edit' : 'add') {
     try { hapticSuccess(); } catch { /* زينة */ }
+    announceDone(kind);
     leave();
   }
+  function announceDone(kind: keyof typeof DONE_ANNOUNCE) {
+    try { AccessibilityInfo.announceForAccessibility(DONE_ANNOUNCE[kind]); } catch { /* زينة */ }
+  }
+
+  // iOS بس: أندرويد بيقرا الرسالة من `accessibilityLiveRegion` على السطر، والاتنين كانوا هيقولوها مرتين
+  useEffect(() => {
+    if (error && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(error);
+  }, [error]);
+  // أي إدخال بيمسح رسالة قديمة — كانت بتفضل ظاهرة والمشكلة اتحلت (الميزة 8)
+  const edited = () => { touch(); if (error) setError(''); };
 
   // الرجوع (زرار أندرويد / سحب المودال) ممنوع طول ما الحفظ شغال — قبل كده المودال كان بيتقفل والحفظ
   // مكمّل (لحد ~800ms مستنيين نسخة الـoutbox)، وبعدين `router.back()` بتاع الحفظ يشيل الشاشة اللي ورا
@@ -185,6 +223,7 @@ export default function AddTransactionModal() {
         leaveFailed.current = true;
         setLeaving(false);
         setBusy(false);
+        setDeletingBusy(false);
         setSyncing(false);
         releaseSave();
       }
@@ -197,18 +236,21 @@ export default function AddTransactionModal() {
     goBack();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- الرجوع مرة واحدة لما `leaving` يبقى true؛ nav/releaseSave مش لازم يعيدوه
   }, [leaving]);
-  const blockLeave = (saveGuard || busy || syncing) && !leaving;
+  const blockLeave = (saveGuard || busy || deletingBusy || syncing) && !leaving;
 
-  /** فشل بعد ما الشاشة ممكن تكون اتشالت (رد شيت التسوية، الحذف): على الشاشة لو لسه موجودة، وإلا رسالة التطبيق */
-  function showFailure(title: string, body: string) {
-    if (mounted.current) setError('حصل خطأ، جرب تاني');
+  /**
+   * فشل بعد ما الشاشة ممكن تكون اتشالت (رد شيت التسوية، الحذف): على الشاشة لو لسه موجودة، وإلا رسالة التطبيق.
+   * النص على الشاشة بيقول إيه اللي حصل بالظبط (الميزة 8) — كان «حصل خطأ، جرب تاني» للتعديل والمسح الاتنين
+   */
+  function showFailure(title: string, body: string, onScreen: string) {
+    if (mounted.current) setError(onScreen);
     else notice(title, body);
   }
 
   async function saveTransaction() {
     if (saved.current) return;
     if (missing || waiting || linkChanged) return;
-    const amt = Number(amount);
+    setError('');
     // مفيش ولا محفظة خالص ≠ نسي يختار واحدة — الرسالة بتقول السبب الحقيقي (a11y-architect)
     // التعديل هنا معناه إن المحافظ كلها اتأرشفت أو اتمسحت — "لسه" و"سجّل" غلط ليه
     if (noActiveWallets) {
@@ -217,11 +259,18 @@ export default function AddTransactionModal() {
         : 'مفيش ولا محفظة لسه — ضيف محفظة الأول، وبعدين سجّل العملية.');
       return;
     }
-    // الفحص على المبلغ **بعد** التقريب: "1e307" محدود بس بيبقى Infinity لما يتقرّب
-    if (storableAmount(amt) === null || !walletId) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
+    // الفحص على المبلغ **بعد** التقريب (`parseTxAmountInput` ← `storableAmount`): "1e307" محدود بس بيبقى Infinity لما يتقرّب.
+    // والرقم ده نفسه هو اللي بيتحفظ وبتتحسب منه التسوية والمعاينة (الميزة 8، M)
+    if (!parsed.ok) { setError(TX_AMOUNT_ERROR[parsed.reason]); return; }
+    const amt = parsed.value;
+    if (!walletId) { setError(TX_AMOUNT_ERROR.wallet); return; }
     if (type === 'withdraw' && (!toWalletId || toWalletId === walletId)) {
       setError('اختار محفظة وجهة مختلفة'); return;
     }
+    // المحفظة (والوجهة) اتأرشفت أو اتمسحت من جهاز تاني والفورم مفتوح ← العملية كانت هتتكتب على محفظة مقفولة (الميزة 8، M)
+    const walletProblem = walletNotUsable(wallets, walletId, existing?.walletId)
+      ?? (type === 'withdraw' ? walletNotUsable(wallets, toWalletId, existing?.toWalletId) : null);
+    if (walletProblem) { setError(walletProblem); return; }
     setBusy(true);
     try {
       const payload = {
@@ -241,7 +290,7 @@ export default function AddTransactionModal() {
           // الدين بيخزّن المبلغ مقرّب (`updateDebtLinkedTransaction`)، فالتسوية لازم
           // تتحسب من نفس المقرّب — وإلا رصيد المؤرشفة يفضل قرش مش صفر (R2)
           const change = storedEditChange(existing, changes[0].after!);
-          if (!change) { setError('من فضلك دخّل مبلغ صحيح ومحفظة'); return; }
+          if (!change) { setError(TX_AMOUNT_ERROR.invalid); return; }
           const stored = change.after!.amount;
           const debt = debts.find(d => debtRoleOf(d, existing.id));
           const plan = debt && debtLinkedEditPlan(debt, existing.id, { amount: stored, walletId, date, categoryId: payload.categoryId });
@@ -261,7 +310,9 @@ export default function AddTransactionModal() {
           setBusy(true);
           try {
             // بترجع بعد الكتابة المحلية (`track`) مش بعد السيرفر — قاعدة 7
-            await updateTransaction(existing.id, payload, settlements);
+            // النوع اتغيّر ← الحقول اللي النوع الجديد مبيستخدمهاش بتتشال (الميزة 8، L)
+            if (existing.type !== type) await updateTransaction(existing.id, payload, settlements, { clear: UNUSED_FIELDS[type] });
+            else await updateTransaction(existing.id, payload, settlements);
           } catch (e) {
             // فشل التجهيز: مفيش حاجة اتحفظت، فالحارس يتفك والشاشة متترجعش
             saved.current = false;
@@ -269,7 +320,7 @@ export default function AddTransactionModal() {
             setBusy(false);
             console.warn('[tx] تعديل العملية فشل');
             reportAtomicFailure('حفظ العملية', e);
-            showFailure('التعديل ما اتحفظش', 'العملية زي ما كانت. افتحها تاني وعدّل.');
+            showFailure('التعديل ما اتحفظش', 'العملية زي ما كانت. افتحها تاني وعدّل.', 'التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني');
             return;
           }
           afterSave();
@@ -287,7 +338,7 @@ export default function AddTransactionModal() {
       // ويعرضه بنفسه مسمّى بالسجل (`lib/writeError.ts`) — والمودال بيكون
       // اتقفل خلاص قبل ما الرفض يوصل، فرسالة جوه الفورم مستحيلة أصلاً.
       // فاضل هنا للأخطاء المتزامنة جوه الـtry نفسه (تجهيز البيانات، التنقل).
-      setError('حصل خطأ، جرب تاني');
+      setError('حصل خطأ ومفيش حاجة اتحفظت، جرب تاني');
     } finally {
       // بعد النجاح الـbusy بيفضل true لحد ما الشاشة تتشال (NUQTA-3)
       if (!saved.current) setBusy(false);
@@ -363,14 +414,14 @@ export default function AddTransactionModal() {
     const run = (settlements: Settlement[]) => {
       if (deleting.current) return Promise.resolve();
       deleting.current = true;
-      setBusy(true);
+      setDeletingBusy(true);
       return Promise.resolve().then(() => deleteTransaction(existing.id, settlements, { expectedTxs }))
         .then(result => {
           // عملية دفعة/زيادة دين ذرة من السيرفر (الجولة 2، بند 1): مفيش نت / ما اتمسحتش / مش متأكدين ← المودال
           // بيفضل مفتوح والرسالة بتقول الحالة. الإعادة آمنة: لو المسح كان وصل، الذرة بتلاقي العملية مش موجودة ومبتكتبش تاني
           if (result.outcome !== 'done') {
             deleting.current = false;
-            setBusy(false);
+            setDeletingBusy(false);
             const alert = txDeleteOutcomeAlert(result.outcome, result.subject);
             notice(alert.title, alert.body);
             // الأرقام اللي قدامه (والتسوية) قديمة — الشاشة بتتقفل، والرسالة بتقول يفتحها تاني (الجولة 1 على 3a72d99)
@@ -383,13 +434,14 @@ export default function AddTransactionModal() {
             notice(n.title, n.body);
           }
           saved.current = true;
+          announceDone('delete');
           leave();
         })
         .catch(e => {
           deleting.current = false;
-          setBusy(false);
+          setDeletingBusy(false);
           reportAtomicFailure('حذف العملية', e);
-          showFailure('العملية ما اتمسحتش', 'هي لسه موجودة زي ما هي. افتحها تاني وامسحها.');
+          showFailure('العملية ما اتمسحتش', 'هي لسه موجودة زي ما هي. افتحها تاني وامسحها.', 'العملية ما اتمسحتش وهي لسه موجودة، جرب تاني');
         });
     };
     // حوار واحد (D3، 2026-10-30، قرار مؤمن): لو محفظة مؤرشفة هتتأثر، شيت التسوية هي
@@ -404,13 +456,13 @@ export default function AddTransactionModal() {
         text: 'حذف', style: 'destructive', onPress: () => {
           if (deleting.current) return;
           try {
-            // `run` بتمسك الرجوع (`busy`) لحد ما الحذف يرجع — مفيش `setBusy(false)` هنا (كان بيفك المنع والحذف شغال)
+            // `run` بتمسك الرجوع (`deletingBusy`) لحد ما الحذف يرجع — مفيش `setBusy(false)` هنا (كان بيفك المنع والحذف شغال)
             settle.request(changes, run);
           } catch {
             // فشل التجهيز (stageReconcile) بيتمسك جوه `run` نفسها (الـpromise بتاع
             // `deleteTransaction`)؛ فشل الكتابة بيعدي من `track` وبيتعرض مسمّى بالسجل.
             // فاضل هنا للأخطاء المتزامنة في `settle.request` نفسها.
-            setError('حصل خطأ، جرب تاني');
+            setError('حصل خطأ والعملية لسه موجودة، جرب تاني');
           }
         }
       },
@@ -426,12 +478,12 @@ export default function AddTransactionModal() {
           {/* قراية اترفضت (مش نت بطيء): "اتأكد من النت" كانت هتبقى كدب، والاستنى مش هيخلص لوحده */}
           {loadErrors.length > 0 ? (
             <>
-              <Text style={styles.noWalletsText}>في بيانات ما قدرناش نجيبها، فمش هنعرف العملية دي مربوطة بإيه. جرّب تاني، ولو فضلت كده شوف البانر في الرئيسية.</Text>
-              <Button testID="tx_waiting_retry" label="جرّب تاني" onPress={retryLoad} />
+              <Text style={styles.noWalletsText}>فيه بيانات ما قدرناش نجيبها، فمش هنعرف العملية دي مربوطة بإيه. جرب تاني، ولو فضلت كده شوف البانر في الرئيسية.</Text>
+              <Button testID="tx_waiting_retry" label="جرب تاني" onPress={retryLoad} />
             </>
           ) : (
             <>
-              <ActivityIndicator color={colors.accent} />
+              <ActivityIndicator color={colors.accent} accessibilityLabel="بنجيب بياناتك" />
               <Text style={styles.noWalletsText}>لسه بنجيب بياناتك عشان نعرف العملية دي مربوطة بإيه. لو الموضوع طوّل، اتأكد إن النت شغال.</Text>
             </>
           )}
@@ -498,9 +550,10 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { touch(); setType(t.key); }}
+          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { edited(); setType(t.key); }}
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ checked: type === t.key, disabled: typeLocked && type !== t.key }}
+            accessibilityHint={typeLocked ? 'النوع ثابت للعملية دي — السبب مكتوب تحت' : undefined}
             style={[styles.typeBtn, quietSelectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
             <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: typeScale.body }}>{t.label}</Text>
           </TouchableOpacity>
@@ -514,19 +567,20 @@ export default function AddTransactionModal() {
         </Text>
       )}
 
-      <Text style={styles.label}>المبلغ</Text>
+      {/* الاسم على الخانة نفسها (accessibilityLabel) — السطر الظاهر كان بيتقري لوحده محطة زيادة */}
+      <Text style={styles.label} accessible={false} importantForAccessibility="no">المبلغ</Text>
       {/* "+" بيودّي على كتابة الرقم على طول (2026-09-29): الكيبورد بيفتح لوحده في عملية
           جديدة. مش في التعديل (جه يبص الأول)، ولا من غير محفظة (الكيبورد كان هيغطي
           "ضيف محفظة" عشان رقم مش هيتحفظ). زرار الحفظ في فوتر لاصق فوق الكيبورد */}
-      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={v => { touch(); setAmount(v); }}
-        autoFocus={!id && !noActiveWallets}
+      <TextInput testID="tx_amount_input" style={styles.bigInput} value={amount} onChangeText={v => { edited(); setAmount(v); }}
+        autoFocus={!id && !noActiveWallets} accessibilityLabel="المبلغ" accessibilityHint="رقم بالجنيه"
         placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
-      <AmountPreview amount={amount} projections={projections} />
+      <AmountPreview amount={amount} value={amountValue} projections={projections} />
 
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => fromW.pickWallet(w.id)}
+          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); fromW.pickWallet(w.id); }}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
           </TouchableOpacity>
@@ -538,7 +592,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { fromW.freeze(); toW.pickWallet(w.id); }}
+              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); fromW.freeze(); toW.pickWallet(w.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
               </TouchableOpacity>
@@ -552,7 +606,7 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { touch(); setCategoryId(c.id); }}
+              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { edited(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
@@ -564,19 +618,20 @@ export default function AddTransactionModal() {
         </>
       )}
 
-      <Text style={styles.label}>التاريخ</Text>
-      <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
+      <Text style={styles.label} accessible={false} importantForAccessibility="no">التاريخ</Text>
+      <TouchableOpacity testID="tx_date_button" accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}
+        accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} accessibilityHint="يفتح التقويم">
         <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.label}>ملاحظة</Text>
-      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { touch(); setNote(v); }}
+      <Text style={styles.label} accessible={false} importantForAccessibility="no">ملاحظة</Text>
+      <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { edited(); setNote(v); }} accessibilityLabel="ملاحظة"
         placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
       <CalendarPickerModal
         visible={showDatePicker}
         value={date}
-        onSelect={d => { touch(); setDate(d); }}
+        onSelect={d => { edited(); setDate(d); }}
         onClose={() => setShowDatePicker(false)}
       />
     </ScrollView>
@@ -587,10 +642,11 @@ export default function AddTransactionModal() {
 
     <View style={styles.footer}>
       {isEdit && (
-        <Button variant="danger" label="حذف" style={styles.deleteBtn} onPress={handleDelete} disabled={syncing} busy={busy} />
+        <Button testID="tx_delete_button" variant="danger" label="حذف" style={styles.deleteBtn} onPress={handleDelete}
+          disabled={busy || saveGuard || syncing} busy={deletingBusy} />
       )}
-      <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || syncing} />
-      <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || saveGuard || syncing} />
+      <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy || deletingBusy || syncing} />
+      <Button testID="tx_save_button" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy || saveGuard || syncing} disabled={deletingBusy} />
     </View>
 
     {settle.sheet}

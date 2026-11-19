@@ -8,7 +8,7 @@ import { useTheme, type ThemeColors, type ThemePreference } from '@/context/Them
 import { APP_FULL_VERSION } from '@/lib/appInfo';
 import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
-import { outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
+import { OUTBOX_UNKNOWN_LOGOUT_BODY, OUTBOX_UNKNOWN_LOGOUT_TITLE, outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -66,7 +66,7 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites, outboxCount, deletionPending } = useData();
+  const { wallets, categories, pendingWrites, outboxCount, outboxCountUnknown, deletionPending } = useData();
   const confirm = useConfirm();
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
@@ -100,6 +100,14 @@ export default function SettingsScreen() {
           { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
         ]
       );
+      return;
+    }
+    // قراية الطابور فشلت ← العدد مش معروف، فمش "صفر" (الميزة 8، L)
+    if (outboxCountUnknown) {
+      confirm(OUTBOX_UNKNOWN_LOGOUT_TITLE, OUTBOX_UNKNOWN_LOGOUT_BODY, [
+        { text: 'أستنى', style: 'cancel' },
+        { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+      ]);
       return;
     }
     if (pendingWrites > 0) {

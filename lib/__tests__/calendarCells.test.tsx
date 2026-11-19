@@ -44,3 +44,42 @@ describe('خانات أيام التقويم', () => {
     expect(screen.getAllByRole('button').some(el => el.props.accessibilityLabel === undefined && el.props.disabled)).toBe(false);
   });
 });
+
+describe('الميزة 8 (a11y-architect)', () => {
+  const { AccessibilityInfo } = require('react-native');
+  const ui = (visible: boolean, value: string, onClose = jest.fn()) =>
+    <ThemeProvider><CalendarPickerModal visible={visible} value={value} onSelect={jest.fn()} onClose={onClose} /></ThemeProvider>;
+
+  it('بيفتح على شهر القيمة كل مرة يتفتح (تعديل عملية قديمة كان بيفتح على الشهر الحالي)', async () => {
+    const r = await render(ui(false, ''));
+    await r.rerender(ui(true, '2025-03-15'));
+    expect(screen.getByLabelText('السبت، 15 مارس 2025').props.accessibilityState).toMatchObject({ selected: true });
+  });
+
+  it('عنوان ظاهر «اختار التاريخ» وزرار «إغلاق» ≥ 44', async () => {
+    const onClose = jest.fn();
+    await render(ui(true, '2026-11-11', onClose));
+    expect(screen.getByText('اختار التاريخ').props.accessibilityRole).toBe('header');
+    const close = screen.getByLabelText('إغلاق');
+    expect(StyleSheet.flatten(close.props.style).minHeight).toBeGreaterThanOrEqual(MIN_TOUCH);
+    await fireEvent.press(close);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('تغيير المستوى بيتقال، وعنوان السنين header', async () => {
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    await render(ui(true, '2026-11-11'));
+    await fireEvent.press(screen.getByText('2026'));
+    expect(announce).toHaveBeenCalledWith('اختار السنة');
+    expect(screen.getByText('2016 - 2027').props.accessibilityRole).toBe('header');
+    announce.mockRestore();
+  });
+
+  it('عرض خانة اليوم ≥ 44 على موبايل 360', async () => {
+    await render(ui(true, '2026-11-11'));
+    const card = StyleSheet.flatten(screen.getByTestId('calendar_card').props.style);
+    const width = Math.min(360 * parseFloat(String(card.width)) / 100, card.maxWidth) - 2 * card.paddingHorizontal;
+    expect(width / 7).toBeGreaterThanOrEqual(MIN_TOUCH);
+  });
+});

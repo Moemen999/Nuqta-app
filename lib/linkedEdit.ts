@@ -2,8 +2,9 @@ import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { isCreditPurchase } from '@/lib/spending';
 import {
   debtExcess, debtRemaining, foldInstallmentResidue, installmentCountFor, installmentResidueKnown, pinInstallmentAmount,
-  reopenedDueDate, roundMoney, storableCount, todayStr,
+  ambiguousDecimalComma, reopenedDueDate, roundMoney, storableCount, todayStr,
 } from '@/lib/finance';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import type { TxChange } from '@/lib/archiving';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
@@ -37,6 +38,26 @@ export function storableAmount(value: number): number | null {
   const rounded = roundMoney(value);
   return Number.isFinite(rounded) && rounded > 0 ? rounded : null;
 }
+
+/**
+ * خانة المبلغ في مودال العملية — **قارئ واحد** (مراجعة التطبيق كله، الميزة 8). الحفظ (إضافة وتعديل)، والتسوية
+ * (`changes`)، والمعاينة (`projectBalances` + `AmountPreview`) كلهم بيقروا من هنا، فاللي بيتعرض = اللي بيتخزّن (مقرّب).
+ * «٢٠٠» و«1,500» بيتقروا زي الميزانية (`normalizeAmountInput`)، و«1,5» الغامض مرفوض بسببه (مش 15 ساكت).
+ */
+export type TxAmountParse = { ok: true; value: number } | { ok: false; reason: 'ambiguous' | 'invalid' };
+export function parseTxAmountInput(raw: string): TxAmountParse {
+  if (ambiguousDecimalComma(raw)) return { ok: false, reason: 'ambiguous' };
+  const clean = normalizeAmountInput(raw).trim();
+  const value = clean === '' ? null : storableAmount(Number(clean));
+  return value === null ? { ok: false, reason: 'invalid' } : { ok: true, value };
+}
+
+/** رسايل الفورم — كل سبب لوحده (قبل كده «دخّل مبلغ صحيح ومحفظة» للاتنين) */
+export const TX_AMOUNT_ERROR = {
+  invalid: 'اكتب مبلغ أكبر من صفر',
+  ambiguous: 'الكسر بنقطة (1.5) مش بفاصلة',
+  wallet: 'اختار المحفظة',
+} as const;
 
 /**
  * التغيير اللي تسوية المحفظة المؤرشفة بتتحسب منه في تعديل عملية دين — **بنفس

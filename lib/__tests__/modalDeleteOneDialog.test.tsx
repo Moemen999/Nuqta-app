@@ -151,7 +151,7 @@ describe('الجولة 1 على D3', () => {
     await act(async () => { fireEvent.press(screen.getByTestId('settle_confirm')); });
     await act(async () => {});
     expect(router.back).not.toHaveBeenCalled();
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('العملية ما اتمسحتش وهي لسه موجودة، جرب تاني')).toBeTruthy();
     const { reportAtomicFailure } = jest.requireMock('@/lib/atomicFailure');
     expect(reportAtomicFailure).toHaveBeenCalledWith('حذف العملية', expect.any(Error));
   });
@@ -166,7 +166,7 @@ describe('الجولة 1 على D3', () => {
     await act(async () => { await buttons.find(b => b.text === 'حذف')!.onPress!(); });
     await act(async () => {});
     expect(router.back).not.toHaveBeenCalled();
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('العملية ما اتمسحتش وهي لسه موجودة، جرب تاني')).toBeTruthy();
   });
 
   it('زرار التأكيد بيقول إنه زرار ومقفول لحد ما المحفظة تتختار، والشرايح بتقول مين المختار', async () => {

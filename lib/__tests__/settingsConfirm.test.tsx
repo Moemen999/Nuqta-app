@@ -11,6 +11,7 @@ import React from 'react';
 
 const mockLogOut = jest.fn();
 let mockPending = 0;
+let mockOutboxUnknown = false;
 jest.mock('@/context/AuthContext', () => ({
   useAuth: () => ({ user: { email: 'test@nuqta.app' }, logOut: mockLogOut }),
 }));
@@ -21,13 +22,13 @@ jest.mock('@/context/NotificationsContext', () => ({
   useNotifications: () => ({ enabled: false, dailyEnabled: false, dailyHour: 20 }),
 }));
 jest.mock('@/context/DataContext', () => ({
-  useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending }),
+  useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending, outboxCount: 0, outboxCountUnknown: mockOutboxUnknown }),
 }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 
-beforeEach(() => { mockLogOut.mockClear(); mockPending = 0; });
+beforeEach(() => { mockLogOut.mockClear(); mockPending = 0; mockOutboxUnknown = false; });
 
 async function openLogout() {
   await render(<ThemeProvider><ConfirmProvider><SettingsScreen /></ConfirmProvider></ThemeProvider>);
@@ -53,6 +54,14 @@ it('فيه حاجة بترفع ← التحذير، و"أستنى" مبيخرج�
   mockPending = 2;
   await openLogout();
   expect(screen.getByTestId('confirm_title').props.children).toBe('لسه فيه بيانات بترفع');
+  await act(async () => { fireEvent.press(screen.getByText('أستنى')); });
+  expect(mockLogOut).not.toHaveBeenCalled();
+});
+
+it('الميزة 8 (L): قراية الطابور فشلت (العدد مش معروف) ← تحذير مش "متأكد؟"، و"أستنى" مبيخرجش', async () => {
+  mockOutboxUnknown = true;
+  await openLogout();
+  expect(screen.getByTestId('confirm_title').props.children).toBe('مش متأكدين إن كل عملياتك اترفعت');
   await act(async () => { fireEvent.press(screen.getByText('أستنى')); });
   expect(mockLogOut).not.toHaveBeenCalled();
 });

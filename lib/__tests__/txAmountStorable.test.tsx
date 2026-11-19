@@ -62,14 +62,14 @@ describe.each(['1e307', '1e308', 'Infinity'])('مبلغ "%s"', typed => {
     expect(mockData.updateDebtLinkedTransaction).not.toHaveBeenCalled();
     expect(mockData.updateTransaction).not.toHaveBeenCalled();
     expect(router.back).not.toHaveBeenCalled();
-    expect(screen.getByText('من فضلك دخّل مبلغ صحيح ومحفظة')).toBeTruthy();
+    expect(screen.getByText('اكتب مبلغ أكبر من صفر')).toBeTruthy();
   });
 
   it('عملية عادية ← مرفوض بنفس الشكل', async () => {
     await saveWith('tx_f', typed);
     expect(mockData.updateTransaction).not.toHaveBeenCalled();
     expect(router.back).not.toHaveBeenCalled();
-    expect(screen.getByText('من فضلك دخّل مبلغ صحيح ومحفظة')).toBeTruthy();
+    expect(screen.getByText('اكتب مبلغ أكبر من صفر')).toBeTruthy();
   });
 });
 

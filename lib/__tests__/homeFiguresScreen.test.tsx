@@ -235,7 +235,7 @@ describe('الجولة الأخيرة (money-reviewer + silent-failure-hunter، 
   it('M4: النت شغال والإعادة وقفت ← السطر من غير «نت» وبيقول هنجرب تاني؛ والإعادة شغالة ← مفيش سطر', async () => {
     setData({ outboxCount: 2, serverReachable: true, outboxReplaying: false });
     const r = await mount();
-    expect(within(screen.getByTestId('home_outbox_line')).getByText('عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش — هنجرب نرفعهم تاني')).toBeTruthy();
+    expect(within(screen.getByTestId('home_outbox_line')).getByText('عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش — هنجرب نرفعهم تاني لما تفتح التطبيق')).toBeTruthy();
     setData({ outboxCount: 2, serverReachable: true, outboxReplaying: true });
     await act(async () => { r.rerender(ui()); });
     expect(screen.queryByTestId('home_outbox_line')).toBeNull();

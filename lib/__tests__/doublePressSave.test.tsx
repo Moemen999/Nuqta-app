@@ -89,7 +89,7 @@ describe('حفظ عملية جديدة', () => {
     await type(screen.getByTestId('tx_amount_input'), '50');
     await press(screen.getByTestId('tx_save_button'));
     expect(router.back).not.toHaveBeenCalled();
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('حصل خطأ ومفيش حاجة اتحفظت، جرب تاني')).toBeTruthy();
   });
 
   it('تعديل: ضغطتين في نفس الـtick ← updateTransaction مرة واحدة، ودوسة بعدها كمان', async () => {
@@ -108,7 +108,7 @@ describe('حفظ عملية جديدة', () => {
     await render(wrap(<AddTransactionModal />));
     await type(screen.getByTestId('tx_amount_input'), '50');
     await press(screen.getByTestId('tx_save_button'));
-    expect(screen.queryByText('حصل خطأ، جرب تاني')).toBeNull();
+    expect(screen.queryByTestId('tx_error')).toBeNull();
     expect(mockData.addTransaction).toHaveBeenCalledTimes(1);
     expect(router.back).toHaveBeenCalledTimes(1);
   });
@@ -118,7 +118,7 @@ describe('حفظ عملية جديدة', () => {
     await render(wrap(<AddTransactionModal />));
     await type(screen.getByTestId('tx_amount_input'), '50');
     await press(screen.getByTestId('tx_save_button'));
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('حصل خطأ ومفيش حاجة اتحفظت، جرب تاني')).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     await press(screen.getByTestId('tx_save_button'));
     expect(mockData.addTransaction).toHaveBeenCalledTimes(2);
@@ -132,7 +132,7 @@ describe('حفظ عملية جديدة', () => {
     await act(async () => {});
     await type(screen.getByTestId('tx_amount_input'), '60');
     await press(screen.getByTestId('tx_save_button'));
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني')).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     await press(screen.getByTestId('tx_save_button'));
     expect(mockData.updateTransaction).toHaveBeenCalledTimes(2);
@@ -149,7 +149,7 @@ describe('حفظ عملية جديدة', () => {
     await type(screen.getByTestId('tx_amount_input'), '60');
     await press(screen.getByTestId('tx_save_button'));
     await act(async () => { await new Promise(r => setTimeout(r, 60)); });
-    expect(screen.getByText('حصل خطأ، جرب تاني')).toBeTruthy();
+    expect(screen.getByText('التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني')).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     expect(screen.getByTestId('tx_save_button').props.accessibilityState).toMatchObject({ busy: false, disabled: false });
     expect(screen.getByText('إلغاء')).toBeTruthy();
@@ -181,7 +181,7 @@ describe('حفظ عملية جديدة', () => {
   it('validation فاشل ← الحارس بيتفك والضغطة الجاية بتشتغل', async () => {
     await render(wrap(<AddTransactionModal />));
     await press(screen.getByTestId('tx_save_button')); // من غير مبلغ
-    expect(screen.getByText('من فضلك دخّل مبلغ صحيح ومحفظة')).toBeTruthy();
+    expect(screen.getByText('اكتب مبلغ أكبر من صفر')).toBeTruthy();
     expect(mockData.addTransaction).not.toHaveBeenCalled();
     await type(screen.getByTestId('tx_amount_input'), '50');
     await press(screen.getByTestId('tx_save_button'));

@@ -12,7 +12,8 @@ import { typeScale } from '@/lib/tokens';
  */
 export default function PendingSyncMark() {
   const { colors } = useTheme();
-  return <Text style={[styles.mark, { color: colors.textMuted }]}>⏳ لسه بترفع</Text>;
+  // قارئ الشاشة كان بيقرا اسم الإيموجي «ساعة رملية» قبل الكلام (الميزة 8)
+  return <Text style={[styles.mark, { color: colors.textMuted }]} accessibilityLabel="لسه بترفع">⏳ لسه بترفع</Text>;
 }
 
 const styles = StyleSheet.create({

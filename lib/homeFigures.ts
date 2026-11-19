@@ -1,3 +1,4 @@
+import { transactionsPhrase } from '@/lib/archiving';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
@@ -73,11 +74,11 @@ export function figuresSettled(i: { figuresFromServer: boolean; loadErrors: List
  */
 export function outboxLinePhrase(n: number, opts: { online?: boolean } = {}): string {
   if (!Number.isFinite(n) || n <= 0) return '';
-  const base = n === 1 ? 'عندك عملية متسجلة على الموبايل ولسه ما اترفعتش'
-    : n === 2 ? 'عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش'
-    : `عندك ${n} ${n <= 10 ? 'عمليات' : 'عملية'} متسجلة على الموبايل ولسه ما اترفعتش`;
+  const base = n === 2
+    ? `عندك ${transactionsPhrase(n)} متسجلين على الموبايل ولسه ما اترفعوش`
+    : `عندك ${transactionsPhrase(n)} متسجلة على الموبايل ولسه ما اترفعتش`;
   if (!opts.online) return base;
-  return `${base} — ${n === 1 ? 'هنجرب نرفعها تاني' : 'هنجرب نرفعهم تاني'}`;
+  return `${base} — ${n === 1 ? 'هنجرب نرفعها تاني' : 'هنجرب نرفعهم تاني'} لما تفتح التطبيق`;
 }
 
 export const RECENT_EMPTY_TEXT = {

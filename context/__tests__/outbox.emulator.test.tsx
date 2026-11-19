@@ -13,6 +13,7 @@ import * as Sentry from '@sentry/react-native';
 import {
   OUTBOX_PREFIX, OUTBOX_UNREADABLE_TITLE, openEntry, outboxSecureKeyName, outboxStorageKey, parseStored, rejectedReplayBody,
   unreadableReplayBody, walletGoneReplayBody, repeatedFailReplayBody, OUTBOX_EDIT_UNPROTECTED_TITLE, OUTBOX_EDIT_UNPROTECTED_BODY,
+  OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY, OUTBOX_MAX, OUTBOX_SWEPT_TITLE, outboxSweptBody,
 } from '@/lib/outbox';
 import {
   __newOutboxSessionForTests, markUserSignOut, putOutboxEntry, readOutboxKey, replayOutboxDoc, serverTxStatus, updateOutboxMeta,
@@ -595,3 +596,101 @@ it('21. فحص قبل "سجّلها تاني": موجودة ← present، مش �
   expect(src).toMatch(/if \(status === 'missing'\) confirmedGiveUp\.push\(g\);/);
 });
 
+
+describe('الميزة 8 (مراجعة التطبيق كله)', () => {
+  it('M: من غير نت ونسخة الموبايل ما اتحفظتش ← رسالة «مش محمية» (كانت Sentry بس)', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+      try { await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true }); }
+      finally { restore(); }
+      await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY), { timeout: 5000 });
+    } finally {
+      await enableNetwork(db);
+    }
+  }, 60000);
+
+  it('M: من غير نت والحد اتملى (skipped) ← نفس الرسالة', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await AsyncStorage.multiSet(Array.from({ length: OUTBOX_MAX }, (_, i) => [outboxStorageKey(uid, `fill${i}`), 'x'] as [string, string]));
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true });
+      await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY), { timeout: 5000 });
+    } finally {
+      await enableNetwork(db);
+      await AsyncStorage.multiRemove(Array.from({ length: OUTBOX_MAX }, (_, i) => outboxStorageKey(uid, `fill${i}`)));
+    }
+  }, 60000);
+
+  it('M: النت شغال والحفظ فشل ← مفيش رسالة (الكتابة بتوصل في ثواني)', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+    try { await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true }); }
+    finally { restore(); }
+    await settle(1000);
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, expect.anything());
+  }, 60000);
+
+  it('M: كنس حساب تاني ← حدث Sentry من غير عدد، وصاحبه بيشوف رسالة بالعدد أول ما يدخل، وبعد «تمام» مبتظهرش تاني', async () => {
+    const w = await preparedAccount();
+    const other = 'someoneElse';
+    await putOutboxEntry(other, newTxId(), { type: 'expense', amount: 77, walletId: w, date: todayStr() });
+    await putOutboxEntry(other, newTxId(), { type: 'expense', amount: 78, walletId: w, date: todayStr() });
+    // `reportOutboxEvent` بيبعت مرة لكل سبب في الجلسة (اختبار 4 ممكن يكون بعته قبل كده) ← بنراقب النداء نفسه
+    const report = jest.spyOn(require('@/lib/outboxStore'), 'reportOutboxEvent');
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await waitFor(async () => expect(await outboxKeysOf(other)).toEqual([]), { timeout: 10000 });
+    await waitFor(() => expect(report).toHaveBeenCalledWith('swept-other-account'), { timeout: 5000 });
+    report.mockRestore();
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, expect.anything(), expect.anything());
+    // صاحب المدخلات دخل على نفس الموبايل
+    setMockUid(other as never);
+    await act(async () => { h!.rerender(); });
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.any(Function)), { timeout: 5000 });
+    const ok = mockNotice.mock.calls.find(c => c[0] === OUTBOX_SWEPT_TITLE)![2] as () => void;
+    await act(async () => { ok(); });
+    mockNotice.mockClear();
+    setMockUid(uid);
+    await act(async () => { h!.rerender(); });
+    setMockUid(other as never);
+    await act(async () => { h!.rerender(); });
+    await settle(1000);
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, expect.anything(), expect.anything());
+  }, 60000);
+
+  it('L: تغيير النوع (تحويل ← مصروف) بيشيل الوجهة من المستند ومن نسخة الطابور', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady(2);
+    const [w1, w2] = h.api().wallets.map(x => x.id);
+    await disableNetwork(db);
+    let id = '';
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      id = await h.api().addTransaction({ type: 'withdraw', amount: 40, walletId: w1, toWalletId: w2, date: todayStr() }, { durable: true });
+      await h.waitForData(api => api.transactions.some(t => t.id === id));
+      await h.api().updateTransaction(id, { type: 'expense' }, [], { clear: ['toWalletId'] });
+      const opened = await openStored(uid, id);
+      expect(opened?.ok && opened.data).toEqual(expect.objectContaining({ type: 'expense', amount: 40, walletId: w1 }));
+      expect(opened?.ok && 'toWalletId' in opened.data).toBe(false);
+    } finally {
+      await enableNetwork(db);
+    }
+    await h.waitForData(api => api.serverReachable, 30000, 'f8:reconnect');
+    await waitFor(async () => {
+      const snap = await getDocFromServer(txDoc(uid, id));
+      expect(snap.data()?.type).toBe('expense');
+      expect('toWalletId' in (snap.data() ?? {})).toBe(false);
+    }, { timeout: 30000 });
+  }, 90000);
+});

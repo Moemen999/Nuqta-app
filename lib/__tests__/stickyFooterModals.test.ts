@@ -41,6 +41,7 @@ const MODAL_FILES = [
   'components/SetLockModal.tsx',
   'components/PayoutInstallmentField.tsx',
   'components/ChargeHomeCards.tsx',
+  'components/BrokenTransactions.tsx',
 ];
 
 function read(p: string) {

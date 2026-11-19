@@ -140,3 +140,27 @@ it('الديون ما وصلتش لأن الـlistener وقع ← رسالة + "
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_retry')); });
   expect(retryLoad).toHaveBeenCalled();
 });
+
+describe('الميزة 8 (مراجعة التطبيق كله)', () => {
+  it('L: الحفظ رمى ← الورقة مفتوحة ورسالة، مش «العملية اتحفظت»', async () => {
+    const { AccessibilityInfo } = require('react-native');
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    seed([{ id: 'b1', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }]);
+    updateTransaction.mockImplementation(async () => { throw new Error('stage'); });
+    await render(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b1')); });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    expect(screen.getByTestId('broken_fix_save')).toBeTruthy();
+    expect(screen.getByTestId('broken_fix_error').props.children).toBe('التعديل ما اتحفظش والعملية زي ما كانت، جرب تاني');
+    expect(announce).not.toHaveBeenCalledWith('العملية اتحفظت');
+    announce.mockRestore();
+  });
+
+  it('صف من غير أي تفاصيل ← «عملية من غير تفاصيل» مش «—»', async () => {
+    seed([{ id: 'b9', reasons: ['type'] }]);
+    await render(ui());
+    expect(screen.getByText('عملية من غير تفاصيل')).toBeTruthy();
+  });
+});
