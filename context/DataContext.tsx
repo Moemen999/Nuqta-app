@@ -1,10 +1,10 @@
 import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
-import { figuresFresh } from '@/lib/staleFigures';
+import { figuresFresh, pendingFigureSources } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
 import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, splitTransactions, subscriptionFromDoc, walletFromDoc, withId, type BrokenTransaction } from '@/lib/fromDoc';
 import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, paymentsAfterRemoval, reopenedDueMessage } from '@/lib/reopenDue';
-import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
+import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, coldSnapshotToShow, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
@@ -36,7 +36,7 @@ import {
   incomeUpcomingPeriod,
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import type { ListenerName } from '@/lib/listenerErrors';
+import { loadErrorsAfterSnapshot, type ListenerName } from '@/lib/listenerErrors';
 import { snapshotTrusted } from '@/lib/listenerTrust';
 import {
   anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
@@ -870,6 +870,11 @@ type DataContextType = {
    * (قرار مؤمن 1: الخروج بيمسحها). أوسع من `pendingWrites`: فيها اللي من فتحة قبل كده ولسه مستنية النت.
    */
   outboxCount: number;
+  /**
+   * إعادة الطابور شغالة دلوقتي (M4، الجولة الأخيرة): سطر «لسه ما اترفعتش» في الرئيسية بيستخبى وهي شغالة بس — والنت شغال
+   * والإعادة وقفت (فشلت أو سقف المحاولات) المدخلات لسه هنا ولازم تبان
+   */
+  outboxReplaying: boolean;
   /** العمليات اللي اتحفظت على الموبايل ولسه بترفع (من metadata بتاعة فايربيز) */
   pendingTxIds: Set<string>;
   /** إحنا متصلين بسيرفر فايربيز دلوقتي ولا شغالين من الكاش (من `metadata.fromCache`) */
@@ -1219,6 +1224,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   /** معرّفات العمليات اللي ليها مدخلة في الطابور المتشفّر للحساب الحالي (`lib/outboxStore.ts`) */
   const outboxIds = useRef(new Set<string>());
   const [outboxCount, setOutboxCount] = useState(0);
+  const [outboxReplaying, setOutboxReplaying] = useState(false);
   const uidNow = useRef(uid);
   uidNow.current = uid;
   /** إعادة الطابور: مرة لكل حساب في الجلسة لما تخلص؛ لو فضل حاجة (النت وقع) بتتعاد مع رجوع الاتصال */
@@ -1241,16 +1247,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const figuresCache = useRef<{ wallets: boolean | null; transactions: boolean | null }>({ wallets: null, transactions: null });
   const [figuresFromServer, setFiguresFromServer] = useState(false);
   const [figuresPending, setFiguresPending] = useState<ListenerName[]>(['wallets', 'transactions']);
+  // العمليات جالها snapshot من السيرفر مرة في جلسة الحساب ده (H1-A، الميزة 7 الجولة الأخيرة — `pendingFigureSources`):
+  // من الكاش لوحده (كتابة محلية أو Offline على كاش فاضي) مش «وصلت». بيتصفّر مع الحساب بس، مش مع «جرّب تاني»
+  const txServerSeen = useRef(false);
   function pendingFigures(): ListenerName[] {
-    return (['wallets', 'transactions'] as const).filter(n => figuresCache.current[n] === null);
+    return pendingFigureSources(figuresCache.current, txServerSeen.current);
   }
   function noteFigures(name: 'wallets' | 'transactions', fromCache: boolean) {
     figuresCache.current[name] = fromCache;
+    if (name === 'transactions' && !fromCache) txServerSeen.current = true;
     const { wallets: w, transactions: t } = figuresCache.current;
     const fresh = figuresFresh(w, t);
     setFiguresFromServer(prev => (prev === fresh ? prev : fresh));
     const pending = pendingFigures();
-    setFiguresPending(prev => (prev.length === pending.length ? prev : pending));
+    setFiguresPending(prev => (prev.length === pending.length && prev.every((n, i) => n === pending[i]) ? prev : pending));
   }
   const [loadErrors, setLoadErrors] = useState<ListenerName[]>([]);
   /**
@@ -1412,6 +1422,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setServerReachable(false);
       serverReachableRef.current = false;
       figuresCache.current = { wallets: null, transactions: null };
+      txServerSeen.current = false;
       setFiguresFromServer(false);
       setFiguresPending(['wallets', 'transactions']);
       deletingRef.current = false;
@@ -1464,6 +1475,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const timer = setTimeout(() => {
       const debtTxIds = new Set(debts.flatMap(d => debtTransactionIds(d)));
       const snap = buildColdSnapshot({ uid, wallets, categories, transactions, debtTransactionIds: debtTxIds, now: Date.now() });
+      // اتمسح من الجهاز ← يتمسح من المعروض كمان (LOW، الجولة الأخيرة): من غيره كان ممكن يرجع يتعرض في نفس الجلسة
+      if (snap.wallets.length === 0) setStoredCold(null);
       const write = snap.wallets.length > 0
         ? AsyncStorage.setItem(coldCacheKey(uid), JSON.stringify(snap))
         : AsyncStorage.removeItem(coldCacheKey(uid));
@@ -1471,13 +1484,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, COLD_CACHE_WRITE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [uid, figuresFromServer, figuresPending, delivered, loadErrors, wallets, categories, transactions, debts]);
-  // للعرض بس، وبس طول ما مفيش ولا عملية حقيقية ولا أرقام من السيرفر، **ومفيش محافظ أو المحافظ وصلت والعمليات لسه**
-  // (مراجعة التطبيق كله، الميزة 7 — HIGH: المحافظ لوحدها كانت بتخفي الكاش، فالرئيسية كانت بتعرض الرصيد الافتتاحي على إنه
-  // الرصيد دلوقتي). أول عملية حقيقية بتخفيه (مفيش رصيد من الكاش جنب عمليات حقيقية — money-reviewer). كاش من غير محافظ ← مبيتعرضش
+  // للعرض بس — القاعدة في `coldSnapshotToShow` (الميزة 7: المحافظ لوحدها كانت بتخفي الكاش؛ والجولة الأخيرة H1-A: عملية
+  // محلية لسه بترفع كانت بتخفيه وتطلّع «رصيد افتتاحي + العملية» على إنه الرصيد). `txNotYet` = لسه ما جاش رد من السيرفر
   const txNotYet = figuresPending.includes('transactions');
-  const coldSnapshot = !figuresFromServer && (wallets.length === 0 || txNotYet) && transactions.length === 0
-    && storedCold && storedCold.wallets.length > 0
-    ? storedCold : null;
+  const coldSnapshot = coldSnapshotToShow({
+    stored: storedCold, figuresFromServer, walletsCount: wallets.length, txNotYet, txCount: transactions.length,
+  });
 
   /**
    * الحساب محتاج تجهيز؟ (شاشة "نبدأ بإيه؟"). اللي اتأكد مرة بيتفكر على الجهاز
@@ -1535,6 +1547,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     outboxIds.current = new Set();
     setOutboxCount(0);
     outboxReplay.current = { uid, running: false, done: false, runs: 0 };
+    setOutboxReplaying(false);
     outboxNoticeShown.current = new Set();
     outboxDropped.current = new Set();
     if (prev && prev !== uid) {
@@ -1581,9 +1594,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const runs = (st.uid === uid ? st.runs : 0) + 1;
     if (runs > OUTBOX_REPLAY_RUNS_PER_SESSION) return;
     outboxReplay.current = { uid, running: true, done: false, runs };
+    setOutboxReplaying(true);
     replayOutbox(uid)
       .catch(e => { logOutboxFailure('replay failed', e); return false; })
-      .then(done => { if (outboxReplay.current.uid === uid) outboxReplay.current = { uid, running: false, done, runs }; });
+      .then(done => {
+        if (outboxReplay.current.uid !== uid) return;
+        outboxReplay.current = { uid, running: false, done, runs };
+        setOutboxReplaying(false);
+      });
   }, [uid, serverReachable, setupStatus]);
 
   // الـlisteners في effect لوحده عشان "جرّب تاني" يفتحهم من الأول من غير ما
@@ -1610,8 +1628,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
      * فاضية لحد ما السيرفر يرد (silent-failure-hunter). بيرجّع نفس الـstate لو
      * الاسم مش موجود، فمفيش render زيادة مع كل snapshot عادي.
      */
-    const loaded = (name: ListenerName) => {
-      setLoadErrors(prev => (prev.includes(name) ? prev.filter(n => n !== name) : prev));
+    // H1-B (الجولة الأخيرة): اللي كان واقع بيتشال بس على snapshot من السيرفر — «جرّب تاني» من غير نت بيرمي من الكاش
+    const loaded = (name: ListenerName, fromCache: boolean) => {
+      setLoadErrors(prev => loadErrorsAfterSnapshot(prev, name, fromCache));
       setDelivered(prev => (prev.has(name) ? prev : new Set(prev).add(name)));
     };
     /** `includeMetadataChanges` على الـlisteners دي: الرد الفاضي من السيرفر بعد كاش فاضي مبيوصلش من غيرها (نفس المحتوى) */
@@ -1623,21 +1642,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const sameOr = <T,>(next: T) => (prev: T) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next);
 
     const unsubWallets = onSnapshot(collection(db, 'users', uid, 'wallets'), { includeMetadataChanges: true }, (snap) => {
-      loaded('wallets');
+      loaded('wallets', snap.metadata.fromCache);
       // المعرّف من المسار آخر حاجة — حقل `id` جوه المستند ميغطيهوش (بند B)
       setWallets(snap.docs.map(d => walletFromDoc<Wallet>(d.id, d.data())));
       noteConnection(snap.metadata.fromCache);
       noteFigures('wallets', snap.metadata.fromCache);
     }, failed('wallets'));
     const unsubCategories = onSnapshot(collection(db, 'users', uid, 'categories'), (snap) => {
-      loaded('categories');
+      loaded('categories', snap.metadata.fromCache);
       setCategories(snap.docs.map(d => withId<Category>(d.id, d.data())));
     }, failed('categories'));
     // includeMetadataChanges عشان نعرف مين لسه بيرفع ومين وصل: من غيرها فايربيز
     // مبتبعتش snapshot تاني لما السيرفر يأكد كتابة محتواها ما اتغيرش، فالعلامة
     // كانت هتفضل ظاهرة على العملية بعد ما ترفع فعلاً
     const unsubTx = onSnapshot(collection(db, 'users', uid, 'transactions'), { includeMetadataChanges: true }, (snap) => {
-      loaded('transactions');
+      loaded('transactions', snap.metadata.fromCache);
       // المستند البايظ (مبلغ/تاريخ/نوع) برّه الحسابات ومتعلّم — مش صفر ومش متشال ساكت (قرار مؤمن، بند B)
       const split = splitTransactions<Transaction>(snap.docs);
       setTransactions(split.transactions);
@@ -1657,7 +1676,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       noteFigures('transactions', snap.metadata.fromCache);
     }, failed('transactions'));
     const unsubBudgets = onSnapshot(collection(db, 'users', uid, 'budgets'), { includeMetadataChanges: true }, (snap) => {
-      loaded('budgets');
+      loaded('budgets', snap.metadata.fromCache);
       const b: Budgets = {};
       // رقم محدود بس (بند B): `undefined`/نص كان بيدخل حسبة "قربت تخلص" NaN
       snap.docs.forEach(d => { const v = numberField(d.data(), 'limit', 'budgets'); if (v !== undefined) b[d.id] = v; });
@@ -1665,14 +1684,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       seen('budgets', snap.metadata.fromCache, !snap.empty);
     }, failed('budgets'));
     const unsubShakhbata = onSnapshot(collection(db, 'users', uid, 'shakhbata_income'), { includeMetadataChanges: true }, (snap) => {
-      loaded('shakhbata_income');
+      loaded('shakhbata_income', snap.metadata.fromCache);
       const s: ShakhbataIncome = {};
       snap.docs.forEach(d => { const v = numberField(d.data(), 'income', 'shakhbata_income'); if (v !== undefined) s[d.id] = v; });
       setShakhbataIncome(sameOr(s));
       seen('shakhbata_income', snap.metadata.fromCache, !snap.empty);
     }, failed('shakhbata_income'));
     const unsubPercents = onSnapshot(doc(db, 'users', uid, 'shakhbata_settings', 'percents'), { includeMetadataChanges: true }, (snap) => {
-      loaded('shakhbata_settings');
+      loaded('shakhbata_settings', snap.metadata.fromCache);
       if (snap.exists()) {
         const data = snap.data();
         // `??` كان بيعدّي نص ("50") وNaN — المجموع كان بيتلزق نص (بند B)
@@ -1688,7 +1707,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       seen('shakhbata_settings', snap.metadata.fromCache, snap.exists());
     }, failed('shakhbata_settings'));
     const unsubDebts = onSnapshot(collection(db, 'users', uid, 'debts'), (snap) => {
-      loaded('debts');
+      loaded('debts', snap.metadata.fromCache);
       // `payments` و`increases` الاتنين بقيمة افتراضية: النوع `Debt` بيقول إنهم
       // مصفوفات مش اختياريين، ومستند قديم من غير الحقلين كان بيخلي النوع
       // يكدب — وأربع شاشات بتعمل `d.payments.forEach/.map/.length` من غير
@@ -1697,16 +1716,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setDebts(snap.docs.map(d => debtFromDoc<Debt>(d.id, d.data())));
     }, failed('debts'));
     const unsubSubs = onSnapshot(collection(db, 'users', uid, 'subscriptions'), (snap) => {
-      loaded('subscriptions');
+      loaded('subscriptions', snap.metadata.fromCache);
       setSubscriptions(snap.docs.map(d => subscriptionFromDoc<Subscription>(d.id, d.data())));
     }, failed('subscriptions'));
     const unsubGamiyas = onSnapshot(collection(db, 'users', uid, 'gamiyas'), (snap) => {
-      loaded('gamiyas');
+      loaded('gamiyas', snap.metadata.fromCache);
       setGamiyas(snap.docs.map(d => gamiyaFromDoc<Gamiya>(d.id, d.data())));
     }, failed('gamiyas'));
 
     const unsubIncomes = onSnapshot(collection(db, 'users', uid, 'incomes'), (snap) => {
-      loaded('incomes');
+      loaded('incomes', snap.metadata.fromCache);
       setIncomes(snap.docs.map(d => incomeFromDoc<RecurringIncome>(d.id, d.data())));
     }, failed('incomes'));
 
@@ -4517,7 +4536,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <DataContext.Provider
       value={{
         wallets, categories, transactions, brokenTransactions, budgets, shakhbataIncome, shakhbataPercents,
-        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
+        debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),

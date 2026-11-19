@@ -54,3 +54,22 @@ it('endDrag جه عادي ← نفس السلوك القديم (يرجع بعد 
   // أطول من «الإصبع ماسك ثانيتين ← مستخبي» (fabIncomeCard.test.tsx)
   expect(FAB_DRAG_FALLBACK_MS).toBeGreaterThan(2000);
 });
+
+it('LOW (الجولة الأخيرة): الاحتياطي اشتغل والصباع لسه بيمرّر ← رجع «ماسك» ومبيظهرش بعد عُشر ثانية، والاحتياطي بيتسلّح تاني', async () => {
+  await render(<FabScrollProvider><Probe /></FabScrollProvider>);
+  await act(async () => {
+    actions.scrollProps.onScrollBeginDrag();
+    scroll(100);
+    scroll(200);
+  });
+  await act(async () => { jest.advanceTimersByTime(FAB_DRAG_FALLBACK_MS + 10); });
+  expect(visible).toBe(true);
+  // الأحداث رجعت (يعني الصباع لسه ماسك) ← يختفي، ومبيرجعش بعد مهلة الرجوع العادية
+  await act(async () => { scroll(300); });
+  expect(visible).toBe(false);
+  await act(async () => { jest.advanceTimersByTime(500); });
+  expect(visible).toBe(false);
+  // ولو endDrag ضاع تاني ← الاحتياطي بيرجّعه
+  await act(async () => { jest.advanceTimersByTime(FAB_DRAG_FALLBACK_MS); });
+  expect(visible).toBe(true);
+});

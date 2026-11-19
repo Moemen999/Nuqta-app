@@ -1,6 +1,6 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, listenerNamesPhrase, loadErrorBody } from '@/lib/listenerErrors';
+import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, listenerNamesPhrase, loadErrorBody, type ListenerName } from '@/lib/listenerErrors';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import DismissButton from '@/components/DismissButton';
@@ -43,27 +43,30 @@ export default function DataLoadErrorBanner() {
   useEffect(() => { if (loadErrors.length === 0) clear('loadError'); }, [loadErrors.length, clear]);
 
   const [busy, setBusy] = useState(false);
-  const pressedWith = useRef('');
+  const pressedWith = useRef<string[]>([]);
   useEffect(() => {
     if (!busy) return;
-    // اللي وقع اتغيّر ← في نتيجة: كله وصل، أو جزء (البانر بيقول الباقي بالاسم)
-    if (instance !== pressedWith.current) {
+    // النتيجة = حاجة **رجعت** (الجولة الأخيرة، H1-B): بنقارن المجموعتين مش النص — listener تاني وقع وإحنا بنجرّب ومفيش حاجة
+    // رجعت كان بيتقال «جزء من بياناتك وصل». و«رجعت» نفسها بقت بعد snapshot من السيرفر بس (`loadErrorsAfterSnapshot`)
+    const removed = pressedWith.current.filter(n => !loadErrors.includes(n as ListenerName));
+    if (removed.length > 0) {
       setBusy(false);
-      AccessibilityInfo.announceForAccessibility(instance ? `جزء من بياناتك وصل، ولسه بيانات ${listenerNamesPhrase(loadErrors)} ما وصلتش` : RETRY_DONE_ANNOUNCEMENT);
+      AccessibilityInfo.announceForAccessibility(loadErrors.length > 0 ? `جزء من بياناتك وصل، ولسه بيانات ${listenerNamesPhrase(loadErrors)} ما وصلتش` : RETRY_DONE_ANNOUNCEMENT);
       return;
     }
     const t = setTimeout(() => { setBusy(false); AccessibilityInfo.announceForAccessibility(RETRY_STILL_FAILED); }, RETRY_WAIT_MS);
     return () => clearTimeout(t);
-  }, [busy, instance, loadErrors]);
+  }, [busy, loadErrors]);
   const retry = () => {
-    pressedWith.current = instance;
+    pressedWith.current = [...loadErrors];
     setBusy(true);
     retryLoad();
   };
 
   const visible = loadErrors.length > 0 && !hidden('loadError', instance);
-  // ظهر متأخر ← نفس نمط بانرات الرئيسية (iOS إعلان، أندرويد liveRegion)
-  useAnnounceOnAppear(visible ? `${LOAD_ERROR_TITLE}. ${loadErrorBody(loadErrors)}` : null);
+  // ظهر متأخر ← نفس نمط بانرات الرئيسية (iOS إعلان، أندرويد liveRegion). وإحنا بنجرّب: نتيجة «جرّب تاني» هي اللي بتتقال —
+  // النص الجديد بيتسجّل من غير إعلان (كان بيتقال مرتين: «جزء وصل» + البانر من الأول)
+  useAnnounceOnAppear(visible ? `${LOAD_ERROR_TITLE}. ${loadErrorBody(loadErrors)}` : null, { silent: busy });
 
   // الـ✕ (قرار مؤمن 2026-10-28): بيتقفل ويرجع بعد المدة — والحالة نفسها (البيانات ما وصلتش)
   // فاضلة، فلو لسه موجودة بعد المدة البانر بيرجع

@@ -16,19 +16,28 @@ export type HeroFigures =
   | { kind: 'cold' }
   | { kind: 'failed'; missing: ListenerName[] }
   | { kind: 'loading' }
+  | { kind: 'waiting' }
   | { kind: 'live' };
 
-export function heroFigures(i: { cold: boolean; loadErrors: ListenerName[]; figuresPending: ListenerName[] | undefined }): HeroFigures {
-  // الكاش أول: آخر أرقام معروفة بعلامة «قديم» أصدق من «ناقص» على شاشة فاضية
-  if (i.cold) return { kind: 'cold' };
+/**
+ * الترتيب (الجولة الأخيرة): **الفشل أول** (M1 — الكاش كان بيغطي listener واقع بـ«(قديم)» و«مفيش نت» والسبب مش النت)،
+ * بعده الكاش (آخر أرقام معروفة أحسن من فاضي)، بعده لسه بتوصل: من غير نت بعد مهلة التحميل (`waitingNet`) ← «مستنيين النت»
+ * (H1-A — كان بيبان «إجمالي رصيدك 0» بعد ✕ بانر «مفيش نت»)، وإلا «بنحمّل…».
+ */
+export function heroFigures(i: {
+  cold: boolean; loadErrors: ListenerName[]; figuresPending: ListenerName[] | undefined; waitingNet?: boolean;
+}): HeroFigures {
   const missing = HERO_FIGURE_SOURCES.filter(n => (i.loadErrors ?? []).includes(n));
   if (missing.length > 0) return { kind: 'failed', missing };
-  if (HERO_FIGURE_SOURCES.some(n => (i.figuresPending ?? []).includes(n))) return { kind: 'loading' };
+  if (i.cold) return { kind: 'cold' };
+  if (HERO_FIGURE_SOURCES.some(n => (i.figuresPending ?? []).includes(n))) return i.waitingNet ? { kind: 'waiting' } : { kind: 'loading' };
   return { kind: 'live' };
 }
 
 export const HERO_LABEL = 'إجمالي رصيدك';
 export const HERO_LOADING_TEXT = 'بنحمّل…';
+/** مكان الرقم: العمليات ما وصلتش من السيرفر ومفيش نت ومفيش كاش — متتقفلش (مش بانر) */
+export const HERO_WAITING_TEXT = 'مستنيين النت عشان نجيب رصيدك';
 
 /**
  * العلامة جنب «إجمالي رصيدك» **متتقفلش** (البانرات تحت ممكن تتقفل أو تتمرر، وقارئ الشاشة بيقرا الرقم قبلها).
@@ -59,12 +68,16 @@ export function figuresSettled(i: { figuresFromServer: boolean; loadErrors: List
 /**
  * عمليات في الطابور المتشفّر على الموبايل ولسه ما اترفعتش (`outboxCount`) — بعد فتحة باردة من غير نت مش بتبان في
  * «آخر العمليات» (الإعادة بتستنى السيرفر)، فالسطر ده هو اللي بيقول إنها موجودة. صفر ← مفيش سطر.
+ * `online` (M4، الجولة الأخيرة): النت شغال والإعادة وقفت (فشلت أو خلصت محاولاتها) — مفيش ولا كلمة عن النت، والإعادة
+ * بتتعاد مع رجوع الاتصال أو الفتحة الجاية.
  */
-export function outboxLinePhrase(n: number): string {
+export function outboxLinePhrase(n: number, opts: { online?: boolean } = {}): string {
   if (!Number.isFinite(n) || n <= 0) return '';
-  if (n === 1) return 'عندك عملية متسجلة على الموبايل ولسه ما اترفعتش';
-  if (n === 2) return 'عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش';
-  return `عندك ${n} ${n <= 10 ? 'عمليات' : 'عملية'} متسجلة على الموبايل ولسه ما اترفعتش`;
+  const base = n === 1 ? 'عندك عملية متسجلة على الموبايل ولسه ما اترفعتش'
+    : n === 2 ? 'عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش'
+    : `عندك ${n} ${n <= 10 ? 'عمليات' : 'عملية'} متسجلة على الموبايل ولسه ما اترفعتش`;
+  if (!opts.online) return base;
+  return `${base} — ${n === 1 ? 'هنجرب نرفعها تاني' : 'هنجرب نرفعهم تاني'}`;
 }
 
 export const RECENT_EMPTY_TEXT = {

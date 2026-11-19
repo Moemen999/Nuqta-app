@@ -11,11 +11,13 @@ import { AccessibilityInfo, Platform } from 'react-native';
  *
  * بيتقال لما النص يظهر أو يتغيّر لنص جديد — مش مع كل رسمة. `null`/فاضي = البانر مش ظاهر.
  */
-export function useAnnounceOnAppear(text: string | null | false | undefined): void {
+export function useAnnounceOnAppear(text: string | null | false | undefined, opts: { silent?: boolean } = {}): void {
   const last = useRef<string | null>(null);
+  const silent = !!opts.silent;
   useEffect(() => {
     const now = text || null;
-    if (now && now !== last.current && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(now);
+    // `silent`: النص اتغيّر وفيه إعلان تاني بيقول نفس الحاجة (نتيجة «جرّب تاني») — بيتسجّل إنه اتقال من غير ما يتقال
+    if (now && now !== last.current && !silent && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(now);
     last.current = now;
-  }, [text]);
+  }, [text, silent]);
 }

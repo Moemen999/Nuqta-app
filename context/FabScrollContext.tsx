@@ -66,6 +66,8 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
 
   // احتياطي لو `onScrollEndDrag` مجاش (الميزة 7): بيتسلّح مع بداية السحب ومع كل حدث والصباع ماسك، ولو خلص ← السحب خلص
   const dragFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // الاحتياطي اشتغل ومفيش endDrag/momentumEnd بعده — لو الأحداث رجعت يبقى الصباع لسه ماسك (LOW، الجولة الأخيرة)
+  const fallbackFired = useRef(false);
   const clearDragFallback = useCallback(() => {
     if (dragFallback.current) { clearTimeout(dragFallback.current); dragFallback.current = null; }
   }, []);
@@ -74,6 +76,7 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     dragFallback.current = setTimeout(() => {
       dragFallback.current = null;
       dragging.current = false;
+      fallbackFired.current = true;
       if (!visibleRef.current) armSettle(0);
     }, FAB_DRAG_FALLBACK_MS);
   }, [armSettle, clearDragFallback]);
@@ -82,6 +85,7 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     clearTimer();
     clearDragFallback();
     dragging.current = false;
+    fallbackFired.current = false;
     anchor.current = null;
     apply(true);
   }, [apply, clearTimer, clearDragFallback]);
@@ -105,6 +109,8 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     if (typeof y !== 'number') return;
     // أول حدث بعد show(): نظبط المرساة على مكانه بس — مفيش حركة اتعملت لسه
     if (anchor.current === null) { anchor.current = Math.max(0, y); return; }
+    // الاحتياطي افترض إن السحب خلص والأحداث رجعت ← لسه ماسك: بنرجع «ماسك» ونسلّح الاحتياطي تاني (مش رجوع بعد عُشر ثانية)
+    if (fallbackFired.current) { fallbackFired.current = false; dragging.current = true; }
     const next = fabScrollStep(anchor.current, y, visibleRef.current);
     anchor.current = next.anchorY;
     if (next.visible !== visibleRef.current) apply(next.visible);
@@ -113,15 +119,16 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     if (dragging.current) armDragFallback();
   }, [apply, armSettle, clearTimer, armDragFallback]);
 
-  const onScrollBeginDrag = useCallback(() => { dragging.current = true; clearTimer(); armDragFallback(); }, [clearTimer, armDragFallback]);
+  const onScrollBeginDrag = useCallback(() => { dragging.current = true; fallbackFired.current = false; clearTimer(); armDragFallback(); }, [clearTimer, armDragFallback]);
   const onScrollEndDrag = useCallback(() => {
     clearDragFallback();
     dragging.current = false;
+    fallbackFired.current = false;
     if (!screenReader.current && !visibleRef.current) armSettle(FAB_SETTLE_MS);
   }, [armSettle, clearDragFallback]);
   // momentum بدأ: مفيش مسح للمهلة هنا — أحداث onScroll أثناء الـmomentum بتعيد تسليحها (والزرار مستخبي طول التزحليق)، ومسحها كان بيسيب الزرار مستخبي للأبد لو الـmomentum مخلّصش بحدث
   const onMomentumScrollBegin = noopFn;
-  const onMomentumScrollEnd = useCallback(() => { clearDragFallback(); dragging.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle, clearDragFallback]);
+  const onMomentumScrollEnd = useCallback(() => { clearDragFallback(); dragging.current = false; fallbackFired.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle, clearDragFallback]);
 
   useEffect(() => () => { clearTimer(); clearDragFallback(); }, [clearTimer, clearDragFallback]);
 

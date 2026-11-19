@@ -55,14 +55,17 @@ export default function PendingSummary() {
   // العدد زاد بعد أول رسمة ← بيتقال لقارئ الشاشة (نفس نمط `AttentionSheet`): السطر بيظهر جوه التمرير ومحدش بيعدّي عليه.
   // أول رسمة مش بتتقال (موجود من الفتح)
   // وبعد مهلة تحميل الرئيسية (2.5 ثانية) بس: البيانات بتوصل في أول ثواني والعدد بيطلع من صفر — ده مش «جديد»
+  // **حاجة جديدة** مش «العدد زاد» (LOW، الجولة الأخيرة): رد على حاجة وجت غيرها بنفس العدد ← بيتقال برضه (نفس فكرة مفتاح الـ✕)
   const mountedAt = useRef(Date.now());
-  const lastCount = useRef(0);
+  const lastKeys = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (Date.now() - mountedAt.current >= PENDING_ANNOUNCE_AFTER_MS && count > lastCount.current && phrase) {
+    const keys = dismissKey ? dismissKey.split(',') : [];
+    const hasNew = keys.some(k => !lastKeys.current.has(k));
+    if (Date.now() - mountedAt.current >= PENDING_ANNOUNCE_AFTER_MS && hasNew && phrase) {
       AccessibilityInfo.announceForAccessibility(phrase);
     }
-    lastCount.current = count;
-  }, [count, phrase]);
+    lastKeys.current = new Set(keys);
+  }, [dismissKey, phrase]);
 
   if (!phrase || hidden('pending', dismissKey)) return null;
 

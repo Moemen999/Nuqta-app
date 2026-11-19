@@ -50,3 +50,24 @@ it('السطر قدّام الـ✕ بمسافة 8 (a11y: هدفين لمس مل
   const { StyleSheet } = require('react-native');
   expect(StyleSheet.flatten(screen.getByTestId('home_pending_row').props.style).gap).toBe(8);
 });
+
+it('LOW (الجولة الأخيرة): حاجة جديدة بنفس العدد بعد مهلة التحميل ← بتتقال لقارئ الشاشة (مش بس لما العدد يزيد)', async () => {
+  const { AccessibilityInfo } = require('react-native');
+  const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+  jest.useFakeTimers();
+  try {
+    mockCharges = [{ kind: 'subscription', id: 's1', charges: [{ key: '2026-11-01' }] }] as never;
+    const r = await render(ui());
+    await act(async () => { jest.advanceTimersByTime(3000); });
+    announce.mockClear();
+    // نفس الحاجة ← مفيش إعلان
+    await act(async () => { r.rerender(ui()); });
+    expect(announce).not.toHaveBeenCalled();
+    mockCharges = [{ kind: 'subscription', id: 's2', charges: [{ key: '2026-11-02' }] }] as never;
+    await act(async () => { r.rerender(ui()); });
+    expect(announce).toHaveBeenCalledTimes(1);
+  } finally {
+    jest.useRealTimers();
+    announce.mockRestore();
+  }
+});

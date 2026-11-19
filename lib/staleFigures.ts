@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { ListenerName } from '@/lib/listenerErrors';
 
 /**
  * بانر "النت قطع — الأرقام ممكن تكون قديمة" (2026-09-29).
@@ -24,6 +25,24 @@ export const STALE_FIGURES_DELAY_MS = 10_000;
  */
 export function figuresFresh(wallets: boolean | null, transactions: boolean | null): boolean {
   return wallets === false && transactions === false;
+}
+
+/**
+ * `figuresPending` (مراجعة التطبيق كله، الميزة 7 — الجولة الأخيرة، H1-A): المحافظ لسه ما رمتش ولا snapshot، أو
+ * **العمليات لسه ما جالهاش snapshot من السيرفر ولا مرة في الجلسة دي**. snapshot العمليات من الكاش مش كفاية: الكاش في
+ * الذاكرة بس وفاضي في الفتحة الباردة، فـ`fromCache: true` يا إما كتابة محلية لسه بترفع (المستند ده بس) يا إما العميل
+ * Offline (فاضي) — والاتنين كانوا بيطلّعوا الرصيد الافتتاحي (أو 0) على إنه الرصيد. بعد أول رد من السيرفر الكاش فيه
+ * كل حاجة، فالقطع بعد كده بانر «ممكن يكون قديم» مش «لسه بتوصل». حساب جديد من غير عمليات بيعدّي: المجموعة الفاضية
+ * بترمي snapshot من السيرفر (`figuresFromServer.emulator.test.tsx`).
+ */
+export function pendingFigureSources(
+  cache: { wallets: boolean | null; transactions: boolean | null },
+  transactionsServerSeen: boolean,
+): ListenerName[] {
+  const out: ListenerName[] = [];
+  if (cache.wallets === null) out.push('wallets');
+  if (!transactionsServerSeen) out.push('transactions');
+  return out;
 }
 
 export const STALE_FIGURES_TEXT = 'النت قطع — الأرقام ممكن تكون قديمة';

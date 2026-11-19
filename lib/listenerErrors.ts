@@ -24,6 +24,18 @@ export const LISTENER_LABELS = {
 
 export type ListenerName = keyof typeof LISTENER_LABELS;
 
+/**
+ * snapshot وصل لـlistener (مراجعة التطبيق كله، الميزة 7 — الجولة الأخيرة، H1-B): لو كان واقع، بيتشال من `loadErrors` بس
+ * لما الـsnapshot من السيرفر. «جرّب تاني» من غير نت بيفتح الـlistener من الكاش (فاضي أو قديم) — ده مش رجوع، و«بياناتك
+ * وصلت» كانت بتتقال كدب. نفس المصفوفة لو مفيش تغيير (مفيش render زيادة مع كل snapshot عادي).
+ * **حد معروف:** listener من غير `includeMetadataChanges` اتفتح من غير نت ومحتواه على السيرفر زي الكاش (مجموعة فاضية
+ * مثلًا) مبيرميش snapshot تاني لما النت يرجع — فالبانر بيفضل لحد «جرّب تاني» والنت شغال. إنذار زيادة، مش بلع.
+ */
+export function loadErrorsAfterSnapshot(prev: ListenerName[], name: ListenerName, fromCache: boolean): ListenerName[] {
+  if (!prev.includes(name) || fromCache) return prev;
+  return prev.filter(n => n !== name);
+}
+
 export const LOAD_ERROR_TITLE = 'مقدرناش نجيب بياناتك';
 export const LOAD_ERROR_RETRY = 'جرّب تاني';
 

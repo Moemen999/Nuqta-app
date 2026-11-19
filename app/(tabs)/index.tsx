@@ -27,7 +27,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { transactionsPhrase } from '@/lib/archiving';
 import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, entryTime, formatTime, shownBalance, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
-import { HERO_LOADING_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel, outboxLinePhrase, recentEmptyText } from '@/lib/homeFigures';
+import { HERO_LOADING_TEXT, HERO_WAITING_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel, outboxLinePhrase, recentEmptyText } from '@/lib/homeFigures';
 import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
@@ -66,7 +66,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending, outboxCount } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending, outboxCount, outboxReplaying } = useData();
   const { walletColors, categoryColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -104,21 +104,29 @@ function HomeScreen() {
   const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
   // النت قطع والأرقام على الشاشة: بعد المهلة بس، ولحد ما الأرقام نفسها تتحدّث
   // (lib/staleFigures.ts). من غير أرقام ده "مفيش نت" اللي فوق، مش ده
-  // الكاش البارد معروض ← ده «قديم» مش «ممكن يكون قديم» (بانر تاني)
-  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0 && !coldSnapshot);
+  // الكاش البارد معروض ← ده «قديم» مش «ممكن يكون قديم» (بانر تاني). والمحافظ أو العمليات وقعت ← السبب مش النت، والعلامة
+  // «(ناقص)» وبانر «مقدرناش نجيب بياناتك» بيقولوه (M2، الجولة الأخيرة)
+  const figuresListenerFailed = loadErrors.includes('wallets') || loadErrors.includes('transactions');
+  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0 && !coldSnapshot && !figuresListenerFailed);
   /**
    * كاش أول فتحة باردة (`lib/coldCache.ts`): آخر أرقام اتشافت، **للعرض بس** — طول ما مفيش ولا محفظة من
    * الـlisteners. الرصيد والشرايح وآخر العمليات بيتعرضوا منه، بعلامة "قديم" مبتتقفلش، والصفوف مبتفتحش
    * المودال (العملية مش موجودة في البيانات اللي التعديل بيقرا منها). أول snapshot حقيقي بيخفيه لوحده.
    */
   const cold = coldSnapshot;
-  const shownTotal = cold ? shownBalance(cold.wallets.reduce((s, w) => s + w.balance, 0)) : totalBalance;
   /**
    * الرقم البطل (الميزة 7 — HIGH): العمليات لسه بتوصل ← «بنحمّل…» مكان الرقم (الكاش بيفضل لحد ما توصل — DataContext)؛
    * المحافظ أو العمليات وقعت ← «(ناقص)» + «مقدرناش نجيب …» مكان الرقم والشرايح. علامة جنب الإجمالي **متتقفلش**
    * (`lib/homeFigures.ts`)؛ بانر «مقدرناش نجيب بياناتك» فوق بـ✕ زي ما هو
    */
-  const hero = heroFigures({ cold: !!cold, loadErrors, figuresPending });
+  // «مستنيين النت» بعد مهلة التحميل بس (زي «مفيش نت»): قبلها إحنا لسه بنحمّل (H1-A، الجولة الأخيرة)
+  const hero = heroFigures({ cold: !!cold, loadErrors, figuresPending, waitingNet: loadWindowPassed && !serverReachable });
+  // الكاش بيتعرض (الإجمالي والشرايح والبانر والصفوف) بس لما هو الحالة — listener المحافظ أو العمليات واقع ← «(ناقص)» من
+  // غير أرقام قديمة ولا «مفيش نت» (M1، الجولة الأخيرة). الإجمالي = مجموع الشرايح المقرّبة، نفس قاعدة الأرقام الحية (LOW)
+  const coldShownFigures = hero.kind === 'cold' ? cold : null;
+  const shownTotal = coldShownFigures
+    ? shownBalance(coldShownFigures.wallets.reduce((s, w) => s + shownBalance(w.balance), 0))
+    : totalBalance;
   const unsure = figuresUnsure(loadErrors, figuresPending);
   const txFailed = loadErrors.includes('transactions');
   const txPending = !!figuresPending?.includes('transactions');
@@ -154,8 +162,8 @@ function HomeScreen() {
   // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
   // بانر الكاش بيظهر بعد مهلة التحميل — قارئ الشاشة مبيقراش live region وقت ما العنصر يظهر، فبنقوله مرة (silent-failure-hunter)
   // نمط واحد (`useAnnounceOnAppear`): iOS بيتقال، أندرويد على liveRegion البانر — كان بيتقال مرتين على أندرويد (الميزة 7)
-  const coldShown = !!cold && loadWindowPassed;
-  useAnnounceOnAppear(coldShown && cold ? coldFiguresText(cold.savedAt, formatTime) : null);
+  const coldShown = !!coldShownFigures && loadWindowPassed;
+  useAnnounceOnAppear(coldShown && coldShownFigures ? coldFiguresText(coldShownFigures.savedAt, formatTime) : null);
   // «اتحدّثت» بس لما الاتنين وصلوا من السيرفر ومفيش منهم واقع (الميزة 7): المحافظ لوحدها مع عمليات لسه جاية كانت بتتقال
   // «اتحدّثت» والرقم رصيد افتتاحي
   const settled = figuresSettled({ figuresFromServer, loadErrors, figuresPending });
@@ -169,7 +177,8 @@ function HomeScreen() {
   }, [cold, settled, wallets.length]);
 
   // البانرات اللي بتظهر متأخر — نفس النمط (a11y-architect، الميزة 7)
-  const outboxText = loadWindowPassed && !serverReachable ? outboxLinePhrase(outboxCount ?? 0) : '';
+  // M4 (الجولة الأخيرة): بيبان طول ما فيه مدخلات والإعادة مش شغالة — مش من غير نت بس (الإعادة ممكن تقف والنت شغال)
+  const outboxText = loadWindowPassed && !outboxReplaying ? outboxLinePhrase(outboxCount ?? 0, { online: serverReachable }) : '';
   const brokenWallets = wallets.filter(w => w.openingInvalid);
   const brokenWalletText = brokenWallets.map(w => (w.archived ? brokenArchivedWalletBannerText(w.name) : brokenWalletBannerText(w.name))).join(' ');
 
@@ -192,14 +201,14 @@ function HomeScreen() {
    * كارت «صرفت الشهر ده». **مخفي** (بيكسب على أي حاجة تانية) لما الأرقام اللي فوق نفسها مش بتتعرض أو مش متأكدين منها:
    * كاش بارد، مفيش نت وفاضي، مفيش محفظة. بعد كده: الخطأ ← مفيش رقم؛ لسه بنحمّل ← «بنحمّل…» (نفس شرط التقارير:
    * `transfersStatus === 'loading'`)؛ غير كده الرقم — ولو الديون فشلت معاه سطر التقارير.
-   * **العمليات لسه ما وصلتش** (`figuresPending` فيها 'transactions') ← «بنحمّل…» برضه، **بس لحد مهلة التحميل**
-   * (`loadWindowPassed`، نفس اللي بتحكم «مفيش نت»): `figuresPending` بيتشال بس لما listener العمليات يرمي snapshot،
-   * ومجموعة فاضية ممكن متبعتش (DataContext ~785-790، CLAUDE.md «مشاكل معروفة») — من غير المهلة حساب جديد كان هيفضل
-   * «بنحمّل» للأبد. من غيره «0 ج.م» / «فاضل 8,000» كانت ادّعاء مظبوط الشكل إن مفيش مصروف. المهلة بعد كده: الرقم زي ما هو.
+   * **العمليات لسه ما وصلتش** (`figuresPending` فيها 'transactions') ← «بنحمّل…» برضه، **من غير مهلة** (M3، الجولة
+   * الأخيرة): نفس إشارة الرقم البطل بالظبط — 'transactions' بيتشال بس على snapshot من السيرفر (`pendingFigureSources`)،
+   * والمجموعة الفاضية بترمي snapshot من السيرفر (`figuresFromServer.emulator.test.tsx`)، فحساب جديد مبيفضلش «بنحمّل».
+   * من غير نت (الرقم البطل «مستنيين النت») الكارت مستخبي. من غيره «0 ج.م» / «فاضل 8,000» كانت ادّعاء إن مفيش مصروف.
    */
-  const monthCardHidden = !!cold || offlineEmpty || noWalletsState.none || wallets.length === 0;
+  const monthCardHidden = !!cold || offlineEmpty || noWalletsState.none || wallets.length === 0 || hero.kind === 'waiting';
   const monthCardState: MonthCardState = loadErrors.includes('transactions') ? { kind: 'error' }
-    : transfersStatus === 'loading' || (!loadWindowPassed && !!figuresPending?.includes('transactions')) ? { kind: 'loading' }
+    : transfersStatus === 'loading' || !!figuresPending?.includes('transactions') ? { kind: 'loading' }
     : { kind: 'ready', summary, transfersFailed: transfersStatus === 'failed', budgetsFailed: loadErrors.includes('budgets') };
 
   // «حاجات محتاجة انتباهك» (2026-11-13): الإيميل، لسه ما سجلتش، رصيد قرب يخلص، ميزانية فئة، اشتراك وقسط جمعية جايين —
@@ -252,6 +261,8 @@ function HomeScreen() {
             <Text testID="home_hero_failed" style={styles.heroStatus}>{heroFailedText(hero.missing)}</Text>
           ) : hero.kind === 'loading' ? (
             <Text testID="home_hero_loading" style={styles.heroStatus}>{HERO_LOADING_TEXT}</Text>
+          ) : hero.kind === 'waiting' ? (
+            <Text testID="home_hero_waiting" style={styles.heroStatus}>{HERO_WAITING_TEXT}</Text>
           ) : (
             // صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة وبيضيّع accessibilityLabel بتاع Money،
             // فالمخفي كان بيتقري نقط. ظاهر ← عقدة واحدة «950 جنيه»؛ مخفي ← من غير label (القناع زرار «اكشف» لوحده)
@@ -261,8 +272,8 @@ function HomeScreen() {
           )}
           <View style={styles.walletsRow}>
             {/* كل شريحة عقدة واحدة لقارئ الشاشة: الاسم جوه label بتاع المبلغ («كاش، 950 جنيه» / «كاش: مبلغ مخفي») */}
-            {cold
-              ? cold.wallets.map(w => (
+            {coldShownFigures
+              ? coldShownFigures.wallets.map(w => (
                 <View key={w.id} testID={`home_cold_wallet_${w.id}`} style={styles.walletChip}>
                   {/* حلقة فاضية مش لون: "مش حية" مش "ملقيناش لون" (visual-identity-reviewer) */}
                   <View style={[styles.dot, { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.textSecondary }]} />
@@ -318,15 +329,15 @@ function HomeScreen() {
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
         {/* بعد مهلة التحميل بس، زي «مفيش نت» (offlineEmpty): الكاش بيتعرض في أول ثانية من كل فتح والنت شغال، والجملة
             «مفيش نت دلوقتي» كانت بتلمع أحمر غلط (اتشاف على الشاومي 2026-11-07). «(قديم)» جنب الإجمالي بيبان من الأول */}
-        {cold && loadWindowPassed && (
+        {coldShownFigures && loadWindowPassed && (
           <View testID="home_banner_cold" style={[styles.banner, styles.bannerDanger, { minHeight: MIN_TOUCH }]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
-            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(coldShownFigures.savedAt, formatTime)}</Text>
           </View>
         )}
         {/* عمليات في الطابور المتشفّر ولسه ما اترفعتش (الميزة 7): بعد فتحة باردة من غير نت مش بتبان في «آخر العمليات»
-            (الإعادة بتستنى السيرفر)، فالسطر ده من غير ✕ هو اللي بيقول إنها موجودة. من غير نت بس — والنت شغال الإعادة بتخلص لوحدها
-            والعلامة «⏳ لسه بترفع» على الصف بتكفي */}
+            (الإعادة بتستنى السيرفر)، فالسطر ده من غير ✕ هو اللي بيقول إنها موجودة. بيستخبى وهي شغالة بس (M4، الجولة الأخيرة):
+            النت شغال والإعادة وقفت ← المدخلات لسه هنا، والجملة من غير «نت» */}
         {!!outboxText && (
           <View testID="home_outbox_line" style={[styles.banner, styles.bannerWarn]} accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.accentText }]}>{outboxText}</Text>
@@ -393,13 +404,14 @@ function HomeScreen() {
           transfersFailed={transfersStatus === 'failed'} />
         <Text testID="home_recent_title" style={styles.sectionTitle} accessibilityRole="header">آخر العمليات</Text>
         {/* قبل مهلة التحميل أو والعمليات لسه جاية ← ولا كلمة؛ وقعت ← ما وصلتش (مش «لسه ما سجلتش») — `recentEmptyText` */}
-        {recent.length === 0 && !(cold && cold.recent.length > 0) && !!emptyRecentText && (
+        {recent.length === 0 && !(coldShownFigures && coldShownFigures.recent.length > 0) && !!emptyRecentText && (
           <Text testID="home_recent_empty" style={styles.emptyState}>{emptyRecentText}</Text>
         )}
         {/* دراسة الشكل خطوة 2: القايمة كارت واحد من غير خطوط بين الصفوف — المسافة هي اللي بتفصل */}
         <View testID="home_recent_card" style={styles.txCard}>
         {/* صفوف الكاش: View مش زرار (مفيش عملية حقيقية يتفتح عليها المودال)، ومن غير نوت ولا اسم */}
-        {cold && recent.length === 0 && cold.recent.map(t => {
+        {coldShownFigures && recent.length === 0 && coldShownFigures.recent.map(t => {
+          const cold = coldShownFigures;
           const T = TYPE_LABELS[t.type];
           const coldCat = !t.kind && t.type === 'expense' && t.categoryId ? cold.categories.find(c => c.id === t.categoryId) : undefined;
           const catLabel = categoryLabelById(cold.categories, t.categoryId, coldCat ? { icon: false } : {});

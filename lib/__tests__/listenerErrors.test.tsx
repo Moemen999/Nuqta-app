@@ -27,7 +27,8 @@ describe('كل listener في DataContext ليه error callback', () => {
 
   it.each(blocks.map((b, i) => [i + 1, b]))('listener رقم %i: loaded و failed بنفس الاسم', (_i, block) => {
     const failed = (block as string).match(/\}, failed\('([a-z_]+)'\)\);/);
-    const loaded = (block as string).match(/\(snap\) => \{\s*loaded\('([a-z_]+)'\);/);
+    // الاسم أول باراميتر؛ التاني fromCache (الرجوع بعد الفشل بالسيرفر بس — الميزة 7، الجولة الأخيرة)
+    const loaded = (block as string).match(/\(snap\) => \{\s*loaded\('([a-z_]+)'[,)]/);
     expect(failed?.[1]).toBeDefined();
     expect(loaded?.[1]).toBe(failed?.[1]);
   });

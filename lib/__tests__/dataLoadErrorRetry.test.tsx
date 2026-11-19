@@ -44,3 +44,28 @@ it('وصلت ← بيتقال «وصلت» والبانر بيختفي', async (
   expect(screen.queryByTestId('data_load_error_banner')).toBeNull();
   expect(announce.mock.calls.map(c => c[0])).toContain(RETRY_DONE_ANNOUNCEMENT);
 });
+
+it('الجولة الأخيرة (H1-B): listener تاني وقع وإحنا بنجرّب ومفيش حاجة رجعت ← لسه «بنجرّب» (مش «جزء وصل»)', async () => {
+  const r = await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('data_load_error_retry')); });
+  mockData.loadErrors = ['debts', 'transactions'];
+  await act(async () => { r.rerender(ui()); });
+  expect(screen.getByTestId('data_load_error_retry').props.accessibilityState).toMatchObject({ busy: true });
+  expect(announce.mock.calls.map(c => c[0]).some(t => /جزء من بياناتك وصل/.test(t))).toBe(false);
+  await act(async () => { jest.advanceTimersByTime(RETRY_WAIT_MS + 10); });
+  expect(announce.mock.calls.map(c => c[0])).toContain(RETRY_STILL_FAILED);
+});
+
+it('الجولة الأخيرة: جزء رجع ← إعلان واحد بس (مش «جزء وصل» + نص البانر من جديد)', async () => {
+  mockData.loadErrors = ['debts', 'transactions'];
+  const r = await render(ui());
+  await act(async () => { jest.advanceTimersByTime(10); });
+  await act(async () => { fireEvent.press(screen.getByTestId('data_load_error_retry')); });
+  announce.mockClear();
+  mockData.loadErrors = ['debts'];
+  await act(async () => { r.rerender(ui()); });
+  await act(async () => { r.rerender(ui()); });
+  const said = announce.mock.calls.map(c => c[0]);
+  expect(said).toHaveLength(1);
+  expect(said[0]).toMatch(/جزء من بياناتك وصل/);
+});

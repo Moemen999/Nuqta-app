@@ -186,3 +186,66 @@ describe('قارئ الشاشة', () => {
     expect(row.props.accessibilityHint).toBe('بيفتح تعديل العملية');
   });
 });
+
+describe('الجولة الأخيرة (money-reviewer + silent-failure-hunter، المشكّك أكّد)', () => {
+  it('H1-A: فتحة باردة من غير نت ومن غير كاش ← «مستنيين النت» مكان الرقم (مش 0)، وبيفضل بعد ✕ بانر «مفيش نت»', async () => {
+    setData({ wallets: [], transactions: [], serverReachable: false, figuresFromServer: false, figuresPending: ['transactions'] });
+    await mount();
+    expect(screen.getByTestId('home_hero_waiting').props.children).toBe('مستنيين النت عشان نجيب رصيدك');
+    expect(screen.queryByLabelText('0 جنيه')).toBeNull();
+    await act(async () => { fireEvent.press(screen.getByTestId('home_banner_dismiss_offline')); });
+    expect(screen.getByTestId('home_hero_waiting')).toBeTruthy();
+    expect(screen.queryByLabelText('0 جنيه')).toBeNull();
+  });
+  it('H1-A: عملية محلية لسه بترفع من غير نت (العمليات ما وصلتش من السيرفر) ← مفيش رصيد افتتاحي+عملية، ومفيش «قرب يخلص»', async () => {
+    setData({
+      wallets: [{ id: 'w1', name: 'كاش', openingBalance: 1000, lowAlert: 5000 }], transactions: [tx],
+      serverReachable: false, figuresFromServer: false, figuresPending: ['transactions'],
+    });
+    await mount();
+    expect(screen.getByTestId('home_hero_waiting')).toBeTruthy();
+    expect(screen.queryByLabelText('950 جنيه')).toBeNull();
+    expect(screen.queryByLabelText('كاش، 950 جنيه')).toBeNull();
+    expect(screen.queryByText(/قرب يخلص/)).toBeNull();
+  });
+  it('H1-A: نفس الحالة قبل مهلة التحميل ← «بنحمّل…» (مش «مستنيين النت» وإحنا لسه بنحمّل)', async () => {
+    setData({ wallets: [], transactions: [], serverReachable: false, figuresFromServer: false, figuresPending: ['transactions'] });
+    await mount(1000);
+    expect(screen.getByTestId('home_hero_loading')).toBeTruthy();
+    expect(screen.queryByTestId('home_hero_waiting')).toBeNull();
+  });
+  it('M1: العمليات وقعت وفيه كاش ← «(ناقص)» مش «(قديم)»، ومفيش بانر «مفيش نت» ولا شرايح قديمة', async () => {
+    setData({
+      wallets: [], transactions: [], coldSnapshot: cold, loadErrors: ['transactions'], figuresPending: ['transactions'],
+      figuresFromServer: false,
+    });
+    await mount();
+    expect(screen.getByText('إجمالي رصيدك (ناقص)')).toBeTruthy();
+    expect(screen.getByTestId('home_hero_failed').props.children).toBe('مقدرناش نجيب العمليات');
+    expect(screen.queryByTestId('home_banner_cold')).toBeNull();
+    expect(screen.queryByText(/مفيش نت دلوقتي/)).toBeNull();
+    expect(screen.queryByTestId('home_cold_wallet_w1')).toBeNull();
+  });
+  it('M2: listener المحافظ أو العمليات وقع ← مفيش «النت قطع» (السبب مش النت)', async () => {
+    setData({ figuresFromServer: false, serverReachable: true, loadErrors: ['transactions'] });
+    await mount(STALE_FIGURES_DELAY_MS + 100);
+    expect(screen.queryByTestId('home_banner_stale')).toBeNull();
+    expect(screen.queryByText(/ممكن يكون قديم/)).toBeNull();
+  });
+  it('M4: النت شغال والإعادة وقفت ← السطر من غير «نت» وبيقول هنجرب تاني؛ والإعادة شغالة ← مفيش سطر', async () => {
+    setData({ outboxCount: 2, serverReachable: true, outboxReplaying: false });
+    const r = await mount();
+    expect(within(screen.getByTestId('home_outbox_line')).getByText('عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش — هنجرب نرفعهم تاني')).toBeTruthy();
+    setData({ outboxCount: 2, serverReachable: true, outboxReplaying: true });
+    await act(async () => { r.rerender(ui()); });
+    expect(screen.queryByTestId('home_outbox_line')).toBeNull();
+  });
+  it('LOW: إجمالي الكاش = مجموع أرصدة الشرايح المقرّبة (نفس قاعدة الأرقام الحية)', async () => {
+    setData({
+      wallets: [], transactions: [], figuresFromServer: false, figuresPending: ['transactions'],
+      coldSnapshot: { ...cold, wallets: [{ id: 'w1', name: 'كاش', balance: 10.004 }, { id: 'w2', name: 'بنك', balance: 10.004 }] },
+    });
+    await mount();
+    expect(screen.getByLabelText('20 جنيه')).toBeTruthy();
+  });
+});

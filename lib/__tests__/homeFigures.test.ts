@@ -1,5 +1,5 @@
 import {
-  HERO_LOADING_TEXT, RECENT_EMPTY_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel,
+  HERO_LOADING_TEXT, HERO_WAITING_TEXT, RECENT_EMPTY_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel,
   outboxLinePhrase, recentEmptyText,
 } from '@/lib/homeFigures';
 
@@ -9,8 +9,23 @@ import {
  * بيفضل من غير علامة متتقفلش. الحالات هنا بتقرر إيه اللي يتعرض مكان الرقم.
  */
 describe('heroFigures', () => {
-  it('كاش بارد ← قديم (بيكسب: آخر أرقام معروفة أحسن من فاضي)', () => {
-    expect(heroFigures({ cold: true, loadErrors: ['transactions'], figuresPending: ['transactions'] })).toEqual({ kind: 'cold' });
+  it('كاش بارد ← قديم (بيكسب على «بنحمّل» و«مستنيين النت»: آخر أرقام معروفة أحسن من فاضي)', () => {
+    expect(heroFigures({ cold: true, loadErrors: [], figuresPending: ['transactions'] })).toEqual({ kind: 'cold' });
+    expect(heroFigures({ cold: true, loadErrors: [], figuresPending: ['transactions'], waitingNet: true })).toEqual({ kind: 'cold' });
+  });
+  it('M1 (جولة 2): العمليات أو المحافظ وقعت ← «ناقص» حتى لو فيه كاش (الفشل قبل الكاش)', () => {
+    expect(heroFigures({ cold: true, loadErrors: ['transactions'], figuresPending: ['transactions'] })).toEqual({ kind: 'failed', missing: ['transactions'] });
+    expect(heroFigures({ cold: true, loadErrors: ['wallets'], figuresPending: [] })).toEqual({ kind: 'failed', missing: ['wallets'] });
+    expect(heroFigures({ cold: true, loadErrors: ['debts'], figuresPending: [] })).toEqual({ kind: 'cold' });
+  });
+  it('H1-A (جولة 2): العمليات ما وصلتش من السيرفر ومفيش نت ومفيش كاش ← «مستنيين النت» مش 0', () => {
+    expect(heroFigures({ cold: false, loadErrors: [], figuresPending: ['transactions'], waitingNet: true })).toEqual({ kind: 'waiting' });
+    // النت شغال ← لسه بنحمّل
+    expect(heroFigures({ cold: false, loadErrors: [], figuresPending: ['transactions'], waitingNet: false })).toEqual({ kind: 'loading' });
+    // وصلت ← الرقم حتى من غير نت (اتشافت من السيرفر في الجلسة دي)
+    expect(heroFigures({ cold: false, loadErrors: [], figuresPending: [], waitingNet: true })).toEqual({ kind: 'live' });
+    expect(heroLabel({ kind: 'waiting' }, true)).toBe('إجمالي رصيدك');
+    expect(HERO_WAITING_TEXT).toBe('مستنيين النت عشان نجيب رصيدك');
   });
   it('العمليات أو المحافظ وقعت ← ناقص بأساميهم (الديون مش جوه الرصيد)', () => {
     expect(heroFigures({ cold: false, loadErrors: ['transactions'], figuresPending: [] })).toEqual({ kind: 'failed', missing: ['transactions'] });
@@ -68,7 +83,13 @@ describe('outboxLinePhrase — عمليات على الموبايل ولسه م�
   ])('%d ← %s', (n, text) => {
     expect(outboxLinePhrase(n)).toBe(text);
   });
-  it('صفر ← مفيش سطر', () => { expect(outboxLinePhrase(0)).toBe(''); });
+  it('صفر ← مفيش سطر', () => { expect(outboxLinePhrase(0)).toBe(''); expect(outboxLinePhrase(0, { online: true })).toBe(''); });
+  it('M4 (جولة 2): والنت شغال (الإعادة وقفت) ← مفيش «مفيش نت»، وبنقول إننا هنجرب تاني', () => {
+    expect(outboxLinePhrase(1, { online: true })).toBe('عندك عملية متسجلة على الموبايل ولسه ما اترفعتش — هنجرب نرفعها تاني');
+    expect(outboxLinePhrase(2, { online: true })).toBe('عندك عمليتين متسجلين على الموبايل ولسه ما اترفعوش — هنجرب نرفعهم تاني');
+    expect(outboxLinePhrase(4, { online: true })).toBe('عندك 4 عمليات متسجلة على الموبايل ولسه ما اترفعتش — هنجرب نرفعهم تاني');
+    expect(outboxLinePhrase(4, { online: true })).not.toMatch(/نت/);
+  });
 });
 
 describe('recentEmptyText — «آخر العمليات» فاضية', () => {
