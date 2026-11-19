@@ -101,3 +101,25 @@ export function walletsNotReadyNotice(loadErrors: ListenerName[], figuresPending
 export function walletBlockedBody(missing: ListenerName[]): string {
   return `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش هنقدر نتأكد من رصيد المحفظة ولا إيه اللي مربوط بيها. دوس "${LOAD_ERROR_RETRY}" فوق، وهتقدر تكمل بعد ما البيانات توصل.`;
 }
+
+/**
+ * H1 (الميزة 10، الجولة الأخيرة): الفحص كان على `loadErrors` بس — بس قبل ما المجموعة توصل أصلاً القايمة فاضية **ومش
+ * مرفوضة**، فـ"مفيش تاريخ" و"الرصيد صفر" كانوا بيتحسبوا على قايمة لسه ما وصلتش. نفس فكرة `loading` في
+ * `cascadeDeleteBlock`: `figuresPending` (المحافظ/العمليات لسه ما جاش منها snapshot من السيرفر) + `undelivered` (أي
+ * listener لسه مرماش أول snapshot — `DataContext`). الشباك ضيّق (أول ثواني بعد الفتح)، بس لو اتداس فيه كان ممكن تتمسح
+ * محفظة عليها عمليات نهائي.
+ */
+export function walletActionLoading(figuresPending: readonly ListenerName[], undelivered: readonly ListenerName[]): ListenerName[] {
+  const fromFigures: ListenerName[] = figuresPending.filter(n => n === 'wallets' || n === 'transactions');
+  const rest = undelivered.filter(n => WALLET_BALANCE_SOURCES.includes(n) && !fromFigures.includes(n));
+  return [...fromFigures, ...rest];
+}
+
+export function categoryActionLoading(figuresPending: readonly ListenerName[], undelivered: readonly ListenerName[]): ListenerName[] {
+  const fromFigures: ListenerName[] = figuresPending.filter(n => n === 'transactions');
+  const rest = undelivered.filter(n => CATEGORY_USAGE_SOURCES.includes(n) && !fromFigures.includes(n));
+  return [...fromFigures, ...rest];
+}
+
+/** المسح/الأرشفة اتداسوا والبيانات لسه بتوصل — العنوان نفسه بتاع `WALLET_BLOCKED_TITLE` */
+export const DATA_LOADING_BODY = 'بياناتك لسه بتوصل — استنى شوية وجرّب تاني.';

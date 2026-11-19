@@ -9,7 +9,7 @@ import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
-  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_DEBT, NO_ACCOUNT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION, cascadeDeleteBlock, debtTransactionIds, gamiyaTransactionIds, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_DEBT, NO_ACCOUNT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION, cascadeDeleteBlock, categoryDeleteBlock, debtTransactionIds, gamiyaTransactionIds, reassignTargetsBlock, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
   type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
@@ -36,7 +36,7 @@ import {
   incomeUpcomingPeriod,
   type IncomeClosed, type IncomeDraft, type IncomeMode, type IncomeStatus, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { loadErrorsAfterSnapshot, type ListenerName } from '@/lib/listenerErrors';
+import { LISTENER_LABELS, loadErrorsAfterSnapshot, type ListenerName } from '@/lib/listenerErrors';
 import { snapshotTrusted } from '@/lib/listenerTrust';
 import {
   anchorDayPatch, chargeDateLabel, chargeModePatch, gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaOpenCharges, gamiyaTxId, subscriptionAdvance, subscriptionAnchorDay, subscriptionDueFloor, subscriptionManualKey, subscriptionNextCycle,
@@ -179,6 +179,7 @@ function gamiyaInstallmentTxData(
 class DebtMissingError extends Error { name = 'DebtMissingError'; }
 
 const LINK_SOURCES: ListenerName[] = ['transactions', 'debts', 'subscriptions', 'gamiyas', 'incomes'];
+const ALL_LISTENERS = Object.keys(LISTENER_LABELS) as ListenerName[];
 
 /**
  * نتيجة تعديل عملية مربوطة بدين. `gone` = العملية أو الدين أو الربط بينهم
@@ -211,7 +212,7 @@ class IncomeHasRecordsError extends Error { name = 'IncomeHasRecordsError'; }
 /** اللي تعديل الجمعية يقدر يغيّره — المبالغ والشهور مش منهم (بند 15) */
 export type GamiyaEdit = Partial<Pick<Gamiya, 'name' | 'walletId' | 'reminderDaysBefore' | 'chargeMode'>>;
 
-/** نتيجة `deleteWallet`/`archiveWallet` — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
+/** نتيجة `deleteWallet`/`archiveWallet` (والفئة زيها) — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
 export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
 
 /**
@@ -903,6 +904,11 @@ type DataContextType = {
   /** المحافظ/العمليات اللي لسه مرمتش أول snapshot — مسح السجل بعملياته بيستناهم */
   figuresPending: ListenerName[];
   /**
+   * الـlisteners اللي لسه مرمتش أول snapshot (ومش مرفوضة — دي في `loadErrors`). مسح وأرشفة المحافظ والفئات بيستنوهم
+   * (الميزة 10، H1): قبلها القايمة فاضية مش لأن مفيش، فـ"مفيش تاريخ" كان بيتحسب على قايمة لسه ما وصلتش
+   */
+  undelivered: ListenerName[];
+  /**
    * الـlisteners اللي فايربيز رفضتها وقفلتها (غالبًا `permission-denied`).
    * القايمة بتاعتها بتفضل على آخر قيمة وصلت — ممكن تكون فاضية وهي مش فاضية —
    * فالشاشة لازم تقول كده بدل ما تعرض فاضي ساكت (`DataLoadErrorBanner`).
@@ -953,8 +959,8 @@ type DataContextType = {
   restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
-  deleteCategory: (id: string) => Promise<void>;
-  archiveCategory: (id: string, reassign: Record<string, string>) => Promise<void>;
+  deleteCategory: (id: string) => Promise<WalletWriteResult>;
+  archiveCategory: (id: string, reassign: Record<string, string>) => Promise<WalletWriteResult>;
   submitFeedback: (type: FeedbackType, text: string) => Promise<FeedbackOutcome>;
   restoreCategory: (id: string) => Promise<void>;
   /** `durable` = تتحفظ متشفّرة على الموبايل لحد ما السيرفر يأكدها (مودال العملية الجديدة بس — `lib/outbox.ts`) */
@@ -1228,6 +1234,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const latestWallets = useRef(wallets);
   latestWallets.current = wallets;
   const [categories, setCategories] = useState<Category[]>([]);
+  // نفس `latestWallets` لحارس آخر فئة شغالة والنقل (الميزة 10، بند 2 و3)
+  const latestCategories = useRef(categories);
+  latestCategories.current = categories;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [brokenTransactions, setBrokenTransactions] = useState<BrokenTransaction[]>([]);
   const [budgets, setBudgets] = useState<Budgets>({});
@@ -1781,7 +1790,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function updateWallet(id: string, data: Partial<Wallet>) {
     if (!uid) return;
-    track(updateDoc(doc(db, 'users', uid, 'wallets', id), data));
+    // الرسالة لو الكتابة ما وصلتش بتسمّي المحفظة (الميزة 10، L) — كانت "فيه تعديل" من غير أنهي
+    track(updateDoc(doc(db, 'users', uid, 'wallets', id), data), namedLabel('تعديل المحفظة', walletNameFor(id)));
+  }
+  function walletNameFor(id: string) {
+    return latestWallets.current.find(w => w.id === id)?.name;
+  }
+  function categoryNameFor(id: string) {
+    return latestCategories.current.find(c => c.id === id)?.name;
   }
   async function deleteWallet(id: string): Promise<WalletWriteResult> {
     if (!uid) return { outcome: 'done' };
@@ -1791,7 +1807,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // اتنين لسه ممكن يوصلوا لصفر (محتاج مستند عدّاد أو قاعدة، والقواعد برّه الجولة)
     const block = walletDeleteBlock(id, latestWallets.current);
     if (block) return { outcome: 'blocked', block };
-    track(deleteDoc(doc(db, 'users', uid, 'wallets', id)));
+    track(deleteDoc(doc(db, 'users', uid, 'wallets', id)), namedLabel('مسح المحفظة', walletNameFor(id)));
     return { outcome: 'done' };
   }
 
@@ -1816,6 +1832,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
     // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
     if (latestWallets.current.filter(w => !w.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
+    // بند 3 (الميزة 10): المحفظة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح ← منكتبش اشتراك على مؤرشفة
+    const targets = [...Object.values(reassign.subscriptions || {}), ...Object.values(reassign.gamiyas || {}), ...Object.values(reassign.incomes || {})];
+    const targetBlock = reassignTargetsBlock(targets, latestWallets.current, id);
+    if (targetBlock) return { outcome: 'blocked', block: targetBlock };
     const batch = writeBatch(db);
     // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
     // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
@@ -1840,7 +1860,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     batch.update(doc(db, 'users', uid, 'wallets', id), {
       archived: true, archivedAt: new Date().toISOString(),
     });
-    track(batch.commit(), namedLabel('أرشفة المحفظة', wallets.find(w => w.id === id)?.name));
+    track(batch.commit(), namedLabel('أرشفة المحفظة', walletNameFor(id)));
     return { outcome: 'done' };
   }
 
@@ -1850,7 +1870,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     // المحافظ اللي ما اتأرشفتش أصلاً، فمفيش حالتين لنفس المعنى
     track(updateDoc(doc(db, 'users', uid, 'wallets', id), {
       archived: deleteField(), archivedAt: deleteField(),
-    }));
+    }), namedLabel('رجوع المحفظة', walletNameFor(id)));
   }
   async function addCategory(name: string) {
     if (!uid) return;
@@ -1858,7 +1878,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
   async function updateCategory(id: string, data: Partial<Category>) {
     if (!uid) return;
-    track(updateDoc(doc(db, 'users', uid, 'categories', id), data));
+    track(updateDoc(doc(db, 'users', uid, 'categories', id), data), namedLabel('تعديل الفئة', categoryNameFor(id)));
   }
   /**
    * الميزانية بتتمسح مع الفئة. مستند الميزانية مفتاحه هو معرّف الفئة، فلو
@@ -1866,26 +1886,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * `BudgetView` مبيعدّهوش (بيجمع على الفئات الموجودة بس)، فالمسح هنا نضافة
    * للبيانات مش تصليح رقم على الشاشة.
    */
-  async function deleteCategory(id: string) {
-    if (!uid) return;
+  async function deleteCategory(id: string): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // آخر فئة شغالة مبتتمسحش (الميزة 10، بند 2) — نفس حارس الشاشة، من آخر فئات وصلت. نفس حد سباق الجهازين اللي في المحفظة
+    const block = categoryDeleteBlock(id, latestCategories.current);
+    if (block) return { outcome: 'blocked', block };
     const batch = writeBatch(db);
     batch.delete(doc(db, 'users', uid, 'categories', id));
     if (budgets[id] != null) batch.delete(doc(db, 'users', uid, 'budgets', id));
-    track(batch.commit());
+    track(batch.commit(), namedLabel('مسح الفئة', categoryNameFor(id)));
+    return { outcome: 'done' };
   }
 
   /** نفس منطق `archiveWallet` — والميزانية بتتمسح هنا كمان لنفس السبب */
-  async function archiveCategory(id: string, reassign: Record<string, string>) {
-    if (!uid) return;
+  async function archiveCategory(id: string, reassign: Record<string, string>): Promise<WalletWriteResult> {
+    if (!uid) return { outcome: 'done' };
+    // بند 2 (الميزة 10): آخر فئة شغالة مبتتأرشفش هنا كمان (الشاشة بتفحص، بس اللي نسي الفحص بيترفض)
+    if (latestCategories.current.filter(c => !c.archived).length <= 1) return { outcome: 'blocked', block: { kind: 'last-active' } };
+    // بند 3: الفئة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح
+    const targetBlock = reassignTargetsBlock(Object.values(reassign), latestCategories.current, id);
+    if (targetBlock) return { outcome: 'blocked', block: targetBlock };
     const batch = writeBatch(db);
     Object.entries(reassign).forEach(([subId, categoryId]) => {
+      // نفس `archiveWallet`: اشتراك اتمسح والشيت مفتوح بيتفوّت — `update` على مستند مش موجود كان بيوقّع الدفعة كلها
+      if (!latestSubscriptions.current.some(x => x.id === subId)) return;
       batch.update(doc(db, 'users', uid, 'subscriptions', subId), { categoryId });
     });
     if (budgets[id] != null) batch.delete(doc(db, 'users', uid, 'budgets', id));
     batch.update(doc(db, 'users', uid, 'categories', id), {
       archived: true, archivedAt: new Date().toISOString(),
     });
-    track(batch.commit());
+    track(batch.commit(), namedLabel('أرشفة الفئة', categoryNameFor(id)));
+    return { outcome: 'done' };
   }
 
   /**
@@ -1918,7 +1950,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!uid) return;
     track(updateDoc(doc(db, 'users', uid, 'categories', id), {
       archived: deleteField(), archivedAt: deleteField(),
-    }));
+    }), namedLabel('رجوع الفئة', categoryNameFor(id)));
   }
   async function addTransaction(tx: Omit<Transaction, 'id'>, opts?: { durable?: true }): Promise<string> {
     // ممنوع '' هنا: المودال كان بيعتبرها نجاح ويقفل من غير ما يكتب حاجة (silent-failure-hunter)
@@ -2213,7 +2245,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const batch = writeBatch(db);
     batch.update(doc(db, 'users', uid, 'transactions', id), docPatch);
     stageSettlements(batch, settlements);
-    track(batch.commit());
+    track(batch.commit(), 'تعديل العملية وتسوية المحفظة المؤرشفة');
   }
 
   /**
@@ -2581,7 +2613,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const { pruneSubscription } = stageReconcile(batch, id);
     stageSettlements(batch, settlements);
     const commit = batch.commit();
-    track(commit);
+    track(commit, settlements.length > 0 ? 'مسح العملية وتسوية المحفظة المؤرشفة' : 'مسح العملية');
     // بعد ما المسح يوصل بس (الدفعة اتأكدت ← النت موجود). فشل الدفعة نفسها بيتقال من `track`
     if (pruneSubscription) commit.then(() => pruneSubscriptionHistory(pruneSubscription, id), () => {});
     return { outcome: 'done' };
@@ -4658,6 +4690,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         debts, subscriptions, gamiyas, incomes, pendingWrites, outboxCount, outboxCountUnknown, outboxReplaying, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, figuresPending,
         loadErrors, retryLoad: () => setListenRetry(n => n + 1), setupStatus, completeSetup,
         linkSourcesReady: LINK_SOURCES.every(n => delivered.has(n) && !loadErrors.includes(n)),
+        undelivered: ALL_LISTENERS.filter(n => !delivered.has(n) && !loadErrors.includes(n)),
         debtsReady: delivered.has('debts') && !loadErrors.includes('debts'),
         categoriesReady: delivered.has('categories') && !loadErrors.includes('categories'),
         transfersStatus: transfersStatusFrom(delivered, loadErrors),

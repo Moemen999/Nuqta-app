@@ -1,6 +1,7 @@
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
-import { fmt, walletBalance } from '@/lib/finance';
+import { walletBalance } from '@/lib/finance';
+import type { AmountFormatter } from '@/lib/money';
 import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId } from '@/lib/autoCharge';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
@@ -138,7 +139,12 @@ export type ArchiveBlock =
   /** الرصيد لازم يبقى صفر: الأرشفة مش بتحرّك فلوس، والفلوس اللي جواها هتختفي من الإجمالي */
   | { kind: 'balance'; balance: number }
   /** مفيش مكان تنقل له الاشتراكات/الجمعيات الشغالة */
-  | { kind: 'no-target' };
+  | { kind: 'no-target' }
+  /**
+   * المكان اللي اتختار للنقل اتأرشف أو اتمسح والشيت مفتوح (الميزة 10، بند 3) — الاختيارات كانت بتتجمّد وقت فتح الشيت،
+   * فالاشتراك كان بيتنقل لمحفظة/فئة مؤرشفة ويفضل يترفض كل شهر
+   */
+  | { kind: 'target-gone' };
 
 /**
  * هل نقدر نأرشف المحفظة دي؟ `null` يعني ماشي.
@@ -186,6 +192,32 @@ export function categoryArchiveBlock(opts: {
     return { kind: 'no-target' };
   }
   return null;
+}
+
+/**
+ * آخر فئة شغالة مبتتمسحش (الميزة 10، بند 2) — نفس `walletDeleteBlock`. من غيرها المستخدم كان يمسحها ومودال العملية
+ * يفضل من غير ولا فئة يصنّف بيها. المؤرشفة بتتمسح عادي.
+ */
+export function categoryDeleteBlock(
+  categoryId: string,
+  categories: { id: string; archived?: boolean }[],
+): ArchiveBlock | null {
+  const c = categories.find(x => x.id === categoryId);
+  if (!c || c.archived) return null;
+  return categories.filter(x => !x.archived).length <= 1 ? { kind: 'last-active' } : null;
+}
+
+/**
+ * الأماكن اللي الشيت اختارها للنقل لسه شغالة؟ (بند 3) — بتتفحص في الشاشة لحظة التأكيد وفي `DataContext` لحظة الكتابة.
+ * `null` = كلها شغالة.
+ */
+export function reassignTargetsBlock(
+  targetIds: string[],
+  items: { id: string; archived?: boolean }[],
+  archivingId: string,
+): ArchiveBlock | null {
+  const ok = targetIds.every(t => t !== archivingId && items.some(i => i.id === t && !i.archived));
+  return ok ? null : { kind: 'target-gone' };
 }
 
 /** رصيد المحفظة مقرّب لخانتين — نفس الرقم اللي المستخدم شايفه */
@@ -248,6 +280,11 @@ export function gamiyasPhrase(n: number) {
   return countPhrase(n, 'مفيش جمعيات', 'جمعية واحدة', 'جمعيتين', 'جمعيات', 'جمعية');
 }
 
+/** "دخل ثابت واحد" / "دخلين ثابتين" / "3 دخول ثابتة" / "11 دخل ثابت" */
+export function incomesPhrase(n: number) {
+  return countPhrase(n, 'مفيش دخل ثابت', 'دخل ثابت واحد', 'دخلين ثابتين', 'دخول ثابتة', 'دخل ثابت');
+}
+
 export function walletsPhrase(n: number) {
   return countPhrase(n, 'مفيش محافظ', 'محفظة واحدة', 'محفظتين', 'محافظ', 'محفظة');
 }
@@ -284,74 +321,107 @@ export function walletHistoryPhrase(refs: WalletRefs) {
  * جملة "مربوط بيها ..." في تنبيه الحذف.
  *
  * العمليات والديون هما اللي بيهموا المستخدم الأول، فلو فيه منهم بنقولهم
- * وبس. لو مفيش خالص لكن فيه اشتراك أو جمعية، بنقع عليهم — الجملة لازم
- * تقول حاجة، مش تسيب فراغ بعد "مربوط بيها".
+ * وبس. لو مفيش خالص لكن فيه اشتراك أو جمعية أو دخل ثابت، بنقع عليهم — الجملة
+ * لازم تقول حاجة، مش تسيب فراغ بعد "مربوط بيها" (الدخل الثابت كان بيتنسي فتطلع
+ * "مربوط بيها ." — الميزة 10).
  */
 export function walletLinkSummary(refs: WalletRefs) {
   const history = walletHistoryPhrase(refs);
   if (history) return history;
   const subs = refs.activeSubscriptions.length + refs.inactiveSubscriptions;
   const gams = refs.activeGamiyas.length + refs.inactiveGamiyas;
+  const incs = refs.activeIncomes.length + refs.inactiveIncomes;
   return joinParts([
     subs > 0 ? subscriptionsPhrase(subs) : '',
     gams > 0 ? gamiyasPhrase(gams) : '',
-  ]);
+    incs > 0 ? incomesPhrase(incs) : '',
+  ]) || 'حاجات قديمة';
 }
 
 export function categoryLinkSummary(refs: CategoryRefs) {
   const txs = refs.transactions + refs.debtPayments;
   if (txs > 0) return transactionsPhrase(txs);
   const subs = refs.activeSubscriptions.length + refs.inactiveSubscriptions;
-  return subs > 0 ? subscriptionsPhrase(subs) : '';
+  return subs > 0 ? subscriptionsPhrase(subs) : 'حاجات قديمة';
 }
 
 export function namesList(items: NamedRef[]) {
   return items.map(i => i.name).join('، ');
 }
 
+/** "3 عمليات هتظهر" / "عمليتين هيظهروا" / "عملية واحدة هتظهر" — المثنى بالجمع في العامية (arabic-copy-reviewer) */
+function txWillShow(n: number) {
+  return `${transactionsPhrase(n)} ${n === 2 ? 'هيظهروا' : 'هتظهر'}`;
+}
+
+/** "الاشتراك ده هيقف" / "الاشتراكات دي هتقف" — المفرد بمفرده */
+function stopLine(items: NamedRef[], one: string, many: string, pick: string) {
+  return `${items.length === 1 ? one : many} لحد ما ${pick}: ${namesList(items)}.`;
+}
+
+/**
+ * الرصيد اللي هيختفي من الإجمالي بالكلام (الميزة 10، بند 5 و6): موجب ← الإجمالي هيقل، سالب ← هيزيد. من غير علامة "-"
+ * على الرقم — "رصيدها -250 هيختفي" بتطلب من المستخدم يترجم العلامة بنفسه.
+ */
+export function walletBalanceGoneLine(balance: number, money: AmountFormatter) {
+  const amount = money(Math.abs(balance));
+  return balance > 0
+    ? `رصيدها ${amount} ج.م هيختفي من الإجمالي، يعني إجمالي فلوسك هيقل ${amount} ج.م.`
+    : `رصيدها سالب ${amount} ج.م هيختفي من الإجمالي، يعني إجمالي فلوسك هيزيد ${amount} ج.م.`;
+}
+
 /**
  * سطور "هيحصل إيه لو مسحتها نهائي" — الحقيقة بالأرقام، والسطر اللي مالوش
  * رقم مبيتكتبش أصلاً. المستخدم بياخد القرار وهو شايف التمن، مش بعد ما يدفعه.
+ * **عمرها ما بترجع فاضية** (الميزة 10): تأكيد "مسح نهائي" من غير جملة كان بيتقري زي ما يكون مفيش حاجة هتحصل.
  */
-export function walletDeleteConsequences(opts: { balance: number; refs: WalletRefs }): string[] {
-  const { balance, refs } = opts;
+export function walletDeleteConsequences(opts: { balance: number; refs: WalletRefs; money: AmountFormatter }): string[] {
+  const { balance, refs, money } = opts;
   const lines: string[] = [];
-  if (Math.abs(balance) >= BALANCE_EPS) {
-    lines.push(`رصيدها ${fmt(balance)} ج.م هيختفي من الإجمالي.`);
-  }
-  if (refs.transactions > 0) {
-    lines.push(`${transactionsPhrase(refs.transactions)} هتظهر باسم محفظة ممسوحة.`);
-  }
-  if (refs.debts > 0) {
-    lines.push(`${debtsPhrase(refs.debts)} مربوط بيها.`);
-  }
+  if (Math.abs(balance) >= BALANCE_EPS) lines.push(walletBalanceGoneLine(balance, money));
+  if (refs.transactions > 0) lines.push(`${txWillShow(refs.transactions)} باسم محفظة ممسوحة.`);
+  if (refs.debts > 0) lines.push(`مربوط بيها ${debtsPhrase(refs.debts)}.`);
   if (refs.activeSubscriptions.length > 0) {
-    lines.push(`الاشتراكات دي هتقف لحد ما تختارلها محفظة: ${namesList(refs.activeSubscriptions)}.`);
+    lines.push(stopLine(refs.activeSubscriptions, 'الاشتراك ده هيقف', 'الاشتراكات دي هتقف', 'تختارله محفظة'));
   }
   if (refs.activeGamiyas.length > 0) {
-    lines.push(`الجمعيات دي هتقف لحد ما تختارلها محفظة: ${namesList(refs.activeGamiyas)}.`);
+    lines.push(stopLine(refs.activeGamiyas, 'الجمعية دي هتقف', 'الجمعيات دي هتقف', 'تختارلها محفظة'));
   }
   if (refs.activeIncomes.length > 0) {
-    lines.push(`الدخل الثابت ده هيقف لحد ما تختارله محفظة: ${namesList(refs.activeIncomes)}.`);
+    lines.push(stopLine(refs.activeIncomes, 'الدخل الثابت ده هيقف', 'الدخول الثابتة دي هتقف', 'تختارله محفظة'));
   }
+  if (lines.length === 0) lines.push('المحفظة هتتمسح نهائي، ومش هتقدر ترجّعها.');
   return lines;
 }
 
+/**
+ * مسح الفئة **مبيوقفش** الاشتراكات (الميزة 10، بند 4): الاشتراك بيفضل يتخصم عادي، وعملياته الجديدة بتطلع باسم
+ * "فئة ممسوحة" (`DELETED_CATEGORY_LABEL`). الكلام القديم كان بيقول "هتقف" — كدب.
+ */
 export function categoryDeleteConsequences(refs: CategoryRefs): string[] {
   const lines: string[] = [];
-  if (refs.transactions > 0) {
-    lines.push(`${transactionsPhrase(refs.transactions)} هتظهر باسم فئة ممسوحة.`);
+  if (refs.transactions > 0) lines.push(`${txWillShow(refs.transactions)} باسم فئة ممسوحة.`);
+  if (refs.debtPayments > 0) lines.push(`${txWillShow(refs.debtPayments)} في الديون باسم فئة ممسوحة.`);
+  const subs = refs.activeSubscriptions;
+  if (subs.length > 0) {
+    lines.push(subs.length === 1
+      ? `الاشتراك ده هيفضل يتخصم عادي، بس عملياته الجديدة هتظهر باسم "فئة ممسوحة": ${namesList(subs)}.`
+      : `الاشتراكات دي هتفضل تتخصم عادي، بس عملياتها الجديدة هتظهر باسم "فئة ممسوحة": ${namesList(subs)}.`);
   }
-  if (refs.debtPayments > 0) {
-    lines.push(`${transactionsPhrase(refs.debtPayments)} في الديون هتظهر باسم فئة ممسوحة.`);
-  }
-  if (refs.activeSubscriptions.length > 0) {
-    lines.push(`الاشتراكات دي هتقف لحد ما تختارلها فئة: ${namesList(refs.activeSubscriptions)}.`);
-  }
-  if (refs.hasBudget) {
-    lines.push('ميزانيتها الشهرية هتتمسح.');
-  }
+  if (refs.hasBudget) lines.push('ميزانيتها الشهرية هتتمسح.');
+  if (lines.length === 0) lines.push('الفئة هتتمسح نهائي، ومش هتقدر ترجّعها.');
   return lines;
+}
+
+/**
+ * منع الأرشفة لأن الرصيد مش صفر (بند 6): السالب بكلامه ("رصيدها سالب X — حوّل فلوس ليها")، والموجب "حوّله لمحفظة تانية".
+ * الرقم من `money` (الإخفاء) — الرفض مش تأكيد على رقم.
+ */
+export function walletBalanceBlockNotice(name: string, balance: number, money: AmountFormatter): [string, string] {
+  const amount = money(Math.abs(balance));
+  return ['رصيدها لسه مش صفر', balance < 0
+    ? `رصيد "${name}" لازم يبقى صفر قبل الأرشفة، ورصيدها سالب ${amount} — حوّل فلوس ليها الأول عشان يبقى صفر.`
+    : `رصيد "${name}" ${amount} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`];
 }
 
 /**

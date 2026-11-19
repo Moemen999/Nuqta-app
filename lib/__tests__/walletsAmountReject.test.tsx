@@ -1,3 +1,4 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import WalletsScreen from '@/app/settings-screens/wallets';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
@@ -20,11 +21,11 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 beforeEach(() => {
   Object.assign(mockData, {
     wallets: [cash], categories: [], transactions: [], brokenTransactions: [], budgets: {}, debts: [],
-    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
+    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(), archiveWallet: jest.fn(), restoreWallet: jest.fn(),
   });
 });
-const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><WalletsScreen /></ConfirmProvider></NoticeProvider></ThemeProvider>;
+const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><WalletsScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
 
 it('حد التنبيه «٢٠٠» بالأرقام العربية بيتحفظ 200', async () => {
   await render(ui());

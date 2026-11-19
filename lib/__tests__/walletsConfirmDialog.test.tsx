@@ -1,3 +1,4 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import WalletsScreen from '@/app/settings-screens/wallets';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
@@ -22,18 +23,18 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 function seed(wallets: object[]) {
   Object.assign(mockData, {
     wallets, categories: [], transactions: [], brokenTransactions: [], budgets: {}, debts: [],
-    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
+    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
     archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   });
 }
-const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><WalletsScreen /></ConfirmProvider></NoticeProvider></ThemeProvider>;
+const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><WalletsScreen /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
 
 it('مسح محفظة من غير تاريخ ← تأكيد التطبيق، و"حذف" بيمسح', async () => {
   seed([cash, bank]);
   await render(ui());
   await act(async () => { fireEvent.press(screen.getByTestId('wallet_delete_w1')); });
-  expect(screen.getByTestId('confirm_title').props.children).toBe('حذف محفظة');
+  expect(screen.getByTestId('confirm_title').props.children).toBe('تمسح المحفظة؟');
   expect(mockData.deleteWallet).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
   expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');

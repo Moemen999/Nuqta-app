@@ -2,8 +2,8 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import {
   EMOJI_INPUT_MESSAGES, EMOJI_INPUT_TRIMMED, emojiIconFromInput, iconDuplicate, iconDuplicateNote,
 } from '@/lib/emojiIcon';
-import { CATEGORY_ICONS, DEFAULT_CATEGORY_ICON } from '@/lib/finance';
-import { selectionStyle } from '@/lib/selection';
+import { CATEGORY_ICONS, DEFAULT_CATEGORY_ICON, categoryIconLabel } from '@/lib/finance';
+import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -57,15 +57,17 @@ export default function CategoryIconPicker({
   }, [visible]);
 
   const parsed = emojiIconFromInput(raw);
+  // المختارة أيقونة من الكيبورد (مش في القايمة)
+  const customPicked = !!current && !CATEGORY_ICONS.includes(current);
   const errorReason = !parsed.ok && parsed.reason !== 'empty' ? parsed.reason : null;
 
-  // `accessibilityLiveRegion` أندرويد بس — VoiceOver كان هيسكت. وبنعلن لما
-  // السبب يتغيّر مش مع كل حرف، عشان مايبقاش بيتكلم وهو بيكتب
+  // طريقة واحدة لكل منصة (a11y-architect، الميزة 10): أندرويد بالمنطقة الحية (متركّبة دايمًا تحت)، وiOS بالإعلان —
+  // الاتنين مع بعض على أندرويد كانوا بيقولوا الرسالة مرتين. وبنعلن لما السبب يتغيّر مش مع كل حرف
   useEffect(() => {
-    if (note) AccessibilityInfo.announceForAccessibility(note.text);
+    if (note && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(note.text);
   }, [note]);
   useEffect(() => {
-    if (errorReason) AccessibilityInfo.announceForAccessibility(EMOJI_INPUT_MESSAGES[errorReason]);
+    if (errorReason && Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(EMOJI_INPUT_MESSAGES[errorReason]);
   }, [errorReason]);
 
   function pick(icon: string | undefined) {
@@ -80,13 +82,15 @@ export default function CategoryIconPicker({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
           <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>{ICON_PICKER_TITLE}</Text>
+            <Text style={styles.title} accessibilityRole="header">{ICON_PICKER_TITLE}</Text>
             <Text style={styles.hint}>{ICON_PICKER_HINT}</Text>
 
+            {/* المنطقة الحية متركّبة دايمًا: لو بتتركّب مع الملاحظة أندرويد ساعات مبيقولهاش */}
+            <View accessibilityLiveRegion="polite">
             {note && (
-              <View style={styles.noteRow} accessibilityLiveRegion="polite">
+              <View style={styles.noteRow}>
                 <Text style={styles.noteText}>{note.text}</Text>
                 {note.suggestion && (
                   <TouchableOpacity
@@ -100,6 +104,7 @@ export default function CategoryIconPicker({
                 )}
               </View>
             )}
+            </View>
 
             {typing ? (
               <View style={styles.typingBox}>
@@ -116,25 +121,27 @@ export default function CategoryIconPicker({
                   textAlign="center"
                   accessibilityLabel={ICON_PICKER_KEYBOARD_LABEL}
                 />
+                <View accessibilityLiveRegion="polite">
                 {parsed.ok ? (
                   <View style={styles.previewRow}>
-                    <Text style={styles.previewIcon} accessibilityLabel={`المعاينة ${parsed.icon}`}>{parsed.icon}</Text>
+                    <Text style={styles.previewIcon} accessibilityLabel={`المعاينة: ${categoryIconLabel(parsed.icon)}`}>{parsed.icon}</Text>
                     {parsed.trimmed && <Text style={styles.subtle}>{EMOJI_INPUT_TRIMMED}</Text>}
                   </View>
                 ) : parsed.reason === 'empty' ? (
                   <Text style={styles.subtle}>{ICON_PICKER_KEYBOARD_HINT}</Text>
                 ) : (
-                  <Text style={styles.errorText} accessibilityLiveRegion="polite">{EMOJI_INPUT_MESSAGES[parsed.reason]}</Text>
+                  <Text style={styles.errorText}>{EMOJI_INPUT_MESSAGES[parsed.reason]}</Text>
                 )}
+                </View>
               </View>
             ) : (
               <View style={styles.grid}>
                 <TouchableOpacity
                   testID="icon_pick_default"
                   onPress={() => pick(undefined)}
-                  accessibilityRole="button"
+                  // اختيار واحد من مجموعة ← radio (selectionA11y)، مش زرار بحالة "selected"
+                  {...selectionA11y(!current, 'radio')}
                   accessibilityLabel={ICON_PICKER_DEFAULT_LABEL}
-                  accessibilityState={{ selected: !current }}
                   style={[styles.cell, styles.wideCell, selectionStyle(colors, !current)]}>
                   <Text style={styles.icon}>{DEFAULT_CATEGORY_ICON}</Text>
                   <Text style={styles.wideLabel}>{ICON_PICKER_DEFAULT_LABEL}</Text>
@@ -145,10 +152,9 @@ export default function CategoryIconPicker({
                     key={ic}
                     testID={`icon_pick_${ic}`}
                     onPress={() => pick(ic)}
-                    accessibilityRole="button"
-                    // اسم الإيموجي من النظام مش ثابت بين أجهزة أندرويد، والمركّب ممكن يتقري غلط
-                    accessibilityLabel={`أيقونة ${ic}`}
-                    accessibilityState={{ selected: current === ic }}
+                    {...selectionA11y(current === ic, 'radio')}
+                    // اسم الإيموجي من النظام مش ثابت بين أجهزة أندرويد (وبالإنجليزي على كتير منها) — اسم عربي من عندنا
+                    accessibilityLabel={`أيقونة ${categoryIconLabel(ic)}`}
                     style={[styles.cell, selectionStyle(colors, current === ic)]}>
                     <Text style={styles.icon}>{ic}</Text>
                   </TouchableOpacity>
@@ -158,11 +164,10 @@ export default function CategoryIconPicker({
                 <TouchableOpacity
                   testID="icon_pick_keyboard"
                   onPress={() => { setNote(null); setTyping(true); }}
-                  accessibilityRole="button"
+                  {...selectionA11y(customPicked, 'radio')}
                   accessibilityLabel={current && !CATEGORY_ICONS.includes(current)
-                    ? `${ICON_PICKER_KEYBOARD_LABEL} — الحالية ${current}`
+                    ? `${ICON_PICKER_KEYBOARD_LABEL} — الحالية ${categoryIconLabel(current)}`
                     : ICON_PICKER_KEYBOARD_LABEL}
-                  accessibilityState={{ selected: !!current && !CATEGORY_ICONS.includes(current) }}
                   style={[
                     styles.cell, styles.wideCell,
                     selectionStyle(colors, !!current && !CATEGORY_ICONS.includes(current)),

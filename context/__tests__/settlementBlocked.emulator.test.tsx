@@ -115,7 +115,7 @@ describe('مفيش ولا محفظة شغالة', () => {
   it('الكلام بيقول "مسح" مش "التعديل ده"، والمطلوب منه بالظبط', () => {
     expect(settleBlockedBody('توفير', 500, true, plainAmount)).toBe('مسح العملية دي هيزوّد رصيد "توفير" المؤرشفة 500 ج.م.');
     expect(settleBlockedBody('توفير', -500, true, plainAmount)).toBe('مسح العملية دي هينقّص رصيد "توفير" المؤرشفة 500 ج.م.');
-    expect(settleBlockedHint(true)).toContain('فما اتمسحش حاجة');
+    expect(settleBlockedHint(true)).toContain('فالعملية ما اتمسحتش والرصيد زي ما هو.');
     expect(settleBlockedHint(true)).toContain('رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة');
   });
 
@@ -123,7 +123,7 @@ describe('مفيش ولا محفظة شغالة', () => {
     expect(settleBlockedBody('توفير', 100, false, plainAmount)).toBe('التعديل ده هيزوّد رصيد "توفير" المؤرشفة 100 ج.م.');
     // الرفض بيعدّي من `money` بتاعة الإخفاء، مش رقم حقيقي ثابت
     expect(settleBlockedBody('توفير', 100, false, maskedAmount)).toBe('التعديل ده هيزوّد رصيد "توفير" المؤرشفة •••• ج.م.');
-    expect(settleBlockedHint(false)).toContain('فما اتعدّلش حاجة');
+    expect(settleBlockedHint(false)).toContain('فالعملية ما اتعدّلتش والرصيد زي ما هو.');
     expect(settleBlockedHint(false)).toContain('وبعدين عدّل تاني.');
   });
 

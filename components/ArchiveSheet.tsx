@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
@@ -47,18 +47,20 @@ export default function ArchiveSheet({
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+  // دوستين قبل ما الشيت يتقفل كانوا بيبعتوا الأرشفة مرتين (الميزة 10، L) — زي `SettleSheet`
+  const confirmed = useRef(false);
 
   const allAssigned = items.every(i => assignments[i.id]);
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
           <ScrollView
             style={styles.scrollArea}
             contentContainerStyle={styles.sheetContent}
             keyboardShouldPersistTaps="handled">
-            <Text style={styles.sheetTitle}>{title}</Text>
+            <Text style={styles.sheetTitle} accessibilityRole="header">{title}</Text>
             <Text style={styles.intro}>{intro}</Text>
 
             {items.map(item => (
@@ -69,6 +71,8 @@ export default function ArchiveSheet({
                   {targets.map(t => (
                     <TouchableOpacity {...selectionA11y(assignments[item.id] === t.id, 'radio')}
                       key={t.id}
+                      // "البنك" لوحدها كانت بتتكرر لكل حاجة من غير ما تقول لأنهي (a11y-architect، الميزة 10)
+                      accessibilityLabel={`${t.name}، ل${item.kind} ${item.name}`}
                       onPress={() => setAssignments(a => ({ ...a, [item.id]: t.id }))}
                       style={[styles.chip, selectionStyle(colors, assignments[item.id] === t.id)]}>
                       <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
@@ -90,7 +94,13 @@ export default function ArchiveSheet({
               style={styles.saveBtn}
               disabled={!allAssigned}
               busy={busy}
-              onPress={() => onConfirm(assignments)} />
+              // الزرار المقفول كان بيتقري "مش متاح" من غير ما يقول ليه
+              accessibilityHint={allAssigned ? undefined : `اختار ${targetLabel} لكل حاجة`}
+              onPress={() => {
+                if (confirmed.current) return;
+                confirmed.current = true;
+                onConfirm(assignments);
+              }} />
           </View>
         </View>
       </View>

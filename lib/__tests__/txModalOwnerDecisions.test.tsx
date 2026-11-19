@@ -16,8 +16,10 @@ import { reportAtomicFailure } from '@/lib/atomicFailure';
  * قرارات مؤمن على مودال العملية (2026-11-19، «موافق علي ترشيحاتك»):
  * - المسح: العنوان «تمسح العملية؟»، والزرار في الفوتر وفي التأكيد وفي شيت التسوية «امسحها» (كان «حذف»).
  * - النوع «سحب» اتسمّى «تحويل» في كل حتة بيتعرض فيها (القيمة المتخزّنة لسه `withdraw`).
- * - كتبت أو غيّرت حاجة وخرجت (رجوع أندرويد، سحب المودال، «إلغاء») ← سؤال «فيه حاجة ما اتحفظتش، تخرج؟» («اخرج» / «كمّل»).
- *   مش بعد حفظ أو مسح نجح، ومش وقت الحفظ (المنع بتاعه شغال)، والتطبيق اتقفل والسؤال مفتوح ← بيتلغي (ConfirmProvider).
+ * - كتبت أو غيّرت حاجة وخرجت (رجوع أندرويد، سحب المودال، «إلغاء») ← سؤال «فيه حاجة ما اتحفظتش، تخرج؟» («اخرج من غير
+ *   حفظ» / «كمّل الكتابة»، وفي التعديل «كمّل التعديل» — الميزة 10). مش بعد حفظ أو مسح نجح، ومش وقت الحفظ (المنع بتاعه شغال).
+ *   التطبيق اتقفل والسؤال مفتوح ← السؤال بيتلغي (ConfirmProvider)، **بس المودال نفسه بيتشال ورا شاشة القفل فاللي اتكتب بيضيع**
+ *   (قرار مؤمن، اختيار أ — مكتوب في دليل الاستخدام). يعني الإلغاء هنا مش «كمّل».
  */
 
 const navRef = createNavigationContainerRef<any>();
@@ -138,20 +140,20 @@ describe('9) تحذير قبل الخروج من غير حفظ', () => {
     expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   });
 
-  it('كتب مبلغ ورجع ← السؤال؛ «كمّل» بيفضّل المودال والمبلغ زي ما هو', async () => {
+  it('كتب مبلغ ورجع ← السؤال؛ «كمّل الكتابة» بيفضّل المودال والمبلغ زي ما هو', async () => {
     await openModal();
     await act(async () => { fireEvent.changeText(screen.getByTestId('tx_amount_input'), '50'); });
     await act(async () => { navRef.goBack(); });
     expect(routeNames()).toEqual(['root', 'home', 'modal']);
     expect(screen.getByTestId('confirm_title').props.children).toBe(LEAVE_TITLE);
-    expect(screen.getByTestId('confirm_action_0')).toHaveTextContent('اخرج');
-    expect(screen.getByTestId('confirm_cancel')).toHaveTextContent('كمّل');
+    expect(screen.getByTestId('confirm_action_0')).toHaveTextContent('اخرج من غير حفظ');
+    expect(screen.getByTestId('confirm_cancel')).toHaveTextContent('كمّل الكتابة');
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
     expect(routeNames()).toEqual(['root', 'home', 'modal']);
     expect(screen.getByTestId('tx_amount_input').props.value).toBe('50');
   });
 
-  it('«اخرج» ← المودال بيتقفل مرة واحدة والشاشة اللي ورا فاضلة، ومفيش حفظ', async () => {
+  it('«اخرج من غير حفظ» ← المودال بيتقفل مرة واحدة والشاشة اللي ورا فاضلة، ومفيش حفظ', async () => {
     await openModal();
     await act(async () => { fireEvent.changeText(screen.getByTestId('tx_amount_input'), '50'); });
     await act(async () => { fireEvent.press(screen.getByText('إلغاء')); });
@@ -167,6 +169,7 @@ describe('9) تحذير قبل الخروج من غير حفظ', () => {
     await act(async () => { navRef.goBack(); });
     expect(screen.getByTestId('confirm_title').props.children).toBe(LEAVE_TITLE);
     expect(screen.getByTestId('confirm_body').props.children).toBe('لو خرجت، التعديل مش هيتحفظ والعملية هتفضل زي ما هي.');
+    expect(screen.getByTestId('confirm_cancel')).toHaveTextContent('كمّل التعديل');
   });
 
   it('دوس على النوع اللي مختار أصلاً ← مش تغيير، الرجوع عادي', async () => {

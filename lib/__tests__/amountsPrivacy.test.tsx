@@ -199,7 +199,6 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   // صف العملية الحقيقي بقى من `lib/txRowLabel.ts` (مشترك مع الأرشيف — Feature 9)، فواحدة أقل هنا
   'app/(tabs)/index.tsx': { count: 2, why: 'قارئ الشاشة لصف الكاش — مبلغ العملية ظاهر أصلاً (العين للأرصدة بس)؛ و«N جنيه» للإجمالي بس والعين مفتوحة (الميزة 7)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
-  'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
   'app/modal.tsx': { count: 1, why: 'تأكيد قبل حفظ تعديل بيخلّي المدفوع أكتر من الدين' },
 };
@@ -299,10 +298,9 @@ describe('جرد الإخفاء في كل الشاشات', () => {
   it('الجمل اللي فيها مبلغ في lib/ في الاستثناءات المكتوبة بس', () => {
     const LIB_FMT_ALLOWED: Record<string, { count: number; why: string }> = {
       'lib/money.ts': { count: 1, why: 'moneyText نفسها — بتختار القناع أو الرقم' },
-      'lib/walletCopy.ts': { count: 5, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)' },
+      'lib/walletCopy.ts': { count: 4, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)؛ وسقف الخانة (رقم تقني ثابت مش فلوس المستخدم)' },
       'lib/scheduleAllReminders.ts': { count: 2, why: 'محكومة بـ hideAmounts — الإشعار من غير رقم لو مخفي' },
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
-      'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
       'lib/outbox.ts': { count: 1, why: 'txLabel (rejectedReplayBody + walletGoneReplayBody) — عملية مستنية النت اترفضت وهي بتترفع بعد فتحة جديدة؛ المبلغ والتاريخ هما الطريقة الوحيدة يعرف أنهي عملية يسجّلها تاني (مفيش سجل مسمّى زي باقي رسايل الفشل)' },
       'lib/autoCharge.ts': { count: 5, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل؛ وتأكيد دفع الاشتراك وشهر الجمعية (subscriptionPayConfirmBody / gamiyaMarkConfirmBody) — تأكيد قبل الخصم، الرقم هو تمن القرار، زي باقي التأكيدات فوق؛ وتأكيد الاستلام بيقول قسطك كمان (اختيار أ، 2026-11-18)' },

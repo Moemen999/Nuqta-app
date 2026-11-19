@@ -4,6 +4,7 @@ import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { INSTALLMENTS_CHANGED_TITLE } from '@/components/DebtEntryModals';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
+import { LEAVE_CONFIRM_KEY, LeaveUnsaved } from '@/components/LeaveUnsaved';
 import { txDeleteOutcomeAlert, TX_EDIT_OUTCOME_ALERT, useData, type Settlement, type Transaction, type TxClearableField } from '@/context/DataContext';
 import { dueNotRestoredNotice } from '@/lib/reopenDue';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
@@ -25,7 +26,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { NavigationContext, usePreventRemove, type NavigationAction } from '@react-navigation/native';
+import { NavigationContext, usePreventRemove } from '@react-navigation/native';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -251,11 +252,12 @@ export default function AddTransactionModal() {
   // السؤال قبل الخروج: مش وقت الحفظ (المنع بتاعه شغال)، ولا بعد حفظ أو مسح نجح (`leaving`/`saved`)
   const askBeforeLeave = dirty && !blockLeave && !leaving && !saved.current;
   function confirmLeave(proceed: () => void) {
+    // الزرارين بيقولوا بيعملوا إيه (arabic-copy-reviewer، الميزة 10): «كمّل» لوحدها كانت ممكن تتفهم "كمّل الخروج"
     confirm('فيه حاجة ما اتحفظتش، تخرج؟',
       isEdit ? 'لو خرجت، التعديل مش هيتحفظ والعملية هتفضل زي ما هي.' : 'لو خرجت، العملية مش هتتسجل.', [
-        { text: 'كمّل', style: 'cancel' },
-        { text: 'اخرج', style: 'destructive', onPress: proceed },
-      ]);
+        { text: isEdit ? 'كمّل التعديل' : 'كمّل الكتابة', style: 'cancel' },
+        { text: 'اخرج من غير حفظ', style: 'destructive', onPress: proceed },
+      ], { key: LEAVE_CONFIRM_KEY });
   }
 
   /**
@@ -724,15 +726,3 @@ function BlockLeave({ when }: { when: boolean }) {
   return null;
 }
 
-/**
- * الخروج بعد ما غيّر حاجة (قرار مؤمن 2026-11-19): رجوع أندرويد، سحب المودال، و«إلغاء» (`router.back()`) كلهم بيعدّوا
- * من `beforeRemove` ← السؤال، و«اخرج» بيكمّل نفس الرجوع (`data.action`). التطبيق اتقفل والسؤال مفتوح ← `ConfirmProvider`
- * بيلغيه (= «كمّل»). نفس سبب `BlockLeave` إنه كومبوننت لوحده (محتاج navigator)، ومش مع `BlockLeave` في نفس الوقت.
- */
-function LeaveUnsaved({ when, ask }: { when: boolean; ask: (proceed: () => void) => void }) {
-  const nav = useContext(NavigationContext);
-  usePreventRemove(when, ({ data }: { data: { action: NavigationAction } }) => {
-    ask(() => nav?.dispatch(data.action));
-  });
-  return null;
-}

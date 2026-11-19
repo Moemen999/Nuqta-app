@@ -610,7 +610,36 @@ export function parseWalletAmountInput(raw: string): number | null {
   if (ambiguousDecimalComma(raw)) return null;
   const num = Number(normalizeAmountInput(raw).trim());
   if (!isFinite(num)) return null;
+  // سقف من فوق (الميزة 10، بند 7): «1e400» كان Infinity، و«1e300» كان بيعدّي للتأكيد ويترفض من القواعد بعدين
+  if (Math.abs(num) >= WALLET_AMOUNT_MAX) return null;
   return num;
+}
+
+/**
+ * سقف خانات المحفظة (الرصيد الابتدائي وحد التنبيه) — **تقني** مش سقف فلوس، زي حد القواعد (`finite` في `firestore.rules`:
+ * 10^18). أقل منه بكتير عشان التقريب لقرشين يفضل مضبوط (فوق 2^53/100 الكسور بتضيع) — والرقم ده أكبر من أي رصيد حقيقي.
+ */
+export const WALLET_AMOUNT_MAX = 1e15;
+
+/** ليه خانة المحفظة رفضت الرقم — عشان الرسالة تقول السبب (`walletAmountRejectNotice`) */
+export type WalletAmountRejectReason = 'invalid' | 'negative' | 'too-large';
+export function walletAmountRejectReason(raw: string | undefined): WalletAmountRejectReason {
+  if (raw === undefined || ambiguousDecimalComma(raw)) return 'invalid';
+  const num = Number(normalizeAmountInput(raw).trim());
+  if (Number.isNaN(num)) return 'invalid';
+  if (!isFinite(num) || Math.abs(num) >= WALLET_AMOUNT_MAX) return 'too-large';
+  return num < 0 ? 'negative' : 'invalid';
+}
+
+/**
+ * حد التنبيه (الميزة 10، بند 8): مبلغ من صفر وطالع، مقرّب للقرش، **ومبيسألش** — كان بيستخدم قاعدة الرصيد (سالب بتأكيد
+ * «رصيد بالسالب؟») وده مالوش معنى لحد تنبيه. السالب مرفوض برسالة باسم الخانة.
+ */
+export function planLowAlertCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  return planWith(draft, stored, raw => {
+    const v = parseBudgetInput(raw);
+    return v !== null && v >= WALLET_AMOUNT_MAX ? null : v;
+  });
 }
 
 export type WalletAmountPlan =
@@ -1779,6 +1808,20 @@ export const CATEGORY_ICON_MAX = 16;
 
 export function categoryIconValid(icon: string) {
   return CATEGORY_ICONS.includes(icon) || (icon.length > 0 && icon.length <= CATEGORY_ICON_MAX);
+}
+
+/**
+ * اسم كل أيقونة بالعربي لقارئ الشاشة (a11y-architect، الميزة 10): «أيقونة 🚗» كانت بتتقري باسم الإيموجي من النظام —
+ * بالإنجليزي على أجهزة كتير ومش ثابت بين أندرويد وأندرويد.
+ */
+export const CATEGORY_ICON_LABELS: Record<string, string> = {
+  '🚗': 'عربية', '🍳': 'طبخ', '🛒': 'سوبر ماركت', '🍔': 'أكل برّه', '💡': 'كهربا ونور', '🏠': 'بيت', '👕': 'هدوم', '💊': 'دوا',
+  '🎓': 'تعليم', '🎮': 'ألعاب', '✈️': 'سفر', '🎁': 'هدايا', '💰': 'فلوس', '📱': 'موبايل', '☕': 'قهوة', '💼': 'شغل',
+  '🐾': 'حيوانات أليفة', '🧾': 'فواتير', '⚡': 'كهربا', '❓': 'حاجات تانية',
+};
+/** المكتوبة من الكيبورد مالهاش اسم عندنا — «أيقونة مخصصة» بدل اسم الإيموجي من النظام */
+export function categoryIconLabel(icon: string): string {
+  return CATEGORY_ICON_LABELS[icon] ?? 'أيقونة مخصصة';
 }
 
 export const CATEGORY_ICONS = [

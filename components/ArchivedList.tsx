@@ -5,6 +5,9 @@ import { MIN_TOUCH, typeScale } from '@/lib/tokens';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
+/** بيتقال لقارئ الشاشة بعد ما الرجوع يتأكد (a11y-architect، الميزة 10): الصف بيختفي من القسم والتركيز بيضيع */
+export const restoredAnnouncement = (name: string) => `رجعت ${name}`;
+
 /**
  * قسم المؤرشف — مطوي افتراضيًا. المستخدم أرشفها عشان تختفي، فلو فتحناها
  * على طول كنا رجّعنا نفس الزحمة اللي هرب منها. العنوان بيقول العدد عشان
