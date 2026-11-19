@@ -25,7 +25,7 @@ function input(over: Partial<AttentionInput> = {}): AttentionInput {
     activeCategories: [], transactions: [exp('t0', 1)] as never, budgets: {}, transfers: new Set(),
     spendKnown: true, nowMonth: currentMonth(), subscriptions: [], gamiyas: [],
     hasTodayTx: true, offlineEmpty: false, noWallets: false, cold: false, dailyAt: 20 * 60, nowAt: 21 * 60,
-    unverifiedEmail: null, money: plainAmount,
+    unverifiedEmail: null, money: plainAmount, figuresUnsure: false,
     ...over,
   };
 }
@@ -107,18 +107,18 @@ describe('اشتراك وجمعية جايين', () => {
   });
   it('نص الاشتراك والجمعية والمفتاح زي ما كانوا', () => {
     const [s] = buildAttentionItems(input({ subscriptions: [sub(2)] as never }));
-    expect(s.text).toBe('اشتراك نتفليكس بعد 2 يوم (100 ج.م)');
+    expect(s.text).toBe('اشتراك نتفليكس بعد يومين (100 ج.م)');
     expect(s).toMatchObject({ type: 'subscriptionDue', instance: `s1@${day(2)}`, route: '/(tabs)/debts', label: s.text });
     const [g] = buildAttentionItems(input({ gamiyas: [gam(2)] as never }));
-    expect(g.text).toBe('جمعية العيلة — القسط بعد 2 يوم (500 ج.م)');
+    expect(g.text).toBe('جمعية العيلة: القسط بعد يومين (500 ج.م)');
     expect(g).toMatchObject({ type: 'gamiyaDue', instance: 'm2', route: '/(tabs)/debts' });
     const [p] = buildAttentionItems(input({ gamiyas: [gam(2, { isPayoutMonth: true })] as never }));
-    expect(p.text).toBe('جمعية العيلة — شهر الاستلام بعد 2 يوم (500 ج.م)');
+    expect(p.text).toBe('جمعية العيلة: شهر الاستلام بعد يومين (500 ج.م)');
   });
   it('العين مقفولة ← المبلغ مخفي', () => {
     const [s] = buildAttentionItems(input({ subscriptions: [sub(2)] as never, money: maskedAmount }));
-    expect(s.text).toBe(`اشتراك نتفليكس بعد 2 يوم (${MONEY_MASK} ج.م)`);
-    expect(s.label).toBe('اشتراك نتفليكس بعد 2 يوم (مبلغ مخفي ج.م)');
+    expect(s.text).toBe(`اشتراك نتفليكس بعد يومين (${MONEY_MASK} ج.م)`);
+    expect(s.label).toBe('اشتراك نتفليكس بعد يومين (مبلغ مخفي ج.م)');
   });
 });
 
@@ -197,5 +197,44 @@ describe('visibleAttention — نفس hidden(type, instance) بتاع البان
     const hidden = (t: BannerType, i?: string) => closed.has(bannerKey(t, i));
     expect(visibleAttention(build(day(2)), hidden)).toEqual([]);
     expect(visibleAttention(build(day(3)), hidden)).toHaveLength(1);
+  });
+});
+
+describe('مراجعة التطبيق كله، الميزة 7 — الأرقام مش مضمونة والرصيد بالسالب', () => {
+  const low = (bal: number, alert: number) => input({
+    activeWallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: alert }] as never, balances: new Map([['w1', bal]]),
+  });
+  it('العمليات أو المحافظ وقعت/لسه بتوصل (figuresUnsure) ← مفيش رصيد قرب يخلص ولا ميزانية ولا «لسه ما سجلتش»', () => {
+    const all = input({
+      activeWallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 500 }] as never, balances: new Map([['w1', 10]]),
+      activeCategories: [{ id: 'c1', name: 'أكل' }] as never, transactions: [exp('a', 900, 'c1')] as never, budgets: { c1: 1000 },
+      subscriptions: [{ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true, nextDueDate: day(2), reminderDaysBefore: 3 }] as never,
+      hasTodayTx: false, unverifiedEmail: 'a@b.c',
+    });
+    expect(ids(all)).toEqual(['budget_c1', 'low_w1', 'sub_s1', 'verify_email', 'no_tx_today']);
+    // الاشتراك والإيميل مش مبنيين على الأرصدة ولا العمليات — بيفضلوا
+    expect(ids({ ...all, figuresUnsure: true })).toEqual(['sub_s1', 'verify_email']);
+  });
+  it('الرصيد بيتقرّب للقرش قبل المقارنة: 99.999999 مع حد 100 ← مش تحت الحد، و-0.001 ← مش بالسالب', () => {
+    expect(ids(low(99.999999, 100))).toEqual([]);
+    expect(ids(low(-0.001, 0))).toEqual([]);
+    expect(ids(low(99.99, 100))).toEqual(['low_w1']);
+  });
+  it('رصيد بالسالب ← «بالسالب» مش «قرب يخلص»، ومفتاح ✕ تاني (درجة جديدة بترجّع التنبيه)', () => {
+    const [neg] = buildAttentionItems(low(-50, 0));
+    expect(neg.text).toBe('رصيد كاش بالسالب (-50 ج.م)');
+    expect(neg.label).toBe('رصيد كاش بالسالب (-50 ج.م)');
+    expect(neg.instance).toBe('w1:negative');
+    const [neg2] = buildAttentionItems(low(-50, 500));
+    expect(neg2.text).toBe('رصيد كاش بالسالب (-50 ج.م)');
+    // تحت الحد ومش سالب ← المفتاح القديم زي ما هو (✕ قديم لسه بيسري)
+    expect(buildAttentionItems(low(100, 500))[0].instance).toBe('w1');
+  });
+  it('الأيام بتوافق العدد (whenPhrase): بكرة، بعد 3 أيام', () => {
+    const sub = (off: number) => ({ id: 's1', name: 'نتفليكس', amount: 100, walletId: 'w1', active: true, nextDueDate: day(off), reminderDaysBefore: 3 });
+    expect(buildAttentionItems(input({ subscriptions: [sub(1)] as never }))[0].text).toBe('اشتراك نتفليكس بكرة (100 ج.م)');
+    const g = { id: 'g1', name: 'العيلة', walletId: 'w1', reminderDaysBefore: 3,
+      months: [{ id: 'm2', monthIndex: 2, dueDate: day(3), isPayoutMonth: false, amount: 500, status: 'pending' }] };
+    expect(buildAttentionItems(input({ gamiyas: [g] as never }))[0].text).toBe('جمعية العيلة: القسط بعد 3 أيام (500 ج.م)');
   });
 });

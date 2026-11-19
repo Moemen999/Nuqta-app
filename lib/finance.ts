@@ -30,7 +30,9 @@ export function monthSpend(tx: Transaction[], categoryId: string, month: string,
 }
 
 export function fmt(n: number) {
-  return (Math.round((n || 0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const r = Math.round((n || 0) * 100) / 100;
+  // `|| 0` بيشيل -0 (مراجعة التطبيق كله، الميزة 7): رصيد -0.001 كان بيتطبع «-0»
+  return (r || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function pad2(n: number) {
@@ -382,6 +384,16 @@ export const PIASTRE_EPS = 0.005;
 /** رصيد بنص قرش زي `isDebtSettled`: كسور الجمع (2e-12) بتبقى صفر بدل "0.00" بعلامة */
 export function snapPiastre(value: number) {
   return Math.abs(value) <= PIASTRE_EPS ? 0 : value;
+}
+
+/**
+ * الرصيد اللي بيتعرض **وبيتقارن** (حد التنبيه، بالسالب) — مقرّب للقرش، وأقل من نص قرش صفر من غير إشارة
+ * (مراجعة التطبيق كله، الميزة 7): مجموع عشري زي 99.999999 كان بيتقال «تحت الحد 100»، و-0.001 كان «بالسالب».
+ * للعرض والتنبيهات بس — الحسابات نفسها (`walletBalance`) زي ما هي.
+ */
+export function shownBalance(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return roundMoney(snapPiastre(value)) || 0;
 }
 
 /** تقريب مبلغ لأقرب قرش — الرقم اللي بيتخزّن هو الرقم اللي بيتعرض */

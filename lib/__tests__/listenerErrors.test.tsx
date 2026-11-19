@@ -54,7 +54,7 @@ describe('listenerNamesPhrase', () => {
   it.each<[ListenerName[], string]>([
     [['incomes'], 'الدخل الثابت'],
     [['debts', 'wallets'], 'المحافظ والديون'],
-    [['incomes', 'wallets', 'transactions'], 'المحافظ، العمليات، والدخل الثابت'],
+    [['incomes', 'wallets', 'transactions'], 'المحافظ والعمليات والدخل الثابت'],
   ])('%j ← %s', (names, phrase) => {
     expect(listenerNamesPhrase(names)).toBe(phrase);
   });

@@ -14,7 +14,8 @@ import { AppState } from 'react-native';
 /** لو التسجيل رجع no-connection والنت لسه "شغال" (انتظار الكتابات خلص وقته) */
 export const INCOME_RETRY_MS = 60_000;
 
-export type IncomeNotice = { id: string; kind: 'recorded' | 'error'; text: string };
+/** `name`: اسم الدخل — زرار «اقفل الرسالة» بيقوله لقارئ الشاشة (الميزة 7)، مش بيدخل أي حسبة */
+export type IncomeNotice = { id: string; kind: 'recorded' | 'error'; text: string; name?: string };
 
 /**
  * `uncertain` بيعيد بعد دقيقة — بس **بسقف** لنفس الفترات في الجلسة (الدخل والخصم التلقائي، `useChargeAutoRecord`).
@@ -125,7 +126,7 @@ export function useIncomeAutoRecord() {
       const withTx = u.keys.filter(k => !!inc.closed?.[k]?.txId);
       if (withTx.length > 0) {
         recordedNotices.push({
-          id: `rec:${inc.id}:${withTx.join(',')}`, kind: 'recorded',
+          id: `rec:${inc.id}:${withTx.join(',')}`, kind: 'recorded', name: inc.name,
           text: incomeRecordedMessage(inc.name, withTx.map(k => incomePeriodLabel(inc, k, today)), inc.frequency),
         });
       }
@@ -218,7 +219,7 @@ export function useIncomeAutoRecord() {
                 .catch(warnNotifyFailed);
             }
             found.push({
-              id, kind: 'error',
+              id, kind: 'error', name: inc.name,
               text: `مش متأكدين سجلنا "${inc.name}" ولا لأ — النت قطع واحنا بنسجّل. افتح الأرشيف وبص الأول، ولو مش موجود سجّله بإيدك، عشان ميتسجلش مرتين.`,
             });
             continue;
@@ -234,13 +235,13 @@ export function useIncomeAutoRecord() {
             const id = `err:${inc.id}:badAmount:${today}`;
             if (!shownErrors.current.has(id)) {
               shownErrors.current.add(id);
-              found.push({ id, kind: 'error', text: incomeBadAmountMessage(inc.name) });
+              found.push({ id, kind: 'error', name: inc.name, text: incomeBadAmountMessage(inc.name) });
             }
             continue;
           }
           if (r.outcome === 'done' && r.recorded.length > 0) {
             const text = incomeRecordedMessage(inc.name, r.recorded.map(k => incomePeriodLabel(inc, k, today)), inc.frequency);
-            found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', text });
+            found.push({ id: `rec:${inc.id}:${r.recorded.join(',')}`, kind: 'recorded', name: inc.name, text });
             if (notificationsOn) {
               // الجولة الأخيرة: المبلغ من اللي اتكتب فعلاً (`recordedTotal`)، مش `inc.amount` المحلي × العدد.
               // مش موجود ← الإشعار من غير رقم بدل رقم متخمّن
@@ -253,7 +254,7 @@ export function useIncomeAutoRecord() {
             if (shownErrors.current.has(id)) continue;
             shownErrors.current.add(id);
             found.push({
-              id, kind: 'error',
+              id, kind: 'error', name: inc.name,
               text: r.outcome === 'wallet-missing'
                 ? `ما سجلناش "${inc.name}": المحفظة بتاعته اتأرشفت أو اتمسحت، ومفيش حاجة اتسجلت. اختارله محفظة تانية من التخطيط ← دخل ثابت.`
                 : `ما سجلناش "${inc.name}" دلوقتي، ومفيش حاجة اتسجلت. هنجرب تاني أول ما ترجع للتطبيق.`,

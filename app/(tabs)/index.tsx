@@ -26,7 +26,9 @@ import { useCurrentMinute } from '@/lib/useCurrentMinute';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { transactionsPhrase } from '@/lib/archiving';
-import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, entryTime, formatTime, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { TYPE_LABELS, transactionAmountColor, categoryLabelById, currentMonth, entryTime, formatTime, shownBalance, todayStr, transactionWalletLabel, walletBalance } from '@/lib/finance';
+import { HERO_LOADING_TEXT, figuresSettled, figuresUnsure, heroFailedText, heroFigures, heroLabel, outboxLinePhrase, recentEmptyText } from '@/lib/homeFigures';
+import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import { plainAmount } from '@/lib/money';
 import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { dayText } from '@/lib/dateText';
@@ -43,6 +45,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabScroll } from '@/context/FabScrollContext';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
+const DELETE_PENDING_TEXT = 'مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف. كمّل المسح، أو اخرج من الحساب.';
+const OFFLINE_TEXT = 'مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.';
 
 /**
  * العين بتخبّي المبالغ **في الرئيسية بس** (قرار 2026-09-27): النطاق ملفوف برّه
@@ -62,7 +66,7 @@ function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending } = useData();
+  const { wallets, categories, transactions, budgets, subscriptions, gamiyas, debts, pendingTxIds, serverReachable, figuresFromServer, coldSnapshot, deletionPending, transfersStatus, brokenTransactions, loadErrors, figuresPending, outboxCount } = useData();
   const { walletColors, categoryColors } = useChartColors();
   const { amountsHidden, toggleAmounts, money } = usePrivacy();
   const { hidden, dismiss, clear } = useBannerDismiss();
@@ -75,14 +79,15 @@ function HomeScreen() {
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived), [categories]);
 
+  // مقرّب للقرش (`shownBalance`، الميزة 7): الشريحة والإجمالي وحد التنبيه نفس الرقم اللي بيتعرض، ومفيش «-0»
   const balances = useMemo(() => {
     const map = new Map<string, number>();
-    activeWallets.forEach(w => map.set(w.id, walletBalance(transactions, w.id, w.openingBalance)));
+    activeWallets.forEach(w => map.set(w.id, shownBalance(walletBalance(transactions, w.id, w.openingBalance))));
     return map;
   }, [activeWallets, transactions]);
 
   const totalBalance = useMemo(
-    () => activeWallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0),
+    () => shownBalance(activeWallets.reduce((s, w) => s + (balances.get(w.id) || 0), 0)),
     [activeWallets, balances]
   );
 
@@ -99,14 +104,24 @@ function HomeScreen() {
   const offlineEmpty = loadWindowPassed && !serverReachable && wallets.length === 0;
   // النت قطع والأرقام على الشاشة: بعد المهلة بس، ولحد ما الأرقام نفسها تتحدّث
   // (lib/staleFigures.ts). من غير أرقام ده "مفيش نت" اللي فوق، مش ده
-  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0);
+  // الكاش البارد معروض ← ده «قديم» مش «ممكن يكون قديم» (بانر تاني)
+  const staleFigures = useStaleFigures(figuresFromServer, wallets.length > 0 && !coldSnapshot);
   /**
    * كاش أول فتحة باردة (`lib/coldCache.ts`): آخر أرقام اتشافت، **للعرض بس** — طول ما مفيش ولا محفظة من
    * الـlisteners. الرصيد والشرايح وآخر العمليات بيتعرضوا منه، بعلامة "قديم" مبتتقفلش، والصفوف مبتفتحش
    * المودال (العملية مش موجودة في البيانات اللي التعديل بيقرا منها). أول snapshot حقيقي بيخفيه لوحده.
    */
   const cold = coldSnapshot;
-  const shownTotal = cold ? cold.wallets.reduce((s, w) => s + w.balance, 0) : totalBalance;
+  const shownTotal = cold ? shownBalance(cold.wallets.reduce((s, w) => s + w.balance, 0)) : totalBalance;
+  /**
+   * الرقم البطل (الميزة 7 — HIGH): العمليات لسه بتوصل ← «بنحمّل…» مكان الرقم (الكاش بيفضل لحد ما توصل — DataContext)؛
+   * المحافظ أو العمليات وقعت ← «(ناقص)» + «مقدرناش نجيب …» مكان الرقم والشرايح. علامة جنب الإجمالي **متتقفلش**
+   * (`lib/homeFigures.ts`)؛ بانر «مقدرناش نجيب بياناتك» فوق بـ✕ زي ما هو
+   */
+  const hero = heroFigures({ cold: !!cold, loadErrors, figuresPending });
+  const unsure = figuresUnsure(loadErrors, figuresPending);
+  const txFailed = loadErrors.includes('transactions');
+  const txPending = !!figuresPending?.includes('transactions');
   /**
    * حساب مسح (أو أرشف) كل محافظه: مفيش شاشة تجهيز تاني (عدّاها قبل كده)، ومن غير
    * محفظة مفيش ولا عملية تتسجل — فبنقول كده وبنودّيه يضيف واحدة. بس لما نكون
@@ -138,19 +153,25 @@ function HomeScreen() {
   // (silent-failure-hunter جولة 2): الكاش بيختفي كمان لما محفظة تيجي من كاش الذاكرة، و"اتحدّثت" ساعتها كدب.
   // ولو طلع مفيش ولا محفظة، إعلان "مفيش ولا محفظة" اللي فوق هو اللي بيتقال
   // بانر الكاش بيظهر بعد مهلة التحميل — قارئ الشاشة مبيقراش live region وقت ما العنصر يظهر، فبنقوله مرة (silent-failure-hunter)
+  // نمط واحد (`useAnnounceOnAppear`): iOS بيتقال، أندرويد على liveRegion البانر — كان بيتقال مرتين على أندرويد (الميزة 7)
   const coldShown = !!cold && loadWindowPassed;
-  const coldSavedAt = cold?.savedAt;
-  useEffect(() => {
-    if (coldShown && coldSavedAt !== undefined) AccessibilityInfo.announceForAccessibility(coldFiguresText(coldSavedAt, formatTime));
-  }, [coldShown, coldSavedAt]);
+  useAnnounceOnAppear(coldShown && cold ? coldFiguresText(cold.savedAt, formatTime) : null);
+  // «اتحدّثت» بس لما الاتنين وصلوا من السيرفر ومفيش منهم واقع (الميزة 7): المحافظ لوحدها مع عمليات لسه جاية كانت بتتقال
+  // «اتحدّثت» والرقم رصيد افتتاحي
+  const settled = figuresSettled({ figuresFromServer, loadErrors, figuresPending });
   const wasCold = useRef(false);
   useEffect(() => {
     if (cold) { wasCold.current = true; return; }
-    if (wasCold.current && figuresFromServer) {
+    if (wasCold.current && settled) {
       wasCold.current = false;
       if (wallets.length > 0) AccessibilityInfo.announceForAccessibility('الأرقام اتحدّثت');
     }
-  }, [cold, figuresFromServer, wallets.length]);
+  }, [cold, settled, wallets.length]);
+
+  // البانرات اللي بتظهر متأخر — نفس النمط (a11y-architect، الميزة 7)
+  const outboxText = loadWindowPassed && !serverReachable ? outboxLinePhrase(outboxCount ?? 0) : '';
+  const brokenWallets = wallets.filter(w => w.openingInvalid);
+  const brokenWalletText = brokenWallets.map(w => (w.archived ? brokenArchivedWalletBannerText(w.name) : brokenWalletBannerText(w.name))).join(' ');
 
   const nowMonth = currentMonth();
   const hasTodayTx = transactions.some(t => t.date === todayStr());
@@ -187,8 +208,15 @@ function HomeScreen() {
   const attentionItems = buildAttentionItems({
     activeWallets, balances, activeCategories, transactions, budgets, transfers, spendKnown, nowMonth,
     subscriptions, gamiyas, hasTodayTx, offlineEmpty, noWallets, cold: !!cold, dailyAt, nowAt,
-    unverifiedEmail: emailVerification.unverifiedEmail, money,
+    unverifiedEmail: emailVerification.unverifiedEmail, money, figuresUnsure: unsure,
   });
+  useAnnounceOnAppear(deletionPending ? DELETE_PENDING_TEXT : null);
+  useAnnounceOnAppear(offlineEmpty && !cold && !hidden('offline') ? OFFLINE_TEXT : null);
+  useAnnounceOnAppear(staleFigures && !hidden('stale') ? STALE_FIGURES_TEXT : null);
+  useAnnounceOnAppear(brokenTransactions.length > 0 ? brokenTransactionsBannerText(brokenTransactions.length) : null);
+  useAnnounceOnAppear(brokenWalletText);
+  useAnnounceOnAppear(outboxText);
+  const emptyRecentText = recentEmptyText({ loadWindowPassed, txFailed, offlineEmpty, txPending });
 
   const recent = [...transactions]
     .sort((a, b) => {
@@ -217,30 +245,38 @@ function HomeScreen() {
             </TouchableOpacity>
             {/* كاش: "قديم" جنب الإجمالي نفسه — الرصيد فوق برّه التمرير، والبانر تحت ممكن يتمرر أو قارئ الشاشة يقرا
                 الرقم قبله (a11y-architect) */}
-            <Text style={styles.balanceLabel}>{cold ? 'إجمالي رصيدك (قديم)' : 'إجمالي رصيدك'}</Text>
+            {/* العلامة جنب الإجمالي متتقفلش: قديم / ناقص / ممكن يكون قديم (`heroLabel`، الميزة 7) */}
+            <Text style={styles.balanceLabel} accessibilityRole="header">{heroLabel(hero, staleFigures)}</Text>
           </View>
-          {/* صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة
-              وبيضيّع accessibilityLabel بتاع Money، فالمخفي كان بيتقري نقط */}
-          <HeroAmount style={styles.balanceValueRow}>
-            <Money value={shownTotal} currency={false} fit style={styles.balanceValue} />
-          </HeroAmount>
+          {hero.kind === 'failed' ? (
+            <Text testID="home_hero_failed" style={styles.heroStatus}>{heroFailedText(hero.missing)}</Text>
+          ) : hero.kind === 'loading' ? (
+            <Text testID="home_hero_loading" style={styles.heroStatus}>{HERO_LOADING_TEXT}</Text>
+          ) : (
+            // صف مش Text جوه Text: أندرويد بيفرد الـText المتداخل في عقدة واحدة وبيضيّع accessibilityLabel بتاع Money،
+            // فالمخفي كان بيتقري نقط. ظاهر ← عقدة واحدة «950 جنيه»؛ مخفي ← من غير label (القناع زرار «اكشف» لوحده)
+            <HeroAmount style={styles.balanceValueRow} label={amountsHidden ? undefined : `${plainAmount(shownTotal)} جنيه`}>
+              <Money value={shownTotal} currency={false} fit style={styles.balanceValue} />
+            </HeroAmount>
+          )}
           <View style={styles.walletsRow}>
+            {/* كل شريحة عقدة واحدة لقارئ الشاشة: الاسم جوه label بتاع المبلغ («كاش، 950 جنيه» / «كاش: مبلغ مخفي») */}
             {cold
               ? cold.wallets.map(w => (
                 <View key={w.id} testID={`home_cold_wallet_${w.id}`} style={styles.walletChip}>
                   {/* حلقة فاضية مش لون: "مش حية" مش "ملقيناش لون" (visual-identity-reviewer) */}
                   <View style={[styles.dot, { backgroundColor: "transparent", borderWidth: 1.5, borderColor: colors.textSecondary }]} />
-                  <Text style={styles.walletChipName}>{w.name}</Text>
-                  <Money value={w.balance} currency={false} style={styles.walletChipVal} />
+                  <Text style={styles.walletChipName} accessible={false} importantForAccessibility="no" accessibilityElementsHidden>{w.name}</Text>
+                  <Money value={shownBalance(w.balance)} currency={false} style={styles.walletChipVal} labelPrefix={`قديم: ${w.name}`} />
                 </View>
               ))
-              : activeWallets.map(w => (
+              : hero.kind === 'live' ? activeWallets.map(w => (
               <View key={w.id} style={styles.walletChip}>
                 <View style={[styles.dot, { backgroundColor: walletColors.get(w.id) }]} />
-                <Text style={styles.walletChipName}>{w.name}</Text>
-                <Money value={balances.get(w.id) || 0} currency={false} style={styles.walletChipVal} />
+                <Text style={styles.walletChipName} accessible={false} importantForAccessibility="no" accessibilityElementsHidden>{w.name}</Text>
+                <Money value={balances.get(w.id) || 0} currency={false} style={styles.walletChipVal} labelPrefix={w.name} />
               </View>
-            ))}
+            )) : null}
           </View>
         </View>
       </View>
@@ -272,9 +308,7 @@ function HomeScreen() {
         {deletionPending && (
           <View testID="home_banner_delete_pending" style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
-            <Text style={[styles.bannerText, { color: colors.dangerText }]}>
-              مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف. كمّل المسح، أو اخرج من الحساب.
-            </Text>
+            <Text style={[styles.bannerText, { color: colors.dangerText }]}>{DELETE_PENDING_TEXT}</Text>
             <TouchableOpacity testID="home_delete_pending_go" onPress={() => router.push('/settings-screens/delete-account')}
               accessibilityRole="button" accessibilityHint="بيفتح شاشة مسح الحساب" style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>كمّل المسح</Text>
@@ -290,11 +324,17 @@ function HomeScreen() {
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{coldFiguresText(cold.savedAt, formatTime)}</Text>
           </View>
         )}
+        {/* عمليات في الطابور المتشفّر ولسه ما اترفعتش (الميزة 7): بعد فتحة باردة من غير نت مش بتبان في «آخر العمليات»
+            (الإعادة بتستنى السيرفر)، فالسطر ده من غير ✕ هو اللي بيقول إنها موجودة. من غير نت بس — والنت شغال الإعادة بتخلص لوحدها
+            والعلامة «⏳ لسه بترفع» على الصف بتكفي */}
+        {!!outboxText && (
+          <View testID="home_outbox_line" style={[styles.banner, styles.bannerWarn]} accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, { color: colors.accentText }]}>{outboxText}</Text>
+          </View>
+        )}
         {offlineEmpty && !cold && !hidden('offline') && (
-          <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, styles.bannerWarn]}>
-            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>
-              مفيش نت دلوقتي — بياناتك مش ضايعة، إحنا بس لسه ما وصلناش لها. أول ما النت يرجع هتظهر لوحدها.
-            </Text>
+          <View testID="home_banner_offline" style={[styles.banner, styles.bannerRow, styles.bannerWarn]} accessibilityLiveRegion="polite">
+            <Text style={[styles.bannerText, styles.bannerFlex, { color: colors.accentText }]}>{OFFLINE_TEXT}</Text>
             <DismissButton testID="home_banner_dismiss_offline" onPress={() => dismiss('offline')} hint={DISMISS_HINT} label={dismissLabel('offline')} announce={DISMISSED_ANNOUNCEMENT} />
           </View>
         )}
@@ -317,7 +357,7 @@ function HomeScreen() {
           </View>
         )}
         {/* المؤرشفة كمان (silent-failure-hunter): الرقم الغلط مبيبطلش يبقى غلط لما المحفظة تتأرشف */}
-        {wallets.filter(w => w.openingInvalid).map(w => (
+        {brokenWallets.map(w => (
           <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{w.archived ? brokenArchivedWalletBannerText(w.name) : brokenWalletBannerText(w.name)}</Text>
@@ -351,11 +391,10 @@ function HomeScreen() {
             يخلص، ميزانية فئة، اشتراك وقسط جمعية جايين (`AttentionSheet`). فوق آخر العمليات زي ما كانوا */}
         <AttentionSheet items={attentionItems} email={emailVerification} loadWindowPassed={loadWindowPassed}
           transfersFailed={transfersStatus === 'failed'} />
-        <Text testID="home_recent_title" style={styles.sectionTitle}>آخر العمليات</Text>
-        {recent.length === 0 && !(cold && cold.recent.length > 0) && (
-          <Text style={styles.emptyState}>
-            {offlineEmpty ? 'مستنيين النت عشان نجيب عملياتك' : 'لسه معملتش أي عملية'}
-          </Text>
+        <Text testID="home_recent_title" style={styles.sectionTitle} accessibilityRole="header">آخر العمليات</Text>
+        {/* قبل مهلة التحميل أو والعمليات لسه جاية ← ولا كلمة؛ وقعت ← ما وصلتش (مش «لسه ما سجلتش») — `recentEmptyText` */}
+        {recent.length === 0 && !(cold && cold.recent.length > 0) && !!emptyRecentText && (
+          <Text testID="home_recent_empty" style={styles.emptyState}>{emptyRecentText}</Text>
         )}
         {/* دراسة الشكل خطوة 2: القايمة كارت واحد من غير خطوط بين الصفوف — المسافة هي اللي بتفصل */}
         <View testID="home_recent_card" style={styles.txCard}>
@@ -398,11 +437,22 @@ function HomeScreen() {
           const catLabel = categoryLabelById(categories, t.categoryId);
           const txCat = t.type === 'expense' && t.categoryId ? categories.find(c => c.id === t.categoryId) : undefined;
           const walletLabel = transactionWalletLabel(t, wallets);
+          const title = txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label;
+          const when = [dayText(t.date, todayStr()), entryTime(t.date, t.createdAt)].filter(Boolean).join(' ');
+          // عقدة واحدة زي صف الكاش (الميزة 7 — a11y-architect): النوع، العنوان، المحفظة والنوت، المبلغ بـ«جنيه»، اليوم، والعلامات
+          const typeWord = TX_TYPE_WORD[t.type];
+          const marks = [pendingTxIds.has(t.id) && 'لسه بترفع', t.autoRecorded && 'اتسجلت لوحدها', transfers.has(t.id) && 'تحويل'].filter(Boolean);
+          const rowLabel = [
+            title === typeWord ? typeWord : `${typeWord}: ${title}`,
+            walletLabel, t.note || '', `${plainAmount(t.amount)} جنيه`, when, ...marks,
+          ].filter(Boolean).join('، ');
           return (
             <TouchableOpacity accessibilityRole="button"
               key={t.id}
               testID={`home_tx_${t.id}`}
               style={styles.txRow}
+              accessibilityLabel={rowLabel}
+              accessibilityHint="بيفتح تعديل العملية"
               onPress={() => router.push({ pathname: '/modal', params: { id: t.id } })}>
               <View style={styles.txMid}>
                 {/* مكان الدايرة محجوز (View فاضي بنفس المقاس) في صفوف من غير فئة — العناوين على نفس الخط */}
@@ -410,7 +460,7 @@ function HomeScreen() {
                   {txCat
                     ? <CategoryIcon icon={txCat.icon} size={categoryIconSize.row} tint={categoryColors.get(txCat.id)} />
                     : <CategoryIconSpacer />}
-                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{txCat ? categoryLabelById(categories, t.categoryId, { icon: false }) : t.type === 'expense' ? (catLabel || 'مصروف') : T.label}</Text>
+                  <Text style={[styles.txTitle, { flexShrink: 1 }]}>{title}</Text>
                 </View>
                 <Text style={styles.txSub}>{walletLabel}{t.note ? ' · ' + t.note : ''}</Text>
               </View>
@@ -447,6 +497,9 @@ function HomeScreen() {
 
 export { VERIFY_SPAM_HINT };
 
+/** كلمة النوع اللي قارئ الشاشة بيبدأ بيها صف العملية */
+const TX_TYPE_WORD: Record<string, string> = { expense: 'مصروف', income: 'دخل', withdraw: 'تحويل' };
+
 function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: c.bg },
@@ -465,6 +518,8 @@ function makeStyles(c: ThemeColors) {
     // gap بدل مسافة جوه النص: المسافة القديمة كانت بحجم الرقم (30) مش العملة (14)
     balanceValueRow: { marginTop: 4 },
     balanceValue: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
+    // مكان الرقم لما مش مضمون (بنحمّل / مقدرناش نجيب) — مش بحجم الرقم البطل: ده مش رقم
+    heroStatus: { color: c.textSecondary, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 4 },
     // المحافظ من غير خلفية لكل واحدة — النقطة الملوّنة والمسافة بيفصلوا
     walletsRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', columnGap: space.xxl, rowGap: space.sm, marginTop: space.xxl },
     walletChip: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xs },
@@ -481,7 +536,7 @@ function makeStyles(c: ThemeColors) {
     bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     bannerFlex: { flex: 1 },
     bannerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
-    // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"أعد إرسال التأكيد" بيستفيد كمان
+    // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"ابعت رسالة التأكيد تاني" بيستفيد كمان
     bannerAction: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
     bannerActionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.xxl, marginBottom: space.sm },

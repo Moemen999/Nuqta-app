@@ -6,7 +6,7 @@ import { Text } from '@/components/AppText';
 import { radius, typeScale } from '@/lib/tokens';
 
 export const EMPTY_OFFLINE_NOTE =
-  'وإحنا مش شايفين نت دلوقتي، فيمكن تكون لسه ما وصلتش — مش ضايعة.';
+  'ومفيش نت دلوقتي، فممكن بياناتك لسه ما وصلتش — مش ضايعة.';
 
 /**
  * الحالة الفاضية في شاشات المحافظ والفئات.

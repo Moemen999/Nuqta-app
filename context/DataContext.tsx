@@ -1451,7 +1451,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   /**
    * **الكتابة:** بس لما الأرقام نفسها جاية من السيرفر (`figuresFromServer`) **والاتنين وصلوا** (`figuresPending` فاضي —
-   * `figuresFresh` بيقبل العمليات `null`، فمن غيره كان ممكن يتكتب رصيد افتتاحي بس)، **والفئات والديون وصلوا**
+   * زيادة أمان: `figuresFresh` بقى بيطلب الاتنين من السيرفر من الميزة 7، فرصيد افتتاحي بس عمره ما يتكتب)، **والفئات والديون وصلوا**
    * (من غيرهم صف الدين بيتحفظ "مصروف")، ومفيش listener منهم رفض. بعد ثانيتين من آخر تغيير (money-reviewer +
    * silent-failure-hunter). مفيش محفظة شغالة ← الكاش بيتمسح بدل ما يتكتب فاضي (كان هيخبّي "مفيش ولا محفظة").
    * **حساب A → حساب B على طول (من غير `null`) مش متغطّي هنا عن قصد:** التطبيق مبيعرضش الدخول غير بعد الخروج،
@@ -1471,9 +1471,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }, COLD_CACHE_WRITE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [uid, figuresFromServer, figuresPending, delivered, loadErrors, wallets, categories, transactions, debts]);
-  // للعرض بس، وبس طول ما مفيش ولا محفظة **ولا عملية** حقيقية ولا أرقام من السيرفر — أول snapshot حقيقي من أي
-  // واحد فيهم بيخفيه (مفيش رصيد من الكاش جنب عمليات حقيقية — money-reviewer). كاش من غير محافظ ← مبيتعرضش
-  const coldSnapshot = !figuresFromServer && wallets.length === 0 && transactions.length === 0 && storedCold && storedCold.wallets.length > 0
+  // للعرض بس، وبس طول ما مفيش ولا عملية حقيقية ولا أرقام من السيرفر، **ومفيش محافظ أو المحافظ وصلت والعمليات لسه**
+  // (مراجعة التطبيق كله، الميزة 7 — HIGH: المحافظ لوحدها كانت بتخفي الكاش، فالرئيسية كانت بتعرض الرصيد الافتتاحي على إنه
+  // الرصيد دلوقتي). أول عملية حقيقية بتخفيه (مفيش رصيد من الكاش جنب عمليات حقيقية — money-reviewer). كاش من غير محافظ ← مبيتعرضش
+  const txNotYet = figuresPending.includes('transactions');
+  const coldSnapshot = !figuresFromServer && (wallets.length === 0 || txNotYet) && transactions.length === 0
+    && storedCold && storedCold.wallets.length > 0
     ? storedCold : null;
 
   /**

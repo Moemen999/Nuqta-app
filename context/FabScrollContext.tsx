@@ -1,7 +1,7 @@
 import { usePathname } from 'expo-router';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AccessibilityInfo, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
-import { FAB_SETTLE_MS, fabScrollStep, fabScrollStopped } from '@/lib/fabScroll';
+import { FAB_DRAG_FALLBACK_MS, FAB_SETTLE_MS, fabScrollStep, fabScrollStopped } from '@/lib/fabScroll';
 
 /**
  * الزرار العايم "+" بيختفي وانت بتمرّر لتحت وبيرجع بعد `FAB_SETTLE_MS` (عُشر ثانية) من ما الشاشة تقف — طول التزحليق (momentum) بعد رفع الصباع مستخبي (قرار مؤمن 2026-11-16، تعديل بعد تجربة 1.0.0.027).
@@ -64,12 +64,27 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     }, ms);
   }, [apply, clearTimer]);
 
+  // احتياطي لو `onScrollEndDrag` مجاش (الميزة 7): بيتسلّح مع بداية السحب ومع كل حدث والصباع ماسك، ولو خلص ← السحب خلص
+  const dragFallback = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearDragFallback = useCallback(() => {
+    if (dragFallback.current) { clearTimeout(dragFallback.current); dragFallback.current = null; }
+  }, []);
+  const armDragFallback = useCallback(() => {
+    clearDragFallback();
+    dragFallback.current = setTimeout(() => {
+      dragFallback.current = null;
+      dragging.current = false;
+      if (!visibleRef.current) armSettle(0);
+    }, FAB_DRAG_FALLBACK_MS);
+  }, [armSettle, clearDragFallback]);
+
   const show = useCallback(() => {
     clearTimer();
+    clearDragFallback();
     dragging.current = false;
     anchor.current = null;
     apply(true);
-  }, [apply, clearTimer]);
+  }, [apply, clearTimer, clearDragFallback]);
 
   // قارئ الشاشة شغّال ← الزرار ظاهر دايمًا ومن غير أي منطق تمرير (مستخدم TalkBack/VoiceOver
   // مبيشوفش اختفاء بصري، ولازم يلاقي الزرار في أي لحظة)
@@ -95,18 +110,20 @@ export function FabScrollProvider({ children }: { children: React.ReactNode }) {
     if (next.visible !== visibleRef.current) apply(next.visible);
     // مستخبي ← كل حدث (والـmomentum بعد رفع الصباع كمان) بيعيد تسليح المهلة (debounce): الرجوع بعد ما الأحداث تقف بـ100ms — إلا والإصبع ماسك (بيتسلّح عند endDrag). مش معتمدين على onMomentumScrollEnd لوحده (ممكن ميجيش)
     if (!next.visible && !dragging.current) armSettle(FAB_SETTLE_MS); else clearTimer();
-  }, [apply, armSettle, clearTimer]);
+    if (dragging.current) armDragFallback();
+  }, [apply, armSettle, clearTimer, armDragFallback]);
 
-  const onScrollBeginDrag = useCallback(() => { dragging.current = true; clearTimer(); }, [clearTimer]);
+  const onScrollBeginDrag = useCallback(() => { dragging.current = true; clearTimer(); armDragFallback(); }, [clearTimer, armDragFallback]);
   const onScrollEndDrag = useCallback(() => {
+    clearDragFallback();
     dragging.current = false;
     if (!screenReader.current && !visibleRef.current) armSettle(FAB_SETTLE_MS);
-  }, [armSettle]);
+  }, [armSettle, clearDragFallback]);
   // momentum بدأ: مفيش مسح للمهلة هنا — أحداث onScroll أثناء الـmomentum بتعيد تسليحها (والزرار مستخبي طول التزحليق)، ومسحها كان بيسيب الزرار مستخبي للأبد لو الـmomentum مخلّصش بحدث
   const onMomentumScrollBegin = noopFn;
-  const onMomentumScrollEnd = useCallback(() => { dragging.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle]);
+  const onMomentumScrollEnd = useCallback(() => { clearDragFallback(); dragging.current = false; if (!visibleRef.current) armSettle(FAB_SETTLE_MS); }, [armSettle, clearDragFallback]);
 
-  useEffect(() => clearTimer, [clearTimer]);
+  useEffect(() => () => { clearTimer(); clearDragFallback(); }, [clearTimer, clearDragFallback]);
 
   // تغيير التاب ← ظاهر (كل تاب ليه موضع تمرير تاني)
   useEffect(() => { show(); }, [pathname, show]);

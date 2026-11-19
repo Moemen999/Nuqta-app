@@ -213,7 +213,7 @@ describe('عنصر واحد بس', () => {
     await mount();
     await openSheet();
     await press('attention_verify_resend');
-    expect(screen.getByText('مقدرناش نبعت الرسالة دلوقتي، جرب كمان شوية')).toBeTruthy();
+    expect(screen.getByText('مقدرناش نبعت الرسالة دلوقتي، جرّب كمان شوية')).toBeTruthy();
     expect(shown('attention_verify_resend')).toBe(true);
     err.mockRestore();
   });
@@ -263,9 +263,9 @@ describe('الطبقات التانية ما اتلخبطتش', () => {
   it('اشتراك بعد يومين ← في السطر ودوسته بتروح الالتزامات', async () => {
     setData({ subscriptions: [SUB] });
     await mount();
-    expect(within(screen.getByTestId('home_attention_line')).getByText('اشتراك نتفليكس بعد 2 يوم (100 ج.م)')).toBeTruthy();
+    expect(within(screen.getByTestId('home_attention_line')).getByText('اشتراك نتفليكس بعد يومين (100 ج.م)')).toBeTruthy();
     expect(router.push).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.press(within(screen.getByTestId('home_attention_line')).getAllByLabelText('اشتراك نتفليكس بعد 2 يوم (100 ج.م)')[0]); });
+    await act(async () => { fireEvent.press(within(screen.getByTestId('home_attention_line')).getAllByLabelText('اشتراك نتفليكس بعد يومين (100 ج.م)')[0]); });
     expect(router.push).toHaveBeenCalledWith('/(tabs)/debts');
   });
 
@@ -289,7 +289,7 @@ describe('المبالغ مخفية (العين مقفولة)', () => {
     const sheet = within(screen.getByTestId('attention_sheet'));
     expect(sheet.getByText(`ميزانية أكل قربت تخلص (${MONEY_MASK} من ${MONEY_MASK})`)).toBeTruthy();
     expect(sheet.getByText(`رصيد كاش قرب يخلص (${MONEY_MASK} ج.م)`)).toBeTruthy();
-    expect(sheet.getByText(`اشتراك نتفليكس بعد 2 يوم (${MONEY_MASK} ج.م)`)).toBeTruthy();
+    expect(sheet.getByText(`اشتراك نتفليكس بعد يومين (${MONEY_MASK} ج.م)`)).toBeTruthy();
     expect(sheet.queryByText(/85|15 ج|\b100\b/)).toBeNull();
     expect(sheet.getAllByLabelText('رصيد كاش قرب يخلص (مبلغ مخفي ج.م)').length).toBeGreaterThan(0);
     expect(sheet.getAllByLabelText('ميزانية أكل قربت تخلص (مبلغ مخفي من مبلغ مخفي)').length).toBeGreaterThan(0);
@@ -334,8 +334,8 @@ describe('جرد البانرات اللي اتلمّت', () => {
   const TEXT = {
     budget: 'ميزانية أكل قربت تخلص (85 من 100)',
     low: 'رصيد كاش قرب يخلص (15 ج.م)',
-    sub: 'اشتراك نتفليكس بعد 2 يوم (100 ج.م)',
-    gamiya: 'جمعية العيلة — القسط بعد 2 يوم (500 ج.م)',
+    sub: 'اشتراك نتفليكس بعد يومين (100 ج.م)',
+    gamiya: 'جمعية العيلة: القسط بعد يومين (500 ج.م)',
     verify: 'إيميلك (a@b.c) لسه مش مأكّد — أكّده عشان تأمّن حسابك',
   };
   const ROWS: { row: string; type: 'budget' | 'lowBalance' | 'subscriptionDue' | 'gamiyaDue' | 'verifyEmail' | 'noTxToday'; name?: string; key: string; route?: string; label: string }[] = [
@@ -404,7 +404,7 @@ describe('جرد البانرات اللي اتلمّت', () => {
     await mount();
     await openSheet();
     const row = within(screen.getByTestId('attention_row_verify_email'));
-    expect(row.getByText('أعد إرسال رسالة التأكيد')).toBeTruthy();
+    expect(row.getByText('ابعت رسالة التأكيد تاني')).toBeTruthy();
     expect(row.getByText(VERIFY_SPAM_HINT)).toBeTruthy();
   });
 });

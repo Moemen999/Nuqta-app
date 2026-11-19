@@ -17,12 +17,13 @@ import { useEffect, useState } from 'react';
 export const STALE_FIGURES_DELAY_MS = 10_000;
 
 /**
- * الأرقام متزامنة؟ آخر fromCache للمحافظ وللعمليات (`null` = الـlistener لسه
- * مرماش snapshot — مجموعة فاضية ممكن متبعتش خالص، فمبيمنعش). لازم الاتنين
- * يكونوا من السيرفر: واحد رجع والتاني لسه من الكاش = الرصيد لسه ممكن يكون قديم.
+ * الأرقام متزامنة؟ آخر fromCache للمحافظ وللعمليات (`null` = الـlistener لسه مرماش snapshot). لازم **الاتنين**
+ * يكونوا من السيرفر: واحد رجع والتاني لسه من الكاش أو لسه ما وصلش = الرصيد لسه ممكن يكون قديم أو رصيد افتتاحي بس.
+ * (مراجعة التطبيق كله، الميزة 7: `null` كان بيتحسب «متزامن» فكان بيتقال «الأرقام اتحدّثت» على رصيد افتتاحي.
+ * مجموعة فاضية بترمي snapshot من السيرفر — `figuresFromServer.emulator.test.tsx` بيثبّت ده.)
  */
 export function figuresFresh(wallets: boolean | null, transactions: boolean | null): boolean {
-  return wallets !== true && transactions !== true && (wallets === false || transactions === false);
+  return wallets === false && transactions === false;
 }
 
 export const STALE_FIGURES_TEXT = 'النت قطع — الأرقام ممكن تكون قديمة';

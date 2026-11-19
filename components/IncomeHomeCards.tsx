@@ -77,7 +77,7 @@ export function IncomeAutoNotices() {
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
           {/* رسالة حدث (اتسجل/ما اتسجلش) مش حالة — الـ✕ هنا بيقفلها خالص ومبترجعش */}
-          <DismissButton onPress={() => dismiss(n.id)} label="اقفل الرسالة" />
+          <DismissButton onPress={() => dismiss(n.id)} label={n.name ? `اقفل رسالة "${n.name}"` : 'اقفل الرسالة'} />
         </View>
       ))}
     </View>

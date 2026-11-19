@@ -27,13 +27,11 @@ export type ListenerName = keyof typeof LISTENER_LABELS;
 export const LOAD_ERROR_TITLE = 'مقدرناش نجيب بياناتك';
 export const LOAD_ERROR_RETRY = 'جرّب تاني';
 
-/** "المحافظ" / "المحافظ والديون" / "المحافظ، العمليات، والديون" — بترتيب ثابت */
+/** "المحافظ" / "المحافظ والديون" / "المحافظ والعمليات والديون" — بترتيب ثابت، من غير فاصلة قبل الواو (arabic-copy-reviewer) */
 export function listenerNamesPhrase(names: ListenerName[]): string {
   const order = Object.keys(LISTENER_LABELS) as ListenerName[];
   const labels = order.filter(n => names.includes(n)).map(n => LISTENER_LABELS[n]);
-  if (labels.length <= 1) return labels[0] ?? '';
-  if (labels.length === 2) return `${labels[0]} و${labels[1]}`;
-  return `${labels.slice(0, -1).join('، ')}، و${labels[labels.length - 1]}`;
+  return labels.join(' و');
 }
 
 /**

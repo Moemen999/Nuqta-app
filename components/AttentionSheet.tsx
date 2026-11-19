@@ -7,7 +7,7 @@ import { ATTENTION_ROUTE, visibleAttention, type AttentionItem } from '@/lib/hom
 import { requestPlanning } from '@/lib/planningRequest';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize } from '@/lib/tokens';
 import {
-  VERIFY_RESEND_LABEL, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
+  VERIFY_RESEND_LABEL, VERIFY_SENDING_TEXT, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
 } from '@/lib/useEmailVerification';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { router } from 'expo-router';
@@ -145,9 +145,11 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
                         <Text style={styles.bodyText}>{VERIFY_SENT_TEXT}</Text>
                       ) : (
                         <TouchableOpacity testID="attention_verify_resend" accessibilityRole="button" onPress={email.resend}
-                          disabled={email.busy} style={styles.action}>
+                          disabled={email.busy} style={styles.action}
+                          accessibilityLabel={email.busy ? VERIFY_SENDING_TEXT : VERIFY_RESEND_LABEL}
+                          accessibilityState={{ busy: email.busy, disabled: email.busy }}>
                           <Text style={[styles.actionText, email.busy && { opacity: 0.6 }]}>
-                            {email.busy ? '...' : VERIFY_RESEND_LABEL}
+                            {email.busy ? VERIFY_SENDING_TEXT : VERIFY_RESEND_LABEL}
                           </Text>
                         </TouchableOpacity>
                       )}

@@ -46,3 +46,10 @@ it('متزامن ← true؛ النت قطع ← false؛ رجع والأرقام 
   await harness.waitForData(api => api.figuresFromServer === true);
   expect(harness.api().serverReachable).toBe(true);
 });
+
+it('حساب من غير ولا عملية (مجموعة العمليات فاضية) ← العمليات بترمي snapshot من السيرفر والأرقام «متزامنة» (الميزة 7)', async () => {
+  // `figuresFresh` بقى بيطلب الاتنين من السيرفر — لو مجموعة فاضية مبترميش، الحساب الجديد كان هيفضل «بنحمّل…» و«ممكن يكون قديم»
+  expect(harness.api().transactions.length).toBe(0);
+  await harness.waitForData(api => api.figuresFromServer === true && api.figuresPending.length === 0);
+  expect(harness.api().wallets.length).toBeGreaterThan(0);
+});

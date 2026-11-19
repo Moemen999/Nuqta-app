@@ -196,7 +196,7 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/AmountPreview.tsx': { count: 1, why: 'صدى الرقم اللي بيتكتب في الخانة دلوقتي' },
   'app/(tabs)/debts.tsx': { count: 1, why: 'تأكيد قبل مسح دفعة أو زيادة — الرقم هو اللي بيتمسح' },
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
-  'app/(tabs)/index.tsx': { count: 1, why: 'قارئ الشاشة لصف كاش أول فتحة — مبلغ العملية، وهو ظاهر أصلاً زي الصف الحقيقي (العين للأرصدة بس)' },
+  'app/(tabs)/index.tsx': { count: 3, why: 'قارئ الشاشة لصف الكاش وصف العملية الحقيقي — مبلغ العملية ظاهر أصلاً (العين للأرصدة بس)؛ و«N جنيه» للإجمالي بس والعين مفتوحة (الميزة 7)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
   'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },

@@ -1,7 +1,8 @@
 import type { Category, Gamiya, Subscription, Transaction, Wallet } from '@/context/DataContext';
 import { budgetLevel } from '@/lib/budgetForecast';
 import type { BannerType } from '@/lib/bannerDismiss';
-import { daysUntil, monthSpend } from '@/lib/finance';
+import { daysUntil, monthSpend, shownBalance } from '@/lib/finance';
+import { whenPhrase } from '@/lib/notificationStatus';
 import { speakable, type AmountFormatter } from '@/lib/money';
 
 /**
@@ -70,6 +71,11 @@ export type AttentionInput = {
   /** إيميل وباسورد ولسه مش مأكّد ← الإيميل، غير كده null */
   unverifiedEmail: string | null;
   money: AmountFormatter;
+  /**
+   * المحافظ أو العمليات وقعت أو لسه بتوصل (`figuresUnsure` في `lib/homeFigures.ts`) ← الرصيد والصرف مش مضمونين، فمفيش
+   * «قرب يخلص» ولا ميزانية ولا «لسه ما سجلتش» (مراجعة التطبيق كله، الميزة 7). الاشتراك والجمعية والإيميل بيفضلوا.
+   */
+  figuresUnsure: boolean;
 };
 
 /** `budget` و`low` وجهتين **جديدتين** (قرار مؤمن 2026-11-13)؛ `debts` هي الوجهة القديمة للاشتراك والجمعية */
@@ -100,7 +106,7 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
 
   // ميزانيات الفئات — نفس الفلتر والحسبة اللي كانت في الرئيسية
   i.activeCategories
-    .filter(c => i.spendKnown && i.budgets[c.id] > 0)
+    .filter(c => i.spendKnown && !i.figuresUnsure && i.budgets[c.id] > 0)
     .map(c => ({ cat: c, spend: monthSpend(i.transactions, c.id, i.nowMonth, i.transfers), limit: i.budgets[c.id] }))
     .map(b => ({ ...b, level: budgetLevel(b.spend, b.limit) }))
     .filter(b => b.level !== 'under')
@@ -119,25 +125,30 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
       });
     });
 
-  // محافظ تحت حد التنبيه
-  i.activeWallets
-    .filter(w => (i.balances.get(w.id) || 0) < (w.lowAlert || 0))
-    .forEach(w => {
-      const bal = i.money(i.balances.get(w.id) || 0);
-      items.push({
-        id: `low_${w.id}`, kind: 'low', type: 'lowBalance', instance: w.id,
-        text: `رصيد ${w.name} قرب يخلص (${bal} ج.م)`,
-        label: speakable(`رصيد ${w.name} قرب يخلص (${bal} ج.م)`),
-        dismissName: w.name, tone: 'danger', route: ATTENTION_ROUTE.low, rank: RANK.low, sort: 0,
+  // محافظ تحت حد التنبيه أو بالسالب — الرصيد مقرّب للقرش قبل المقارنة (`shownBalance`: 99.999999 مش «تحت 100»، و-0.001
+  // مش «بالسالب»). بالسالب درجة تانية: نصها غير «قرب يخلص»، ومفتاح ✕ بتاعها غير (`<id>:negative`) فالنزول تحت الصفر بعد ✕
+  // على «قرب يخلص» بيرجّع التنبيه. «قرب يخلص» على المفتاح القديم (`<id>`) فأي ✕ قديم لسه ساري (الميزة 7)
+  if (!i.figuresUnsure) {
+    i.activeWallets
+      .map(w => ({ w, bal: shownBalance(i.balances.get(w.id) || 0) }))
+      .filter(({ w, bal }) => bal < 0 || bal < (w.lowAlert || 0))
+      .forEach(({ w, bal }) => {
+        const negative = bal < 0;
+        const text = `رصيد ${w.name} ${negative ? 'بالسالب' : 'قرب يخلص'} (${i.money(bal)} ج.م)`;
+        items.push({
+          id: `low_${w.id}`, kind: 'low', type: 'lowBalance', instance: negative ? `${w.id}:negative` : w.id,
+          text, label: speakable(text),
+          dismissName: w.name, tone: 'danger', route: ATTENTION_ROUTE.low, rank: RANK.low, sort: 0,
+        });
       });
-    });
+  }
 
   // اشتراكات جاية: للي **لسه جاي** بس — اللي معاده جه (النهارده أو فات) ليه كارت «اتخصم؟» في شيت «مستنيين ردك»
   i.subscriptions
     .filter(s => s.active !== false && daysUntil(s.nextDueDate) > 0 && daysUntil(s.nextDueDate) <= s.reminderDaysBefore)
     .forEach(s => {
       const d = daysUntil(s.nextDueDate);
-      const text = `اشتراك ${s.name} بعد ${d} يوم (${i.money(s.amount)} ج.م)`;
+      const text = `اشتراك ${s.name} ${whenPhrase(d)} (${i.money(s.amount)} ج.م)`;
       items.push({
         id: `sub_${s.id}`, kind: 'subscription', type: 'subscriptionDue', instance: `${s.id}@${s.nextDueDate}`,
         text, label: speakable(text), dismissName: s.name, tone: 'warn', route: ATTENTION_ROUTE.debts,
@@ -151,7 +162,7 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
       .map(m => ({ gamiya: g, month: m })),
   ).forEach(({ gamiya, month }) => {
     const d = daysUntil(month.dueDate);
-    const text = `جمعية ${gamiya.name} — ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} بعد ${d} يوم (${i.money(month.amount)} ج.م)`;
+    const text = `جمعية ${gamiya.name}: ${month.isPayoutMonth ? 'شهر الاستلام' : 'القسط'} ${whenPhrase(d)} (${i.money(month.amount)} ج.م)`;
     items.push({
       id: `gamiya_${month.id}`, kind: 'gamiya', type: 'gamiyaDue', instance: month.id,
       text, label: speakable(text), dismissName: gamiya.name, tone: 'warn', route: ATTENTION_ROUTE.debts,
@@ -168,7 +179,7 @@ export function buildAttentionItems(i: AttentionInput): AttentionItem[] {
   }
 
   // من معاد التذكير بالدقيقة (9:13 مش 9:00) — نفس معاد التذكير اليومي
-  if (!i.hasTodayTx && !i.offlineEmpty && !i.noWallets && !i.cold && i.dailyAt !== null && i.nowAt >= i.dailyAt) {
+  if (!i.hasTodayTx && !i.figuresUnsure && !i.offlineEmpty && !i.noWallets && !i.cold && i.dailyAt !== null && i.nowAt >= i.dailyAt) {
     const text = 'لسه ما سجلتش مصاريف النهاردة';
     items.push({
       id: 'no_tx_today', kind: 'noTxToday', type: 'noTxToday', text, label: text, tone: 'plain',

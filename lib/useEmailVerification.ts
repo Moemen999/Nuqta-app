@@ -20,9 +20,10 @@ import { AppState } from 'react-native';
  */
 export const VERIFY_SPAM_HINT = 'رسالة التأكيد لو ملقتهاش في الوارد، بصّ في الـSpam.';
 
-export const VERIFY_RESEND_LABEL = 'أعد إرسال رسالة التأكيد';
+export const VERIFY_RESEND_LABEL = 'ابعت رسالة التأكيد تاني';
+export const VERIFY_SENDING_TEXT = 'بنبعت…';
 export const VERIFY_SENT_TEXT = 'بعتنالك رسالة تأكيد جديدة، شوف إيميلك';
-export const VERIFY_RESEND_FAILED = 'مقدرناش نبعت الرسالة دلوقتي، جرب كمان شوية';
+export const VERIFY_RESEND_FAILED = 'مقدرناش نبعت الرسالة دلوقتي، جرّب كمان شوية';
 
 export type EmailVerification = {
   /** الإيميل لو لسه مش مأكّد (إيميل وباسورد)، وإلا null */
