@@ -15,7 +15,7 @@ import { setAppFontReady } from '@/lib/appFont';
 import { APP_FONT_SOURCES } from '@/lib/appFontSources';
 import { holdSplash, releaseSplash } from '@/lib/splash';
 
-import LockGate, { usePrivacyCover } from '@/components/LockGate';
+import LockGate from '@/components/LockGate';
 import { AppLockProvider, shouldShowLock, useAppLock } from '@/context/AppLockContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import DataLoadErrorBanner from '@/components/DataLoadErrorBanner';
@@ -70,11 +70,8 @@ function RootNavigator() {
 
   const ready = !loading && !lockLoading && onboardingDone !== null;
   const lockShown = shouldShowLock({ enabled, isLocked, readFailed });
-  // غطا الخصوصية لما التطبيق يروح الخلفية والقفل مفعّل (الميزة 11، بند 6)
-  const covered = usePrivacyCover(enabled);
-  // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)، **ولا فوق غطا
-  // الخصوصية** (security M2): رسالة بالاسم كانت بتطلع فوق الغطا في لقطة «التطبيقات الأخيرة»
-  useHoldNotices(lockLoading || lockShown || covered);
+  // رسايل النتيجة مبتظهرش فوق شاشة القفل — بتستنى لحد ما يتفتح (ولا وإحنا لسه بنقرا إعداد القفل)
+  useHoldNotices(lockLoading || lockShown);
   useClearNoticesOnAccountChange(user?.uid ?? null);
   useEffect(() => {
     if (ready) releaseSplash();
@@ -101,7 +98,7 @@ function RootNavigator() {
   const setupShown = !!user && (setupStatus === 'needed' || setupStatus === 'checking');
   return (
     <NavThemeProvider value={navTheme}>
-      <LockGate locked={lockShown} covered={covered}>
+      <LockGate locked={lockShown}>
       {setupShown ? (setupStatus === 'needed' ? <FirstRunSetup /> : <SetupChecking />) : (
       <>
       {/* فوق الـStack كله مش التابات بس: الأرشيف وكشف الحساب والإعدادات بيعرضوا نفس القوايم */}

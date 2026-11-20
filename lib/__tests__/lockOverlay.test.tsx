@@ -1,8 +1,8 @@
-import LockGate, { PRIVACY_COVER_TEST_ID, usePrivacyCover } from '@/components/LockGate';
+import LockGate, { PRIVACY_COVER_TEST_ID } from '@/components/LockGate';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React, { useState } from 'react';
-import { AppState, Text, TextInput, TouchableOpacity } from 'react-native';
+import { Text, TextInput, TouchableOpacity } from 'react-native';
 import fs from 'fs';
 import path from 'path';
 
@@ -28,8 +28,8 @@ function Underneath() {
     </>
   );
 }
-const wrap = (locked: boolean, covered = false) => (
-  <ThemeProvider><LockGate locked={locked} covered={covered}><Underneath /></LockGate></ThemeProvider>
+const wrap = (locked: boolean) => (
+  <ThemeProvider><LockGate locked={locked}><Underneath /></LockGate></ThemeProvider>
 );
 
 beforeEach(() => jest.clearAllMocks());
@@ -61,33 +61,16 @@ describe('silent M2: الغطا المعتم تحت القفل كمان', () => 
     expect(screen.getByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: true })).toBeTruthy();
     expect(screen.queryByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: false })).toBeNull();
   });
-  it('مفتوح ومش مغطّي ← مفيش غطا', async () => {
+  it('مفتوح ← مفيش غطا', async () => {
     await render(wrap(false));
     expect(screen.queryByTestId(PRIVACY_COVER_TEST_ID, { includeHiddenElements: true })).toBeNull();
   });
 });
 
-describe('6: غطا الخصوصية', () => {
-  it('مغطّي ← الغطا ظاهر واللي تحت مستخبي', async () => {
-    await render(wrap(false, true));
-    expect(screen.getByTestId(PRIVACY_COVER_TEST_ID)).toBeTruthy();
-    expect(screen.queryByText('رصيدك 5,000', { includeHiddenElements: false })).toBeNull();
-  });
-
-  it('usePrivacyCover: الخلفية والقفل مفعّل ← true، والرجوع ← false؛ والقفل مش مفعّل ← false', async () => {
-    let handler: ((s: string) => void) | null = null;
-    jest.spyOn(AppState, 'addEventListener').mockImplementation((_e: any, h: any) => { handler = h; return { remove: () => {} } as any; });
-    const seen: boolean[] = [];
-    function Probe({ enabled }: { enabled: boolean }) { seen.push(usePrivacyCover(enabled)); return null; }
-    await render(<Probe enabled />);
-    await act(async () => { handler!('background'); });
-    expect(seen.at(-1)).toBe(true);
-    await act(async () => { handler!('active'); });
-    expect(seen.at(-1)).toBe(false);
-    await act(async () => { handler!('inactive'); });
-    expect(seen.at(-1)).toBe(true);
-    await screen.rerender(<Probe enabled={false} />);
-    expect(seen.at(-1)).toBe(false);
+describe('6: غطا الخصوصية في الخلفية اتشال (مبيشتغلش على أندرويد، قرار مؤمن 2026-11-20)', () => {
+  it('_layout مبقاش بيستخدم usePrivacyCover', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'app', '_layout.tsx'), 'utf8');
+    expect(src).not.toContain('usePrivacyCover');
   });
 });
 
