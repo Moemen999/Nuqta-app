@@ -1,7 +1,7 @@
 import type { Debt, Transaction } from '@/context/DataContext';
 import {
   DEFAULT_CATEGORY_ICON, DELETED_WALLET_LABEL, addDays, categoryLabel, daysUntil, debtGrandTotal, debtPaid,
-  endOfMonth, entryTime, fmt, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
+  endOfMonth, entryTime, fmt, shownBalance, formatTime, monthSpend, startOfMonth, transactionWalletLabel, walletBalance,
 } from '@/lib/finance';
 
 // مصنع عمليات مختصر — بنحدد اللي يهم الاختبار بس
@@ -343,6 +343,13 @@ describe('fmt — تنسيق الأرقام', () => {
     expect(fmt(0)).toBe('0');
   });
 
+  it('عمره ما يطبع «-0» (مراجعة التطبيق كله، الميزة 7): رصيد -0.001 كان بيتعرض «-0»', () => {
+    expect(fmt(-0)).toBe('0');
+    expect(fmt(-0.001)).toBe('0');
+    expect(fmt(-0.004)).toBe('0');
+    expect(fmt(-0.006)).toBe('-0.01');
+  });
+
   it('القيمة الناقصة بترجع "0" بدل NaN', () => {
     expect(fmt(undefined as unknown as number)).toBe('0');
     expect(fmt(null as unknown as number)).toBe('0');
@@ -459,5 +466,16 @@ describe('entryTime — الوقت بيظهر بس لو العملية اتسج�
     expect(entryTime('2026-11-12')).toBe('');
     expect(entryTime('2026-11-12', '')).toBe('');
     expect(entryTime('2026-11-12', 'مش تاريخ')).toBe('');
+  });
+});
+
+describe('shownBalance — الرصيد اللي بيتعرض وبيتقارن (الميزة 7)', () => {
+  it('بيتقرّب للقرش، وأي حاجة أقل من نص قرش صفر من غير إشارة', () => {
+    expect(shownBalance(0.1 + 0.2)).toBe(0.3);
+    expect(shownBalance(99.999999)).toBe(100);
+    expect(Object.is(shownBalance(-0.001), 0)).toBe(true);
+    expect(Object.is(shownBalance(-0.004), 0)).toBe(true);
+    expect(shownBalance(-50.004)).toBe(-50);
+    expect(shownBalance(NaN)).toBe(0);
   });
 });

@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { takePlanningRequest, type PlanningSection } from '@/lib/planningRequest';
 import { StyleSheet, View } from 'react-native';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +10,7 @@ import ShakhbataView from '@/components/ShakhbataView';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useFabScroll } from '@/context/FabScrollContext';
 
-type Section = 'budget' | 'shakhbata' | 'incomes';
+type Section = PlanningSection;
 
 export default function PlanningScreen() {
   const insets = useSafeAreaInsets();
@@ -18,6 +20,11 @@ export default function PlanningScreen() {
   const { show: showFab } = useFabScroll();
   // التاب الفرعي الجديد بيبدأ من أوله ← الزرار ظاهر (قرار مؤمن 2026-11-16)
   const changeSection = (s: Section) => { showFab(); setSection(s); };
+  // بانر الميزانية في الرئيسية بيطلب تاب «الميزانية» (`requestPlanning`) — زيارة عادية من غير طلب مبتغيّرش اختيار المستخدم
+  useFocusEffect(useCallback(() => {
+    const req = takePlanningRequest();
+    if (req) setSection(req);
+  }, []));
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>

@@ -27,11 +27,11 @@ const mount = (items: [string, string][]) =>
   render(<ThemeProvider><NoticeProvider><Trigger items={items} /></NoticeProvider></ThemeProvider>);
 
 it('بتظهر بالعنوان والجملة وزرار "تمام" — مش الـAlert الأصلي', async () => {
-  await mount([['عدد الأقساط اتظبط', 'بعد الزيادة، الأقساط بقت 8 بدل 6.']]);
+  await mount([['عدد الأقساط اتظبط', 'بعد الزيادة، عدد الأقساط بقى 8 بدل 6.']]);
   expect(screen.queryByTestId('notice_dialog')).toBeNull();
   await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
   expect(screen.getByTestId('notice_title').props.children).toBe('عدد الأقساط اتظبط');
-  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، عدد الأقساط بقى 8 بدل 6.');
   expect(screen.getByText('تمام')).toBeTruthy();
   expect(alertSpy).not.toHaveBeenCalled();
   await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
@@ -39,7 +39,7 @@ it('بتظهر بالعنوان والجملة وزرار "تمام" — مش ا
 });
 
 it('رسالتين ورا بعض ← التانية بتظهر بعد ما الأولى تتقفل (مفيش رسالة بتضيع)', async () => {
-  await mount([['ما اتسجلش', 'جرب تاني'], ['عدد الأقساط اتظبط', 'الأقساط بقت 7']]);
+  await mount([['ما اتسجلش', 'جرب تاني'], ['عدد الأقساط اتظبط', 'عدد الأقساط بقى 7']]);
   await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
   expect(screen.getByTestId('notice_title').props.children).toBe('ما اتسجلش');
   await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
@@ -82,7 +82,7 @@ it('قارئ الشاشة: العنوان والجملة من غير علاما�
 });
 
 it('دوستين بسرعة على "تمام" ← بتقفل الرسالة اللي اتعرضت بس، والجاية بتفضل ظاهرة', async () => {
-  await mount([['ما اتسجلش', 'جرب تاني'], ['عدد الأقساط اتظبط', 'الأقساط بقت 7']]);
+  await mount([['ما اتسجلش', 'جرب تاني'], ['عدد الأقساط اتظبط', 'عدد الأقساط بقى 7']]);
   await act(async () => { fireEvent.press(screen.getByTestId('fire')); });
   const ok = screen.getByTestId('notice_ok');
   await act(async () => { fireEvent.press(ok); fireEvent.press(ok); });

@@ -41,13 +41,13 @@ describe('كشف الشخص: الراس والقايمة نفس الكلام', (
   it('دين ليك ودين عليك قد بعض ومفتوحين ← مش "متسدد بالكامل"', async () => {
     await show([debt('a', 'owed_to_me', 100, []), debt('b', 'i_owe', 100, [])]);
     expect(screen.queryByText('متسدد بالكامل')).toBeNull();
-    expect(screen.getByText('اللي ليك قد اللي عليك')).toBeTruthy();
+    expect(screen.getByText('اللي ليا قد اللي عليا')).toBeTruthy();
   });
 
   it('دفعة بتقفل الدين ولسه بترفع ← الدين يفضل في القايمة زي تاب الديون، والراس مبيقولش "قد بعض"', async () => {
     await show([debt('a', 'owed_to_me', 100, [100])], new Set(['tp_a_0']));
     expect(screen.queryByText(/كل حاجة متسددة/)).toBeNull();
-    expect(screen.queryByText('اللي ليك قد اللي عليك')).toBeNull();
+    expect(screen.queryByText('اللي ليا قد اللي عليا')).toBeNull();
     expect(screen.getByText('متسدد بالكامل')).toBeTruthy();
   });
 

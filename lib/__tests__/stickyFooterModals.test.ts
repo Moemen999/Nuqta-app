@@ -39,6 +39,9 @@ const MODAL_FILES = [
   'components/SubscriptionsView.tsx',
   'components/GamiyaView.tsx',
   'components/SetLockModal.tsx',
+  'components/PayoutInstallmentField.tsx',
+  'components/ChargeHomeCards.tsx',
+  'components/BrokenTransactions.tsx',
 ];
 
 function read(p: string) {

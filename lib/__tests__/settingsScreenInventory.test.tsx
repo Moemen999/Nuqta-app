@@ -1,7 +1,8 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import CategoriesScreen from '@/app/settings-screens/categories';
 import NotificationsScreen, { STATUS_OFF, STATUS_ON } from '@/app/settings-screens/notifications';
 import WalletsScreen from '@/app/settings-screens/wallets';
-import { EMPTY_OFFLINE_NOTE } from '@/components/ListEmptyState';
+import { emptyOfflineText } from '@/components/ListEmptyState';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Alert } from 'react-native';
@@ -31,7 +32,7 @@ const categories = [
 
 const mockData: any = {
   wallets, categories, transactions: [], budgets: {}, debts: [],
-  subscriptions: [], gamiyas: [], serverReachable: true, loadErrors: [],
+  subscriptions: [], gamiyas: [], incomes: [], brokenTransactions: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
   updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
   archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(),
@@ -51,9 +52,9 @@ jest.mock('@/context/NotificationsContext', () => ({ useNotifications: () => moc
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 
-const wrap = (el: React.ReactElement) => render(<ThemeProvider>{el}</ThemeProvider>);
+const wrap = (el: React.ReactElement) => render(<ThemeProvider><PrivacyProvider>{el}</PrivacyProvider></ThemeProvider>);
 
-warmUp(() => <ThemeProvider><WalletsScreen /></ThemeProvider>);
+warmUp(() => <ThemeProvider><PrivacyProvider><WalletsScreen /></PrivacyProvider></ThemeProvider>);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -86,8 +87,8 @@ describe('شاشة المحافظ — الجرد', () => {
     await wrap(<WalletsScreen />);
     expect(screen.getByText('المحافظ')).toBeTruthy();
     expect(screen.getByText('تقدر تدوس على اسم المحفظة تعدله مباشرة')).toBeTruthy();
-    expect(screen.getAllByText('الرصيد الابتدائي')).toHaveLength(wallets.length);
-    expect(screen.getAllByText('حد التنبيه')).toHaveLength(wallets.length);
+    expect(screen.getAllByText('الرصيد الابتدائي', { includeHiddenElements: true })).toHaveLength(wallets.length);
+    expect(screen.getAllByText('حد التنبيه', { includeHiddenElements: true })).toHaveLength(wallets.length);
   });
 });
 
@@ -131,7 +132,7 @@ describe('شاشة الإشعارات — الجرد', () => {
   it('مفتاح التذكير اليومي، وساعة التذكير (أي ساعة)', async () => {
     await wrap(<NotificationsScreen />);
     expect(screen.getByTestId('notifications_daily_switch')).toBeTruthy();
-    for (const id of ['notifications_hour_earlier', 'notifications_hour_value', 'notifications_hour_later']) {
+    for (const id of ['notifications_time_button', 'notifications_time_value']) {
       expect(screen.getByTestId(id)).toBeTruthy();
     }
   });
@@ -139,7 +140,7 @@ describe('شاشة الإشعارات — الجرد', () => {
   it('ساعة التذكير ظاهرة حتى والإشعارات مقفولة', async () => {
     mockNotifs.enabled = false;
     await wrap(<NotificationsScreen />);
-    expect(screen.getByTestId('notifications_hour_value')).toBeTruthy();
+    expect(screen.getByTestId('notifications_time_value')).toBeTruthy();
   });
 
   it('مدة رجوع لكل نوع بانر (10 أنواع) — التحذيرات ظاهرة، والباقي ورا "اظهر"', async () => {
@@ -172,7 +173,7 @@ describe('الحالة الفاضية بتفرّق بين "مفيش" و"لسه �
     mockData.wallets = [];
     await wrap(<WalletsScreen />);
     expect(screen.getByTestId('wallets_empty')).toBeTruthy();
-    expect(screen.queryByText(new RegExp(EMPTY_OFFLINE_NOTE))).toBeNull();
+    expect(screen.queryByText(emptyOfflineText('wallets'))).toBeNull();
   });
 
   it('محافظ فاضية ومفيش نت: بتقول إنها ممكن تكون لسه ما وصلتش', async () => {
@@ -180,7 +181,7 @@ describe('الحالة الفاضية بتفرّق بين "مفيش" و"لسه �
     mockData.serverReachable = false;
     await wrap(<WalletsScreen />);
     expect(screen.getByTestId('wallets_empty')).toBeTruthy();
-    expect(screen.getByText(new RegExp(EMPTY_OFFLINE_NOTE))).toBeTruthy();
+    expect(screen.getByText(emptyOfflineText('wallets'))).toBeTruthy();
   });
 
   it('وفيه محافظ: مفيش حالة فاضية خالص', async () => {
@@ -193,7 +194,7 @@ describe('الحالة الفاضية بتفرّق بين "مفيش" و"لسه �
     mockData.serverReachable = false;
     await wrap(<CategoriesScreen />);
     expect(screen.getByTestId('categories_empty')).toBeTruthy();
-    expect(screen.getByText(new RegExp(EMPTY_OFFLINE_NOTE))).toBeTruthy();
+    expect(screen.getByText(emptyOfflineText('categories'))).toBeTruthy();
   });
 });
 

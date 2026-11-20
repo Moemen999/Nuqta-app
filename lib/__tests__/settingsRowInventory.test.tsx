@@ -25,7 +25,7 @@ jest.mock('@/context/NotificationsContext', () => ({
   useNotifications: () => ({ enabled: false, dailyEnabled: false, dailyHour: 20 }),
 }));
 jest.mock('@/context/DataContext', () => ({
-  useData: () => ({ wallets: [], categories: [], pendingWrites: 0 }),
+  useData: () => ({ wallets: [], categories: [], undelivered: [], loadErrors: [], pendingWrites: 0 }),
 }));
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),

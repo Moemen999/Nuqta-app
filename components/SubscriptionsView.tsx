@@ -3,8 +3,11 @@ import { Button } from '@/components/Button';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
+import { overdueCountPhrase, overdueDaysPhrase, whenPhrase } from '@/lib/notificationStatus';
+import { moneyText, speakable } from '@/lib/money';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
-import { AMOUNT_CHANGED_ALERT, PAY_OUTCOME_ALERT, PERIOD_CHANGED_ALERT, useData, type Subscription } from '@/context/DataContext';
+import { AMOUNT_CHANGED_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, PAY_OUTCOME_ALERT, PERIOD_CHANGED_ALERT, useData, type Subscription } from '@/context/DataContext';
 import { CUSTOM_DAYS_FIELD, CUSTOM_FREQUENCY_BUTTON, frequencyLabel } from '@/lib/frequencyLabel';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { cascadeDeleteBlock, cascadeDeleteConfirm, linkedTransactions, selectableOptions, subscriptionsPhrase, subscriptionTransactionIds } from '@/lib/archiving';
@@ -56,10 +59,20 @@ export const SUBSCRIPTION_RESUME_FAIL_ALERT = {
   },
 };
 
+/**
+ * مرات متأخرة لسه ما اتسجلتش هتتشال لو المعاد اتقدّم لـ`next` (أو لو الاشتراك اتوقف ورجع) — الجدول بيبدأ من المعاد
+ * الجديد. اللي رجعت تسأل مبتتشالش (بتسأل لوحدها). مصدر واحد للإيقاف والتعديل (بند D، 2026-11-17).
+ */
+function overdueDroppedCount(s: Subscription, next?: string) {
+  return subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened && (next === undefined || c.key < next)).length;
+}
+const overduePhrase = overdueCountPhrase;
+
 export default function SubscriptionsView() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { subscriptions, wallets, categories, transactions, loadErrors, figuresPending, deleteSubscription, markSubscriptionPaid, setSubscriptionActive } = useData();
+  const { amountsHidden } = usePrivacy();
   const notice = useNotice();
   // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي)
   const onBusy = () => notice(BUSY_NOTICE.title, BUSY_NOTICE.body);
@@ -81,9 +94,9 @@ export default function SubscriptionsView() {
   function confirmStop(s: Subscription) {
     // مرة متأخرة لسه ما اتسجلتش ← الرجوع بعدين بيبدأ من المعاد الجاي فهتتشال، فلازم تتقال دلوقتي
     // (money-reviewer، جولة 1)
-    const overdue = subscriptionOpenCharges(s, todayStr()).filter(c => !s.closed?.[c.key]?.reopened).length;
+    const overdue = overdueDroppedCount(s);
     const overdueLine = overdue > 0
-      ? ` عليه ${overdue === 1 ? 'مرة متأخرة' : `${overdue} مرات متأخرة`} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
+      ? ` عليه ${overduePhrase(overdue)} لسه ما اتسجلتش — سجّلها أو فوّتها الأول، لأنها مش هتتسجل لو رجّعته بعدين.`
       : '';
     confirm('توقّف الاشتراك ده مؤقتًا؟', `"${s.name}" مش هيتخصم ولا هيفكّرك بيه لحد ما ترجّعه. الدفعات اللي اتسجلت بتفضل زي ما هي.${overdueLine}`, [
       { text: 'إلغاء', style: 'cancel' },
@@ -114,7 +127,8 @@ export default function SubscriptionsView() {
 
   /** نفس فحص الدين: عملية من الاشتراك على محفظة مؤرشفة ← ممنوع قبل التأكيد */
   function confirmDelete(s: Subscription) {
-    const txIds = subscriptionTransactionIds(s);
+    // بند H: كل عمليات الاشتراك (history + closed + subscriptionId) — نفس اللي المسح بيمسحه
+    const txIds = subscriptionTransactionIds(s, transactions);
     const blocked = cascadeDeleteBlock({ kind: 'subscription', name: s.name, txIds, transactions, wallets, loadErrors, loading: figuresPending });
     if (blocked) { notice(blocked.title, blocked.body); return; }
     // المسح بيشيل كل الدفعات اللي اتسجلت والرصيد بيتحرك — التأكيد لازم يقول كده
@@ -122,7 +136,7 @@ export default function SubscriptionsView() {
     confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'حذف', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, async () => {
+        text: 'امسحه', style: 'destructive', onPress: () => runBusy(`del_${s.id}`, async () => {
           const result = await deleteSubscription(s.id);
           if (result.outcome === 'blocked') notice(result.title, result.body);
         }),
@@ -150,7 +164,7 @@ export default function SubscriptionsView() {
     confirm('تسجيل الدفع', subscriptionPayConfirmBody(s, walletHistoryName(wallets, s.walletId), today, periodKey), [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'تأكيد',
+        text: 'سجّل الخصم',
         onPress: () => runBusy(`pay_${s.id}`, async () => {
           // العملية دي بتقرا من السيرفر، فبتاخد وقتها لحد ما تطلع بإجابة قاطعة
           // (أقصاها ~10 ثواني) — والزرار بيلف طول الوقت ده عشان يبان إنه شغال.
@@ -158,7 +172,12 @@ export default function SubscriptionsView() {
           // المبلغ اللي في جملة التأكيد بالظبط — لو اتعدّل من جهاز تاني والتأكيد مفتوح، الذرة بترفض
           // + الفترة اللي في الجملة: لو جهاز تاني قفلها، الذرة بترفض (period-changed) بدل ما تقفل اللي بعدها
           const outcome = await markSubscriptionPaid(s.id, todayStr(), s.amount, periodKey);
-          if (outcome === 'amount-changed') {
+          if (outcome === 'missing') {
+            notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
+          } else if (outcome === 'uncertain') {
+            // ممكن يكون اتسجل — ممنوع "ما اتسجلش" (المستخدم كان هيعيد ويتخصم مرتين)
+            notice(CHARGE_UNCERTAIN_ALERT.title, CHARGE_UNCERTAIN_ALERT.body);
+          } else if (outcome === 'amount-changed') {
             notice(AMOUNT_CHANGED_ALERT.subscription.title, AMOUNT_CHANGED_ALERT.subscription.body);
           } else if (outcome === 'period-changed') {
             notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
@@ -184,8 +203,13 @@ export default function SubscriptionsView() {
     // واقف وفيه مرة رجعت تسأل (عمليتها اتمسحت) ← كارتها في الرئيسية، فبيتقال هنا كمان
     const waitingReply = isStopped && subscriptionOpenCharges(s, todayStr()).length > 0;
     const tone = isStopped ? colors.textSecondary : colors.text;
+    const dueLine = isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
+      : days < 0 ? overdueDaysPhrase(Math.abs(days)) : days === 0 ? 'مستحق النهاردة' : `مستحق ${whenPhrase(days)} (${dateText(s.nextDueDate, todayStr())})`;
+    // الكارت جملة واحدة لقارئ الشاشة، والأزرار برّه المجموعة عشان تتفتح لوحدها
+    const cardSentence = speakable(`${s.name}، ${moneyText(s.amount, amountsHidden)}، ${walletLabel}${catLabel ? '، ' + catLabel : ''}، ${frequencyLabel(s.frequency, s.customDays)}، ${dueLine}`);
     return (
       <View key={s.id} style={[styles.card, soon && { borderWidth: 1, borderColor: colors.warnBorder }]}>
+        <View accessible accessibilityLabel={cardSentence}>
         <View style={styles.cardHead}>
           <Text style={[styles.name, { color: tone }]}>{s.name}</Text>
           <Money value={s.amount} style={[styles.amount, { color: tone }]} />
@@ -194,9 +218,9 @@ export default function SubscriptionsView() {
           {walletLabel}{catLabel ? ' · ' + catLabel : ''} · {frequencyLabel(s.frequency, s.customDays)}
         </Text>
         <Text style={[styles.due, { color: soon ? colors.accentText : colors.textSecondary }]}>
-          {isStopped ? `واقف مؤقتًا — مش هيتخصم ولا هيفكّرك لحد ما ترجّعه${waitingReply ? '. لسه فيه مرة مستنية ردك في الرئيسية' : ''}`
-            : days < 0 ? `متأخر ${Math.abs(days)} يوم` : days === 0 ? 'مستحق النهاردة' : `مستحق بعد ${days} يوم (${dateText(s.nextDueDate, todayStr())})`}
+          {dueLine}
         </Text>
+        </View>
         <View style={styles.actionsRow}>
           {isStopped ? (
             <Button testID={`subscription_resume_${s.id}`} size="sm" label="رجّعه" accessibilityLabel={`رجّع اشتراك ${s.name}`}
@@ -223,8 +247,8 @@ export default function SubscriptionsView() {
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag">
       <View style={styles.titleRow}>
-        <Button testID="subscription_add_button" label="+ اشتراك جديد" size="sm" onPress={() => setShowAdd(true)} />
-        <Text style={styles.title}>الاشتراكات</Text>
+        <Button testID="subscription_add_button" label="+ اشتراك جديد" accessibilityLabel="اشتراك جديد" size="sm" onPress={() => setShowAdd(true)} />
+        <Text style={styles.title} accessibilityRole="header">الاشتراكات</Text>
       </View>
 
       {subscriptions.length === 0 && <EmptyHint testID="subs_empty" icon="repeat-outline" message="مفيش اشتراكات مسجلة" />}
@@ -245,7 +269,7 @@ export default function SubscriptionsView() {
           <ActionSheet visible={!!live} testID="subscription_menu" title={m?.name ?? ''} onClose={() => setMenuSubId(null)} actions={m ? [
             { key: 'edit', label: 'تعديل', testID: `subscription_edit_${m.id}`, disabled: busy, onPress: () => setEditingSub(m) },
             ...(m.active !== false ? [{ key: 'stop', label: 'وقّفه مؤقتًا', testID: `subscription_stop_${m.id}`, disabled: busy, onPress: () => confirmStop(m) }] : []),
-            { key: 'delete', label: 'حذف', danger: true, testID: `subscription_delete_${m.id}`, disabled: busy, onPress: () => confirmDelete(m) },
+            { key: 'delete', label: 'امسح الاشتراك', danger: true, testID: `subscription_delete_${m.id}`, disabled: busy, onPress: () => confirmDelete(m) },
           ] : []} />
         );
       })()}
@@ -316,16 +340,16 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>اشتراك جديد</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">اشتراك جديد</Text>
 
           <Text style={styles.label}>الاسم</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
+          <TextInput accessibilityLabel="اسم الاشتراك" maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={v => { freeze(); setName(v); }}
             placeholder="مثلاً: نتفليكس" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
+          <TextInput accessibilityLabel="المبلغ" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
@@ -367,27 +391,26 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           {frequency === 'custom' && (
             <>
               <Text style={styles.label}>{CUSTOM_DAYS_FIELD}</Text>
-              <TextInput style={styles.input} value={customDays} onChangeText={v => { freeze(); setCustomDays(v); }}
+              <TextInput accessibilityLabel="عدد الأيام" style={styles.input} value={customDays} onChangeText={v => { freeze(); setCustomDays(v); }}
                 keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
           )}
 
           <Text style={styles.label}>أول موعد استحقاق</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`أول موعد استحقاق، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
+          <TextInput accessibilityLabel="عدد أيام التذكير" style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <ChargeModePicker value={chargeMode} onChange={m => { freeze(); setChargeMode(m); }} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
 
           <CalendarPickerModal visible={showPicker} value={nextDueDate} onSelect={d => { freeze(); setNextDueDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
+        {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
         <View style={styles.footer}>
           <Button variant="secondary" testID="subscription_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
           <Button testID="subscription_add_save" label="حفظ" style={styles.saveBtn} onPress={handleSave} busy={busy} />
@@ -426,9 +449,9 @@ function makeStyles(c: ThemeColors) {
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     row: { flexDirection: 'row-reverse', gap: space.sm },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
-    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
+    dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.md },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },
@@ -441,6 +464,7 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
   const { wallets, categories, updateSubscription } = useData();
   const { categoryColors } = useChartColors();
   const { busy, run: runBusy } = useBusy();
+  const confirm = useConfirm();
 
   const [name, setName] = useState(sub.name);
   const [amount, setAmount] = useState(String(sub.amount));
@@ -469,12 +493,26 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
       categoryId: categoryId ?? undefined,
       frequency,
       customDays: frequency === 'custom' ? parseEntryNumber(customDays) : undefined,
-      nextDueDate,
+      // بند D (2026-11-17): المعاد بيتبعت بس لو اتغيّر — تعديل الاسم مثلاً مبيلمسش الجدول
+      ...(nextDueDate !== sub.nextDueDate ? { nextDueDate } : {}),
       reminderDaysBefore: parseEntryNumber(reminderDays),
       chargeMode,
     };
     const problem = subscriptionEntryProblem(data);
     if (problem) { setError(problem.message); return; }
+    // المعاد اتقدّم بعد مرات متأخرة لسه ما اتسجلتش ← هتتشال، فلازم تتقال قبل الحفظ (نفس تأكيد الإيقاف)
+    const dropped = nextDueDate > sub.nextDueDate ? overdueDroppedCount(sub, nextDueDate) : 0;
+    if (dropped > 0) {
+      confirm('نغيّر المعاد؟', `عليه ${overduePhrase(dropped)} لسه ما اتسجلتش قبل المعاد الجديد — مش هتتسجل ومش هنسألك عنها تاني. لو اتخصمت فعلاً، سجّلها أو فوّتها من "مستنيين ردك" الأول.`, [
+        { text: 'إلغاء', style: 'cancel' },
+        { text: 'غيّر المعاد', onPress: () => { save(data); } },
+      ]);
+      return;
+    }
+    await save(data);
+  }
+
+  async function save(data: Partial<Subscription>) {
     await runBusy(async () => {
       try {
         const result = await updateSubscription(sub.id, data);
@@ -495,16 +533,16 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>تعديل اشتراك</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">تعديل اشتراك</Text>
 
           <Text style={styles.label}>الاسم</Text>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
+          <TextInput accessibilityLabel="اسم الاشتراك" maxLength={NAME_MAX_LENGTH} style={styles.input} value={name} onChangeText={setName}
             placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput style={styles.bigInput} value={amount} onChangeText={setAmount}
+          <TextInput accessibilityLabel="المبلغ" style={styles.bigInput} value={amount} onChangeText={setAmount}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المحفظة</Text>
@@ -546,27 +584,26 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           {frequency === 'custom' && (
             <>
               <Text style={styles.label}>{CUSTOM_DAYS_FIELD}</Text>
-              <TextInput style={styles.input} value={customDays} onChangeText={setCustomDays}
+              <TextInput accessibilityLabel="عدد الأيام" style={styles.input} value={customDays} onChangeText={setCustomDays}
                 keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
             </>
           )}
 
           <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity testID="subscription_edit_due" accessibilityRole="button" accessibilityLabel={`موعد الاستحقاق الجاي، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
           </TouchableOpacity>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
-          <TextInput style={styles.input} value={reminderDays} onChangeText={setReminderDays}
+          <TextInput accessibilityLabel="عدد أيام التذكير" style={styles.input} value={reminderDays} onChangeText={setReminderDays}
             keyboardType="numeric" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <ChargeModePicker value={chargeMode} onChange={setChargeMode} what="الاشتراك" verb="اتخصم" testIDPrefix="subscription" />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
 
           <CalendarPickerModal visible={showPicker} value={nextDueDate} onSelect={setNextDueDate} onClose={() => setShowPicker(false)} />
         </ScrollView>
 
+        {!!error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
         <View style={styles.footer}>
           <Button variant="secondary" testID="subscription_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
           <Button testID="subscription_edit_save" label="حفظ التعديل" style={styles.saveBtn} onPress={handleSave} busy={busy} />

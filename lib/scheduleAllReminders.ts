@@ -1,6 +1,8 @@
 import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { addDays, debtGrandTotal, debtPaid, fmt, todayStr } from '@/lib/finance';
 import { isDebtSettled } from '@/lib/doneSections';
+import { whenPhrase } from '@/lib/notificationStatus';
+import type { NotificationKind } from '@/lib/notificationRoute';
 import { cancelAllReminders, scheduleDailyReminder, scheduleReminder } from '@/lib/notifications';
 import { incomeDueDate, incomeOpenPeriods, incomeUpcomingPeriod, type RecurringIncome } from '@/lib/recurringIncome';
 
@@ -21,7 +23,7 @@ const HORIZON_DAYS = 120;
  */
 const MAX_DATED_REMINDERS = 60;
 
-type Candidate = { title: string; body: string; date: string };
+type Candidate = { title: string; body: string; date: string; kind: NotificationKind };
 
 export async function scheduleAllReminders(opts: {
   subscriptions: Subscription[];
@@ -51,11 +53,9 @@ export async function scheduleAllReminders(opts: {
     if (s.active === false) return;
     candidates.push({
       title: `اشتراك ${s.name}`,
-      body:
-        s.reminderDaysBefore > 0
-          ? `مستحق بعد ${s.reminderDaysBefore} يوم${amount(s.amount)}`
-          : `مستحق النهاردة${amount(s.amount)}`,
+      body: `مستحق ${whenPhrase(s.reminderDaysBefore || 0)}${amount(s.amount)}`,
       date: addDays(s.nextDueDate, -(s.reminderDaysBefore || 0)),
+      kind: 'subscription',
     });
   });
 
@@ -66,10 +66,9 @@ export async function scheduleAllReminders(opts: {
       .forEach(m => {
         candidates.push({
           title: `جمعية ${g.name}`,
-          body: m.isPayoutMonth
-            ? `شهر الاستلام قرب${amount(m.amount)}`
-            : `قسط الشهر قرب${amount(m.amount)}`,
+          body: `${m.isPayoutMonth ? 'استلام الجمعية' : `قسط شهر ${m.monthIndex}`} ${whenPhrase(g.reminderDaysBefore || 0)}${amount(m.amount)}`,
           date: addDays(m.dueDate, -(g.reminderDaysBefore || 0)),
+          kind: 'gamiya',
         });
       });
   });
@@ -85,11 +84,10 @@ export async function scheduleAllReminders(opts: {
     const remaining = debtGrandTotal(d) - debtPaid(d);
     const mine = d.direction === 'owed_to_me';
     candidates.push({
-      title: mine ? `ليا عند ${d.personName}` : `عليا لـ ${d.personName}`,
-      body: d.reminderDaysBefore > 0
-        ? `المعاد بعد ${d.reminderDaysBefore} يوم${debtLeft(remaining)}`
-        : `المعاد النهاردة${debtLeft(remaining)}`,
+      title: mine ? `ليا عند ${d.personName}` : `عليا لـ${d.personName}`,
+      body: `المعاد ${whenPhrase(d.reminderDaysBefore)}${debtLeft(remaining)}`,
       date: addDays(d.dueDate, -d.reminderDaysBefore),
+      kind: 'debt',
     });
   });
 
@@ -106,6 +104,7 @@ export async function scheduleAllReminders(opts: {
       title: `"${inc.name}" نزل؟`,
       body: `معاده النهاردة${amount(inc.amount)}. افتح نقطة وأكّد إنه نزل.`,
       date: incomeDueDate(inc, k),
+      kind: 'income',
     }));
   });
 

@@ -27,7 +27,8 @@ describe('كل listener في DataContext ليه error callback', () => {
 
   it.each(blocks.map((b, i) => [i + 1, b]))('listener رقم %i: loaded و failed بنفس الاسم', (_i, block) => {
     const failed = (block as string).match(/\}, failed\('([a-z_]+)'\)\);/);
-    const loaded = (block as string).match(/\(snap\) => \{\s*loaded\('([a-z_]+)'\);/);
+    // الاسم أول باراميتر؛ التاني fromCache (الرجوع بعد الفشل بالسيرفر بس — الميزة 7، الجولة الأخيرة)
+    const loaded = (block as string).match(/\(snap\) => \{\s*loaded\('([a-z_]+)'[,)]/);
     expect(failed?.[1]).toBeDefined();
     expect(loaded?.[1]).toBe(failed?.[1]);
   });
@@ -54,7 +55,7 @@ describe('listenerNamesPhrase', () => {
   it.each<[ListenerName[], string]>([
     [['incomes'], 'الدخل الثابت'],
     [['debts', 'wallets'], 'المحافظ والديون'],
-    [['incomes', 'wallets', 'transactions'], 'المحافظ، العمليات، والدخل الثابت'],
+    [['incomes', 'wallets', 'transactions'], 'المحافظ والعمليات والدخل الثابت'],
   ])('%j ← %s', (names, phrase) => {
     expect(listenerNamesPhrase(names)).toBe(phrase);
   });

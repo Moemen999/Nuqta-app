@@ -36,9 +36,9 @@ afterEach(() => jest.useRealTimers());
 it('الشهر ده: +41% بنص المقارنة بنفس الأيام، مش -25%', async () => {
   await render(<ThemeProvider><PrivacyProvider><ReportsTab /></PrivacyProvider></ThemeProvider>);
   expect(screen.getByText('مقارنة بنفس الأيام من الشهر اللي فات')).toBeTruthy();
-  expect(screen.getByText('+41%')).toBeTruthy();
+  expect(screen.getByText('زاد 41%')).toBeTruthy();
   // +101% هو اللي كانت القاعدة القديمة بتدّيه على نفس البيانات
-  expect(screen.queryByText('+101%')).toBeNull();
+  expect(screen.queryByText('زاد 101%')).toBeNull();
   expect(screen.queryByText('مقارنة بالفترة اللي قبلها')).toBeNull();
   // الرقم البطل فيه العملية اللي تاريخها جاي (5,333 + 9,000)، والنسبة لأ — الفرق ده مقصود
   expect(screen.getAllByText(/14,333/).length).toBeGreaterThan(0);
@@ -56,12 +56,12 @@ it('فلتر فئة: النسبة من الفئة المختارة بس في ا�
   ];
   await renderScreen();
   // من غير فلتر: 1,600 قصاد 1,500
-  expect(screen.getByText('+7%')).toBeTruthy();
+  expect(screen.getByText('زاد 7%')).toBeTruthy();
   await fireEvent.press(screen.getByTestId('reports_filter_toggle')); // الفلتر مطوي افتراضيًا
   await fireEvent.press(screen.getAllByText(/أكل/)[0]);
   // أكل بس: 1,500 قصاد 1,000
-  expect(screen.getByText('+50%')).toBeTruthy();
-  expect(screen.queryByText('+7%')).toBeNull();
+  expect(screen.getByText('زاد 50%')).toBeTruthy();
+  expect(screen.queryByText('زاد 7%')).toBeNull();
 });
 
 it('سلفة وقسط جمعية جوه الفترة الحالية مش داخلين في النسبة', async () => {
@@ -74,7 +74,7 @@ it('سلفة وقسط جمعية جوه الفترة الحالية مش داخ�
     exp('gm1', 700, '2026-11-11', undefined),
   ];
   await renderScreen();
-  expect(screen.getByText('+20%')).toBeTruthy();
+  expect(screen.getByText('زاد 20%')).toBeTruthy();
 });
 
 it('الشهر اللي فات: بيتقارن بالشهر اللي قبله كله وبالنص ده', async () => {
@@ -83,6 +83,6 @@ it('الشهر اللي فات: بيتقارن بالشهر اللي قبله ك
   await renderScreen();
   await fireEvent.press(screen.getByTestId('reports_preset_lastMonth'));
   expect(screen.getByText('مقارنة بالشهر اللي قبله')).toBeTruthy();
-  expect(screen.getByText('+257%')).toBeTruthy();
+  expect(screen.getByText('زاد 257%')).toBeTruthy();
   expect(screen.queryByText('مقارنة بالفترة اللي قبلها')).toBeNull();
 });

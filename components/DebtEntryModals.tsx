@@ -8,7 +8,7 @@ import ContactPickerModal from '@/components/ContactPickerModal';
 import DebtReminderFields from '@/components/DebtReminderFields';
 import { useDeviceContacts } from '@/components/useDeviceContacts';
 import { LineIcon } from '@/components/LineIcon';
-import { LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt } from '@/context/DataContext';
+import { ADD_DEBT_WALLET_MISSING_ALERT, DEBT_GONE_ALERT, LEFTOVER_CHANGED_ALERT, PAY_OUTCOME_ALERT_DEBT, useData, type Debt, type DebtPayOutcome } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { installmentsPhrase, selectableOptions } from '@/lib/archiving';
@@ -27,7 +27,7 @@ import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
@@ -52,13 +52,71 @@ export const LEFTOVER_REQUIRED = 'اختار الأول: يتضاف على آخ�
 export const LAST_INSTALMENT_ADJUSTED_TITLE = 'آخر قسط اتظبط';
 /** "تقريبًا ضعف" من 1.5 من القسط (قرار مؤمن) — تحت كده الرقمين في الجملة كفاية */
 const NEAR_DOUBLE = 1.5;
-export const DEBT_SETTLED_TITLE = 'الدين اتسدد بالكامل';
+export const DEBT_SETTLED_TITLE = 'الدين ده اتسدد بالكامل';
 // جملة عامة صح في الشاشتين (الديون وكشف الشخص) — مش "نزل تحت" (arabic-copy-reviewer +
 // silent-failure-hunter، جولة 2)
 export const DEBT_SETTLED_BODY = 'الديون اللي اتسددت بتتجمع في قسم "ديون اتسددت" تحت قايمة الديون، ودوس عليه عشان تفتحه.';
 export const INSTALLMENT_COUNT_REQUIRED = 'دخّل عدد الأقساط — رقم صحيح أكبر من صفر.';
 
-export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+
+/**
+ * بند 7: المودال بيقرا الدين **حي** من `useData().debts` بالمعرّف، مش نسخة اتاخدت وقت الفتح — فحص "أكبر
+ * من المتبقي" والاقتراح والسؤال كانوا بيتحسبوا على متبقي قديم لو دفعة نزلت من جهاز تاني والمودال مفتوح.
+ * الدين اختفى ← المودال بيتقفل برسالة (مرة واحدة). `null` = اتمسح.
+ */
+function useLiveDebt(debtId: string, onClose: () => void): { debt: Debt | null; goneShown: MutableRefObject<boolean> } {
+  const { debts, debtsReady } = useData();
+  const notice = useNotice();
+  const live = debts.find(d => d.id === debtId) ?? null;
+  // الجولة 2 (بند 5): `debts` فاضية/ناقصة والـlistener لسه بيحمّل أو اترفض ≠ «اتمسح» — المودال بيستنى (الفورم مش
+  // مرسوم من غير دين)، والذرة نفسها بتقول `gone` من السيرفر لو اتمسح فعلاً
+  const gone = live === null && debtsReady;
+  // رسالة «الدين اتمسح» مرة واحدة: الفحص الحي ونتيجة `gone` من الذرة ممكن ييجوا الاتنين لنفس المسح
+  const goneShown = useRef(false);
+  // آخر `onClose` — مرة لما يختفي، مش مع كل render جديد للأب
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
+  useEffect(() => {
+    if (!gone) return;
+    if (!goneShown.current) {
+      goneShown.current = true;
+      notice(DEBT_GONE_ALERT.title, DEBT_GONE_ALERT.body);
+    }
+    closeRef.current();
+  }, [gone, notice]);
+  return { debt: live, goneShown };
+}
+
+/** نتيجة مش `done` من الذرة: الرسالة (و`gone` مرة واحدة مع الفحص الحي)، وبعدين يتقفل لو لازم */
+function showOutcome(
+  outcome: Exclude<DebtPayOutcome, 'done'>, notice: (title: string, body: string) => void, goneShown: MutableRefObject<boolean>,
+  onClose: () => void,
+) {
+  if (outcome !== 'gone' || !goneShown.current) {
+    if (outcome === 'gone') goneShown.current = true;
+    const alert = PAY_OUTCOME_ALERT_DEBT[outcome];
+    notice(alert.title, alert.body);
+  }
+  // الدين اتمسح، أو مش عارفين اتسجلت (المستخدم لازم يبص على الدين قبل ما يعيد) ← المودال بيتقفل
+  if (CLOSES_MODAL.includes(outcome)) onClose();
+}
+
+/** نتايج الدفعة/الزيادة اللي بعدها المودال بيتقفل: الدين مش موجود، أو مش عارفين اتسجلت ولا لأ (إعادة = ممكن مرتين) */
+const CLOSES_MODAL: DebtPayOutcome[] = ['gone', 'uncertain'];
+
+export function DebtPaymentModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
+  const { debt, goneShown } = useLiveDebt(debtId, onClose);
+  return debt ? <DebtPaymentForm debt={debt} onClose={onClose} goneShown={goneShown} /> : null;
+}
+
+export function DebtIncreaseModal({ debtId, onClose }: { debtId: string; onClose: () => void }) {
+  const { debt, goneShown } = useLiveDebt(debtId, onClose);
+  return debt ? <DebtIncreaseForm debt={debt} onClose={onClose} goneShown={goneShown} /> : null;
+}
+
+type FormProps = { debt: Debt; onClose: () => void; goneShown: MutableRefObject<boolean> };
+
+function DebtPaymentForm({ debt, onClose, goneShown }: FormProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, categories, transactions, figuresPending, addDebtPayment } = useData();
@@ -155,8 +213,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
       // لو ما اتسجلتش، عشان يقدر يغيّر المحفظة أو يجرب تاني من غير ما يعيد
       // كتابة كل حاجة
       if (result.outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        notice(alert.title, alert.body);
+        showOutcome(result.outcome, notice, goneShown, onClose);
         return;
       }
       // الدفعة دي سددت الدين ← الكارت بيروح "ديون اتسددت" المطوي، فبيتقال بدل ما يختفي من
@@ -177,14 +234,14 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>تسجيل دفعة — {debt.personName}</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">تسجيل دفعة — {debt.personName}</Text>
           <Text style={styles.hintText}>المتبقي: <Money value={remaining} /></Text>
           {!!progressLabel && <Text style={styles.installmentText}>{progressLabel}</Text>}
 
           <Text style={styles.label}>المبلغ</Text>
-          <TextInput testID="debt_payment_amount" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
+          <TextInput testID="debt_payment_amount" accessibilityLabel="المبلغ" style={styles.bigInput} value={amount} onChangeText={v => { freeze(); setAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -216,14 +273,14 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {!!error && <Text testID="debt_payment_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="debt_payment_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
@@ -236,7 +293,7 @@ export function DebtPaymentModal({ debt, onClose }: { debt: Debt; onClose: () =>
   );
 }
 
-export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, transactions, addDebtIncrease } = useData();
@@ -309,8 +366,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
         return;
       }
       if (result.outcome !== 'done') {
-        const alert = PAY_OUTCOME_ALERT_DEBT[result.outcome];
-        notice(alert.title, alert.body);
+        showOutcome(result.outcome, notice, goneShown, onClose);
         return;
       }
       // "بعد الزيادة، الأقساط بقت 8 بدل 6" — نفس تنبيه الدفعة بالظبط: العدد
@@ -335,9 +391,9 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>زيادة على دين — {debt.personName}</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">زيادة على دين — {debt.personName}</Text>
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
@@ -354,7 +410,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           {!linkedToWallet && isCreditPurchase(debt) && <Text testID="debt_increase_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
 
           <Text style={styles.label}>المبلغ الإضافي</Text>
-          <TextInput testID="debt_increase_amount" style={styles.bigInput} value={amount} onChangeText={changeAmount}
+          <TextInput testID="debt_increase_amount" accessibilityLabel="المبلغ الإضافي" style={styles.bigInput} value={amount} onChangeText={changeAmount}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           <AmountPreview amount={amount} projections={projections} />
 
@@ -399,7 +455,7 @@ export function DebtIncreaseModal({ debt, onClose }: { debt: Debt; onClose: () =
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
@@ -433,6 +489,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { addDebt, wallets, transactions } = useData();
+  const notice = useNotice();
   const { busy, run: runBusy } = useBusy();
   const picker = useDeviceContacts();
 
@@ -466,7 +523,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
   async function handleSave() {
     // "1e999" كان بيعدّي من فحص الصفر لوحده ويتسجل دين Infinity (`toMoneyAmount`)
     const amt = toMoneyAmount(Number(totalAmount));
-    if (!personName.trim() || amt === null) { setError('من فضلك دخّل اسم ومبلغ صحيحين'); return; }
+    if (!personName.trim() || amt === null) { setError('دخّل اسم ومبلغ صحيحين'); return; }
     if (linkedToWallet && !walletId) { setError('اختار محفظة'); return; }
     // دين أقساط من غير عدد = ميزة شكلها شغّال ومبتعملش حاجة: مفيش قيمة قسط،
     // مفيش "القسط 3 من 6"، ومفيش تظبيط للعدد. لازم يتقال دلوقتي مش بعدين.
@@ -479,8 +536,9 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     // قسط أقل من قرش (0.05 على 10) كان بيتسجل من غير قيمة قسط خالص
     if (isInstallment && !planInstallments(amt, count)) { setError(INSTALLMENT_VALUE_TOO_SMALL); return; }
     await runBusy(async () => {
+      let added: Awaited<ReturnType<typeof addDebt>>;
       try {
-        await addDebt({
+        added = await addDebt({
           direction, personName: personName.trim(), personPhone: personPhone.trim() || undefined, personContactId: personContactId || undefined, totalAmount: amt,
           isInstallment,
           installmentCount: isInstallment ? count : undefined,
@@ -498,6 +556,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
         setError('حصل خطأ، جرب تاني');
         return;
       }
+      // المحفظة اتمسحت/اتأرشفت (جهاز تاني) ← مفيش حاجة اتكتبت، والمودال بيفضل مفتوح عشان يختار غيرها
+      if (added.outcome === 'wallet-missing') {
+        notice(ADD_DEBT_WALLET_MISSING_ALERT.title, ADD_DEBT_WALLET_MISSING_ALERT.body);
+        return;
+      }
       onClose();
     });
   }
@@ -506,9 +569,9 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.scrollArea} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>دين جديد</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">دين جديد</Text>
 
           <View style={styles.row}>
             <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
@@ -538,7 +601,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
             </Text>
           ) : (
             <>
-              <Text style={styles.hintText}>الدين هيتسجل بس من غير ما يأثر على أي رصيد دلوقتي — وقت السداد بس هيتسجل كعملية حقيقية</Text>
+              <Text style={styles.hintText}>الدين هيتسجل من غير ما يأثر على أي رصيد دلوقتي، وهيتسجل كعملية حقيقية وقت السداد بس.</Text>
               {direction === 'i_owe' && <Text testID="debt_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
             </>
           )}
@@ -555,11 +618,11 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
+          <TextInput accessibilityLabel="اسم الشخص" maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>المبلغ الإجمالي (أول مرة)</Text>
-          <TextInput testID="debt_add_amount" style={styles.bigInput} value={totalAmount} onChangeText={v => { freeze(); setTotalAmount(v); }}
+          <TextInput testID="debt_add_amount" accessibilityLabel="المبلغ الإجمالي" style={styles.bigInput} value={totalAmount} onChangeText={v => { freeze(); setTotalAmount(v); }}
             placeholder="0" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
           {linkedToWallet && <AmountPreview amount={totalAmount} projections={projections} />}
 
@@ -578,7 +641,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
           </TouchableOpacity>
 
@@ -596,7 +659,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           {isInstallment && (
             <>
               <Text style={styles.label}>عدد الأقساط</Text>
-              <TextInput style={styles.input} value={installmentCount} onChangeText={v => { freeze(); setInstallmentCount(v); }}
+              <TextInput accessibilityLabel="عدد الأقساط" style={styles.input} value={installmentCount} onChangeText={v => { freeze(); setInstallmentCount(v); }}
                 placeholder="مثلاً: 6" placeholderTextColor={colors.textSecondary} keyboardType="numeric" textAlign="right" />
             </>
           )}
@@ -609,13 +672,13 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           />
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { freeze(); setNote(v); }}
+          <TextInput accessibilityLabel="ملاحظة" maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { freeze(); setNote(v); }}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
-
-          {!!error && <Text style={styles.error}>{error}</Text>}
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
+
+        {!!error && <Text testID="debt_add_error" style={styles.footerError} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="debt_add_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
@@ -631,7 +694,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
             freeze();
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
-            setPersonContactId(ct.id);
+            setPersonContactId(ct.contactId ?? '');
             picker.close();
           }}
           onCreateContact={picker.createContact}

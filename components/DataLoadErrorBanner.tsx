@@ -1,14 +1,25 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, loadErrorBody } from '@/lib/listenerErrors';
-import { useEffect, useMemo } from 'react';
+import { LOAD_ERROR_RETRY, LOAD_ERROR_TITLE, listenerNamesPhrase, loadErrorBody, type ListenerName } from '@/lib/listenerErrors';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius, space, typeScale } from '@/lib/tokens';
+
+/**
+ * «جرّب تاني» (الميزة 7): الدوسة بتفتح الـlisteners من الأول، ولو فشلوا تاني مفيش حاجة بتتغيّر — فالزرار بيلف لحد ما
+ * اللي وقع يتغيّر أو المهلة تخلص، وبيتقال النتيجة. فايربيز مبتقولش «فشل تاني» لـlistener اترفض (`loadErrors` بيفضل زي ما هو)،
+ * فالمهلة هي الإجابة.
+ */
+export const RETRY_WAIT_MS = 8000;
+export const RETRY_BUSY_TEXT = 'بنجرّب…';
+export const RETRY_DONE_ANNOUNCEMENT = 'بياناتك وصلت';
+export const RETRY_STILL_FAILED = 'لسه ما وصلتش — جرّب كمان شوية';
 
 /**
  * بانر فوق كل التابات لما listener من بتوع `DataContext` يترفض ويتقفل.
@@ -31,12 +42,39 @@ export default function DataLoadErrorBanner() {
   const instance = [...loadErrors].sort().join(',');
   useEffect(() => { if (loadErrors.length === 0) clear('loadError'); }, [loadErrors.length, clear]);
 
+  const [busy, setBusy] = useState(false);
+  const pressedWith = useRef<string[]>([]);
+  useEffect(() => {
+    if (!busy) return;
+    // النتيجة = حاجة **رجعت** (الجولة الأخيرة، H1-B): بنقارن المجموعتين مش النص — listener تاني وقع وإحنا بنجرّب ومفيش حاجة
+    // رجعت كان بيتقال «جزء من بياناتك وصل». و«رجعت» نفسها بقت بعد snapshot من السيرفر بس (`loadErrorsAfterSnapshot`)
+    const removed = pressedWith.current.filter(n => !loadErrors.includes(n as ListenerName));
+    if (removed.length > 0) {
+      setBusy(false);
+      AccessibilityInfo.announceForAccessibility(loadErrors.length > 0 ? `جزء من بياناتك وصل، ولسه بيانات ${listenerNamesPhrase(loadErrors)} ما وصلتش` : RETRY_DONE_ANNOUNCEMENT);
+      return;
+    }
+    const t = setTimeout(() => { setBusy(false); AccessibilityInfo.announceForAccessibility(RETRY_STILL_FAILED); }, RETRY_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [busy, loadErrors]);
+  const retry = () => {
+    pressedWith.current = [...loadErrors];
+    setBusy(true);
+    retryLoad();
+  };
+
+  const visible = loadErrors.length > 0 && !hidden('loadError', instance);
+  // ظهر متأخر ← نفس نمط بانرات الرئيسية (iOS إعلان، أندرويد liveRegion). وإحنا بنجرّب: نتيجة «جرّب تاني» هي اللي بتتقال —
+  // النص الجديد بيتسجّل من غير إعلان (كان بيتقال مرتين: «جزء وصل» + البانر من الأول)
+  useAnnounceOnAppear(visible ? `${LOAD_ERROR_TITLE}. ${loadErrorBody(loadErrors)}` : null, { silent: busy });
+
   // الـ✕ (قرار مؤمن 2026-10-28): بيتقفل ويرجع بعد المدة — والحالة نفسها (البيانات ما وصلتش)
   // فاضلة، فلو لسه موجودة بعد المدة البانر بيرجع
-  if (loadErrors.length === 0 || hidden('loadError', instance)) return null;
+  if (!visible) return null;
 
   return (
-    <View testID="data_load_error_banner" style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="alert">
+    <View testID="data_load_error_banner" style={[styles.wrap, { paddingTop: insets.top + 8 }]} accessibilityRole="alert"
+      accessibilityLiveRegion="polite">
       <View style={styles.titleRow}>
         <Text style={[styles.title, styles.titleFlex]}>{LOAD_ERROR_TITLE}</Text>
         <DismissButton testID="data_load_error_dismiss" onPress={() => dismiss('loadError', instance)} hint={DISMISS_HINT}
@@ -46,10 +84,15 @@ export default function DataLoadErrorBanner() {
       <TouchableOpacity
         testID="data_load_error_retry"
         style={styles.btn}
-        onPress={retryLoad}
+        onPress={retry}
+        disabled={busy}
         accessibilityRole="button"
-        accessibilityLabel={LOAD_ERROR_RETRY}>
-        <Text style={styles.btnText}>{LOAD_ERROR_RETRY}</Text>
+        accessibilityLabel={busy ? RETRY_BUSY_TEXT : LOAD_ERROR_RETRY}
+        accessibilityState={{ busy, disabled: busy }}>
+        <View style={styles.btnRow}>
+          {busy && <ActivityIndicator size="small" color={colors.dangerText} />}
+          <Text style={styles.btnText}>{busy ? RETRY_BUSY_TEXT : LOAD_ERROR_RETRY}</Text>
+        </View>
       </TouchableOpacity>
     </View>
   );
@@ -70,5 +113,6 @@ function makeStyles(c: ThemeColors) {
       paddingVertical: 8, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center',
     },
     btnText: { color: c.dangerText, fontSize: typeScale.body, fontWeight: '700' },
+    btnRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
   });
 }

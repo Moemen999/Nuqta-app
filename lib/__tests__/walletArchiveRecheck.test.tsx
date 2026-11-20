@@ -1,3 +1,4 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import WalletsScreen from '@/app/settings-screens/wallets';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
@@ -41,7 +42,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }
 function seed() {
   Object.assign(mockData, {
     wallets, categories: [], transactions: baseTxs, brokenTransactions: [], budgets: {}, debts: [],
-    subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true, loadErrors: [],
+    subscriptions: [], gamiyas: [gamiya], incomes: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
     archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   });
@@ -54,7 +55,7 @@ beforeEach(() => {
 });
 afterEach(() => alertSpy.mockRestore());
 
-const ui = () => <ThemeProvider><WalletsScreen /></ThemeProvider>;
+const ui = () => <ThemeProvider><PrivacyProvider><WalletsScreen /></PrivacyProvider></ThemeProvider>;
 
 // الـbeforeAll بيشتغل قبل الـbeforeEach، فالـwarm-up محتاج البيانات لوحده
 warmUp(() => { seed(); return ui(); });

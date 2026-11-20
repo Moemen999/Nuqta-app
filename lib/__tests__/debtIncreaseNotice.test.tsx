@@ -15,6 +15,8 @@ import type { Debt } from '@/context/DataContext';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
 
 const debt = {
@@ -32,7 +34,7 @@ afterEach(() => alertSpy.mockRestore());
 async function save(result: unknown) {
   const onClose = jest.fn();
   mockData.addDebtIncrease = jest.fn(async () => result);
-  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={debt} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
+  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debtId={withDebt(debt)} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   await act(async () => { fireEvent.changeText(screen.getByTestId('debt_increase_amount'), '2000'); });
   await act(async () => { fireEvent.press(screen.getByTestId('debt_increase_save')); });
   expect(mockData.addDebtIncrease).toHaveBeenCalledWith('d1', 2000, expect.any(String), 'w1');
@@ -40,11 +42,11 @@ async function save(result: unknown) {
 }
 
 it('العدد اتغيّر ← تنبيه "عدد الأقساط اتظبط" بالقديم والجديد، والمودال بيتقفل', async () => {
-  const onClose = await save({ outcome: 'done', note: 'بعد الزيادة، الأقساط بقت 8 بدل 6.' });
+  const onClose = await save({ outcome: 'done', note: 'بعد الزيادة، عدد الأقساط بقى 8 بدل 6.' });
   // رسالة بشكل التطبيق (NoticeProvider) مش الـAlert الأصلي
   expect(alertSpy).not.toHaveBeenCalled();
   expect(screen.getByTestId('notice_title').props.children).toBe(INSTALLMENTS_CHANGED_TITLE);
-  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+  expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، عدد الأقساط بقى 8 بدل 6.');
   expect(onClose).toHaveBeenCalled();
 });
 

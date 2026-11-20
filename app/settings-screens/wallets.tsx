@@ -1,24 +1,29 @@
 import { BROKEN_WALLET_ARCHIVE_BLOCK } from '@/lib/brokenDocs';
-import { planWalletOpeningCommit } from '@/lib/finance';
-import { OPENING_PENDING_HINT, openingConfirmCopy, openingDroppedNotice, openingStaleNotice } from '@/lib/walletCopy';
-import { plainAmount } from '@/lib/money';
+import { AMOUNT_CLEARED_BODY, amountClearedTitle, planLowAlertCommit, planWalletOpeningCommit, walletAmountRejectReason } from '@/lib/finance';
+import {
+  AUTOSAVED_ANNOUNCEMENT, OPENING_PENDING_HINT, nameEmptyNotice, openingConfirmCopy, openingDroppedNotice, openingGoneNotice,
+  openingStaleNotice, walletAmountRejectNotice, goneFromAnotherDeviceNotice, SHEET_RELINKED_NOTICE, lowAlertGoneNotice,
+} from '@/lib/walletCopy';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
-import ArchivedList from '@/components/ArchivedList';
+import ArchivedList, { restoredAnnouncement } from '@/components/ArchivedList';
 import ListEmptyState from '@/components/ListEmptyState';
 import BackButton from '@/components/BackButton';
 import { useData } from '@/context/DataContext';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import {
-  roundedWalletBalance, walletArchiveBlock, walletDeleteBlock, walletDeleteConsequences, walletHasHistory,
-  walletLinkSummary, walletReferences, type ArchiveBlock,
+  reassignTargetsBlock, roundedWalletBalance, walletArchiveBlock, walletBalanceBlockNotice, walletBalanceGoneLine,
+  walletDeleteBlock, walletDeleteConsequences, walletHasHistory, walletLinkSummary, walletReferences, type ArchiveBlock,
 } from '@/lib/archiving';
-import { WALLET_BLOCKED_TITLE, walletActionBlockedBy, walletBlockedBody } from '@/lib/listenerErrors';
+import {
+  WALLET_BLOCKED_TITLE, dataLoadingBody, walletActionBlockedBy, walletActionLoading, walletBlockedBody,
+} from '@/lib/listenerErrors';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
@@ -27,6 +32,11 @@ import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+
+/** قارئ الشاشة بس — مفيش حاجة تتعمل لو المنصة مبتدعمش */
+function announce(text: string) {
+  try { AccessibilityInfo.announceForAccessibility(text); } catch { /* زينة */ }
+}
 
 /**
  * إدارة المحافظ. اتنقلت من شاشة الإعدادات زي ما هي — منطق الحفظ ما اتغيرش
@@ -37,63 +47,114 @@ import { NAME_MAX_LENGTH } from '@/lib/textLimits';
  * الفرق الوحيد إن مسوّدات الأسماء مابقاش لها بادئة `w_`: البادئة كانت موجودة
  * عشان المحافظ والفئات كانوا بيتشاركوا خريطة واحدة في شاشة واحدة. دلوقتي كل
  * شاشة ليها خريطتها، فالمعرّف لوحده كفاية.
+ *
+ * **الفحص بيتعاد لحظة الدوسة على كل تأكيد** (الميزة 10، الجولة الأخيرة): زرار التأكيد بينادي نسخة الـrender اللي فتحته،
+ * فكل الفحوص بتقرا `live` (آخر بيانات وصلت) مش متغيّرات الـrender — البيانات لسه بتوصل، الرصيد، البيانات البايظة،
+ * اللي مربوط بيها، والأماكن اللي اتختارت للنقل.
  */
 export default function WalletsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { money } = usePrivacy();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notice = useNotice();
   const confirm = useConfirm();
+  const data = useData();
   const {
-    wallets, transactions, brokenTransactions, debts, subscriptions, gamiyas, incomes, loadErrors,
-    addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
-  } = useData();
+    wallets, addWallet, updateWallet, deleteWallet, archiveWallet, restoreWallet,
+  } = data;
   const { walletColors } = useChartColors();
+  // آخر بيانات وصلت — كل فحص لحظة الدوسة بيقرا من هنا
+  const live = useRef(data);
+  live.current = data;
 
   const [newWallet, setNewWallet] = useState('');
   const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<{
     id: string; name: string; items: ReassignItem[]; targets: ReassignTarget[];
   } | null>(null);
+  const [archiving, setArchiving] = useState(false);
+  // آخر حاجة اتكتبت في كل خانة رقم — عشان رسالة الرفض تقول السبب (سالب / كبير أوي / صغير أوي / مش رقم)
+  const typed = useRef<Record<string, string>>({});
 
+  const walletName = (id: string) => live.current.wallets.find(x => x.id === id)?.name ?? '';
+  const rejectWith = (field: 'الرصيد الابتدائي' | 'حد التنبيه', key: string) => (id: string) =>
+    notice(...walletAmountRejectNotice(field, walletName(id), walletAmountRejectReason(typed.current[`${key}:${id}`])));
   const opening = useAmountDrafts(
     // `openingInvalid` ← NaN: الخطة بتكتب أي رقم صالح (حتى 0 اللي معروض) عشان العلامة تتشال (بند B)
     id => { const w = wallets.find(x => x.id === id); return w?.openingInvalid ? NaN : (w?.openingBalance ?? 0); },
-    (id, value) => updateWallet(id, { openingBalance: value }),
+    (id, value) => {
+      // L2 (الميزة 10): المحفظة اتأرشفت أو اتمسحت والتأكيد مفتوح ← منكتبش (الفحص القديم كان على الرقم بس)
+      const w = live.current.wallets.find(x => x.id === id);
+      if (!w || w.archived) { notice(...openingGoneNotice(w?.name ?? walletName(id))); return; }
+      updateWallet(id, { openingBalance: value });
+      announce(AUTOSAVED_ANNOUNCEMENT);
+    },
     {
       // أي تغيير في الرصيد الابتدائي بيسأل (الرصيد كله بيتحرك بالفرق) — الاختبار العنيف 2026-11-07، قرار مؤمن
       plan: planWalletOpeningCommit,
-      confirmCopy: (id, value, stored) => openingConfirmCopy(wallets.find(x => x.id === id)?.name ?? '', stored, value),
+      confirmCopy: (id, value, stored) => openingConfirmCopy(walletName(id), stored, value),
       // خرجت من الشاشة والرقم مستني تأكيد ← رسالة (برّه الشاشة) بدل ما يضيع ساكت
-      onDroppedConfirm: id => notice(...openingDroppedNotice(wallets.find(x => x.id === id)?.name ?? '')),
-      onStaleConfirm: id => notice(...openingStaleNotice(wallets.find(x => x.id === id)?.name ?? '')),
+      onDroppedConfirm: id => notice(...openingDroppedNotice(walletName(id))),
+      // المحفظة اتمسحت/اتأرشفت والتأكيد مفتوح ← الرقم المتخزّن «اتغيّر» (بقى 0)، بس السبب الحقيقي إنها مشيت (جولة 2)
+      // المحفظة مشيت ← `'drop'`: المسوّدة بتتشال، فرسالة «ما اتغيّرش» وقت الخروج مبتطلعش تاني على نفس الحاجة (money L1)
+      onStaleConfirm: id => {
+        const w = live.current.wallets.find(x => x.id === id);
+        if (!w || w.archived) { notice(...openingGoneNotice(w?.name ?? '')); return 'drop'; }
+        notice(...openingStaleNotice(walletName(id)));
+      },
+      // «abc» أو «1,5» كانوا بيرجعوا للمحفوظ ساكت (الجولة الأخيرة، بند 7)؛ و«1e300» كبير أوي (الميزة 10، بند 7)
+      onReject: rejectWith('الرصيد الابتدائي', 'opening'),
+      onDroppedReject: rejectWith('الرصيد الابتدائي', 'opening'),
     },
   );
+  // حد التنبيه (الميزة 10، بند 8): من صفر وطالع ومقرّب للقرش ومبيسألش؛ والفاضي مبيتحفظش لوحده (زي الميزانية)
   const lowAlert = useAmountDrafts(
     id => wallets.find(w => w.id === id)?.lowAlert ?? 0,
-    (id, value) => updateWallet(id, { lowAlert: value }),
+    (id, value) => {
+      // المحفظة مشيت ← مفيش كتابة، و`false` بيقول لـ`useAmountDrafts` ميقولش «اتشال» (جولة 2). ومش ساكت (silent L6):
+      // نفس رسالة الرصيد الابتدائي
+      const w = live.current.wallets.find(x => x.id === id);
+      if (!w || w.archived) { notice(...lowAlertGoneNotice(w?.name ?? walletName(id))); return false; }
+      updateWallet(id, { lowAlert: value });
+      announce(AUTOSAVED_ANNOUNCEMENT);
+      return true;
+    },
+    {
+      plan: planLowAlertCommit,
+      autosaveBlank: false,
+      onBlankCleared: id => notice(amountClearedTitle(`حد التنبيه لمحفظة "${walletName(id)}"`), AMOUNT_CLEARED_BODY),
+      onReject: rejectWith('حد التنبيه', 'alert'),
+      onDroppedReject: rejectWith('حد التنبيه', 'alert'),
+    },
   );
   const { busy: adding, run: runAdd } = useBusy();
   const { busyKey: deletingKey, run: runDelete } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived), [wallets]);
   const archivedWallets = useMemo(() => wallets.filter(w => w.archived), [wallets]);
-  // آخر نسخة من المحافظ لفحص المسح **لحظة الدوسة**: زرار التأكيد بينادي
-  // نسخة الـrender اللي فتحته، فلو قرا `wallets` كان هيشوف اللي قبل التأكيد
-  const latestWallets = useRef(wallets);
-  latestWallets.current = wallets;
 
-  /** لو بيانات الرصيد ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
+  /**
+   * لو بيانات الرصيد ما وصلتش (اترفضت) **أو لسه بتوصل** (H1، الميزة 10)، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا.
+   * بيتنادى وقت فتح التأكيد **ولحظة الدوسة عليه**.
+   */
   function blockedByMissingData() {
+    const { loadErrors, figuresPending, undelivered, serverReachable } = live.current;
     const missing = walletActionBlockedBy(loadErrors);
-    if (missing.length === 0) return false;
-    notice(WALLET_BLOCKED_TITLE, walletBlockedBody(missing));
-    return true;
+    if (missing.length > 0) { notice(WALLET_BLOCKED_TITLE, walletBlockedBody(missing)); return true; }
+    if (walletActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, dataLoadingBody(serverReachable)); return true; }
+    return false;
   }
 
   function refsFor(id: string) {
+    const { transactions, brokenTransactions, debts, subscriptions, gamiyas, incomes } = live.current;
     // البايظة كمان (بند B): عملية مش محسوبة لسه تاريخ على المحفظة — من غيرها المحفظة كانت هتتمسح نهائي وتتيّمها
     return walletReferences(id, { transactions: [...transactions, ...brokenTransactions], debts, subscriptions, gamiyas, incomes });
+  }
+
+  function balanceOf(id: string) {
+    const w = live.current.wallets.find(x => x.id === id);
+    return w ? roundedWalletBalance(live.current.transactions, id, w.openingBalance) : 0;
   }
 
   function clearNameDraft(id: string) {
@@ -110,9 +171,12 @@ export default function WalletsScreen() {
     const val = nameDrafts[id];
     if (val === undefined) return;
     const name = val.trim();
-    if (!name || name === current) { clearNameDraft(id); return; }
     clearNameDraft(id);
+    // الاسم الفاضي بيرجع للقديم — وبيقول (كان بيرجع ساكت)
+    if (!name) { if (current) notice(...nameEmptyNotice('المحفظة')); return; }
+    if (name === current) return;
     updateWallet(id, { name });
+    announce(AUTOSAVED_ANNOUNCEMENT);
   }
 
   function showBlock(block: ArchiveBlock, name: string, action: 'archive' | 'delete') {
@@ -126,8 +190,13 @@ export default function WalletsScreen() {
       return;
     }
     if (block.kind === 'balance') {
-      notice('رصيدها لسه مش صفر',
-        `رصيد "${name}" ${plainAmount(block.balance)} ج.م، لازم يبقى صفر قبل الأرشفة. حوّله لمحفظة تانية الأول.`);
+      // السالب بكلامه، والرقم من `money` (بند 6)
+      notice(...walletBalanceBlockNotice(name, block.balance, money));
+      return;
+    }
+    if (block.kind === 'target-gone') {
+      notice('فيه حاجة اتغيّرت',
+        `المحفظة اللي اخترتها للنقل اتأرشفت أو اتمسحت من جهاز تاني، فما أرشفناش "${name}". افتح الأرشفة تاني واختار محفظة شغالة.`);
       return;
     }
     notice('مفيش محفظة تانية',
@@ -136,15 +205,21 @@ export default function WalletsScreen() {
 
   /** آخر محفظة شغالة مبتتمسحش أبدًا — بيقول كده وبيرجّع true */
   function blockedAsLastActive(id: string, name: string) {
-    const block = walletDeleteBlock(id, latestWallets.current);
+    const block = walletDeleteBlock(id, live.current.wallets);
     if (!block) return false;
     showBlock(block, name, 'delete');
     return true;
   }
 
-  /** المسح نفسه، بعد فحص أخير لحظة الدوسة (المحافظ ممكن تكون اتغيّرت والتأكيد مفتوح) */
-  function deleteNow(id: string, name: string) {
+  /**
+   * المسح نفسه، بعد فحص أخير لحظة الدوسة (المحافظ والبيانات ممكن تكون اتغيّرت والتأكيد مفتوح). `fromSimple`: التأكيد
+   * اللي اتفتح كان "مفيش تاريخ" — لو تاريخ ظهر وهو مفتوح، بنرجع للسؤال الكامل بدل ما نمسح محفظة ليها عمليات
+   */
+  function deleteNow(id: string, name: string, fromSimple = false) {
+    if (blockedByMissingData()) return;
+    if (!live.current.wallets.some(x => x.id === id)) { notice(...goneFromAnotherDeviceNotice('المحفظة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
+    if (fromSimple && walletHasHistory(refsFor(id))) { confirmDelete(id, name); return; }
     // DataContext بيرفض هو كمان (بند 13) — لو المحافظ اتغيّرت بين الفحص والكتابة
     // الرفض بيرجع هنا ويتقال بنفس الرسالة
     runDelete(id, async () => {
@@ -165,16 +240,19 @@ export default function WalletsScreen() {
     if (blockedAsLastActive(id, name)) return;
     const refs = refsFor(id);
     if (!walletHasHistory(refs)) {
-      confirm('حذف محفظة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.`, [
-        { text: 'إلغاء', style: 'cancel' },
-        { text: 'حذف', style: 'destructive', onPress: () => deleteNow(id, name) },
+      // مفيش تاريخ بس فيه رصيد (رصيد ابتدائي): الرقم ده هيختفي من الإجمالي، فلازم يتقال (بند 5)
+      const balance = balanceOf(id);
+      const balanceLine = Math.abs(balance) >= 0.005 ? `\n${walletBalanceGoneLine(balance, money)}` : '';
+      confirm('تمسح المحفظة؟', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية أو دين مربوط بيها.${balanceLine}`, [
+        { text: 'سيبها', style: 'cancel' },
+        { text: 'امسحها', style: 'destructive', onPress: () => deleteNow(id, name, true) },
       ]);
       return;
     }
     confirm('المحفظة دي ليها تاريخ',
       `"${name}" مربوط بيها ${walletLinkSummary(refs)}. لو مسحتها التاريخ هيظهر باسم محفظة ممسوحة. تقدر تأرشفها بدل كده — هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`,
       [
-        { text: 'إلغاء', style: 'cancel' },
+        { text: 'سيبها', style: 'cancel' },
         { text: 'أرشفها', onPress: () => startArchive(id, name) },
         { text: 'امسحها برضه', style: 'destructive', onPress: () => confirmHardDelete(id, name) },
       ]);
@@ -183,11 +261,9 @@ export default function WalletsScreen() {
   /** التأكيد التاني: الأرقام الحقيقية قبل المسح النهائي */
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (!live.current.wallets.some(x => x.id === id)) { notice(...goneFromAnotherDeviceNotice('المحفظة', name, 'delete')); return; }
     if (blockedAsLastActive(id, name)) return;
-    const w = wallets.find(x => x.id === id);
-    if (!w) return;
-    const balance = roundedWalletBalance(transactions, id, w.openingBalance);
-    confirm('مسح نهائي', walletDeleteConsequences({ balance, refs: refsFor(id) }).join('\n'), [
+    confirm('مسح نهائي', walletDeleteConsequences({ balance: balanceOf(id), refs: refsFor(id), money }).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
       { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
     ]);
@@ -195,44 +271,58 @@ export default function WalletsScreen() {
 
   /** شروط الأرشفة على البيانات **دلوقتي** — بتتنادى وقت فتح الشيت ووقت التأكيد */
   function archiveBlockFor(id: string) {
-    const w = wallets.find(x => x.id === id);
-    if (!w) return null;
+    const all = live.current.wallets;
+    if (!all.some(x => x.id === id)) return null;
+    const active = all.filter(w => !w.archived);
     return walletArchiveBlock({
       walletId: id,
-      balance: roundedWalletBalance(transactions, id, w.openingBalance),
+      balance: balanceOf(id),
       refs: refsFor(id),
-      activeWalletCount: activeWallets.length,
-      otherActiveWalletCount: activeWallets.filter(x => x.id !== id).length,
+      activeWalletCount: active.length,
+      otherActiveWalletCount: active.filter(x => x.id !== id).length,
     });
   }
 
   /** بيانات ناقصة على المحفظة ← مفيش أرشفة (money-reviewer + silent-failure-hunter): بعدها التصليح بيتقفل. وقت الفتح **ووقت التأكيد** */
   function brokenDataOn(id: string) {
-    return !!wallets.find(x => x.id === id)?.openingInvalid || brokenTransactions.some(t => t.walletId === id || t.toWalletId === id);
+    const { wallets: all, brokenTransactions } = live.current;
+    return !!all.find(x => x.id === id)?.openingInvalid || brokenTransactions.some(t => t.walletId === id || t.toWalletId === id);
   }
 
-  function startArchive(id: string, name: string) {
-    if (blockedByMissingData()) return;
-    if (!wallets.some(x => x.id === id)) return;
+  function activeItemsFor(id: string): ReassignItem[] {
     const refs = refsFor(id);
-    const others = activeWallets.filter(x => x.id !== id);
-    const block = archiveBlockFor(id);
-    if (block) { showBlock(block, name, 'archive'); return; }
-    if (brokenDataOn(id)) { notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return; }
-
-    const items: ReassignItem[] = [
+    return [
       ...refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
       ...refs.activeGamiyas.map(x => ({ ...x, kind: 'جمعية' })),
       ...refs.activeIncomes.map(x => ({ ...x, kind: 'دخل ثابت' })),
     ];
+  }
+
+  /**
+   * فتح الأرشفة — والتأكيد البسيط (مفيش حاجة تتنقل) بيرجع هنا تاني لحظة الدوسة (`confirmed`)، فكل الفحوص بتتعاد (بند 2):
+   * الرصيد، البيانات البايظة، البيانات الناقصة، واللي مربوط بيها — ولو حاجة شغالة اتربطت وهو مفتوح، الشيت بيفتح بدل الأرشفة
+   */
+  function startArchive(id: string, name: string, confirmed = false) {
+    if (blockedByMissingData()) return;
+    if (!live.current.wallets.some(x => x.id === id)) {
+      if (confirmed) notice('المحفظة دي اتمسحت', `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`);
+      return;
+    }
+    const block = archiveBlockFor(id);
+    if (block) { showBlock(block, name, 'archive'); return; }
+    if (brokenDataOn(id)) { notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return; }
+
+    const items = activeItemsFor(id);
     if (items.length === 0) {
+      if (confirmed) { void archiveNow(id, name, {}); return; }
       confirm('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'أرشفها', onPress: () => { void archiveNow(id, name, {}); } },
+        { text: 'أرشفها', onPress: () => startArchive(id, name, true) },
       ]);
       return;
     }
-    setSheet({ id, name, items, targets: others.map(x => ({ id: x.id, name: x.name })) });
+    const targets = live.current.wallets.filter(x => !x.archived && x.id !== id);
+    setSheet({ id, name, items, targets: targets.map(x => ({ id: x.id, name: x.name })) });
   }
 
   /** الأرشفة نفسها — DataContext بيرفض آخر محفظة شغالة هو كمان (بند 13)، والرفض بيتقال بنفس الرسالة */
@@ -251,40 +341,53 @@ export default function WalletsScreen() {
   function confirmRestore(id: string, name: string) {
     confirm('رجّع المحفظة', `"${name}" هترجع تظهر في الاختيارات تاني.`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'رجّعها', onPress: () => restoreWallet(id) },
+      { text: 'رجّعها', onPress: () => { restoreWallet(id); announce(restoredAnnouncement(name)); } },
     ]);
   }
 
-  function confirmSheet(assignments: Record<string, string>) {
+  async function confirmSheet(assignments: Record<string, string>) {
     if (!sheet) return;
-    if (blockedByMissingData()) return;
+    const { id, name, items } = sheet;
+    // أي رفض بيقفل الشيت: زرار التأكيد بيتقفل بعد أول دوسة (ArchiveSheet)، فالشيت المفتوح بعد الرفض كان هيبقى ميت
+    const refuse = (fn: () => void) => { setSheet(null); fn(); };
+    if (walletActionBlockedBy(live.current.loadErrors).length > 0
+      || walletActionLoading(live.current.figuresPending, live.current.undelivered).length > 0) {
+      refuse(() => { blockedByMissingData(); });
+      return;
+    }
     // الشيت ممكن يفضل مفتوح وحاجة تتغيّر من جهاز تاني: عملية جديدة على
     // المحفظة، أو اشتراك/جمعية اتمسحوا ومعاهم دفعاتهم (money-reviewer). الرصيد
     // اتفحص وقت الفتح بس، فكانت بتتأرشف ورصيدها مش صفر ومحدش شايفه
     // المحفظة نفسها اتمسحت من جهاز تاني: archiveBlockFor بيرجّع null ساعتها
     // زي "مفيش مانع"، فكانت بتعدّي لأرشفة مستند مش موجود (silent-failure-hunter)
-    if (!wallets.some(w => w.id === sheet.id)) {
-      setSheet(null);
-      notice('المحفظة دي اتمسحت', `"${sheet.name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`);
+    if (!live.current.wallets.some(w => w.id === id)) {
+      refuse(() => notice('المحفظة دي اتمسحت', `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`));
       return;
     }
-    const block = archiveBlockFor(sheet.id);
-    if (block) { setSheet(null); showBlock(block, sheet.name, 'archive'); return; }
+    const block = archiveBlockFor(id);
+    if (block) { refuse(() => showBlock(block, name, 'archive')); return; }
     // عملية بايظة أو علامة وصلت والشيت مفتوح (silent-failure-hunter جولة 2)
-    if (brokenDataOn(sheet.id)) { setSheet(null); notice(...BROKEN_WALLET_ARCHIVE_BLOCK); return; }
+    if (brokenDataOn(id)) { refuse(() => notice(...BROKEN_WALLET_ARCHIVE_BLOCK)); return; }
     // حاجة من اللي في الشيت اتمسحت والرصيد لسه باين صفر: الجمعيات/الاشتراكات
     // والعمليات listeners منفصلة، فممكن المسح يوصل هنا قبل ما دفعاتها تتشال من
     // الرصيد (money-reviewer). منأرشفش على رقم ممكن يكون قديم — افتحها تاني
-    const live = new Set([...subscriptions, ...gamiyas, ...incomes].map(x => x.id));
-    if (sheet.items.some(i => !live.has(i.id))) {
-      setSheet(null);
-      notice('فيه حاجة اتغيّرت',
-        `حاجة من اللي كنت بتنقلها اتمسحت من جهاز تاني. افتح الأرشفة تاني عشان نتأكد إن رصيد "${sheet.name}" لسه صفر.`);
+    const { subscriptions, gamiyas, incomes } = live.current;
+    const liveIds = new Set([...subscriptions, ...gamiyas, ...incomes].map(x => x.id));
+    if (items.some(i => !liveIds.has(i.id))) {
+      refuse(() => notice('فيه حاجة اتغيّرت',
+        `اللي كنت بتنقله اتغيّر من جهاز تاني. افتح الأرشفة تاني عشان نتأكد إن رصيد "${name}" لسه صفر.`));
       return;
     }
+    // حاجة شغالة جديدة اتربطت بالمحفظة والشيت مفتوح ← الشيت بيتفتح من جديد بيها (بند 2)
+    const now = activeItemsFor(id);
+    // سطر الأول وبعده الشيت (جولة 2): الشيت كان بيتبدّل تحت إيدك من غير ما يقول ليه
+    if (now.some(n => !items.some(i => i.id === n.id))) { refuse(() => notice(...SHEET_RELINKED_NOTICE, () => startArchive(id, name))); return; }
+    // بند 3: المحفظة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح
+    const targetBlock = reassignTargetsBlock(Object.values(assignments), live.current.wallets, id);
+    if (targetBlock) { refuse(() => showBlock(targetBlock, name, 'archive')); return; }
     // بالنوع صريح مش "أي حاجة مش اشتراك = جمعية": الدخل الثابت كان هيتبعت
     // كجمعية ويتكتب في مستند مش موجود فالدفعة كلها تفشل
-    const kindOf = new Map(sheet.items.map(i => [i.id, i.kind]));
+    const kindOf = new Map(items.map(i => [i.id, i.kind]));
     const subscriptionsMap: Record<string, string> = {};
     const gamiyasMap: Record<string, string> = {};
     const incomesMap: Record<string, string> = {};
@@ -294,8 +397,13 @@ export default function WalletsScreen() {
       else if (kind === 'دخل ثابت') incomesMap[itemId] = target;
       else gamiyasMap[itemId] = target;
     });
-    void archiveNow(sheet.id, sheet.name, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
-    setSheet(null);
+    setArchiving(true);
+    try {
+      await archiveNow(id, name, { subscriptions: subscriptionsMap, gamiyas: gamiyasMap, incomes: incomesMap });
+    } finally {
+      setArchiving(false);
+      setSheet(null);
+    }
   }
 
   return (
@@ -310,9 +418,7 @@ export default function WalletsScreen() {
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم المحفظة تعدله مباشرة</Text>
 
-        {activeWallets.length === 0 && (
-          <ListEmptyState testID="wallets_empty" message="لسه مفيش محافظ شغالة. اعمل واحدة من تحت." />
-        )}
+        {activeWallets.length === 0 && <ListEmptyState testID="wallets_empty" kind="wallets" />}
 
         {activeWallets.map(w => (
           <View key={w.id} testID={`wallet_row_${w.id}`} style={styles.walletCard}>
@@ -325,40 +431,46 @@ export default function WalletsScreen() {
                 onChangeText={v => setNameDrafts(d => ({ ...d, [w.id]: v }))}
                 onBlur={() => saveName(w.id, w.name)}
                 textAlign="right"
+                accessibilityLabel={`اسم المحفظة ${w.name}`}
               />
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
                 testID={`wallet_delete_${w.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
-                  {deletingKey === w.id ? '...' : 'حذف'}
+                  {deletingKey === w.id ? '...' : 'امسح'}
                 </Text>
               </TouchableOpacity>
             </View>
             <View style={styles.walletRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.microLabel}>الرصيد الابتدائي</Text>
+                {/* العنوان الظاهر مخفي عن قارئ الشاشة: الخانة نفسها بتقول اسمها واسم المحفظة (a11y-architect) */}
+                <Text style={styles.microLabel} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">الرصيد الابتدائي</Text>
                 <TextInput
                   testID={`wallet_opening_input_${w.id}`}
                   style={styles.smallInput}
                   keyboardType="numeric"
                   value={opening.valueFor(w.id, w.openingBalance)}
-                  onChangeText={v => opening.onChange(w.id, v)}
+                  onChangeText={v => { typed.current[`opening:${w.id}`] = v; opening.onChange(w.id, v); }}
                   onBlur={() => opening.onBlur(w.id)}
                   textAlign="right"
+                  accessibilityLabel={`الرصيد الابتدائي، ${w.name}`}
                 />
-                {opening.pendingConfirm(w.id) && (
-                  <Text testID={`wallet_opening_pending_${w.id}`} style={styles.pendingHint} accessibilityLiveRegion="polite">{OPENING_PENDING_HINT}</Text>
-                )}
+                {/* متركّب دايمًا: المنطقة الحية بتتقري لما محتواها يتغيّر — لو بتتركّب مع النص أندرويد ساعات مبيقولهاش */}
+                <Text testID={opening.pendingConfirm(w.id) ? `wallet_opening_pending_${w.id}` : undefined}
+                  style={opening.pendingConfirm(w.id) ? styles.pendingHint : styles.pendingHintIdle} accessibilityLiveRegion="polite">
+                  {opening.pendingConfirm(w.id) ? OPENING_PENDING_HINT : ''}
+                </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.microLabel}>حد التنبيه</Text>
+                <Text style={styles.microLabel} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">حد التنبيه</Text>
                 <TextInput
                   testID={`wallet_alert_input_${w.id}`}
                   style={styles.smallInput}
                   keyboardType="numeric"
                   value={lowAlert.valueFor(w.id, w.lowAlert)}
-                  onChangeText={v => lowAlert.onChange(w.id, v)}
+                  onChangeText={v => { typed.current[`alert:${w.id}`] = v; lowAlert.onChange(w.id, v); }}
                   onBlur={() => lowAlert.onBlur(w.id)}
                   textAlign="right"
+                  accessibilityLabel={`حد التنبيه، ${w.name}`}
                 />
               </View>
             </View>
@@ -367,7 +479,7 @@ export default function WalletsScreen() {
 
         <View style={styles.addRow}>
           <TextInput testID="wallet_add_input" style={styles.addInput} placeholder="اسم محفظة جديدة" placeholderTextColor={colors.textSecondary}
-            maxLength={NAME_MAX_LENGTH} value={newWallet} onChangeText={setNewWallet} textAlign="right" />
+            maxLength={NAME_MAX_LENGTH} value={newWallet} onChangeText={setNewWallet} textAlign="right" accessibilityLabel="اسم محفظة جديدة" />
           <Button
             testID="wallet_add_button"
             size="sm"
@@ -387,13 +499,15 @@ export default function WalletsScreen() {
 
         {sheet && (
           <ArchiveSheet
+            key={sheet.items.map(i => i.id).join('|')}
             title="أرشفة محفظة"
             intro={`قبل ما نأرشف "${sheet.name}" لازم الحاجات الشغالة دي تلاقي محفظة تانية.`}
             items={sheet.items}
             targets={sheet.targets}
             targetLabel="المحفظة الجديدة"
             confirmText="أرشفها"
-            onConfirm={confirmSheet}
+            busy={archiving}
+            onConfirm={assignments => { void confirmSheet(assignments); }}
             onClose={() => setSheet(null)}
           />
         )}
@@ -411,11 +525,12 @@ function makeStyles(c: ThemeColors) {
     dot: { width: 8, height: 8, borderRadius: radius.xxs },
     walletCard: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, ...cardElevation(c) },
     walletHead: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, marginBottom: space.md },
-    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2, minHeight: MIN_TOUCH },
     walletRow: { flexDirection: 'row-reverse', gap: space.md },
     microLabel: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 3 },
     pendingHint: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
-    smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, paddingVertical: 7, fontSize: typeScale.body },
+    pendingHintIdle: { height: 0 },
+    smallInput: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.sm, color: c.text, paddingHorizontal: space.md, paddingVertical: 7, fontSize: typeScale.body, minHeight: MIN_TOUCH },
     // "حذف" كان نص لوحده ~16 بكسل جنب خانة نص — بقى 44 (MIN_TOUCH، a11y-architect)
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     deleteText: { color: c.dangerText, fontSize: typeScale.body },

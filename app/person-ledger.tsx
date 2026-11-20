@@ -3,6 +3,7 @@ import BackButton from '@/components/BackButton';
 import { AddDebtModal, DebtIncreaseModal, DebtPaymentModal } from '@/components/DebtEntryModals';
 import { useData, type Debt } from '@/context/DataContext';
 import { debtHasPendingEntry, isDebtSettled } from '@/lib/doneSections';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { dateText, dayText } from '@/lib/dateText';
 import { todayStr, debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
@@ -48,6 +49,7 @@ export default function PersonLedgerScreen() {
   // لو اسمه مكتوب بمسافة زايدة أو اتعدّل في دين من ديونه
   const { personKey } = useLocalSearchParams<{ personKey?: string }>();
   const { debts, pendingTxIds } = useData();
+  const { money, amountsHidden } = usePrivacy();
 
   const group = useMemo(() => (personKey ? findPersonGroup(debts, personKey) : undefined), [debts, personKey]);
   const personName = group?.displayName || '';
@@ -80,14 +82,14 @@ export default function PersonLedgerScreen() {
       const debtLabel = debtLabelOf(d);
       list.push({
         date: initDate,
-        label: d.direction === 'owed_to_me' ? 'دين جديد (أنت اداه)' : 'دين جديد (هو اداك)',
+        label: d.direction === 'owed_to_me' ? 'دين جديد (أنا قرضته)' : 'دين جديد (هو قرضني)',
         delta: sign * d.totalAmount,
         debtLabel,
       });
       (d.increases || []).forEach(inc => {
         list.push({
           date: inc.date,
-          label: d.direction === 'owed_to_me' ? 'زيادة (أنت اداه)' : 'زيادة (هو اداك)',
+          label: d.direction === 'owed_to_me' ? 'زيادة (أنا قرضته)' : 'زيادة (هو قرضني)',
           delta: sign * inc.amount,
           debtLabel,
         });
@@ -95,7 +97,7 @@ export default function PersonLedgerScreen() {
       d.payments.forEach(p => {
         list.push({
           date: p.date,
-          label: d.direction === 'owed_to_me' ? 'سداد (هو دفعلك)' : 'سداد (أنت دفعتله)',
+          label: d.direction === 'owed_to_me' ? 'سداد (هو دفعلي)' : 'سداد (أنا دفعتله)',
           delta: -sign * p.amount,
           debtLabel,
         });
@@ -122,6 +124,9 @@ export default function PersonLedgerScreen() {
   const evenWithOpen = finalBalance === 0
     && unsettled.some(d => d.direction === 'owed_to_me') && unsettled.some(d => d.direction === 'i_owe');
 
+  const summaryLabel = finalBalance > 0 ? 'ليا عنده' : finalBalance < 0 ? 'عليا له' : 'الرصيد الحالي';
+  const summaryZeroText = evenWithOpen ? 'اللي ليا قد اللي عليا' : 'متسدد بالكامل';
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       keyboardShouldPersistTaps="handled"
@@ -132,26 +137,28 @@ export default function PersonLedgerScreen() {
       </View>
 
       {!group ? (
-        <Text style={styles.emptyState}>الشخص ده مبقى لوش ديون — يمكن اتمسحت.</Text>
+        <Text style={styles.emptyState}>الشخص ده مبقاش ليه ديون — يمكن اتمسحت.</Text>
       ) : (
       <>
-      <View style={styles.summaryCard}>
+      <View style={styles.summaryCard} accessible accessibilityLabel={`${summaryLabel}، ${finalBalance === 0 ? summaryZeroText : amountsHidden ? 'المبلغ مخفي' : `${money(Math.abs(finalBalance))} ج.م`}`}>
         {/* دراسة الشكل خطوة 5: الرصيد الحالي هو البطل — الاتجاه بالكلمة فوقه، والرقم 34 */}
-        <Text style={styles.summaryLabel}>{finalBalance > 0 ? 'ليك عنده' : finalBalance < 0 ? 'عليك له' : 'الرصيد الحالي'}</Text>
+        <Text style={styles.summaryLabel}>{summaryLabel}</Text>
         {finalBalance === 0
-          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>{evenWithOpen ? 'اللي ليك قد اللي عليك' : 'متسدد بالكامل'}</Text>
+          ? <Text style={[styles.summaryValue, { color: colors.textSecondary }]}>{summaryZeroText}</Text>
           : <Money value={Math.abs(finalBalance)} fit style={[styles.summaryHero, { color: finalBalance > 0 ? colors.incomeText : colors.dangerText }]} />}
       </View>
 
       {/* قايمة مش جدول (دراسة الشكل): 4 عواميد بخط 10–12 على عرض موبايل ← البيان والتاريخ يمين، الحركة والرصيد شمال */}
       <Text style={[styles.sectionTitle, { marginTop: 0 }]}>الحركات</Text>
       {/* تفسير العلامات قبل القايمة مش بعدها (القايمة ممكن تطول) — ومبيظهرش من غير حركات */}
-      {rowsWithBalance.length > 0 && <Text style={styles.hintText}>موجب (+) = ليك عنده أكتر · سالب (−) = عليك له أكتر</Text>}
+      {rowsWithBalance.length > 0 && <Text style={styles.hintText}>موجب (+) = ليا عنده أكتر · سالب (−) = عليا له أكتر</Text>}
       {rowsWithBalance.length === 0 && <Text style={styles.emptyState}>مفيش حركات لسه</Text>}
       {rowsWithBalance.length > 0 && (
         <View style={styles.listCard}>
           {rowsWithBalance.map((r, i) => (
-            <View key={i} testID={`ledger_row_${i}`} style={[styles.listRow, i > 0 && styles.listDivider]}>
+            <View key={i} testID={`ledger_row_${i}`} style={[styles.listRow, i > 0 && styles.listDivider]}
+              accessible
+              accessibilityLabel={`${r.label}، ${r.debtLabel}، ${dayText(r.date, todayStr())}، ${r.delta >= 0 ? 'ليا عنده أكتر' : 'عليا له أكتر'}${amountsHidden ? '' : ` ${money(Math.abs(r.delta))} ج.م`}، الرصيد بعدها ${r.balance > 0 ? 'ليا عنده' : r.balance < 0 ? 'عليا له' : 'صفر'}${amountsHidden || r.balance === 0 ? '' : ` ${money(Math.abs(r.balance))} ج.م`}`}>
               <View style={styles.listMain}>
                 <Text style={styles.listLabel}>{r.label}</Text>
                 {/* التاريخ لوحده: الملاحظة الطويلة كانت بتقصّه من آخر السطر */}
@@ -190,7 +197,7 @@ export default function PersonLedgerScreen() {
                 تسجيل دفعة على: {debtLabelOf(soleOpenDebt)}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(soleOpenDebt)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
             </TouchableOpacity>
           </View>
@@ -213,10 +220,10 @@ export default function PersonLedgerScreen() {
                   </Text>
                 </View>
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تسجيل دفعة على ${debtLabelOf(d)}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                     <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تسجيل دفعة</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(d)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
                     <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
                   </TouchableOpacity>
                 </View>
@@ -226,8 +233,8 @@ export default function PersonLedgerScreen() {
         </>
       )}
 
-      {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
-      {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {paymentForDebt && <DebtPaymentModal debtId={paymentForDebt.id} onClose={() => setPaymentForDebt(null)} />}
+      {increaseForDebt && <DebtIncreaseModal debtId={increaseForDebt.id} onClose={() => setIncreaseForDebt(null)} />}
       {showAddDebt && (
         <AddDebtModal
           onClose={() => setShowAddDebt(false)}

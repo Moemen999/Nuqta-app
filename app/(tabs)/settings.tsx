@@ -6,26 +6,22 @@ import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors, type ThemePreference } from '@/context/ThemeContext';
 import { APP_FULL_VERSION } from '@/lib/appInfo';
-import { categoriesPhrase, walletsPhrase } from '@/lib/archiving';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
+import { categoriesPhrase, pendingWritesSentence, walletsPhrase } from '@/lib/archiving';
 import { notificationsStatus } from '@/lib/notificationStatus';
-import { outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
+import { OUTBOX_UNKNOWN_LOGOUT_BODY, OUTBOX_UNKNOWN_LOGOUT_TITLE, outboxLogoutSentence, outboxLogoutTitle } from '@/lib/outbox';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActionSheet } from '@/components/ActionSheet';
 import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
+import { useNotice } from '@/components/NoticeProvider';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
 
-/** عشان الجملة تطلع بلغة طبيعية مع كل عدد بدل "1 تعديلات" */
-function pendingSentence(n: number) {
-  if (n === 1) return 'فيه تعديل واحد لسه بيترفع';
-  if (n === 2) return 'فيه تعديلين لسه بيترفعوا';
-  return `فيه ${n} تعديلات لسه بترفع`;
-}
 
 type SettingsRow = {
   key: string;
@@ -66,19 +62,38 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites, outboxCount, deletionPending } = useData();
+  const { wallets, categories, undelivered, loadErrors, pendingWrites, outboxCount, outboxCountUnknown, deletionPending } = useData();
   const confirm = useConfirm();
+  const notice = useNotice();
+
+  /** الخروج وقع ← رسالة (الميزة 11، بند 11) — كان unhandled rejection ساكت والمستخدم فاكر إنه خرج */
+  function signOut() {
+    // الفشل بيوصل Sentry كمان (silent M3) — اسم ثابت وكود الخطأ بس
+    Promise.resolve().then(() => logOut({ clearOutbox: true })).catch(e => {
+      reportAtomicFailure('الخروج من الحساب', e);
+      notice('ما خرجناش', 'حصلت مشكلة وإحنا بنخرجك من حسابك، فلسه داخل. جرّب تاني.');
+    });
+  }
 
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived).length, [categories]);
 
+  /** مفيش «مفيش محافظ» وهي لسه بتحمّل أو فشلت — العدد بعد ما توصل بس */
+  function listStatus(name: 'wallets' | 'categories', count: string) {
+    if (loadErrors.includes(name)) return 'ما قدرناش نجيبها';
+    if (undelivered.includes(name)) return 'بنحمّل…';
+    return count;
+  }
+
   function replayOnboarding() {
-    confirm('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
+    confirm('شاشة الترحيب', 'هتظهرلك تاني بعد ما تقفل التطبيق خالص وتفتحه من الأول.', [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'تمام',
+        text: 'اعرضها تاني',
         onPress: async () => {
-          try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {}
+          try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {
+            notice('ما اتحفظش', 'ما قدرناش نظبط شاشة الترحيب. جرّب تاني.');
+          }
         },
       },
     ]);
@@ -90,14 +105,23 @@ export default function SettingsScreen() {
    * المستخدم يعرف قبل ما يخرج، مش يكتشف إن عمليات ناقصة بعدين.
    */
   function confirmLogout() {
+    // قراية الطابور فشلت ← العدد مش معروف، فمش "صفر" (الميزة 8، L) — **قبل** العدد: العدد اللي في الذاكرة (اللي اتسجل في
+    // الجلسة دي) ممكن يكون أقل من اللي على الموبايل، فـ«فيه عمليتين» كانت هتبقى أقل من الحقيقة (الجولة 2، بند 6)
+    if (outboxCountUnknown) {
+      confirm(OUTBOX_UNKNOWN_LOGOUT_TITLE, OUTBOX_UNKNOWN_LOGOUT_BODY, [
+        { text: 'أستنى', style: 'cancel' },
+        { text: 'اخرج برضه', style: 'destructive', onPress: signOut },
+      ]);
+      return;
+    }
     // الطابور المتشفّر بيتمسح مع الخروج (قرار مؤمن 1) — فالعدد بيتقال صريح إنه هيضيع
     if (outboxCount > 0) {
       confirm(
         outboxLogoutTitle(outboxCount),
-        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص رفعها.`,
+        `${outboxLogoutSentence(outboxCount)} استنى لحد ما النت يرجع ويخلص ${outboxCount === 2 ? 'رفعهم' : 'رفعها'}.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+          { text: 'اخرج وسيبها تضيع', style: 'destructive', onPress: signOut },
         ]
       );
       return;
@@ -105,17 +129,17 @@ export default function SettingsScreen() {
     if (pendingWrites > 0) {
       confirm(
         'لسه فيه بيانات بترفع',
-        `${pendingSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
+        `${pendingWritesSentence(pendingWrites)}. لو خرجت دلوقتي اللي لسه ما اترفعش ممكن يضيع. استنى شوية لحد ما النت يخلص رفعه، أو اخرج وانت عارف.`,
         [
           { text: 'أستنى', style: 'cancel' },
-          { text: 'اخرج برضه', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+          { text: 'اخرج برضه', style: 'destructive', onPress: signOut },
         ]
       );
       return;
     }
     confirm('تسجيل الخروج', 'متأكد إنك عايز تخرج من حسابك؟', [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'خروج', style: 'destructive', onPress: () => logOut({ clearOutbox: true }) },
+      { text: 'خروج', style: 'destructive', onPress: signOut },
     ]);
   }
 
@@ -127,13 +151,13 @@ export default function SettingsScreen() {
         {
           key: 'wallets',
           title: 'المحافظ',
-          status: walletsPhrase(activeWallets),
+          status: listStatus('wallets', walletsPhrase(activeWallets)),
           onPress: () => router.push('/settings-screens/wallets'),
         },
         {
           key: 'categories',
           title: 'الفئات',
-          status: categoriesPhrase(activeCategories),
+          status: listStatus('categories', categoriesPhrase(activeCategories)),
           onPress: () => router.push('/settings-screens/categories'),
         },
         {
@@ -154,6 +178,7 @@ export default function SettingsScreen() {
             enabled: notifs.enabled,
             dailyEnabled: notifs.dailyEnabled,
             dailyHour: notifs.dailyHour,
+            dailyMinute: notifs.dailyMinute,
           }),
           onPress: () => router.push('/settings-screens/notifications'),
         },
@@ -202,7 +227,7 @@ export default function SettingsScreen() {
       ],
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour,
+  ], [activeWallets, activeCategories, notifs.enabled, notifs.dailyEnabled, notifs.dailyHour, notifs.dailyMinute,
       lockEnabled, preference, user?.email, pendingWrites, deletionPending]);
 
   return (

@@ -18,6 +18,8 @@ import { isValidDebtAmount } from '@/lib/finance';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/components/useDeviceContacts', () => ({
   useDeviceContacts: () => ({ contacts: [], visible: false, open: jest.fn(), close: jest.fn(), createContact: jest.fn() }),
 }));
@@ -36,7 +38,7 @@ beforeEach(() => {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [], transactions: [],
     addDebtPayment: jest.fn(async () => ({ outcome: 'done', note: null })),
     addDebtIncrease: jest.fn(async () => ({ outcome: 'done', note: null })),
-    addDebt: jest.fn(async () => {}),
+    addDebt: jest.fn(async () => ({ outcome: 'done' })),
   });
   alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
 });
@@ -60,7 +62,7 @@ describe('isValidDebtAmount', () => {
 describe('دفعة الدين', () => {
   async function pay(amount: string) {
     const onClose = jest.fn();
-    await render(wrap(<DebtPaymentModal debt={debt} onClose={onClose} />));
+    await render(wrap(<DebtPaymentModal debtId={withDebt(debt)} onClose={onClose} />));
     await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), amount); });
     await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
     return onClose;
@@ -98,7 +100,7 @@ describe('دين جديد', () => {
 
   it.each(INVALID)('%s ← مرفوض بنفس الرسالة، ومفيش دين', async v => {
     const onClose = await add(v);
-    expect(screen.getByText('من فضلك دخّل اسم ومبلغ صحيحين')).toBeTruthy();
+    expect(screen.getByText('دخّل اسم ومبلغ صحيحين')).toBeTruthy();
     expect(mockData.addDebt).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -113,7 +115,7 @@ describe('دين جديد', () => {
 describe('زيادة الدين', () => {
   async function increase(amount: string) {
     const onClose = jest.fn();
-    await render(wrap(<DebtIncreaseModal debt={debt} onClose={onClose} />));
+    await render(wrap(<DebtIncreaseModal debtId={withDebt(debt)} onClose={onClose} />));
     await act(async () => { fireEvent.changeText(screen.getByTestId('debt_increase_amount'), amount); });
     await act(async () => { fireEvent.press(screen.getByTestId('debt_increase_save')); });
     return onClose;

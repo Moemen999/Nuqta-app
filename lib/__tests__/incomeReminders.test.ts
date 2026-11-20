@@ -35,7 +35,7 @@ const run = (incomes: RecurringIncome[], hideAmounts = false) => scheduleAllRemi
 it('بيستنى تأكيد ← إشعار يوم المعاد', async () => {
   await run([income()]);
   expect(scheduled).toEqual([
-    { title: '"المرتب" نزل؟', body: 'معاده النهاردة — 8,000 ج.م. افتح نقطة وأكّد إنه نزل.', date: addDays(today, 3) },
+    { title: '"المرتب" نزل؟', body: 'معاده النهاردة — 8,000 ج.م. افتح نقطة وأكّد إنه نزل.', date: addDays(today, 3), kind: 'income' },
   ]);
 });
 

@@ -138,7 +138,7 @@ describe('مساعدات', () => {
 
   it('رسالة الرفض فيها المبلغ والتاريخ', () => {
     expect(rejectedReplayBody(150, '2026-11-12', '2026-11-16'))
-      .toBe('عملية 150 يوم 12 نوفمبر كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".');
+      .toBe('عملية بـ150 ج.م يوم 12 نوفمبر كانت مستنية النت واترفضت لما حاولنا نرفعها، ومفيش منها حاجة اتسجلت. سجّلها تاني من "+".');
   });
 
   it('رسالة "مقدرناش نقراها" بالعدد والتاريخ', () => {
@@ -182,13 +182,13 @@ describe('رسالة الخروج', () => {
 describe('مراجعة 2026-11-17', () => {
   const { walletGoneReplayBody, outboxLogoutTitle, OUTBOX_UNREADABLE_TITLE } = require('@/lib/outbox');
   it('المبلغ أو التاريخ مش سليم ← بيتشال من الجملة (مفيش NaN)', () => {
-    expect(rejectedReplayBody(undefined, '2026-11-12', '2026-11-16')).toBe('عملية يوم 12 نوفمبر كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".');
-    expect(rejectedReplayBody(NaN, undefined, '2026-11-16')).toBe('عملية كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".');
+    expect(rejectedReplayBody(undefined, '2026-11-12', '2026-11-16')).toBe('عملية يوم 12 نوفمبر كانت مستنية النت واترفضت لما حاولنا نرفعها، ومفيش منها حاجة اتسجلت. سجّلها تاني من "+".');
+    expect(rejectedReplayBody(NaN, undefined, '2026-11-16')).toBe('عملية كانت مستنية النت واترفضت لما حاولنا نرفعها، ومفيش منها حاجة اتسجلت. سجّلها تاني من "+".');
     expect(rejectedReplayBody('150', '2026-11-12', '2026-11-16')).not.toContain('NaN');
   });
   it('رسالة المحفظة اتقفلت', () => {
     expect(walletGoneReplayBody(150, '2026-11-12', '2026-11-16'))
-      .toBe('عملية 150 يوم 12 نوفمبر ما اترفعتش لأن المحفظة اتأرشفت أو اتمسحت. سجّلها تاني على محفظة تانية لو لسه محتاجها.');
+      .toBe('عملية بـ150 ج.م يوم 12 نوفمبر ما اترفعتش لأن المحفظة اتأرشفت أو اتمسحت. سجّلها تاني على محفظة تانية لو لسه محتاجها.');
   });
   it('عنوان الخروج بالعدد، وعنوان "مش مقروءة"', () => {
     expect(outboxLogoutTitle(1)).toBe('لسه فيه عملية واحدة ما اترفعتش');
@@ -213,7 +213,7 @@ describe('رفض setDoc النهائي (مراجعة 2026-11-17)', () => {
   });
   it('DataContext بيستخدمها في catch بتاع setDoc (مش كود مكرر)', () => {
     const src = require('fs').readFileSync(require('path').resolve(__dirname, '../../context/DataContext.tsx'), 'utf8');
-    expect(src).toMatch(/setDoc\(ref, clean\)\.catch\(e => \{\s*if \(isFinalWriteRejection\(e\)\) dropOutbox/);
+    expect(src).toMatch(/setDoc\(ref, clean\)\.catch\(e => \{\s*if \(isFinalWriteRejection\(e\)\) \{ dropOutbox/);
   });
 });
 

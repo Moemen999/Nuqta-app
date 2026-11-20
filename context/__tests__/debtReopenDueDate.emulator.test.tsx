@@ -88,7 +88,7 @@ it('بند 12: الزيادة بترجّع "المعاد الجاي بقى …" 
   await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
   const moved = debt().dueDate!;
   expect(moved).not.toBe('2026-03-15');
-  expect(res.dueNote).toContain('المعاد الجاي بقى');
+  expect(res.dueNote).toContain('معاد القسط الجاي بقى');
   const inc = debt().increases[0];
   expect([inc.reopenedFrom, inc.reopenedTo]).toEqual(['2026-03-15', moved]);
 

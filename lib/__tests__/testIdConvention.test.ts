@@ -105,8 +105,8 @@ describe('الأدوات الأساسية ليها testID — ومحدش يشي�
     'archive_export_button', 'archive_date_from', 'archive_date_to',
     // رأي وعن التطبيق
     'feedback_text_input', 'feedback_send_button', 'about_version',
-    // ساعة التذكير بقت أي ساعة من 24 بزرارين (2026-10-28) بدل 4 اختيارات
-    'notifications_hour_earlier', 'notifications_hour_later', 'notifications_hour_value',
+    // معاد التذكير أي ساعة وأي دقيقة من منتقي الوقت (2026-11-17؛ كان زرارين للساعة بس)
+    'notifications_time_button', 'notifications_time_value',
     // إذن "المنبهات والتذكيرات" (2026-10-28)
     'exact_alarm_card', 'exact_alarm_status', 'exact_alarm_open',
   ];

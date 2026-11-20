@@ -78,7 +78,7 @@ describe('الدفع بيظبط العدد', () => {
     const { note } = await harness.api().addDebtPayment(debtId, 700, walletId, '2026-02-01');
     await harness.waitForData(api => api.debts[0].installmentCount === 7);
 
-    expect(note).toBe('دفعت 700 بدل 1,000، الأقساط بقت 7.');
+    expect(note).toBe('دفعت 700 ج.م بدل 1,000 ج.م، عدد الأقساط بقى 7.');
     // والقسط نفسه ما اتغيرش — دي كل الفكرة
     expect(harness.api().debts[0].installmentAmount).toBe(1000);
   });
@@ -88,7 +88,7 @@ describe('الدفع بيظبط العدد', () => {
     const { note } = await harness.api().addDebtPayment(debtId, 3000, walletId, '2026-02-01');
     await harness.waitForData(api => api.debts[0].installmentCount === 4);
 
-    expect(note).toBe('دفعت 3,000 بدل 1,000، الأقساط بقت 4.');
+    expect(note).toBe('دفعت 3,000 ج.م بدل 1,000 ج.م، عدد الأقساط بقى 4.');
     expect(harness.api().debts[0].installmentAmount).toBe(1000);
   });
 
@@ -230,6 +230,6 @@ describe('الديون القديمة من غير الحقل الجديد', () =
     await harness.waitForData(
       api => api.debts.find(d => d.id === legacy.id)?.installmentCount === 7
     );
-    expect(note).toBe('دفعت 700 بدل 1,000، الأقساط بقت 7.');
+    expect(note).toBe('دفعت 700 ج.م بدل 1,000 ج.م، عدد الأقساط بقى 7.');
   });
 });

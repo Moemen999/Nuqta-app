@@ -1,6 +1,6 @@
 import { useTheme } from '@/context/ThemeContext';
 import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
-import { selectionA11y, selectionStyle } from '@/lib/selection';
+import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { radius, space, typeScale } from '@/lib/tokens';
@@ -16,21 +16,23 @@ export default function ChargeModePicker({ value, onChange, what, verb, testIDPr
 }) {
   const { colors } = useTheme();
   return (
-    // radiogroup بنفس السؤال اللي ظاهر: قارئ الشاشة بيقول إن الاختيارين واحد من اتنين
-    <View accessibilityRole="radiogroup" accessibilityLabel={`لما معاد ${what} ييجي`}>
+    // من غير radiogroup (شوف selection.ts): السؤال داخل اسم كل اختيار، فقارئ الشاشة بيقراه مع كل واحد
+    <View>
       <Text style={[styles.label, { color: colors.textSecondary }]} accessible={false}>{`لما معاد ${what} ييجي`}</Text>
-      {(['confirm', 'auto'] as const).map(m => (
+      {(['confirm', 'auto'] as const).map(m => {
+        const body = m === 'confirm'
+          ? `هيظهرلك كارت في الرئيسية: "${verb}؟" — تأكد أو تعدّل المبلغ. مفيش حاجة بتتسجل من غيرك.`
+          : `أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من يوم ما تفعّله (حتى لو معاده النهارده) — اللي فات قبله بيسألك.${what === 'القسط' ? ' شهر الاستلام بيسألك دايمًا.' : ''}`;
+        return (
         <TouchableOpacity key={m} testID={`${testIDPrefix}_mode_${m}`} onPress={() => onChange(m)}
+          accessibilityLabel={`لما معاد ${what} ييجي: ${CHARGE_MODE_LABEL[m]}${m === 'confirm' ? ' (مقترح)' : ''}. ${body}`}
           {...selectionA11y(value === m, 'radio')}
           style={[styles.card, selectionStyle(colors, value === m)]}>
           <Text style={[styles.title, { color: colors.text }]}>{CHARGE_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
-          <Text style={[styles.body, { color: colors.textSecondary }]}>
-            {m === 'confirm'
-              ? `هيظهرلك كارت في الرئيسية: "${verb}؟" — تأكد أو تعدّل المبلغ. مفيش حاجة بتتسجل من غيرك.`
-              : `أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من المعاد الجاي — اللي فات بيسألك.`}
-          </Text>
+          <Text style={[styles.body, { color: selectionTextColor(colors, value === m) }]}>{body}</Text>
         </TouchableOpacity>
-      ))}
+        );
+      })}
     </View>
   );
 }

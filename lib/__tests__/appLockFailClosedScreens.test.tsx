@@ -1,8 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import LockScreen from '@/components/LockScreen';
+import LockScreen, { LOCK_LEFT_AFTER_LOGOUT } from '@/components/LockScreen';
 import { ThemeProvider } from '@/context/ThemeContext';
-import { LOCK_READ_FAILED, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
+import { LOCK_READ_FAILED, LOCK_READ_RETRY_FAILED, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 
 /**
  * بند A على الشاشة:
@@ -64,7 +64,10 @@ it('"جرب تاني" ومحاولة فشلت تاني ← سطر إنها ما 
   await renderLock();
   expect(screen.queryByTestId('lock_read_retry_failed')).toBeNull();
   await act(async () => { fireEvent.press(screen.getByTestId('lock_read_retry')); });
-  expect(screen.getByTestId('lock_read_retry_failed').props.children).toBe(LOCK_STORAGE_ERROR);
+  // silent L2: بتشاور على «نسيت الكود؟» مش «جرّب تاني» تاني
+  expect(screen.getByTestId('lock_read_retry_failed').props.children).toBe(LOCK_READ_RETRY_FAILED);
+  expect(LOCK_READ_RETRY_FAILED).toContain('نسيت الكود؟');
+  expect(LOCK_READ_RETRY_FAILED).not.toContain('جرّب تاني');
 });
 
 it('"نسيت الكود؟" ومسح القفل رمى بعد الخروج ← رسالة، مش رمية ساكتة', async () => {
@@ -78,7 +81,8 @@ it('"نسيت الكود؟" ومسح القفل رمى بعد الخروج ← �
   await renderLock();
   await act(async () => { fireEvent.press(screen.getByTestId('lock_forgot_button')); });
   await act(async () => {});
-  expect(spy).toHaveBeenCalledWith(LOCK_STORAGE_ERROR);
+  // «القفل لسه موجود» بدل رسالة التخزين العامة (arabic-copy-reviewer، الميزة 11)
+  expect(spy).toHaveBeenCalledWith(...LOCK_LEFT_AFTER_LOGOUT);
   spy.mockRestore();
 });
 

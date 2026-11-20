@@ -2,6 +2,7 @@ import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
 import * as SecureStore from 'expo-secure-store';
 import { AppLockProvider, useAppLock } from '@/context/AppLockContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
  * بند A (مراجعة المشروع 2026-11-05، OWASP: الفشل = رفض):
@@ -38,7 +39,9 @@ const holder: { current: ReturnType<typeof useAppLock> | null } = { current: nul
 function Probe() { holder.current = useAppLock(); return null; }
 const lock = () => holder.current!;
 
-beforeEach(() => {
+beforeEach(async () => {
+  // علامة «القفل كان مفعّل» (الميزة 11) في AsyncStorage — اختبار فعّل قفل مايسيبهاش للي بعده
+  await AsyncStorage.clear();
   for (const k of Object.keys(mockStore)) delete mockStore[k];
   mockFailGet = 0; mockFailSet = null;
   // اختبارات بتغيّر القراية — نرجّعها للأصل

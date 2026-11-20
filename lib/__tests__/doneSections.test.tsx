@@ -16,7 +16,9 @@ import { isDebtSettled, isGamiyaFinished, splitDone } from '@/lib/doneSections';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn() } }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
+jest.mock('expo-router', () => ({ router: { push: jest.fn() }, useLocalSearchParams: () => ({}) }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
 
@@ -162,7 +164,7 @@ describe('الدفعة اللي بتسدد الدين بتقول الكارت ر
     mockData.addDebtPayment = jest.fn(async () => ({ outcome: 'done', note: null }));
   });
   async function pay(d: Debt, amount: string) {
-    await render(wrap(<DebtPaymentModal debt={d} onClose={jest.fn()} />));
+    await render(wrap(<DebtPaymentModal debtId={withDebt(d)} onClose={jest.fn()} />));
     await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), amount); });
     await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
   }

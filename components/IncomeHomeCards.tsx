@@ -3,20 +3,22 @@ import DismissButton from '@/components/DismissButton';
 import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
-import { INCOME_RECORD_ALERT, useData } from '@/context/DataContext';
+import { incomeRecordNotice, useData } from '@/context/DataContext';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { todayStr, walletHistoryName } from '@/lib/finance';
-import { MONEY_MASK } from '@/lib/money';
+import { toMoneyAmount, todayStr, walletHistoryName } from '@/lib/finance';
+import { MONEY_MASK, speakable } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
-import { useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
+import { useLockShown } from '@/context/LockShownContext';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -25,7 +27,7 @@ import { Text, TextInput } from '@/components/AppText';
  * كروت الدخل الثابت:
  * - `"المرتب" نزل؟` لكل دخل بيستنى تأكيد ومعاده جه (الأقدم الأول) — في شيت
  *   "مستنيين ردك" (`PendingSheet`) من 2026-09-29، مش في الرئيسية نفسها
- * - `سجلنا "المرتب" عن سبتمبر وأكتوبر` بعد التسجيل التلقائي — في الرئيسية
+ * - `سجلنا لوحدنا "المرتب" عن سبتمبر وأكتوبر` بعد التسجيل التلقائي — في الرئيسية
  * - "ما سجلناش …" لو التلقائي فشل — في الرئيسية، مش بيتبلع ومش مستخبّي في شيت
  *
  * شكل مختلف عن بانرات التنبيه عن قصد: خط دهبي على الجنب وعنوان تقيل —
@@ -42,25 +44,29 @@ export function usePendingIncomes() {
 }
 
 /**
- * رسايل التسجيل التلقائي ("سجلنا …" / "ما سجلناش …") — في الرئيسية على طول.
+ * رسايل التسجيل التلقائي ("سجلنا لوحدنا …" / "ما سجلناش …") — في الرئيسية على طول.
  * هنا كمان بيشتغل التسجيل التلقائي نفسه (`useIncomeAutoRecord`)، فالكومبوننت ده
  * لازم يفضل متركّب في الرئيسية حتى لو الشيت مقفول.
  */
 export function IncomeAutoNotices() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { notices, dismiss } = useIncomeAutoRecord();
+  // التطبيق مقفول ← التسجيل التلقائي والإعلان بيستنوا الفتح (security M1)
+  const lockShown = useLockShown();
+  const { notices, dismiss } = useIncomeAutoRecord({ paused: lockShown });
+  const announce = useLockAwareAnnounce();
 
   // الرسايل دي نتيجة فلوس (اتسجل / ما اتسجلش) — `accessibilityLiveRegion` لوحده
-  // أندرويد بس، فVoiceOver كان هيسكت عنها خالص
+  // أندرويد بس، فVoiceOver كان هيسكت عنها خالص. الإعلان على iOS بس عشان أندرويد
+  // مبيسمعش الرسالة مرتين (liveRegion + إعلان)
   const announced = useRef(new Set<string>());
   useEffect(() => {
     notices.forEach(n => {
       if (announced.current.has(n.id)) return;
       announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
+      if (Platform.OS === 'ios') announce(n.text);
     });
-  }, [notices]);
+  }, [notices, announce]);
 
   if (notices.length === 0) return null;
 
@@ -69,12 +75,14 @@ export function IncomeAutoNotices() {
       {notices.map(n => (
         <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
           accessibilityLiveRegion="polite">
-          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
+          {/* العلامة ✓ شكل بس — الاسم المنطوق من غيرها */}
+          <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}
+            accessibilityLabel={`${n.text}${n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}`}>
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
           {/* رسالة حدث (اتسجل/ما اتسجلش) مش حالة — الـ✕ هنا بيقفلها خالص ومبترجعش */}
-          <DismissButton onPress={() => dismiss(n.id)} label="اقفل الرسالة" />
+          <DismissButton onPress={() => dismiss(n.id)} label={n.name ? `اقفل رسالة "${n.name}"` : 'اقفل الرسالة'} />
         </View>
       ))}
     </View>
@@ -88,7 +96,10 @@ export default function IncomeHomeCards() {
   const { wallets, recordIncomePeriods, skipIncomePeriod } = useData();
   const notice = useNotice();
   const confirm = useConfirm();
-  const { busyKey, run } = useBusyKey();
+  // دوسة على كارت تاني والأولى لسه بتلف كانت بتتسقط ساكت (الجولة الأخيرة 2026-11-18)
+  const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
+  // النتيجة بعد ما التطبيق اتقفل ← بتتقال بعد الفتح (security M1)
+  const announce = useLockAwareAnnounce();
   const [editing, setEditing] = useState<{ inc: RecurringIncome; key: string } | null>(null);
   const today = todayStr();
 
@@ -102,13 +113,14 @@ export default function IncomeHomeCards() {
   async function record(inc: RecurringIncome, key: string, amount: number) {
     let ok = false;
     await run(`rec_${inc.id}`, async () => {
-      const r = await recordIncomePeriods(inc.id, [{ key, amount }]);
-      if (r.outcome !== 'done') {
-        notice(INCOME_RECORD_ALERT[r.outcome].title, INCOME_RECORD_ALERT[r.outcome].body);
-        return;
-      }
-      ok = true;
-      AccessibilityInfo.announceForAccessibility(`اتسجل "${inc.name}"`);
+      // المبلغ المعتاد زي ما هو ← `seenAmount`: لو اتغيّر من جهاز تاني الذرة بترفض بدل ما تسجّل الجديد (M3)
+      const r = await recordIncomePeriods(inc.id, [{ key, amount }], amount === inc.amount ? { seenAmount: inc.amount } : undefined);
+      // "اتسجل" بس لو `recorded` فيه حاجة — غير كده السبب الحقيقي (M2)
+      const m = incomeRecordNotice(r);
+      // اتمسح/مش متأكدين/اتحسمت ← الشيت بيتقفل ("نزل" تاني ممكن يسجّل مرتين)؛ الفشل بيسيبه عشان الرقم مايضيعش
+      ok = r.outcome === 'done' || r.outcome === 'missing' || r.outcome === 'uncertain';
+      if (m) { notice(m.title, m.body); return; }
+      announce(`اتسجل "${inc.name}"`);
     });
     return ok;
   }
@@ -121,7 +133,7 @@ export default function IncomeHomeCards() {
         text: 'ما نزلش', onPress: () => {
           skipIncomePeriod(inc.id, key);
           // زي كارت الاشتراك: الكارت بيختفي، فقارئ الشاشة لازم يسمع حصل إيه (silent-failure-hunter)
-          AccessibilityInfo.announceForAccessibility(`مش هنسجل "${inc.name}" عن ${label}`);
+          announce(`مش هنسجل "${inc.name}" عن ${label}`);
         },
       },
     ]);
@@ -137,7 +149,8 @@ export default function IncomeHomeCards() {
         const more = keys.length - 1;
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
-            <Text numberOfLines={2} style={styles.title}>{`💵 "${inc.name}" نزل؟`}</Text>
+            <Text numberOfLines={2} style={styles.title} accessibilityRole="header"
+              accessibilityLabel={`"${inc.name}" نزل؟`}>{`💵 "${inc.name}" نزل؟`}</Text>
             <Text style={styles.sub}>
               {incomePeriodLabel(inc, key, today)} · في {walletHistoryName(wallets, inc.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -152,9 +165,9 @@ export default function IncomeHomeCards() {
                 onPress={() => record(inc, key, inc.amount)}
                 accessibilityLabel={`"${inc.name}" نزل`} />
               <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
-                onPress={() => setEditing({ inc, key })} />
+                onPress={() => setEditing({ inc, key })} accessibilityLabel={`"${inc.name}" المبلغ مختلف`} />
               <Button variant="secondary" size="sm" label="ما نزلش" disabled={busyKey !== null}
-                onPress={() => confirmSkip(inc, key)} />
+                onPress={() => confirmSkip(inc, key)} accessibilityLabel={`"${inc.name}" ما نزلش`} />
             </View>
           </View>
         );
@@ -186,17 +199,19 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { amountsHidden, money } = usePrivacy();
   const [value, setValue] = useState(amountsHidden ? '' : String(inc.amount));
-  const typed = value.trim() === '' ? inc.amount : Number(value.replace(/,/g, ''));
-  const valid = Number.isFinite(typed) && typed > 0;
+  // M4: مقرّب للقرش زي ما هيتخزّن، واللي بيتقرّب لصفر مرفوض هنا مش بعد "نزل"
+  const rounded = value.trim() === '' ? inc.amount : toMoneyAmount(Number(value.replace(/,/g, '')));
+  const valid = rounded !== null;
+  const typed = rounded ?? 0;
   const diff = valid && value.trim() !== '' ? incomeDiffNote(typed, inc.amount, money) : null;
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={styles.sheet} accessibilityViewIsModal>
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>نزل كام في {periodLabel}؟</Text>
+              <Text style={styles.sheetTitle} accessibilityRole="header">نزل كام في {periodLabel}؟</Text>
               <TextInput
                 testID="income_amount_input"
                 style={styles.bigInput}
@@ -208,11 +223,13 @@ function IncomeAmountSheet({ inc, periodLabel, busy, onSave, onClose }: {
                 placeholder={amountsHidden ? `${MONEY_MASK} (المعتاد)` : '0'}
                 placeholderTextColor={colors.textMuted}
                 accessibilityLabel={`مبلغ ${periodLabel}`}
+                accessibilityHint={amountsHidden ? 'المبلغ المعتاد مخفي — سيبه فاضي لو نزل زي المعتاد' : undefined}
               />
-              {!valid && <Text style={styles.error}>المبلغ لازم يكون أكبر من صفر.</Text>}
-              {!!diff && <Text style={styles.diff}>{diff}</Text>}
               <Text style={styles.hint}>{`ده للفترة دي بس — "${inc.name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
+            {/* برّه الـScrollView: الغلط والفرق ظاهرين وبيتقروا من غير تمرير */}
+            {!valid && <Text style={styles.error} accessibilityLiveRegion="polite">المبلغ لازم يكون أكبر من صفر.</Text>}
+            {!!diff && <Text style={styles.diff} accessibilityLiveRegion="polite" accessibilityLabel={speakable(diff)}>{diff}</Text>}
             <View style={styles.footer}>
               <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button testID="income_amount_save" label="نزل" style={styles.saveBtn}
@@ -246,8 +263,8 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 14),
     bigInput: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
-    diff: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', marginTop: space.md },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.md },
+    diff: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.sm, backgroundColor: c.nav },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.sm, backgroundColor: c.nav },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.md },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },

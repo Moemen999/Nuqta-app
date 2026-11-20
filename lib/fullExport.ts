@@ -1,5 +1,6 @@
 import { brokenReasonsOf } from '@/lib/fromDoc';
 import { BROKEN_REASON_LABEL } from '@/lib/brokenDocs';
+import { DELETED_CATEGORY_LABEL, DELETED_WALLET_LABEL } from '@/lib/finance';
 import type { Budgets, Category, Debt, Gamiya, ShakhbataIncome, ShakhbataPercents, Subscription, Transaction, Wallet } from '@/context/DataContext';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
@@ -57,8 +58,10 @@ const n = (x: number | undefined | null) => (typeof x === 'number' && Number.isF
 const DEFAULT_PERCENTS = { needs: 50, wants: 30, future: 20 };
 
 export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
-  const walletName = (id?: string) => d.wallets.find(w => w.id === id)?.name ?? '';
-  const categoryName = (id?: string) => d.categories.find(c => c.id === id)?.name ?? '';
+  // معرّف موجود واسمه مش لاقيينه = اتمسح ← نفس كلمة تصدير الفترة (`walletHistoryName`) مش خلية فاضية (Feature 9، L).
+  // الخلية الفاضية معناها "مفيش معرّف" بس (سحب من غير محفظة مستلمة، عملية من غير فئة)
+  const walletName = (id?: string) => (id ? d.wallets.find(w => w.id === id)?.name ?? DELETED_WALLET_LABEL : '');
+  const categoryName = (id?: string) => (id ? d.categories.find(c => c.id === id)?.name ?? DELETED_CATEGORY_LABEL : '');
   // التاريخ ممكن ميبقاش نص في عملية بايظة (بند B — silent-failure-hunter: كان TypeError بيوقّع التصدير كله)
   const byDate = <T extends { date: string }>(xs: T[]) => [...xs].sort((a, b) => String(a.date ?? '').localeCompare(String(b.date ?? '')));
   const byKey = <V>(rec: Record<string, V> | undefined) => Object.entries(rec || {}).sort(([a], [b]) => a.localeCompare(b));
@@ -81,7 +84,7 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     })) },
     { name: 'Debts', rows: d.debts.map(x => ({
       Id: x.id, Direction: x.direction, Person: x.personName, Phone: s(x.personPhone), ContactId: s(x.personContactId),
-      TotalAmount: x.totalAmount, Date: x.date, IsInstallment: x.isInstallment,
+      TotalAmount: n(x.totalAmount), Date: x.date, IsInstallment: x.isInstallment,
       InstallmentCount: n(x.installmentCount), InstallmentAmount: n(x.installmentAmount),
       // الباقي اللي بيحدد آخر قسط (بند 8) — من غيره القسط الأخير في الملف مبيتحسبش صح
       ResidueAmount: n(x.installmentResidue?.amount), ResidueForInstallment: n(x.installmentResidue?.forInstallment),
@@ -91,19 +94,19 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
       InitialWalletId: s(x.initialWalletId), InitialTransactionId: s(x.initialTransactionId),
     })) },
     { name: 'DebtPayments', rows: d.debts.flatMap(x => byDate(x.payments || []).map(p => ({
-      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: p.amount,
+      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: n(p.amount),
       WalletId: p.walletId, Wallet: walletName(p.walletId), CategoryId: s(p.categoryId), Category: categoryName(p.categoryId),
       TransactionId: s(p.transactionId),
     }))) },
     { name: 'DebtIncreases', rows: d.debts.flatMap(x => byDate(x.increases || []).map(p => ({
-      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: p.amount,
+      DebtId: x.id, Person: x.personName, Id: p.id, Date: p.date, Amount: n(p.amount),
       WalletId: s(p.walletId), Wallet: walletName(p.walletId), TransactionId: s(p.transactionId),
     }))) },
     { name: 'Subscriptions', rows: d.subscriptions.map(x => ({
       Id: x.id, Name: x.name, Amount: x.amount, WalletId: x.walletId, Wallet: walletName(x.walletId),
       CategoryId: s(x.categoryId), Category: categoryName(x.categoryId), Frequency: x.frequency, CustomDays: n(x.customDays),
       NextDueDate: x.nextDueDate, ReminderDaysBefore: x.reminderDaysBefore, Active: x.active !== false,
-      ChargeMode: s(x.chargeMode) || 'confirm', ChargeAutoSince: s(x.chargeAutoSince), CreatedAt: x.createdAt,
+      ChargeMode: s(x.chargeMode) || 'confirm', ChargeAutoSince: s(x.chargeAutoSince), AnchorDay: n(x.anchorDay), CreatedAt: x.createdAt,
     })) },
     { name: 'SubscriptionPayments', rows: d.subscriptions.flatMap(x => byDate(x.history || []).map(p => ({
       SubscriptionId: x.id, Subscription: x.name, Id: p.id, Date: p.date, Amount: p.amount,
@@ -123,7 +126,7 @@ export function buildFullExportSheets(d: FullExportInput): ExportSheet[] {
     })) },
     { name: 'GamiyaMonths', rows: d.gamiyas.flatMap(x => [...(x.months || [])].sort((a, b) => a.monthIndex - b.monthIndex).map(m => ({
       GamiyaId: x.id, Gamiya: x.name, Id: m.id, MonthIndex: m.monthIndex, DueDate: m.dueDate, Amount: m.amount,
-      IsPayoutMonth: m.isPayoutMonth, Status: m.status, TransactionId: s(m.transactionId), Auto: !!m.auto, Reopened: !!m.reopened,
+      IsPayoutMonth: m.isPayoutMonth, Status: m.status, TransactionId: s(m.transactionId), InstallmentTransactionId: s(m.installmentTransactionId), Auto: !!m.auto, Reopened: !!m.reopened,
     }))) },
     { name: 'FixedIncomes', rows: d.incomes.map(x => ({
       Id: x.id, Name: x.name, Amount: x.amount, WalletId: x.walletId, Wallet: walletName(x.walletId), Frequency: x.frequency,
@@ -175,15 +178,17 @@ export const COLUMN_NAMES_AR: Record<string, string> = {
   ResidueAmount: 'فرق القسط الأخير', ResidueForInstallment: 'الفرق متحسب على قسط بقيمة', ResidueOver: 'عدد الأقساط الكاملة',
   ResidueIncreasesTotal: 'مجموع الزيادات وقت حساب الفرق', ResidueLastAbsorbs: 'الفرق متضاف على آخر قسط', DueDate: 'المعاد',
   ReminderDaysBefore: 'التذكير قبل المعاد (أيام)', InitialWalletId: 'معرّف محفظة البداية', InitialTransactionId: 'معرّف عملية البداية',
-  DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
-  NextDueDate: 'المعاد الجاي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
+  DebtId: 'معرّف الدين', TransactionId: 'معرّف العملية', InstallmentTransactionId: 'معرّف عملية قسطك (شهر الاستلام)', Frequency: 'التكرار', CustomDays: 'كل كام يوم',
+  NextDueDate: 'المعاد الجاي', AnchorDay: 'يوم المعاد الأصلي', Active: 'شغال', ChargeMode: 'طريقة الخصم', ChargeAutoSince: 'التلقائي من تاريخ',
   Auto: 'اتسجلت لوحدها', Skipped: 'اتفوّتت', Reopened: 'رجعت تسأل', At: 'اتقفلت في', MonthlyAmount: 'القسط الشهري',
   TotalMonths: 'عدد الشهور', PayoutMonthIndex: 'رقم شهر الاستلام', PayoutAmount: 'مبلغ الاستلام', StartDate: 'تاريخ البداية',
-  MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع',
+  MonthIndex: 'رقم الشهر', IsPayoutMonth: 'شهر استلام', Status: 'الحالة', DayOfMonth: 'يوم الشهر', Weekday: 'يوم الأسبوع (0 = الأحد)',
   Mode: 'طريقة التسجيل', MonthlyLimit: 'الحد الشهري', Month: 'الشهر', Needs: 'احتياجات', Wants: 'رفاهيات', Future: 'خطط مستقبلية',
   IsDefault: 'الافتراضي',
-  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
-  Platform: 'النظام', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار النظام',
+  // تصدير الفترة (`lib/periodExport.ts`)
+  Time: 'الوقت', SignedAmount: 'المبلغ بالإشارة', CountedInTotals: 'محسوبة في الإجماليات', Pending: 'لسه بترفع',
+  SentAt: 'اتبعت في', Text: 'النص', FullVersion: 'الإصدار الكامل', AppVersion: 'إصدار التطبيق', BuildNumber: 'رقم البناء',
+  Platform: 'نظام التشغيل', DeviceModel: 'نوع الموبايل', OsVersion: 'إصدار نظام التشغيل',
 };
 
 /** نفس الأوراق والقيم، بالأسامي العربي (عمود من غير ترجمة بيفضل باسمه — الاختبار بيمنع ده) */

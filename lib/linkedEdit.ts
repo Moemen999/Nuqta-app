@@ -2,8 +2,9 @@ import type { Debt, Gamiya, Subscription } from '@/context/DataContext';
 import { isCreditPurchase } from '@/lib/spending';
 import {
   debtExcess, debtRemaining, foldInstallmentResidue, installmentCountFor, installmentResidueKnown, pinInstallmentAmount,
-  reopenedDueDate, roundMoney, storableCount, todayStr,
+  ambiguousDecimalComma, reopenedDueDate, roundMoney, storableCount, todayStr,
 } from '@/lib/finance';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import type { TxChange } from '@/lib/archiving';
 import type { RecurringIncome } from '@/lib/recurringIncome';
 
@@ -39,6 +40,26 @@ export function storableAmount(value: number): number | null {
 }
 
 /**
+ * خانة المبلغ في مودال العملية — **قارئ واحد** (مراجعة التطبيق كله، الميزة 8). الحفظ (إضافة وتعديل)، والتسوية
+ * (`changes`)، والمعاينة (`projectBalances` + `AmountPreview`) كلهم بيقروا من هنا، فاللي بيتعرض = اللي بيتخزّن (مقرّب).
+ * «٢٠٠» و«1,500» بيتقروا زي الميزانية (`normalizeAmountInput`)، و«1,5» الغامض مرفوض بسببه (مش 15 ساكت).
+ */
+export type TxAmountParse = { ok: true; value: number } | { ok: false; reason: 'ambiguous' | 'invalid' };
+export function parseTxAmountInput(raw: string): TxAmountParse {
+  if (ambiguousDecimalComma(raw)) return { ok: false, reason: 'ambiguous' };
+  const clean = normalizeAmountInput(raw).trim();
+  const value = clean === '' ? null : storableAmount(Number(clean));
+  return value === null ? { ok: false, reason: 'invalid' } : { ok: true, value };
+}
+
+/** رسايل الفورم — كل سبب لوحده (قبل كده «دخّل مبلغ صحيح ومحفظة» للاتنين) */
+export const TX_AMOUNT_ERROR = {
+  invalid: 'اكتب مبلغ أكبر من صفر',
+  ambiguous: 'الكسر بنقطة (1.5) مش بفاصلة',
+  wallet: 'اختار المحفظة',
+} as const;
+
+/**
  * التغيير اللي تسوية المحفظة المؤرشفة بتتحسب منه في تعديل عملية دين — **بنفس
  * المبلغ اللي هيتخزّن** (`storableAmount`)، مش اللي اتكتب (R2، 2026-10-28).
  *
@@ -52,13 +73,21 @@ export function storedEditChange(before: TxChange['before'], after: NonNullable<
 
 export type LinkKind = 'debt' | 'subscription' | 'gamiya' | 'income';
 
+/**
+ * `tx` (L4، مراجعة الدخل 2026-11-18): العملية نفسها لو معاها `incomeId` — سباق "ما نزلش" بيشيل الـtxId من علامة الفترة
+ * والعملية لسه موجودة، فكانت بتبان "مش مربوطة" وتتعدّل نوعها/تتمسح من غير تحذير الدخل.
+ */
 export function transactionLinkKind(txId: string, src: {
   debts: Debt[]; subscriptions: Subscription[]; gamiyas: Gamiya[]; incomes: RecurringIncome[];
-}): LinkKind | null {
+}, tx?: { incomeId?: string; gamiyaId?: string }): LinkKind | null {
   if (src.debts.some(d => debtRoleOf(d, txId))) return 'debt';
   if (src.subscriptions.some(s => (s.history || []).some(h => h.transactionId === txId))) return 'subscription';
-  if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId))) return 'gamiya';
+  if (src.gamiyas.some(g => (g.months || []).some(m => m.transactionId === txId || m.installmentTransactionId === txId))) return 'gamiya';
   if (src.incomes.some(inc => Object.values(inc.closed || {}).some(c => c.txId === txId))) return 'income';
+  if (tx?.incomeId && src.incomes.some(inc => inc.id === tx.incomeId)) return 'income';
+  // ربطها بالشهر اتشال والعملية فاضلة بـ`gamiyaId` (Feature 9، الجولة الأخيرة): `isTransferTx` بيعدّها تحويل، فالنوع
+  // لازم يتقفل برضه — من غيره كانت تتحوّل دخل/مصروف وهي لسه برّه الإجماليات
+  if (tx?.gamiyaId) return 'gamiya';
   return null;
 }
 
@@ -196,5 +225,26 @@ export function installmentEditMessage(beforeCount: number | undefined, afterCou
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (typeof afterCount !== 'number' || !Number.isFinite(afterCount) || afterCount <= 0) return null;
   if (beforeCount === afterCount) return null;
-  return `بعد التعديل، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
+  return `بعد التعديل، عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.`;
+}
+
+/**
+ * بند 6: التعديل ده متطبّق خلاص على العملية **وعلى** سطرها في الدين؟ فايرستور بتعيد الـcallback لما الرد يضيع،
+ * واللفة التانية بتلاقي العملية بالأرقام الجديدة (مش `expected`) — من غير الفحص ده كانت بترجع "العملية اتغيّرت"
+ * على تعديل اتحفظ فعلاً. `current` = العملية زي ما اتقرت من السيرفر، `clean` = اللي هيتكتب عليها.
+ */
+export function linkedEditAlreadyApplied(
+  d: Debt, txId: string, current: Record<string, unknown>, clean: Record<string, unknown>,
+): boolean {
+  if (!Object.entries(clean).every(([k, v]) => current[k] === v)) return false;
+  const role = debtRoleOf(d, txId);
+  if (!role) return false;
+  const amount = roundMoney(Number(clean.amount));
+  if (role === 'initial') {
+    return roundMoney(Number(d.totalAmount)) === amount && d.initialWalletId === clean.walletId && d.date === clean.date;
+  }
+  const entry = role === 'payment'
+    ? (d.payments || []).find(p => p.transactionId === txId)
+    : (d.increases || []).find(e => e.transactionId === txId);
+  return !!entry && roundMoney(Number(entry.amount)) === amount && entry.walletId === clean.walletId && entry.date === clean.date;
 }

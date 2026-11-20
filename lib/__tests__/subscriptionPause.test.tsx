@@ -139,7 +139,7 @@ describe('شاشة الاشتراكات', () => {
     mockData.markSubscriptionPaid = jest.fn(async () => 'stopped');
     await render(wrap());
     await act(async () => { fireEvent.press(screen.getByText('اتخصم')); });
-    await pressAlertButton('تأكيد');
+    await pressAlertButton('سجّل الخصم');
     expect(screen.getByTestId('notice_title').props.children).toBe(SUBSCRIPTION_STOPPED_ALERT.title);
   });
 

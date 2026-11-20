@@ -168,9 +168,9 @@ it('مبلغ مش رقم حقيقي (Infinity) ← بيترفض ومفيش حا�
  * العدد اتحرك بس.
  */
 describe('الرسالة', () => {
-  it('6 ← 8 ← "بعد الزيادة، الأقساط بقت 8 بدل 6."', async () => {
+  it('6 ← 8 ← "بعد الزيادة، عدد الأقساط بقى 8 بدل 6."', async () => {
     const { debtId, walletId } = await makeDebt();
-    expect(await increase(debtId, 2000, walletId)).toBe('بعد الزيادة، الأقساط بقت 8 بدل 6.');
+    expect(await increase(debtId, 2000, walletId)).toBe('بعد الزيادة، عدد الأقساط بقى 8 بدل 6.');
   });
 
   it('العدد ما اتحركش ← مفيش رسالة', async () => {
@@ -185,12 +185,12 @@ describe('الرسالة', () => {
   it('دين اتسدد واتفتح تاني ← بيقول العدد المتخزّن والجديد', async () => {
     const { debtId, walletId } = await makeDebt();
     await pay(debtId, 6000, walletId);
-    expect(await increase(debtId, 1500, walletId)).toBe('بعد الزيادة، الأقساط بقت 3 بدل 1.');
+    expect(await increase(debtId, 1500, walletId)).toBe('بعد الزيادة، عدد الأقساط بقى 3 بدل 1.');
   });
 
   it('زيادة على الورق بتقول برضه', async () => {
     const { debtId } = await makeDebt();
-    expect(await increase(debtId, 500)).toBe('بعد الزيادة، الأقساط بقت 7 بدل 6.');
+    expect(await increase(debtId, 500)).toBe('بعد الزيادة، عدد الأقساط بقى 7 بدل 6.');
   });
 
   it('العدد القديم مش متخزّن ← العدد الصح بيتكتب، ومن غير رسالة (مفيش "بدل كام" صادقة)', async () => {

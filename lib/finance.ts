@@ -1,5 +1,11 @@
 import type { Debt, Transaction, Wallet } from '@/context/DataContext';
-import { dueDateAfterIncreaseRemoval, dueRestoreLine } from '@/lib/reopenDue';
+import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, dueRestoreLine, paymentsAfterRemoval } from '@/lib/reopenDue';
+import { installmentsPhrase } from '@/lib/archiving';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
+import { namedLabel } from '@/lib/writeError';
+import { isTransferTx } from '@/lib/spending';
+
+const NO_TRANSFERS: ReadonlySet<string> = new Set();
 
 export function walletBalance(tx: Transaction[], walletId: string, opening: number) {
   return tx.reduce((s, t) => {
@@ -18,16 +24,21 @@ export function walletBalance(tx: Transaction[], walletId: string, opening: numb
  * مصروف فئة في شهر. `transfers` (السلفة وقسط الجمعية، `lib/spending.ts`)
  * بتتشال: عادةً ملهاش فئة، بس المستخدم يقدر يعدّل العملية ويديها فئة — ساعتها
  * كانت هتدخل الفئة وتطلع من الإجمالي، فمجموع الفئات يعدّي الإجمالي (money-reviewer).
+ * بنفس `isTransferTx` بتاعة `spendingExpenses` (Feature 9، الجولة الأخيرة): عملية عليها `gamiyaId` وربطها بالشهر اتشال
+ * كانت برّه الإجمالي وجوّه الفئة. من غير `transfers` (اختبارات قديمة) ← المعرّفات بس متشالتش، و`gamiyaId` برّه برضه.
  */
 export function monthSpend(tx: Transaction[], categoryId: string, month: string, transfers?: Set<string>) {
+  const known = transfers ?? NO_TRANSFERS;
   return tx
     .filter(t => t.type === 'expense' && t.categoryId === categoryId && t.date.slice(0, 7) === month
-      && !transfers?.has(t.id))
+      && !isTransferTx(t, known))
     .reduce((s, t) => s + t.amount, 0);
 }
 
 export function fmt(n: number) {
-  return (Math.round((n || 0) * 100) / 100).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const r = Math.round((n || 0) * 100) / 100;
+  // `|| 0` بيشيل -0 (مراجعة التطبيق كله، الميزة 7): رصيد -0.001 كان بيتطبع «-0»
+  return (r || 0).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
 function pad2(n: number) {
@@ -102,6 +113,21 @@ export function addMonths(dateStr: string, n: number) {
     Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0)
   ).getUTCDate();
   firstOfTarget.setUTCDate(Math.min(day, lastDayOfTarget));
+  return toDateStr(firstOfTarget);
+}
+
+/**
+ * زي `addMonths` بس اليوم من **اليوم الأصلي** (`anchorDay`، 1–31) مش من التاريخ اللي داخل: min(اليوم الأصلي،
+ * عدد أيام الشهر). 31 يناير ← 28 فبراير ← **31 مارس** (مش 28 للأبد — بند C، مراجعة الاشتراكات 2026-11-17).
+ * سنوي 29 فبراير ← 28 في السنين العادية و29 في الكبيسة.
+ */
+export function addMonthsAnchored(dateStr: string, n: number, anchorDay: number) {
+  const d = parseDateStr(dateStr);
+  const firstOfTarget = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+  const lastDayOfTarget = new Date(
+    Date.UTC(firstOfTarget.getUTCFullYear(), firstOfTarget.getUTCMonth() + 1, 0)
+  ).getUTCDate();
+  firstOfTarget.setUTCDate(Math.min(anchorDay, lastDayOfTarget));
   return toDateStr(firstOfTarget);
 }
 
@@ -192,9 +218,10 @@ type SpendRow = { categoryId?: string; amount: number };
 export function buildCategorySpend(
   expenses: SpendRow[],
   categories: { id: string; name: string; icon?: string; archived?: boolean }[],
-  opts: { colorFor: (id: string) => string; deletedColor: string; visibleIds?: string[] },
+  // `deletedName`: الفئات اترفضت ← المصروف بفئة مش لاقيينها مش «ممسوحة»، إحنا اللي مش عارفين اسمها (Feature 9)
+  opts: { colorFor: (id: string) => string; deletedColor: string; visibleIds?: string[]; deletedName?: string },
 ): PieSlice[] {
-  const { colorFor, deletedColor, visibleIds } = opts;
+  const { colorFor, deletedColor, visibleIds, deletedName = DELETED_SLICE_NAME } = opts;
   const allowed = visibleIds ? new Set(visibleIds) : null;
 
   const known = new Map(categories.map(c => [c.id, c]));
@@ -221,7 +248,7 @@ export function buildCategorySpend(
     if (amount > 0) slices.push({ id: c.id, name: categoryLabel(c), amount, color: colorFor(c.id) });
   }
   if (deleted > 0) {
-    slices.push({ id: DELETED_SLICE_ID, name: DELETED_SLICE_NAME, amount: deleted, color: deletedColor });
+    slices.push({ id: DELETED_SLICE_ID, name: deletedName, amount: deleted, color: deletedColor });
   }
   if (uncategorised > 0) {
     slices.push({ id: UNCATEGORISED_SLICE_ID, name: UNCATEGORISED_SLICE_NAME, amount: uncategorised, color: deletedColor });
@@ -316,7 +343,8 @@ export function buildPieSlices(
 export const TYPE_LABELS: Record<string, { label: string; color: string; sign: string }> = {
   expense: { label: 'مصروف', color: '#D97878', sign: '-' },
   income: { label: 'إيراد', color: '#7FA98F', sign: '+' },
-  withdraw: { label: 'سحب', color: '#C9A961', sign: '-' },
+  // «تحويل» مش «سحب» (قرار مؤمن 2026-11-19) — القيمة المتخزّنة لسه `withdraw`
+  withdraw: { label: 'تحويل', color: '#C9A961', sign: '-' },
 };
 
 /**
@@ -364,6 +392,16 @@ export const PIASTRE_EPS = 0.005;
 /** رصيد بنص قرش زي `isDebtSettled`: كسور الجمع (2e-12) بتبقى صفر بدل "0.00" بعلامة */
 export function snapPiastre(value: number) {
   return Math.abs(value) <= PIASTRE_EPS ? 0 : value;
+}
+
+/**
+ * الرصيد اللي بيتعرض **وبيتقارن** (حد التنبيه، بالسالب) — مقرّب للقرش، وأقل من نص قرش صفر من غير إشارة
+ * (مراجعة التطبيق كله، الميزة 7): مجموع عشري زي 99.999999 كان بيتقال «تحت الحد 100»، و-0.001 كان «بالسالب».
+ * للعرض والتنبيهات بس — الحسابات نفسها (`walletBalance`) زي ما هي.
+ */
+export function shownBalance(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return roundMoney(snapPiastre(value)) || 0;
 }
 
 /** تقريب مبلغ لأقرب قرش — الرقم اللي بيتخزّن هو الرقم اللي بيتعرض */
@@ -505,11 +543,51 @@ export function projectBalances(opts: {
   return out;
 }
 
+/**
+ * سقف ميزانية أو دخل شهر من خانة. «٢٠٠٠» و«1,500» و«١٬٥٠٠٫٥» بيتقروا زي أول شاشة (`normalizeAmountInput`) —
+ * قبل كده كانوا بيترفضوا والخانة ترجع للمحفوظ ساكت (مراجعة التطبيق كله، الميزة 6). مقرّب للقرش: الرقم اللي بيتخزّن هو
+ * اللي بيتعرض، والفحص **بعد** التقريب (1e307 بيطلع Infinity). الفاضي صفر (= مسح السقف)؛ السالب والكلام `null`.
+ */
 export function parseBudgetInput(raw: string): number | null {
-  const num = Number(raw);
+  if (ambiguousDecimalComma(raw)) return null;
+  const clean = normalizeAmountInput(raw).trim();
+  if (clean === '') return 0;
+  const exact = Number(clean);
+  const num = roundMoney(exact);
   if (!isFinite(num) || num < 0) return null;
-  return num;
+  // «0.004» كان بيتحفظ صفر (= مسح السقف) ساكت، و«-0.004»/«-0» كانوا بيعدّوا -0 (الجولة الأخيرة)
+  if (num === 0 && exact !== 0) return null;
+  return num === 0 ? 0 : num;
 }
+
+/**
+ * «1,5» و«12,5» و«1,50»: الفاصلة هنا كسر (كيبورد بيكتب الكسر بفاصلة) ولا آلاف ناقصة؟ `normalizeAmountInput` بيشيل
+ * الفواصل فكانوا بيتحفظوا 15 و125 و150 ساكت (money-reviewer، الجولة الأخيرة). منخمّنش: فاصلة قبل رقم أو رقمين في الآخر
+ * = مرفوض والشاشة بتقول. «1,500» آلاف واضحة وبتتقري. أول شاشة (`normalizeAmountInput` نفسه) مبتتغيّرش.
+ */
+export function ambiguousDecimalComma(raw: string): boolean {
+  const digits = String(raw ?? '')
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 0x06f0))
+    .trim();
+  return /[,٬]\d{1,2}$/.test(digits);
+}
+
+/** رسالة الرقم المرفوض في الميزانية وتوزيع الدخل — بتتقال عند الخروج من الخانة أو من الشاشة، مش رجوع ساكت */
+export const AMOUNT_REJECT_TITLE = 'الرقم ده ما اتحفظش';
+/** `field`: «سقف "أكل"»، «الميزانية الإجمالية»، «الدخل» */
+export function amountRejectBody(field: string) {
+  return `${field} لازم يكون رقم من صفر وطالع، والكسر بنقطة (1.5)، فاللي اتكتب ما اتحفظش ورجّعنا الرقم اللي كان محفوظ.`;
+}
+/** خانة اتسابت فاضية (خروج منها أو من الشاشة) فاتحفظت صفر — بتتقال عشان سحبة على الشاشة متمسحش رقم ساكت */
+export const amountClearedTitle = (field: string) => `اتشال ${field}`;
+export const AMOUNT_CLEARED_BODY = 'سبت الخانة فاضية، فالرقم اللي كان محفوظ اتشال. لو مش قصدك، اكتبه تاني.';
+export const budgetFieldName = (categoryName?: string) => (categoryName === undefined ? 'السقف الإجمالي' : namedLabel('سقف', categoryName));
+export const INCOME_FIELD_NAME = 'الدخل';
+/** خانة بتتحفظ لوحدها — قارئ الشاشة لازم يعرف إن مفيش زرار حفظ (a11y-architect، الميزة 6) */
+export const AUTOSAVE_HINT = 'بيتحفظ لوحده';
+/** الميزانية وتوزيع الدخل من غير ولا فئة — جملة بتقول تعمل إيه بدل قسم فاضي */
+export const NO_CATEGORIES_TEXT = 'مفيش فئات لسه — ضيف فئة من الإعدادات ← الفئات';
 
 /**
  * بيقرا رقم فلوس من خانة محفظة (الرصيد الابتدائي أو حد التنبيه).
@@ -527,9 +605,48 @@ export function parseBudgetInput(raw: string): number | null {
  * ويطلع منها كان رصيد المحفظة كله بيروح. التفريق ده هو كل الحكاية.
  */
 export function parseWalletAmountInput(raw: string): number | null {
-  const num = Number(String(raw ?? '').trim());
+  // «٢٠٠٠» و«1,500» بيتقروا زي الميزانية، و«1,5» الغامض مرفوض (الجولة الأخيرة، بند 7) — قبل كده كانوا بيترفضوا ساكت.
+  // أول شاشة بتبعت نص متنضّف أصلاً (`normalizeAmountInput` مرتين = مرة)، فمبتتغيّرش
+  if (ambiguousDecimalComma(raw)) return null;
+  const num = Number(normalizeAmountInput(raw).trim());
   if (!isFinite(num)) return null;
+  // سقف من فوق (الميزة 10، بند 7): «1e400» كان Infinity، و«1e300» كان بيعدّي للتأكيد ويترفض من القواعد بعدين
+  if (Math.abs(num) >= WALLET_AMOUNT_MAX) return null;
   return num;
+}
+
+/**
+ * سقف خانات المحفظة (الرصيد الابتدائي وحد التنبيه) — **تقني** مش سقف فلوس، زي حد القواعد (`finite` في `firestore.rules`:
+ * 10^18). تحت 2^53/100 (≈ 9.007×10^13) عشان التقريب لقرشين يفضل مضبوط — فوقه الكسور بتضيع (الميزة 10، جولة 2: كان
+ * 10^15 والتعليق بيقول عكسه). أول شاشة (`FirstRunSetup`) بتقرا بنفس `parseWalletAmountInput` فنفس السقف.
+ */
+export const WALLET_AMOUNT_MAX = 9e13;
+
+/** ليه خانة المحفظة رفضت الرقم — عشان الرسالة تقول السبب (`walletAmountRejectNotice`) */
+export type WalletAmountRejectReason = 'invalid' | 'negative' | 'too-large' | 'too-small';
+/**
+ * الترتيب (الميزة 10، جولة 2): السالب الأول («-1e16» في حد التنبيه سببه إنه سالب مش إنه كبير)، وبعدين الكبير، وبعدين
+ * الصغير اللي بيتقرّب لصفر («0.004» كانت بتقول «لازم يكون رقم» وهو رقم)
+ */
+export function walletAmountRejectReason(raw: string | undefined): WalletAmountRejectReason {
+  if (raw === undefined || ambiguousDecimalComma(raw)) return 'invalid';
+  const num = Number(normalizeAmountInput(raw).trim());
+  if (Number.isNaN(num)) return 'invalid';
+  if (num < 0) return 'negative';
+  if (!isFinite(num) || num >= WALLET_AMOUNT_MAX) return 'too-large';
+  if (num > 0 && roundMoney(num) === 0) return 'too-small';
+  return 'invalid';
+}
+
+/**
+ * حد التنبيه (الميزة 10، بند 8): مبلغ من صفر وطالع، مقرّب للقرش، **ومبيسألش** — كان بيستخدم قاعدة الرصيد (سالب بتأكيد
+ * «رصيد بالسالب؟») وده مالوش معنى لحد تنبيه. السالب مرفوض برسالة باسم الخانة.
+ */
+export function planLowAlertCommit(draft: string | undefined, stored: number): WalletAmountPlan {
+  return planWith(draft, stored, raw => {
+    const v = parseBudgetInput(raw);
+    return v !== null && v >= WALLET_AMOUNT_MAX ? null : v;
+  });
 }
 
 export type WalletAmountPlan =
@@ -634,11 +751,35 @@ export const PERCENT_MAX = 100;
  * ناعم زي ما كان.
  */
 export function parsePercentInput(raw: string): number | null {
-  const num = Number(String(raw ?? '').trim());
+  if (ambiguousDecimalComma(raw)) return null;
+  // الفاضي **غلط** مش صفر (الميزة 6): خانة اتمسحت ونسيتها كانت بتتحفظ 0% ساكت
+  const clean = normalizeAmountInput(raw).trim();
+  if (clean === '') return null;
+  const num = Number(clean);
   if (!isFinite(num)) return null;
   if (num < PERCENT_MIN || num > PERCENT_MAX) return null;
-  return num;
+  // رقمين بعد العلامة بالكتير — 33.333333 مبتتخزّنش ولا بتتعرض كده
+  const rounded = Math.round(num * 100) / 100;
+  // «0.004» مش صفر اتكتب — مرفوض بدل ما يتحفظ 0% ساكت؛ و«-0» بيتكتب 0 مش -0
+  if (rounded === 0 && num !== 0) return null;
+  return rounded === 0 ? 0 : rounded;
 }
+
+/** مجموع النسب للعرض: رقمين بعد العلامة بالكتير (10.1+20.2+30.3 = «60.6» مش «60.599999») */
+export function percentSumText(sum: number) {
+  return String(Math.round(sum * 100) / 100);
+}
+
+/** المجموع بعيد عن 100 بأكتر من فرق التقريب */
+export function percentSumOff(sum: number) {
+  return Math.abs(sum - 100) > 0.005;
+}
+
+export const PERCENTS_UNSAVED_TITLE = 'النسب ما اتحفظتش';
+/** «حفظ النسب» والنسب المحفوظة مش ظاهرة (لسه ما وصلتش أو اترفضت بعد ما فتحت التعديل) — مفيش كتابة، والمسوّدة بتفضل */
+export const PERCENTS_NOT_READY_TITLE = 'النسب ما اتحفظتش';
+export const PERCENTS_NOT_READY_BODY = 'نسبك المحفوظة مش واصلة من السيرفر دلوقتي، فما كتبناش فوقها. استنى لحد ما توصل ودوس «حفظ النسب» تاني.';
+export const PERCENTS_UNSAVED_BODY = 'خرجت من توزيع الدخل والنسب الجديدة لسه ما اتحفظتش، فرجعت زي ما كانت. لو عايزها، عدّلها تاني ودوس «حفظ النسب».';
 
 
 export function percentInvalidTitle(count: number) {
@@ -1185,9 +1326,9 @@ export function installmentChangeMessage(
   // بس لو العدد اتغيّر برضه (أول ما دين قديم يتثبّت قسطه وفرقه — 2026-09-30)
   // بيتقال، مش بيتغيّر ساكت. "بدل 0" على عدد مش معروف كانت هتبقى كدب
   if (Math.abs(paidAmount - expectedValue) <= PIASTRE_EPS) {
-    return beforeCount > 0 && afterCount > 0 ? `الأقساط بقت ${afterCount} بدل ${beforeCount}.` : null;
+    return beforeCount > 0 && afterCount > 0 ? `عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.` : null;
   }
-  return `دفعت ${fmt(paidAmount)} بدل ${fmt(expectedValue)}، الأقساط بقت ${afterCount}.`;
+  return `دفعت ${fmt(paidAmount)} ج.م بدل ${fmt(expectedValue)} ج.م، عدد الأقساط بقى ${afterCount}.`;
 }
 
 /**
@@ -1203,11 +1344,11 @@ export function installmentCountBackLine(before: number | null | undefined, afte
 }
 
 /**
- * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): بالظبط اللي
- * `stageReconcile` بيكتبه — نفس الدالة بتبني الكتابة والتحذير، فالرقم في الرسالة هو
- * الرقم اللي بيتكتب. **مختلف عن `debtEntryDeletePlan` عن قصد:** المسار ده من حالة
- * الرياكت مش ذرة، فمبيثبّتش قسط الدين القديم (قيمة اتعدّلت من جهاز تاني كانت هتتكتب
- * فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
+ * مسح عملية مربوطة بدفعة أو زيادة **من مودال العملية** (D3، 2026-10-30): نفس الدالة بتبني التحذير (من حالة الرياكت)
+ * والكتابة — والكتابة من الجولة 2 (بند 1) ذرة بتنادي الدالة دي على **الدين اللي اتقرا من السيرفر**
+ * (`deleteDebtLinkedTransaction`)، فالرقم في الرسالة هو اللي بيتكتب لو الدين ما اتغيّرش. **مختلف عن
+ * `debtEntryDeletePlan` عن قصد:** مبيثبّتش قسط الدين القديم (التحذير اتحسب من غيره، وقيمة اتعدّلت من جهاز تاني
+ * كانت هتتكتب فوقها — silent-failure-hunter). العملية الأساسية للدين برّه (مالهاش عدد بيتحرك).
  *
  * `residue`: `set` = الفرق بعد الطيّ (مبصوم)، `clear` = كان معروف والطيّ فشل (الكاتب
  * بيشيله صريح ويسجّل)، `null` = مفيش حاجة تتكتب في الفرق.
@@ -1216,6 +1357,8 @@ export type TransactionDeleteDebtPlan = {
   kind: 'payment' | 'increase';
   payments?: Debt['payments'];
   increases?: Debt['increases'];
+  /** السطور اللي بتتشال بالظبط (الكاتب بيكتب `payments`/`increases` من نسخة السيرفر جوه الذرة) */
+  removed: Debt['payments'] | Debt['increases'];
   residue: { op: 'set'; value: InstallmentResidue } | { op: 'clear' } | null;
   countBefore: number | undefined;
   countAfter: number | null;
@@ -1226,8 +1369,14 @@ export type TransactionDeleteDebtPlan = {
 export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDeleteDebtPlan | null {
   if ((d.payments || []).some(p => p.transactionId === txId)) {
     // الفرق مبيتغيّرش مع الدفعات (الخطة هي هي)
-    const payments = (d.payments || []).filter(p => p.transactionId !== txId);
-    return { kind: 'payment', payments, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }) };
+    const removed = (d.payments || []).filter(p => p.transactionId === txId);
+    // السلسلة متوصّلة (الجولة 2، بند 6) — نفس `deleteDebtPayment`
+    const payments = paymentsAfterRemoval(removed, (d.payments || []).filter(p => p.transactionId !== txId));
+    return {
+      kind: 'payment', payments, removed, residue: null, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, payments }),
+      // الدفعة قدّمت المعاد ← بيرجع (بند 3) — نفس `deleteDebtPayment`
+      dueRestore: dueDateAfterPaymentRemoval(d, removed, payments),
+    };
   }
   if ((d.increases || []).some(e => e.transactionId === txId)) {
     const removed = (d.increases || []).filter(e => e.transactionId === txId);
@@ -1239,7 +1388,7 @@ export function transactionDeleteDebtPlan(d: Debt, txId: string): TransactionDel
     }
     const forCount = residue === null ? {} : { installmentResidue: residue.op === 'set' ? residue.value : undefined };
     return {
-      kind: 'increase', increases, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }),
+      kind: 'increase', increases, removed, residue, countBefore: d.installmentCount, countAfter: installmentCountFor({ ...d, ...forCount, increases }),
       dueRestore: dueDateAfterIncreaseRemoval(d, removed, increases),
     };
   }
@@ -1279,7 +1428,7 @@ export function installmentIncreaseMessage(beforeCount: number | undefined, afte
   if (typeof beforeCount !== 'number' || !Number.isFinite(beforeCount) || beforeCount <= 0) return null;
   if (!Number.isFinite(afterCount) || afterCount <= 0) return null;
   if (beforeCount === afterCount) return null;
-  return `بعد الزيادة، الأقساط بقت ${afterCount} بدل ${beforeCount}.`;
+  return `بعد الزيادة، عدد الأقساط بقى ${afterCount} بدل ${beforeCount}.`;
 }
 
 export type DebtEntryKind = 'payment' | 'increase';
@@ -1338,7 +1487,9 @@ export function debtEntryDeletePlan(d: Debt, kind: DebtEntryKind, entryId: strin
     walletId: linked ? entry.walletId! : null,
     countBefore: moves ? before : null,
     countAfter: moves ? recount : null,
-    dueRestore: kind === 'increase' ? dueDateAfterIncreaseRemoval(d, [entry], increases.filter(e => e.id !== entryId)) : null,
+    dueRestore: kind === 'increase'
+      ? dueDateAfterIncreaseRemoval(d, [entry], increases.filter(e => e.id !== entryId))
+      : dueDateAfterPaymentRemoval(d, [entry as Debt['payments'][number]], payments.filter(e => e.id !== entryId)),
   };
 }
 
@@ -1375,7 +1526,7 @@ export function debtEntryDeleteMessage(
   const amt = `${money(plan.amount)} ج.م`;
   const lines: string[] = [];
   if (kind === 'payment') {
-    lines.push(`دفعة ${amt} ${d.direction === 'owed_to_me' ? 'من' : 'لـ'} ${d.personName} هتتمسح.`);
+    lines.push(`دفعة ${amt} ${d.direction === 'owed_to_me' ? `من ${d.personName}` : `لـ${d.personName}`} هتتمسح.`);
   } else {
     lines.push(`زيادة ${amt} على دين ${d.personName} هتتمسح.`);
   }
@@ -1383,8 +1534,8 @@ export function debtEntryDeleteMessage(
     ? installmentCountBackLine(plan.countBefore, plan.countAfter) : null;
   if (countLine) lines.push(countLine);
   if (plan.dueRestore) lines.push(dueRestoreLine(plan.dueRestore));
-  if (plan.walletEffect === 'returns') lines.push(`والـ ${amt} هترجع لمحفظة "${walletName}".`);
-  else if (plan.walletEffect === 'leaves') lines.push(`والـ ${amt} هتتشال من محفظة "${walletName}".`);
+  if (plan.walletEffect === 'returns') lines.push(`والمبلغ هيرجع لمحفظة "${walletName}".`);
+  else if (plan.walletEffect === 'leaves') lines.push(`والمبلغ هيتشال من محفظة "${walletName}".`);
   else lines.push('مكانتش مربوطة بمحفظة، فمفيش رصيد هيتغيّر.');
 
   return { title: kind === 'payment' ? 'تمسح الدفعة دي؟' : 'تمسح الزيادة دي؟', body: lines.join('\n') };
@@ -1416,7 +1567,7 @@ export function planInstallmentCountEdit(
 }
 
 export function installmentCountTooLowMessage(paidCount: number) {
-  return `اتسجل ${paidCount === 1 ? 'قسط واحد' : paidCount === 2 ? 'قسطين' : `${paidCount} أقساط`} خلاص، فالعدد لازم يكون أكبر من كده.`;
+  return `اتسجل ${installmentsPhrase(paidCount)} خلاص، فالعدد لازم يكون أكبر من كده.`;
 }
 
 export const INSTALLMENT_VALUE_TOO_SMALL = 'كده القسط هيبقى أقل من قرش، اختار عدد أقل.';
@@ -1664,6 +1815,20 @@ export const CATEGORY_ICON_MAX = 16;
 
 export function categoryIconValid(icon: string) {
   return CATEGORY_ICONS.includes(icon) || (icon.length > 0 && icon.length <= CATEGORY_ICON_MAX);
+}
+
+/**
+ * اسم كل أيقونة بالعربي لقارئ الشاشة (a11y-architect، الميزة 10): «أيقونة 🚗» كانت بتتقري باسم الإيموجي من النظام —
+ * بالإنجليزي على أجهزة كتير ومش ثابت بين أندرويد وأندرويد.
+ */
+export const CATEGORY_ICON_LABELS: Record<string, string> = {
+  '🚗': 'عربية', '🍳': 'طبخ', '🛒': 'سوبر ماركت', '🍔': 'أكل برّه', '💡': 'لمبة', '🏠': 'بيت', '👕': 'هدوم', '💊': 'دوا',
+  '🎓': 'تعليم', '🎮': 'ألعاب', '✈️': 'سفر', '🎁': 'هدايا', '💰': 'فلوس', '📱': 'موبايل', '☕': 'قهوة', '💼': 'شغل',
+  '🐾': 'حيوانات', '🧾': 'فواتير', '⚡': 'كهربا', '❓': 'علامة استفهام',
+};
+/** المكتوبة من الكيبورد مالهاش اسم عندنا — «أيقونة مخصصة» بدل اسم الإيموجي من النظام */
+export function categoryIconLabel(icon: string): string {
+  return CATEGORY_ICON_LABELS[icon] ?? 'أيقونة مخصصة';
 }
 
 export const CATEGORY_ICONS = [

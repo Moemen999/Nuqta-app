@@ -4,8 +4,8 @@ import { MIN_TOUCH, overlayCenteredStyle, radius, glyphSize, typeScale } from '@
 // اسم اليوم كامل لقارئ الشاشة («الأربع، 11 نوفمبر 2026») — نفس قايمة الدخل الثابت، عشان الاتنين ميختلفوش
 import { MONTH_NAMES } from '@/lib/dateText';
 import { WEEKDAY_NAMES } from '@/lib/recurringIncome';
-import { useMemo, useState } from 'react';
-import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 
 const WEEKDAYS = ['أحد', 'اتنين', 'تلات', 'أربع', 'خميس', 'جمعة', 'سبت'];
@@ -17,6 +17,16 @@ function firstWeekday(year: number, month: number) { return new Date(year, month
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
 type ViewLevel = 'days' | 'months' | 'years';
+
+/** بيتقال لقارئ الشاشة لما المستوى يتغيّر — الشبكة كلها بتتبدّل من غير ما التركيز يعرف (الميزة 8، a11y-architect) */
+const LEVEL_ANNOUNCE: Record<ViewLevel, string> = { days: 'اختار اليوم', months: 'اختار الشهر', years: 'اختار السنة' };
+
+function viewOf(value: string) {
+  const now = new Date();
+  return value
+    ? { year: Number(value.slice(0, 4)), month: Number(value.slice(5, 7)) - 1 }
+    : { year: now.getFullYear(), month: now.getMonth() };
+}
 
 type Props = {
   visible: boolean;
@@ -32,14 +42,28 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   // بنقرا السنة والشهر من نص التاريخ مباشرةً. لو حوّلناه لـ Date الأول، التحويل
   // بيتعمل على UTC والقراية بالتوقيت المحلي، فالتقويم كان ممكن يفتح على الشهر
   // اللي قبله في أول يوم في الشهر.
-  const now = new Date();
-  const [initYear, initMonth] = value
-    ? [Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1]
-    : [now.getFullYear(), now.getMonth()];
-  const [viewYear, setViewYear] = useState(initYear);
-  const [viewMonth, setViewMonth] = useState(initMonth);
-  const [level, setLevel] = useState<ViewLevel>('days');
-  const [yearsPageStart, setYearsPageStart] = useState(Math.floor(initYear / 12) * 12);
+  const init = viewOf(value);
+  const [viewYear, setViewYear] = useState(init.year);
+  const [viewMonth, setViewMonth] = useState(init.month);
+  const [level, setLevelState] = useState<ViewLevel>('days');
+  const [yearsPageStart, setYearsPageStart] = useState(Math.floor(init.year / 12) * 12);
+
+  // الكومبوننت بيفضل متركّب والمودال مقفول، فالشهر كان بيتقري مرة واحدة: تعديل عملية قديمة (القيمة وصلت بعد التركيب)
+  // كان بيفتح على الشهر الحالي. كل فتحة بتبدأ من شهر القيمة (الميزة 8)
+  useEffect(() => {
+    if (!visible) return;
+    const v = viewOf(value);
+    setViewYear(v.year);
+    setViewMonth(v.month);
+    setYearsPageStart(Math.floor(v.year / 12) * 12);
+    setLevelState('days');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- مع الفتح بس؛ القيمة بتتغيّر من الاختيار نفسه والمودال بيتقفل
+  }, [visible]);
+
+  function setLevel(next: ViewLevel) {
+    setLevelState(next);
+    AccessibilityInfo.announceForAccessibility(LEVEL_ANNOUNCE[next]);
+  }
 
   function goPrev() {
     if (level === 'days') {
@@ -73,7 +97,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
   }
   function selectMonth(m: number) { setViewMonth(m); setLevel('days'); }
   function selectYear(y: number) { setViewYear(y); setLevel('months'); }
-  function close() { setLevel('days'); onClose(); }
+  function close() { setLevelState('days'); onClose(); }
 
   const prevLabel = level === 'days' ? 'الشهر اللي فات' : level === 'months' ? 'السنة اللي فاتت' : 'السنين اللي فاتت';
   const nextLabel = level === 'days' ? 'الشهر الجاي' : level === 'months' ? 'السنة الجاية' : 'السنين الجاية';
@@ -83,7 +107,15 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
       {/* الخلفية والكارت مش أزرار لقارئ الشاشة (accessible=false): الخلفية كانت "زرار" من غير اسم، والكارت ماسك الدوس بس */}
       <TouchableOpacity accessible={false} style={styles.overlay} activeOpacity={1} onPress={close}>
         {/* iOS: التركيز محبوس جوّه، وإيماءة الخروج بتقفل (a11y-architect جولة 2). أندرويد: زرار الرجوع ← onRequestClose */}
-        <TouchableOpacity accessible={false} accessibilityViewIsModal onAccessibilityEscape={close} activeOpacity={1} style={styles.card} onPress={() => {}}>
+        <TouchableOpacity testID="calendar_card" accessible={false} accessibilityViewIsModal onAccessibilityEscape={close} activeOpacity={1} style={styles.card} onPress={() => {}}>
+          {/* عنوان ظاهر وإغلاق صريح (الميزة 8): قبل كده أول حاجة بيقراها قارئ الشاشة «الشهر اللي فات» من غير ما يعرف هو فين،
+              والخروج كان بالدوس برّه بس (مش زرار) */}
+          <View style={styles.titleRow}>
+            <Text style={styles.title} accessibilityRole="header">اختار التاريخ</Text>
+            <TouchableOpacity testID="calendar_close" onPress={close} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="إغلاق">
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.header}>
             <TouchableOpacity onPress={goPrev} style={styles.navBtn} accessibilityRole="button" accessibilityLabel={prevLabel}>
               <Text style={styles.navText}>›</Text>
@@ -106,7 +138,7 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose 
                 </TouchableOpacity>
               )}
               {level === 'years' && (
-                <Text style={styles.label}>{yearsPageStart} - {yearsPageStart + 11}</Text>
+                <Text style={styles.label} accessibilityRole="header">{`${yearsPageStart} - ${yearsPageStart + 11}`}</Text>
               )}
             </View>
 
@@ -172,7 +204,12 @@ function makeStyles(c: ThemeColors) {
   return StyleSheet.create({
     overlay: overlayCenteredStyle,
     // أقصى عرض: الخانة طولها ثابت، فعلى تابلت أو موبايل بيتفرد كانت هتبقى شريط عريض (visual-identity-reviewer)
-    card: { backgroundColor: c.surface, borderRadius: radius.xl, padding: 16, width: '88%', maxWidth: 360, borderWidth: 1, borderColor: c.borderStrong },
+    // عرض الخانة ≥ 44 (الميزة 8): 94% وحواف جنب 12 ← على موبايل 360 الخانة ~44.9 (كانت ~40.7 بـ88% و16)
+    card: { backgroundColor: c.surface, borderRadius: radius.xl, paddingVertical: 16, paddingHorizontal: 12, width: '94%', maxWidth: 360, borderWidth: 1, borderColor: c.borderStrong },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+    title: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
+    closeBtn: { minWidth: MIN_TOUCH, minHeight: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
+    closeText: { color: c.textSecondary, fontSize: typeScale.body },
     header: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
     navBtn: { width: MIN_TOUCH, height: MIN_TOUCH, borderRadius: MIN_TOUCH / 2, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' },
     navText: { color: c.text, fontSize: glyphSize.chevron },

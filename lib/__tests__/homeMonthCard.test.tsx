@@ -115,7 +115,8 @@ describe('الكارت = الرقم البطل في التقارير (نفس ا�
     expect(homeText).toBeDefined();
     expect(reportsText).toBe(homeText);
     // قارئ الشاشة: الرقم والوحدة جملة واحدة
-    expect(screen.getByLabelText('380.6 ج.م')).toBeTruthy();
+    // قارئ الشاشة: الرقم والوحدة جملة واحدة، بـ«جنيه» زي باقي الأرقام المقرية (Feature 9، a11y-architect)
+    expect(screen.getByLabelText('380.6 جنيه')).toBeTruthy();
     // سطر الرسم تحت «مصروفك أسبوع بأسبوع»: السنة مش بتتكرر لما الفترة كلها في السنة دي (13 نوفمبر 2026)
     expect(flat(screen.getByTestId('reports_trend_range').props.children)).toBe('من 1 نوفمبر لحد 30 نوفمبر');
   });
@@ -186,10 +187,13 @@ describe('حالات الكارت', () => {
     expect(card().props.accessibilityLabel).toBe('صرفت الشهر ده: بنحمّل');
   });
 
-  it('نفس الحالة بعد المهلة (حساب جديد من غير عمليات، الـlistener مرماش) ← «0 ج.م» مش «بنحمّل» للأبد', async () => {
+  // M3 (الجولة الأخيرة): قاعدة واحدة مع الرقم البطل — الكارت بيستنى نفس إشارة «العمليات وصلت» من غير هروب بالمهلة.
+  // حساب جديد مبيفضلش «بنحمّل» للأبد: مجموعة فاضية بترمي snapshot من السيرفر (figuresFromServer.emulator.test.tsx)
+  it('نفس الحالة بعد المهلة ← لسه «بنحمّل» (مش «0 ج.م» و«فاضل 8,000» على عمليات ما وصلتش)', async () => {
     await mountPending(true);
-    expect(cardText()).toBe('0');
-    expect(flat(screen.getByTestId('home_month_left').props.children)).toBe('فاضل 8,000 ج.م');
+    expect(within(card()).queryByText(/فاضل/)).toBeNull();
+    expect(screen.queryByTestId('home_month_left')).toBeNull();
+    expect(card().props.accessibilityLabel).toBe('صرفت الشهر ده: بنحمّل');
   });
 
   it('العمليات وصلت (figuresPending فاضي) ← الرقم على طول', async () => {

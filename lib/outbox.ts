@@ -137,10 +137,14 @@ export function canPersistMore(count: number): boolean {
   return count < OUTBOX_MAX;
 }
 
-/** تعديل عملية لسه في الطابور بيتدمج فيها (قرار مؤمن 4) — `undefined` مبيمسحش حقل */
-export function mergePatch(data: Record<string, unknown>, patch: Record<string, unknown>): Record<string, unknown> {
+/**
+ * تعديل عملية لسه في الطابور بيتدمج فيها (قرار مؤمن 4) — `undefined` مبيمسحش حقل. `clear`: حقول النوع الجديد مبيستخدمهاش
+ * (مصروف ← تحويل: الفئة؛ تحويل ← مصروف: الوجهة) بتتشال — نفس `deleteField()` على المستند (الميزة 8، L)
+ */
+export function mergePatch(data: Record<string, unknown>, patch: Record<string, unknown>, clear: readonly string[] = []): Record<string, unknown> {
   const out = { ...data };
   for (const [k, v] of Object.entries(patch)) if (v !== undefined) out[k] = v;
+  for (const k of clear) delete out[k];
   return out;
 }
 
@@ -158,17 +162,17 @@ export function hasLinkFields(tx: Record<string, unknown>): boolean {
 
 export const OUTBOX_UNREADABLE_TITLE = 'ما قدرناش نرجّع عملياتك';
 
-/** «عملية 150 يوم 12 نوفمبر» — المبلغ أو التاريخ مش سليم ← بيتشال من الجملة بدل NaN */
+/** «عملية بـ150 ج.م يوم 12 نوفمبر» — المبلغ أو التاريخ مش سليم ← بيتشال من الجملة بدل NaN */
 function txLabel(amount: unknown, date: unknown, today: string): string {
   const parts = ['عملية'];
-  if (typeof amount === 'number' && Number.isFinite(amount)) parts.push(`${fmt(amount)}`); // قالب عن قصد عشان جرد الإخفاء (amountsPrivacy) يعدّه
+  if (typeof amount === 'number' && Number.isFinite(amount)) parts.push(`بـ${fmt(amount)} ج.م`); // قالب واحد عن قصد عشان جرد الإخفاء (amountsPrivacy) يعدّه
   if (typeof date === 'string' && date) parts.push(`يوم ${dateText(date, today)}`);
   return parts.join(' ');
 }
 
 /** الإعادة اترفضت من السيرفر (القواعد) أو فشلت كذا جلسة — العنوان `WRITE_ERROR_TITLE` */
 export function rejectedReplayBody(amount: unknown, date: unknown, today: string): string {
-  return `${txLabel(amount, date, today)} كانت مستنية النت واترفضت لما حاولنا نرفعها. سجّلها تاني من "+".`;
+  return `${txLabel(amount, date, today)} كانت مستنية النت واترفضت لما حاولنا نرفعها، ومفيش منها حاجة اتسجلت. سجّلها تاني من "+".`;
 }
 
 /** الإعادة فشلت كذا جلسة (مش رفض) والعملية **اتأكد** إنها مش على السيرفر — العنوان `WRITE_ERROR_TITLE` */
@@ -177,8 +181,30 @@ export function repeatedFailReplayBody(amount: unknown, date: unknown, today: st
 }
 
 /** تعديل عملية لسه مستنية النت ومقدرناش نحميه على الموبايل (التخزين فشل) */
-export const OUTBOX_EDIT_UNPROTECTED_TITLE = 'خلّي بالك';
-export const OUTBOX_EDIT_UNPROTECTED_BODY = 'التعديل اتحفظ، بس لو قفلت التطبيق قبل ما النت يرجع ممكن العملية دي ما تترفعش.';
+export const OUTBOX_EDIT_UNPROTECTED_TITLE = 'التعديل مش محمي لسه';
+export const OUTBOX_EDIT_UNPROTECTED_BODY = 'التعديل اتحفظ، بس لو قفلت التطبيق قبل ما النت يرجع ممكن ما يترفعش. سيب التطبيق مفتوح لحد ما النت يرجع.';
+
+/** عملية جديدة ونسختها على الموبايل ما اتحفظتش (التخزين فشل أو الحد اتملى) — من غير نت بس (الميزة 8، M) */
+export const OUTBOX_ADD_UNPROTECTED_TITLE = 'العملية مش محمية لسه';
+export const OUTBOX_ADD_UNPROTECTED_BODY = 'اتسجلت، بس لو قفلت التطبيق قبل ما النت يرجع ممكن تضيع. سيب التطبيق مفتوح لحد ما النت يرجع.';
+
+/**
+ * `setDoc` اترفض برفض **مش** نهائي (`isFinalWriteRejection` = false) والنسخة على الموبايل فاضلة للإعادة. فايربيز بتشيل
+ * الكتابة المرفوضة من الكاش، فالعملية بتختفي من القايمة — بس مش ضايعة. «اترجع… جرب من الأول» كانت هتخليه يسجّلها
+ * تاني وتبقى نسختين لما الإعادة تنجح (الميزة 8، M — شوف `addDurableTransaction`)
+ */
+export const OUTBOX_KEPT_TITLE = 'العملية ما اترفعتش لسه';
+export const OUTBOX_KEPT_BODY = 'السيرفر ما قبلهاش دلوقتي، بس هي لسه محفوظة على الموبايل — هنحاول نرفعها تاني لما تفتح التطبيق. متسجلهاش تاني.';
+
+/**
+ * مدخلات حساب اتكنست لما حساب تاني دخل على نفس الموبايل — الرسالة بتظهر لصاحبها أول ما يدخل (الميزة 8، M). «ممكن»: لو النت
+ * مش متاح مقدرناش نتأكد إن مفيش منها وصل السيرفر قبل الكنس (الجولة 2، بند 2)، فـ«ضاعت… سجّلها تاني» كانت ممكن تعمل نسختين
+ */
+export const OUTBOX_SWEPT_TITLE = 'ممكن يكون فيه عمليات ما اترفعتش';
+export function outboxSweptBody(n: number): string {
+  // المفرد المؤنث لكل الأعداد — جمع غير العاقل («عمليتين ما اترفعتش… تسجّلها»، arabic-copy-reviewer)
+  return `ممكن يكون فيه ${transactionsPhrase(n)} ما اترفعتش من الموبايل ده — بص على عملياتك في الأرشيف قبل ما تسجّلها تاني.`;
+}
 
 /** المحفظة اتأرشفت أو اتمسحت قبل ما العملية ترفع — مبنكتبهاش على محفظة مقفولة */
 export function walletGoneReplayBody(amount: unknown, date: unknown, today: string): string {
@@ -192,9 +218,9 @@ export function unreadableReplayBody(n: number, savedAt: string, today: string):
   return `${head} بصّ على مصاريفك من يوم ${dateText(savedAt, today)} وسجّل اللي ناقص.`;
 }
 
-/** «لسه فيه عمليتين ما اترفعتش» */
+/** «لسه فيه عمليتين ما اترفعوش» / «لسه فيه 3 عمليات ما اترفعتش» */
 export function outboxLogoutTitle(n: number): string {
-  return `لسه فيه ${transactionsPhrase(n)} ما اترفعتش`;
+  return `لسه فيه ${transactionsPhrase(n)} ${n === 2 ? 'ما اترفعوش' : 'ما اترفعتش'}`;
 }
 
 /** رسالة الخروج (قرار مؤمن 1): الخروج بيمسح الطابور، فالعدد بيتقال صريح إنه هيضيع */
@@ -202,3 +228,10 @@ export function outboxLogoutSentence(n: number): string {
   if (n === 2) return `فيه ${transactionsPhrase(n)} متسجلين على الموبايل ولسه ما اترفعوش — لو خرجت دلوقتي هيضيعوا.`;
   return `فيه ${transactionsPhrase(n)} متسجلة على الموبايل ولسه ما اترفعتش — لو خرجت دلوقتي هتضيع.`;
 }
+
+/**
+ * قراية الطابور فشلت فالعدد مش معروف (الميزة 8، L) — الخروج بيتعامل معاه "مش آمن" زي لو فيه عمليات، بدل رسالة الخروج
+ * العادية اللي كانت هتقول "متأكد؟" والعمليات ممكن تضيع
+ */
+export const OUTBOX_UNKNOWN_LOGOUT_TITLE = 'مش متأكدين إن كل عملياتك اترفعت';
+export const OUTBOX_UNKNOWN_LOGOUT_BODY = 'ما قدرناش نعرف لو فيه عمليات متسجلة على الموبايل ولسه ما اترفعتش. لو فيه، هتضيع لو خرجت دلوقتي. استنى لحد ما النت يرجع وافتح التطبيق تاني، أو اخرج وانت عارف.';

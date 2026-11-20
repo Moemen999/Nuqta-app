@@ -11,6 +11,8 @@ import { CREDIT_PURCHASE_HINT } from '@/lib/spending';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/components/useDeviceContacts', () => ({
   useDeviceContacts: () => ({ contacts: [], visible: false, open: jest.fn(), close: jest.fn(), createContact: jest.fn() }),
 }));
@@ -22,7 +24,7 @@ beforeEach(() => {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [], transactions: [],
-    addDebt: jest.fn(async () => {}), addDebtIncrease: jest.fn(async () => ({ outcome: 'done', note: null })),
+    addDebt: jest.fn(async () => ({ outcome: 'done' })), addDebtIncrease: jest.fn(async () => ({ outcome: 'done', note: null })),
   });
 });
 
@@ -38,7 +40,7 @@ it('دين جديد: السطر بيظهر بس مع "عليا" ومن غير م
 const incDebt = (direction: string, initialTransactionId?: string) =>
   ({ id: 'd1', direction, initialTransactionId, personName: 'س', totalAmount: 100, date: '2026-01-01', payments: [], increases: [] }) as unknown as Debt;
 async function increaseHintShown(d: Debt) {
-  await render(wrap(<DebtIncreaseModal debt={d} onClose={() => {}} />));
+  await render(wrap(<DebtIncreaseModal debtId={withDebt(d)} onClose={() => {}} />));
   await act(async () => { fireEvent.press(screen.getByText('لأ (بالأجل)')); });
   return !!screen.queryByTestId('debt_increase_credit_hint');
 }

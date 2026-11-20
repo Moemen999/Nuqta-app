@@ -1,3 +1,4 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import CategoriesScreen from '@/app/settings-screens/categories';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
@@ -14,21 +15,23 @@ jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({
 jest.mock('expo-router', () => ({ router: { push: jest.fn(), back: jest.fn() } }));
 
 const food = { id: 'c1', name: 'أكل' };
+// فئة تانية: آخر فئة شغالة مبتتمسحش (الميزة 10)
+const trips = { id: 'c2', name: 'مواصلات' };
 function seed(transactions: object[] = []) {
   Object.assign(mockData, {
-    wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [food], transactions, brokenTransactions: [],
-    budgets: {}, debts: [], subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
+    wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [food, trips], transactions, brokenTransactions: [],
+    budgets: {}, debts: [], subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
     updateCategory: jest.fn(), addCategory: jest.fn(), deleteCategory: jest.fn(async () => ({ outcome: 'done' })),
     archiveCategory: jest.fn(async () => ({ outcome: 'done' })), restoreCategory: jest.fn(),
   });
 }
 const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><CategoriesScreen /></ConfirmProvider></NoticeProvider></ThemeProvider>;
 
-it('فئة من غير عمليات ← "حذف فئة"، و"إلغاء" مبيمسحش', async () => {
+it('فئة من غير عمليات ← "تمسح الفئة؟"، و"إلغاء" مبيمسحش', async () => {
   seed();
   await render(ui());
   await act(async () => { fireEvent.press(screen.getByTestId('category_delete_c1')); });
-  expect(screen.getByTestId('confirm_title').props.children).toBe('حذف فئة');
+  expect(screen.getByTestId('confirm_title').props.children).toBe('تمسح الفئة؟');
   await act(async () => { fireEvent.press(screen.getByTestId('confirm_cancel')); });
   expect(mockData.deleteCategory).not.toHaveBeenCalled();
 });
@@ -37,7 +40,7 @@ it('فئة عليها عمليات ← التأكيد الأول، وبعده "�
   seed([{ id: 't1', type: 'expense', amount: 50, walletId: 'w1', categoryId: 'c1', date: '2026-01-01' }]);
   await render(ui());
   await act(async () => { fireEvent.press(screen.getByTestId('category_delete_c1')); });
-  expect(screen.getByTestId('confirm_title').props.children).toBe('الفئة دي عليها عمليات');
+  expect(screen.getByTestId('confirm_title').props.children).toBe('الفئة دي ليها تاريخ');
   const destructive = screen.getAllByTestId(/confirm_action_/).find(b => b.props.accessibilityHint === 'تأكيد فعل خطر')!;
   await act(async () => { fireEvent.press(destructive); });
   expect(screen.getByTestId('confirm_title').props.children).toBe('مسح نهائي');

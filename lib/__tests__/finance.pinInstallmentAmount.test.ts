@@ -59,8 +59,10 @@ describe('DataContext: كل عملية ذرية بتكتب عدد الأقساط
     expect(b).toContain('pinInstallmentAmount(debt)');
   });
 
-  it('stageReconcile (من حالة الرياكت، مش ذرية) مبيثبّتش — عشان ميكتبش فوق قيمة اتعدّلت من جهاز تاني', () => {
-    const start = code.indexOf('  function stageReconcile(');
+  // الجولة 2 (بند 1): مسح عملية الدفعة/الزيادة اتنقل من `stageReconcile` لذرة — ولسه مبيثبّتش: التحذير (D3) اتحسب من غيره
+  it('deleteDebtLinkedTransaction (مسح العملية من الأرشيف) مبيثبّتش — نفس رقم التحذير (D3)', () => {
+    const start = code.indexOf('  async function deleteDebtLinkedTransaction(');
+    expect(start).toBeGreaterThan(-1);
     const b = code.slice(start, code.indexOf('\n  }\n', start));
     expect(b).toContain('patch.installmentCount = ');
     expect(b).not.toContain('pinInstallmentAmount');

@@ -57,13 +57,18 @@ function load() {
         const mergedIntervals = { ...intervals, ...state.intervals };
         emit({ dismissals: pruneExpired(merged, mergedIntervals, Date.now()), intervals: mergedIntervals, loaded: true });
       })
-      .catch(() => { if (g === generation) emit({ loaded: true }); });
+      .catch(e => {
+        // القراية وقعت ← البانرات بتظهر (الأأمن)، بس من غير سكوت (الميزة 7): اسم الخطأ بس، مفيش محتوى
+        console.warn('[bannerDismiss] read failed', e instanceof Error ? e.name : 'unknown');
+        if (g === generation) emit({ loaded: true });
+      });
   }
   return loading;
 }
 
 function save(key: string, value: unknown) {
-  AsyncStorage.setItem(key, JSON.stringify(value)).catch(() => { /* شوف فوق: بيفضل في الذاكرة */ });
+  // شوف فوق: بيفضل في الذاكرة — بس من غير سكوت (الميزة 7)
+  AsyncStorage.setItem(key, JSON.stringify(value)).catch(e => console.warn('[bannerDismiss] save failed', e instanceof Error ? e.name : 'unknown'));
 }
 
 function subscribe(l: () => void) {

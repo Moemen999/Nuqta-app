@@ -2,7 +2,6 @@ import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } 
 import { PeriodChips } from '@/components/PeriodChips';
 import { HeroAmount } from '@/components/HeroAmount';
 import { Money } from '@/components/Money';
-import { moneyText } from '@/lib/money';
 import { usePrivacy } from '@/context/PrivacyContext';
 import CalendarPickerModal from '@/components/CalendarPickerModal';
 import { useData } from '@/context/DataContext';
@@ -11,13 +10,14 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { dateText } from '@/lib/dateText';
 import { addDays, buildCategorySpend, buildPieSlices, categoryLabel, endOfMonth, groupDebtsByPerson, PIASTRE_EPS, periodExpenseTotal, snapPiastre, startOfMonth, todayStr } from '@/lib/finance';
 import { barRows } from '@/lib/barRows';
-import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
+import { barFillStyle, barFrameStyle, rangeText, sixMonthsStart, spendTimeline, TIMELINE_PARTIAL_NOTE, TIMELINE_ROUNDED_NOTE, TIMELINE_TITLE, type TimelineBucket } from '@/lib/spendTimeline';
 import { previousPeriodLabel } from '@/lib/periodPresets';
-import { comparisonWindows } from '@/lib/periodCompare';
+import { changeText, comparisonWindows } from '@/lib/periodCompare';
 import { takeReportsRequest } from '@/lib/reportsRequest';
 import FoldedSection from '@/components/FoldedSection';
 import { FILTER_CLEARED_ANNOUNCEMENT, selectedCategoriesPhrase } from '@/lib/archiving';
-import { spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
+import { CATEGORY_NAMES_MISSING, DEBTS_LOAD_FAILED, TX_LOAD_ERROR, spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
+import { brokenTransactionsBannerText } from '@/lib/brokenDocs';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router, useFocusEffect } from 'expo-router';
@@ -42,12 +42,25 @@ export default function ReportsScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { categories, transactions, debts, gamiyas, transfersStatus } = useData();
-  // بند 11: من غير الديون والجمعية السلفة بتتعدّ مصروف — الأرقام مبتظهرش لحد ما يوصلوا
-  const spendLoading = transfersStatus === 'loading';
+  const {
+    categories, transactions, debts, gamiyas, transfersStatus, brokenTransactions = [],
+    figuresPending = [], loadErrors = [], categoriesReady = true, debtsReady = true,
+  } = useData();
+  // بند 11: من غير الديون والجمعية السلفة بتتعدّ مصروف — الأرقام مبتظهرش لحد ما يوصلوا. **والعمليات نفسها** (Feature 9
+  // بند 1): نفس شرط الرئيسية والميزانية — من غيره التقارير كانت بتقول «0» و«مفيش مصاريف» لحد أول snapshot للعمليات
+  const spendLoading = transfersStatus === 'loading' || figuresPending.includes('transactions');
+  // العمليات اترفضت (بند 2): رسالة خطأ مكان كل رقم — مش «0» ولا «مفيش مصاريف» (زي كارت الرئيسية)
+  const txError = loadErrors.includes('transactions');
+  const categoriesFailed = loadErrors.includes('categories');
+  // الفئات لسه ما وصلتش: المصروف بفئة مش لاقيين اسمها كان هيتحط في «فئات ممسوحة» ← الأعمدة بتستنى
+  const barsLoading = spendLoading || (!categoriesReady && !categoriesFailed);
+  // كشف حساب الأشخاص: الديون بس — `debtsReady` مش `transfersStatus` (الجولة الأخيرة): ده الديون والجمعية مع بعض، فالجمعية
+  // لسه بتحمّل كانت بتخبّي الأشخاص، والجمعية اترفضت والديون لسه كانت بتقول «مفيش حركة ديون»
+  const debtsFailed = loadErrors.includes('debts');
+  const debtsLoading = !debtsReady && !debtsFailed;
   // السلفة والجمعية مش مصروف (خطوة 8) — بتتعرف من المعرّفات المتخزّنة جوه الدين والجمعية
   const transfers = useMemo(() => transferTransactionIds(debts, gamiyas), [debts, gamiyas]);
-  const { money, amountsHidden } = usePrivacy();
+  const { money } = usePrivacy();
   const { categoryColors } = useChartColors();
   const reduceMotion = useReduceMotion();
   // 0 ← 1: كل الأعمدة (الأفقية والزمنية) بتكبر بنفس القيمة. الأرقام والارتفاعات مبتتغيّرش — تحويل scale على الرسم بس
@@ -107,8 +120,9 @@ export default function ReportsScreen() {
       colorFor: id => categoryColors.get(id) || colors.textSecondary,
       deletedColor: colors.textSecondary,
       visibleIds,
+      ...(categoriesFailed ? { deletedName: CATEGORY_NAMES_MISSING } : {}),
     }),
-    [periodExpenses, categories, categoryColors, colors.textSecondary, visibleIds]
+    [periodExpenses, categories, categoryColors, colors.textSecondary, visibleIds, categoriesFailed]
   );
 
   // الرقم البطل من الدالة المشتركة مع كارت الرئيسية (`spendInRange`) — نفس الصفوف ونفس ترتيب الجمع
@@ -142,7 +156,9 @@ export default function ReportsScreen() {
     const prevExpenses = allSpending
       .filter(t => t.date >= previous.from && t.date <= previous.to);
     const prevExpense = periodExpenseTotal(prevExpenses, visibleIds);
-    return Math.abs(prevExpense) < PIASTRE_EPS ? null : Math.round(((curExpense - prevExpense) / prevExpense) * 100);
+    if (Math.abs(prevExpense) < PIASTRE_EPS) return null;
+    // الفرق الخام كمان: النسبة المقرّبة لصفر مش معناها «زي ما هو» (`changeText`)
+    return { pct: Math.round(((curExpense - prevExpense) / prevExpense) * 100), diff: curExpense - prevExpense };
   }, [range, today, preset, visibleIds, allSpending]);
 
   // الأعمدة من الفترة والفئات المختارين ومن نفس صفوف الرقم البطل — `lib/spendTimeline.ts`
@@ -242,6 +258,16 @@ export default function ReportsScreen() {
       .filter(s => s.outFlow > 0 || s.inFlow > 0 || s.balance !== 0);
   }, [debts, range]);
 
+  const changeShown = changeText(change?.pct ?? null, change?.diff ?? 0);
+  const changePct = change?.pct ?? null;
+  // نفس جملة العمودين (arabic-copy-reviewer): «مفيش مصاريف للفئات دي في الفترة دي» لما فيه فلتر
+  const noSpendText = `مفيش مصاريف${catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي`;
+  const personLabel = (s: PersonSummary) => [
+    s.personName,
+    s.balance > 0 ? `ليك عنده ${money(s.balance)} جنيه` : s.balance < 0 ? `عليك له ${money(Math.abs(s.balance))} جنيه` : 'متسدد بالكامل',
+    `منك ليه ${money(s.outFlow)} جنيه`, `منه ليك ${money(s.inFlow)} جنيه`,
+  ].join('، ');
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
     <ScrollView style={styles.scrollArea} contentContainerStyle={styles.content}
@@ -265,20 +291,32 @@ export default function ReportsScreen() {
 
       {/* دراسة الشكل خطوة 5: رقم بطل واحد (مصروف الفترة) والمقارنة سطر صغير تحته — كانوا كارتين بنفس الوزن */}
       <View testID="reports_hero" style={styles.heroCard}>
-        <Text style={styles.metricLabel}>مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
-        {spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={amountsHidden ? undefined : moneyText(periodExpense, false)}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>}
-        <View style={styles.changeRow}>
-          <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
-          {spendLoading ? <SpendLoading announce={false} shape="line" style={styles.changeValue} /> : (
-            <Text style={[styles.changeValue, { color: change === null || change === 0 ? colors.textSecondary : change > 0 ? colors.dangerText : colors.incomeText }]}>
-              {change === null ? '—' : `${change > 0 ? '+' : ''}${change}%`}
-            </Text>
-          )}
-        </View>
+        <Text style={styles.metricLabel} accessibilityRole="header">مصروفات الفترة{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+        {txError ? (
+          <Text testID="reports_tx_error" style={styles.errorText} accessibilityLiveRegion="polite">{TX_LOAD_ERROR}</Text>
+        ) : spendLoading ? <SpendLoading testID="reports_period_loading" style={styles.heroLoading} /> : (
+          // التقارير برّه نطاق العين (`PrivacyContext`) فالرقم دايمًا ظاهر — الاسم بـ«جنيه» زي باقي الأرقام المقرية
+          <HeroAmount unitTestID="reports_hero_unit" style={styles.heroRow} label={`${money(periodExpense)} جنيه`}><Money value={periodExpense} currency={false} fit style={styles.heroValue} /></HeroAmount>
+        )}
+        {!txError && (
+          <View style={styles.changeRow}>
+            <Text style={styles.metricLabel}>{previousPeriodLabel(preset)}</Text>
+            {spendLoading ? <SpendLoading announce={false} shape="line" style={styles.changeValue} /> : (
+              <Text testID="reports_change" accessibilityLabel={changeShown.label}
+                style={[styles.changeValue, { color: changePct === null || changePct === 0 ? colors.textSecondary : changePct > 0 ? colors.dangerText : colors.incomeText }]}>
+                {changeShown.text}
+              </Text>
+            )}
+          </View>
+        )}
       </View>
-      {transfersStatus === 'failed' && <TransfersFailedNote testID="reports_transfers_failed" />}
+      {transfersStatus === 'failed' && !txError && <TransfersFailedNote testID="reports_transfers_failed" />}
+      {/* بند 7: العمليات البايظة مش محسوبة في أي رقم هنا — نفس سطر بانر الرئيسية */}
+      {brokenTransactions.length > 0 && (
+        <Text testID="reports_broken_note" style={styles.brokenNote}>{brokenTransactionsBannerText(brokenTransactions.length)}</Text>
+      )}
 
-      <Text style={styles.sectionTitle}>توزيع المصاريف حسب الفئة</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">توزيع المصاريف حسب الفئة</Text>
       {/* الفلتر مطوي افتراضيًا: السطر بيقول كام فئة مختارة، و«مسح الفلتر» جنبه من غير ما تفتح — الاختيار عمره ما يستخبّى ساكت */}
       <FoldedSection testID="reports_filter" title="فلتر الفئات" count={catFilter.length} showCount={false} alwaysShow
         status={catFilter.length > 0 ? selectedCategoriesPhrase(catFilter.length) : undefined}
@@ -299,10 +337,12 @@ export default function ReportsScreen() {
       </View>
       </FoldedSection>
 
-      {spendLoading ? (
+      {txError ? (
+        <Text style={styles.emptyState}>{TX_LOAD_ERROR}</Text>
+      ) : barsLoading ? (
         <SpendLoading announce={false} testID="reports_bars_loading" shape="bars" style={styles.emptyState} />
       ) : expenseByCat.length === 0 ? (
-        <Text style={styles.emptyState}>مفيش مصاريف في الفترة دي</Text>
+        <Text style={styles.emptyState} accessibilityLiveRegion="polite">{noSpendText}</Text>
       ) : (
         <>
           {/* أعمدة أفقية بدل الدائري (ترشيح "جرد رسم التقارير" 2026-10-29 — على فرع، مستني مؤمن): الاسم والمبلغ
@@ -320,7 +360,7 @@ export default function ReportsScreen() {
                       <Text style={styles.barNameText}>{plainName(c.id)}</Text>
                     </View>
                   ) : <Text style={styles.barName}>{c.name}</Text>}
-                  <Money value={c.amount} currency={false} style={styles.barValue} />
+                  <Money value={c.amount} currency={false} style={styles.barValue} labelPrefix={catById.has(c.id) ? plainName(c.id) : c.name} />
                   <Text style={styles.barPercent} accessibilityLabel={`${c.percent.replace('%', ' بالمية')} من المصروف`}>{c.percent}</Text>
                 </View>
                 {/* زخرفي: الرقم والنسبة مكتوبين فوقه */}
@@ -333,12 +373,14 @@ export default function ReportsScreen() {
         </>
       )}
 
-      <Text style={styles.sectionTitle}>{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">{TIMELINE_TITLE[timeline.unit]}{catFilter.length > 0 ? ' (الفئات المختارة)' : ''}</Text>
       <Text testID="reports_trend_range" style={styles.hintText}>{rangeText(range.from, range.to, today)}</Text>
-      {spendLoading ? (
+      {txError ? (
+        <Text style={styles.emptyState}>{TX_LOAD_ERROR}</Text>
+      ) : spendLoading ? (
         <SpendLoading announce={false} testID="reports_trend_loading" shape="bars" style={styles.emptyState} />
       ) : timelineEmpty ? (
-        <Text style={styles.emptyState}>مفيش مصاريف{catFilter.length > 0 ? ' للفئات دي' : ''} في الفترة دي</Text>
+        <Text style={styles.emptyState}>{noSpendText}</Text>
       ) : (
         <>
           {/* الأقدم يمين والأحدث شمال (RTL). العمود زخرفي؛ القارئ بيسمع التاريخ كامل وبعده المبلغ (الشجرة: التاريخ ← المبلغ، و`column-reverse` بيرسم المبلغ فوق) (و"مش فترة كاملة" لو ناقص) — Money أخ مستقل عشان القناع والكشف بتاعه ميتبلعوش (نفس قاعدة الأعمدة الأفقية) */}
@@ -373,7 +415,7 @@ export default function ReportsScreen() {
                 </View>
                 {b.future && b.amount === 0
                   ? <Text style={styles.trendValue} accessibilityLabel="لسه ما جاش">—</Text>
-                  : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} />}
+                  : <Money value={roundColumns ? Math.round(b.amount) : b.amount} currency={false} fit style={styles.trendValue} labelPrefix={b.spoken} />}
               </View>
             ))}
           </View>
@@ -388,18 +430,28 @@ export default function ReportsScreen() {
               ))}
             </View>
           )}
-          {timelineHasPartial && <Text style={styles.hintText}>العمود الأفتح اللي بإطار فترته أقصر من الباقي أو لسه ما خلصتش</Text>}
+          {/* بند 6: فوق 6 أعمدة الرقم على العمود متقرّب للجنيه — مجموعهم ممكن يفرق عن الرقم البطل بقروش */}
+          {roundColumns && timeline.buckets.some(b => Math.abs(Math.round(b.amount) - b.amount) > PIASTRE_EPS / 2) && <Text testID="reports_trend_rounded" style={styles.hintText}>{TIMELINE_ROUNDED_NOTE}</Text>}
+          {timelineHasPartial && <Text style={styles.hintText}>{TIMELINE_PARTIAL_NOTE}</Text>}
         </>
       )}
 
-      <Text style={styles.sectionTitle}>كشف حساب الأشخاص</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">كشف حساب الأشخاص</Text>
       <Text style={styles.hintText}>دوس على أي شخص تشوف كشف حساب تفصيلي زي كشف البنك</Text>
-      {personSummaries.length === 0 ? (
+      {debtsFailed ? (
+        <Text testID="reports_people_failed" style={styles.errorText}>{DEBTS_LOAD_FAILED}</Text>
+      ) : debtsLoading ? (
+        <SpendLoading announce={false} testID="reports_people_loading" shape="bars" style={styles.emptyState} />
+      ) : personSummaries.length === 0 ? (
         <Text style={styles.emptyState}>مفيش حركة ديون في الفترة دي</Text>
       ) : (
         personSummaries.map(s => (
           <TouchableOpacity accessibilityRole="button"
             key={s.key}
+            testID={`reports_person_${s.key}`}
+            // عقدة واحدة: الاسم والرصيد واللي اتحرّك في الفترة (a11y-architect)
+            accessibilityLabel={personLabel(s)}
+            accessibilityHint="بيفتح كشف حساب الشخص"
             style={styles.personCard}
             onPress={() => router.push({ pathname: '/person-ledger', params: { personKey: s.key } })}>
             <View style={styles.personHead}>
@@ -441,6 +493,8 @@ function makeStyles(c: ThemeColors) {
     // "بنحمّل…" مكان الرقم البطل بحجم هادي — بمقاس الرقم كانت جملة "لسه بنحمّل…" بتلف 3 سطور (visual-identity-reviewer)
     heroLoading: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
     heroRow: { marginTop: space.xxs },
+    errorText: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm },
+    brokenNote: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm },
     heroValue: { flexShrink: 1, color: c.text, fontSize: typeScale.hero, fontWeight: '700', textAlign: 'right' },
     changeRow: { flexDirection: 'row-reverse', alignItems: 'baseline', gap: space.sm, marginTop: space.sm },
     changeValue: { fontSize: typeScale.body, fontWeight: '700' },

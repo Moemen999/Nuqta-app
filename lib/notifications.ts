@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { DARK } from '@/context/ThemeContext';
+import { notificationData, type NotificationKind } from '@/lib/notificationRoute';
 
 const CHANNEL_ID = 'nuqta-reminders';
 
@@ -55,6 +56,8 @@ export async function scheduleReminder(opts: {
   body: string;
   date: string; // YYYY-MM-DD
   hour?: number;
+  /** نوع الإشعار بس (مفيش مبالغ ولا أسامي) — الدوس عليه بيفتح المكان المناسب */
+  kind?: NotificationKind;
 }) {
   const [y, m, d] = opts.date.split('-').map(Number);
   if (!y || !m || !d) return;
@@ -67,6 +70,7 @@ export async function scheduleReminder(opts: {
       title: opts.title,
       body: opts.body,
       sound: true,
+      ...(opts.kind ? { data: notificationData(opts.kind) } : {}),
       ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: {
@@ -81,12 +85,13 @@ export async function scheduleReminder(opts: {
  * "A null trigger means … delivery immediately"). للي حصل فعلاً زي "سجلنا
  * المرتب"، مش تذكير بحاجة جاية.
  */
-export async function notifyNow(title: string, body: string) {
+export async function notifyNow(title: string, body: string, kind?: NotificationKind) {
   await Notifications.scheduleNotificationAsync({
     content: {
       title,
       body,
       sound: true,
+      ...(kind ? { data: notificationData(kind) } : {}),
       ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: null,
@@ -100,6 +105,7 @@ export async function scheduleDailyReminder(hour: number, minute: number) {
       title: 'نقطة',
       body: 'سجّلت مصاريف النهاردة؟',
       sound: true,
+      data: notificationData('daily'),
       ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
     },
     trigger: {

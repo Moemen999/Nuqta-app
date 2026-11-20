@@ -1,3 +1,4 @@
+import { PrivacyProvider } from '@/context/PrivacyContext';
 import WalletsScreen from '@/app/settings-screens/wallets';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { walletDeleteBlock } from '@/lib/archiving';
@@ -29,7 +30,7 @@ import { reportAtomicFailure } from '@/lib/atomicFailure';
 function seed(wallets: object[], transactions: object[] = []) {
   Object.assign(mockData, {
     wallets, categories: [], transactions, brokenTransactions: [], budgets: {}, debts: [],
-    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [],
+    subscriptions: [], gamiyas: [], incomes: [], serverReachable: true, loadErrors: [], figuresPending: [], undelivered: [],
     updateWallet: jest.fn(), addWallet: jest.fn(), deleteWallet: jest.fn(async () => ({ outcome: 'done' })),
     archiveWallet: jest.fn(async () => ({ outcome: 'done' })), restoreWallet: jest.fn(),
   });
@@ -44,7 +45,7 @@ afterEach(() => alertSpy.mockRestore());
 
 // من غير ConfirmProvider/NoticeProvider عن قصد: كل حاجة بترجع للـAlert والـspy بيلقطها — لو
 // اتلفّت بالـProviders، النفي (mock.calls.some) هيبقى فاضي من غير ما حد ياخد باله
-const ui = () => <ThemeProvider><WalletsScreen /></ThemeProvider>;
+const ui = () => <ThemeProvider><PrivacyProvider><WalletsScreen /></PrivacyProvider></ThemeProvider>;
 warmUp(() => { seed([cash, bank]); return ui(); });
 
 const lastButtons = () => alertSpy.mock.calls.at(-1)![2] as { text: string; onPress?: () => void }[];
@@ -100,8 +101,8 @@ describe('شاشة المحافظ', () => {
   it('فيه شغالة تانية ← المسح بيمشي زي الأول', async () => {
     await render(ui());
     await pressDelete('w1');
-    expect(alertSpy).toHaveBeenLastCalledWith('حذف محفظة', expect.stringContaining('كاش'), expect.anything());
-    await press('حذف');
+    expect(alertSpy).toHaveBeenLastCalledWith('تمسح المحفظة؟', expect.stringContaining('كاش'), expect.anything());
+    await press('امسحها');
     expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');
   });
 
@@ -132,7 +133,7 @@ describe('شاشة المحافظ', () => {
     await pressDelete('w1');
     mockData.wallets = [cash];
     await screen.rerender(ui());
-    await press('حذف');
+    await press('امسحها');
     expectLastActiveRefusal();
     expect(mockData.deleteWallet).not.toHaveBeenCalled();
   });
@@ -173,7 +174,7 @@ describe('رفض DataContext بيوصل للشاشة', () => {
     mockData.deleteWallet = jest.fn(blocked);
     await render(ui());
     await pressDelete('w1');
-    await press('حذف');
+    await press('امسحها');
     expect(mockData.deleteWallet).toHaveBeenCalledWith('w1');
     expectLastActiveRefusal();
   });
@@ -204,7 +205,7 @@ describe('رفض DataContext بيوصل للشاشة', () => {
   it('done ← مفيش رسالة رفض', async () => {
     await render(ui());
     await pressDelete('w1');
-    await press('حذف');
+    await press('امسحها');
     expect(alertSpy.mock.calls.some(c => c[0] === LAST_ACTIVE_TITLE)).toBe(false);
   });
 });
@@ -214,7 +215,7 @@ describe('رمي قبل الكتابة مبيتبلعش', () => {
     mockData.deleteWallet = jest.fn(async () => { throw new Error('x'); });
     await render(ui());
     await pressDelete('w1');
-    await press('حذف');
+    await press('امسحها');
     expect(reportAtomicFailure).toHaveBeenCalledWith('مسح المحفظة', expect.any(Error));
     expect(alertSpy).toHaveBeenLastCalledWith('حصل خطأ، جرب تاني', '"كاش" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.');
   });

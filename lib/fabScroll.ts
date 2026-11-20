@@ -22,6 +22,14 @@ export const FAB_SCROLL_THRESHOLD = 8;
 /** بعد آخر حدث تمرير (أو رفع الصباع من غير تزحليق) بالمدة دي ← الزرار يرجع */
 export const FAB_SETTLE_MS = 100;
 
+/**
+ * الصباع ماسك ومفيش ولا حدث تمرير بالمدة دي ← نعتبر السحب خلص (مراجعة التطبيق كله، الميزة 7): `onScrollEndDrag` ممكن
+ * ميجيش، وكان الزرار بيفضل مستخبي للأبد. **3 ثواني مش ثانية** (المقترح كان ~1): اختبار
+ * `fabIncomeCard` «الإصبع ماسك من غير حركة ← مبيرجعش» بيثبّت إن الصباع الماسك ثانيتين الزرار فاضل مستخبي — المهلة
+ * أطول منه عشان متكسرش السلوك ده، وفي نفس الوقت الحدث الضايع مبقاش «للأبد».
+ */
+export const FAB_DRAG_FALLBACK_MS = 3000;
+
 export type FabScrollState = { anchorY: number; visible: boolean };
 
 export function fabScrollStep(anchorY: number, y: number, visible: boolean): FabScrollState {

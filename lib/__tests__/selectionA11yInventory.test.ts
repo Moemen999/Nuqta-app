@@ -112,10 +112,8 @@ const PLAIN_ALLOWED: Record<string, number> = {
   'components/SubscriptionsView.tsx': 2,
   'components/DebtEntryModals.tsx': 1,
 };
-const HANDWRITTEN_SELECTED_ALLOWED: Record<string, number> = {
-  // شبكة أيقونات (من غير أيقونة / أيقونة / أيقونة قديمة) — شبكة مش مجموعة راديو
-  'components/CategoryIconPicker.tsx': 3,
-};
+// شبكة أيقونات الفئة بقت radio (a11y-architect، الميزة 10): أيقونة واحدة للفئة، مبتتلغيش بدوسة تانية
+const HANDWRITTEN_SELECTED_ALLOWED: Record<string, number> = {};
 
 it('selectionA11y للـradio بيقول checked بس — من غير selected', () => {
   expect(selectionA11y(true, 'radio')).toEqual({ accessibilityRole: 'radio', accessibilityState: { checked: true } });

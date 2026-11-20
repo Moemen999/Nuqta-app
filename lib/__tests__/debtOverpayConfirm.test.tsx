@@ -15,6 +15,8 @@ import type { Debt } from '@/context/DataContext';
 let mockLocked = false;
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/context/AppLockContext', () => ({ useAppLock: () => ({ isLocked: mockLocked }) }));
 
 const debt = {
@@ -29,10 +31,11 @@ beforeEach(() => {
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }], categories: [], transactions: [],
     addDebtPayment: jest.fn(async () => ({ outcome: 'done', note: null })),
+    debtsReady: true, loadErrors: [],
   });
 });
 
-const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtPaymentModal debt={debt} onClose={jest.fn()} /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
+const ui = () => <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtPaymentModal debtId={withDebt(debt)} onClose={jest.fn()} /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
 
 async function payTooMuch() {
   const r = await render(ui());
@@ -78,4 +81,78 @@ it('دوستين على "حفظ" قبل ما التأكيد يظهر ← تأك�
   await act(async () => { fireEvent.press(screen.getByText('أيوة، سجّل')); });
   expect(screen.queryByTestId('confirm_dialog')).toBeNull();
   expect(mockData.addDebtPayment).toHaveBeenCalledTimes(1);
+});
+
+describe('بند 7: المودال بيقرا الدين حي', () => {
+  const live = (d: Debt, onClose: () => void) =>
+    <ThemeProvider><NoticeProvider><ConfirmProvider><PrivacyProvider><DebtPaymentModal debtId={d.id} onClose={onClose} /></PrivacyProvider></ConfirmProvider></NoticeProvider></ThemeProvider>;
+
+  it('دفعة نزلت من جهاز تاني والمودال مفتوح ← فحص "أكبر من المتبقي" على المتبقي الجديد', async () => {
+    mockData.debts = [debt];
+    const r = await render(live(debt, jest.fn()));
+    // المتبقي كان 600؛ دفعة 400 من جهاز تاني ← 200. الـ500 بقت أكبر من المتبقي
+    mockData.debts = [{ ...debt, payments: [...debt.payments, { id: 'p2', date: '2026-08-02', amount: 400, walletId: 'w1', transactionId: 'tp2' }] }];
+    await act(async () => { r.rerender(live(debt, jest.fn())); });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '500'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
+    expect(screen.getByTestId('confirm_title').props.children).toBe('المبلغ أكبر من المتبقي');
+    expect(mockData.addDebtPayment).not.toHaveBeenCalled();
+  });
+
+  it('الدين اتمسح والمودال مفتوح ← بيتقفل برسالة', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    const r = await render(live(debt, onClose));
+    mockData.debts = [];
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('الدين اتمسح')).toBeTruthy();
+    expect(screen.queryByTestId('debt_payment_save')).toBeNull();
+  });
+
+  it('الجولة 2 (بند 5): الديون فاضية والـlistener لسه بيحمّل/اترفض ← مفيش «اتمسح» ومفيش قفل', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    const r = await render(live(debt, onClose));
+    mockData.debts = [];
+    mockData.debtsReady = false;
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByText('الدين اتمسح')).toBeNull();
+    // رجعت وصلت والدين موجود ← الفورم تاني
+    mockData.debts = [debt];
+    mockData.debtsReady = true;
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    expect(screen.getByTestId('debt_payment_save')).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('الجولة 2 (بند 5): الذرة رجّعت gone والدين اختفى من الـlistener كمان ← رسالة «اتمسح» مرة واحدة', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    let finish!: (v: unknown) => void;
+    mockData.addDebtPayment = jest.fn(() => new Promise(r => { finish = r; }));
+    const r = await render(live(debt, onClose));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '100'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
+    mockData.debts = [];
+    await act(async () => { r.rerender(live(debt, onClose)); });
+    await act(async () => { finish({ outcome: 'gone' }); });
+    await act(async () => {});
+    expect(screen.getAllByText('الدين اتمسح')).toHaveLength(1);
+    // الرسالة الأولى اتقفلت ← مفيش تانية في الطابور
+    await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
+    expect(screen.queryByText('الدين اتمسح')).toBeNull();
+  });
+
+  it('النتيجة "uncertain" ← الرسالة والمودال بيتقفل (منعيدش من غير ما نبص)', async () => {
+    const onClose = jest.fn();
+    mockData.debts = [debt];
+    mockData.addDebtPayment = jest.fn(async () => ({ outcome: 'uncertain' }));
+    await render(live(debt, onClose));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('debt_payment_amount'), '100'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('debt_payment_save')); });
+    expect(screen.getByText('مش متأكدين اتسجلت ولا لأ')).toBeTruthy();
+    expect(onClose).toHaveBeenCalled();
+  });
 });

@@ -44,8 +44,17 @@ describe('معرّفات العمليات لكل نوع', () => {
   it('الاشتراك: الدفعات اللي ليها عملية بس', () => {
     expect(subscriptionTransactionIds(sub)).toEqual(['t_s1', 't_s2']);
   });
-  it('الجمعية: الشهور اللي ليها عملية بس', () => {
-    expect(gamiyaTransactionIds(gam)).toEqual(['t_g1']);
+  it('الاشتراك (بند H): + عمليات closed + أي عملية عليها subscriptionId، من غير تكرار', () => {
+    const s = {
+      ...sub, id: 's', closed: { '2026-01-01': { txId: 't_s1', at: 'a' }, '2026-02-01': { txId: 't_closed_only', at: 'a' }, '2026-03-01': { skipped: true, at: 'a' } },
+    } as unknown as Subscription;
+    expect(subscriptionTransactionIds(s, [{ id: 't_stray', subscriptionId: 's' }, { id: 'other', subscriptionId: 'x' }, { id: 't_s2', subscriptionId: 's' }]))
+      .toEqual(['t_s1', 't_s2', 't_closed_only', 't_stray']);
+  });
+  it('الجمعية (بند C، 2026-11-18): المربوطة في الشهور + المعرّف الثابت لكل شهر + أي عملية عليها gamiyaId، من غير تكرار', () => {
+    expect(gamiyaTransactionIds(gam)).toEqual(['t_g1', 'gamiya_g_m1', 'gamiya_g_m2']);
+    expect(gamiyaTransactionIds(gam, [{ id: 't_stray', gamiyaId: 'g' }, { id: 'other', gamiyaId: 'x' }, { id: 't_g1', gamiyaId: 'g' }]))
+      .toEqual(['t_g1', 'gamiya_g_m1', 'gamiya_g_m2', 't_stray']);
   });
   it('سجل مش موجود ← مفيش معرّفات', () => {
     expect(debtTransactionIds(undefined)).toEqual([]);
@@ -197,7 +206,7 @@ describe('DataContext: الفحص لحظة الدوسة بيقرا آخر حال
   });
 
   it('وcascadeInputs بيتحدّث كل render', () => {
-    expect(src).toContain('cascadeInputs.current = { wallets, transactions, loadErrors };');
+    expect(src).toContain('cascadeInputs.current = { wallets, transactions, loadErrors, debts };');
   });
 
   it('والفحص قبل أي كتابة', () => {

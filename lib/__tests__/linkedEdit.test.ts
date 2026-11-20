@@ -157,7 +157,7 @@ it('عملية مش مربوطة بالدين ده ← null', () => {
 
 describe('installmentEditMessage', () => {
   it('العدد اتغيّر ← جملة بالقديم والجديد', () => {
-    expect(installmentEditMessage(6, 7)).toBe('بعد التعديل، الأقساط بقت 7 بدل 6.');
+    expect(installmentEditMessage(6, 7)).toBe('بعد التعديل، عدد الأقساط بقى 7 بدل 6.');
   });
   it('ما اتغيّرش، أو القديم مش معروف ← null', () => {
     expect(installmentEditMessage(6, 6)).toBeNull();
@@ -178,6 +178,16 @@ describe('transactionLinkKind', () => {
     ['tx_sub', 'subscription'], ['tx_gam', 'gamiya'], ['tx_inc', 'income'], ['tx_free', null],
   ])('%s ← %s', (id, kind) => {
     expect(transactionLinkKind(id, sources)).toBe(kind);
+  });
+  // L4: سباق "ما نزلش" بيشيل الـtxId من العلامة والعملية لسه موجودة بـincomeId — لسه مربوطة بالدخل
+  it('incomeId من غير علامة ← income', () => {
+    expect(transactionLinkKind('income_inc_2026-02', sources, { incomeId: 'inc' })).toBe('income');
+  });
+  // Feature 9، الجولة الأخيرة: عملية جمعية ربطها بالشهر اتشال (`gamiyaId` من غير معرّف في الشهر) — `isTransferTx` بيعدّها
+  // تحويل، فالمودال لازم يقفل نوعها برضه (كانت تتحوّل دخل/مصروف وهي محسوبة تحويل)
+  it('gamiyaId من غير ربط بالشهر ← gamiya (زي isTransferTx)', () => {
+    expect(transactionLinkKind('tx_orphan', sources, { gamiyaId: 'g' })).toBe('gamiya');
+    expect(transactionLinkKind('tx_orphan', { debts: [], subscriptions: [], gamiyas: [], incomes: [] }, { gamiyaId: 'gone' })).toBe('gamiya');
   });
 });
 

@@ -2,8 +2,8 @@ import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale } from '
 import { HeroIcon } from '@/components/HeroIcon';
 import type { LineIconName } from '@/components/LineIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
@@ -24,7 +24,7 @@ const SLIDES: { icon: LineIconName; title: string; body: string }[] = [
   {
     icon: 'layers-outline',
     title: 'التخطيط',
-    body: 'جواه حاجتين:\n• الميزانية — تحدد سقف لصرفك كل شهر\n• توزيع الدخل (شخبطة) — تقسّم دخلك بالنسب اللي انت تحددها (احتياجات، رفاهيات، خطط مستقبلية)',
+    body: 'جواه تلات حاجات:\n• الميزانية — تحدد سقف لصرفك كل شهر\n• توزيع الدخل (شخبطة) — تقسّم دخلك بالنسب اللي انت تحددها (احتياجات، رفاهيات، خطط مستقبلية)\n• دخل ثابت — مرتبك أو أي فلوس بتنزلك بمعاد',
   },
   {
     icon: 'people-outline',
@@ -33,8 +33,8 @@ const SLIDES: { icon: LineIconName; title: string; body: string }[] = [
   },
   {
     icon: 'add',
-    title: 'الزرار الذهبي',
-    body: 'أهم زرار في التطبيق. اضغطه في أي وقت عشان تسجّل مصروف أو إيراد أو تحويل بين محافظك.',
+    title: 'الزرار الدهبي',
+    body: 'دوس عليه من الرئيسية أو التقارير أو التخطيط عشان تسجّل مصروف أو إيراد أو تحويل بين محافظك.',
   },
 ];
 
@@ -43,6 +43,10 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (index > 0) AccessibilityInfo.announceForAccessibility(SLIDES[index].title);
+  }, [index]);
 
   const isLast = index === SLIDES.length - 1;
 
@@ -69,7 +73,7 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
         <Text style={styles.body}>{slide.body}</Text>
       </ScrollView>
 
-      <View style={styles.dotsRow}>
+      <View style={styles.dotsRow} accessible accessibilityLabel={`${index + 1} من ${SLIDES.length}`}>
         {SLIDES.map((_, i) => (
           <View
             key={i}
@@ -105,7 +109,7 @@ function makeStyles(c: ThemeColors) {
     iconWrap: { marginBottom: heroIconGap },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'center', marginBottom: space.xl },
     body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 26 },
-    dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginBottom: 24 },
+    dotsRow: { flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginBottom: 24 },
     dot: { height: 8, borderRadius: radius.pill },
     actions: { flexDirection: 'row-reverse', gap: 10 },
     backBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.lg, alignItems: 'center', paddingVertical: space.xl },

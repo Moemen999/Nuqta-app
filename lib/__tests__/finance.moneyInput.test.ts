@@ -114,7 +114,7 @@ describe('كل مدخل بيكتب مبلغ أو عدد بيعدّي على ال
   });
 
   it('تعديل العدد في الشاشة بـstorableCount (1e20 كان بيعدّي Number.isInteger)', () => {
-    expect(screen).toMatch(/if \(!storableCount\(next\)\) \{ setError\(INSTALLMENT_COUNT_INVALID\)/);
+    expect(screen).toMatch(/if \(nextCount !== null && !storableCount\(nextCount\)\) \{ setError\(INSTALLMENT_COUNT_INVALID\)/);
   });
 });
 
@@ -126,7 +126,9 @@ describe('مراجعة الجولة 1 (faee1ff)', () => {
     const guard = addDebt.indexOf("throw new Error('invalid installment plan')");
     expect(guard).toBeGreaterThan(-1);
     expect(addDebt).toMatch(/!storableCount\(data\.installmentCount\) \|\| !plan/);
-    expect(guard).toBeLessThan(addDebt.indexOf('addTransaction('));
+    // العملية الافتتاحية بقت في نفس الدفعة مع الدين (بند 2) — الحارس قبل الدفعة
+    expect(addDebt.indexOf('writeBatch(')).toBeGreaterThan(-1);
+    expect(guard).toBeLessThan(addDebt.indexOf('writeBatch('));
     // ومفيش "اتسجل من غير قسط" بعد كده
     expect(addDebt).not.toContain('installment plan not possible');
   });
@@ -138,7 +140,8 @@ describe('مراجعة الجولة 1 (faee1ff)', () => {
 
   it('dev-seed بيمسك رفض addDebt (مش رفض من غير ماسك)', () => {
     const seed = readFileSync('app/dev-seed.tsx', 'utf8');
-    expect(seed).toMatch(/data\.addDebt\(d\)\.catch\(/);
+    // النتيجة (`wallet-missing`) والرفض (مبلغ/عدد) الاتنين بيتمسكوا
+    expect(seed).toMatch(/data\.addDebt\(d\)\.then\(r => \{\n\s+if \(r\.outcome === 'done'\) return;[\s\S]*?\}, \(\) => \{/);
   });
 
   it('مودال الدين الجديد بيفحص العدد بـstorableCount زي التعديل', () => {

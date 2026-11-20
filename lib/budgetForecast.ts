@@ -79,6 +79,8 @@ export function budgetRunOutDay(rowsToDate: Row[], limit: number, today: string,
   return runOut <= lastDay ? runOut : null;
 }
 
-export function budgetForecastText(runOutDay: number, today: string): string {
-  return `لو كمّلت بنفس المعدل، الميزانية هتخلص يوم ${runOutDay} ${MONTH_NAMES[Number(today.slice(5, 7)) - 1]}`;
+/** `category`: تحت كارت الفئة («ميزانية الفئة دي») — الإجمالي بيفضل «الميزانية» (arabic-copy-reviewer، الميزة 6) */
+export function budgetForecastText(runOutDay: number, today: string, scope: 'total' | 'category' = 'total'): string {
+  const subject = scope === 'category' ? 'ميزانية الفئة دي' : 'الميزانية';
+  return `لو كمّلت بنفس المعدل، ${subject} هتخلص يوم ${runOutDay} ${MONTH_NAMES[Number(today.slice(5, 7)) - 1]}`;
 }

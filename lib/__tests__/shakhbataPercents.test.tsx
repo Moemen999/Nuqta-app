@@ -25,7 +25,9 @@ const mockData = {
   shakhbataPercents: { needs: 50, wants: 30, future: 20 },
   updateCategory: jest.fn(),
   setMonthlyIncome: jest.fn(),
-  setShakhbataPercents: jest.fn(async () => {}),
+  setShakhbataPercents: jest.fn(async () => true),
+  percentsReady: true,
+  loadErrors: [],
 };
 
 jest.mock('@/context/DataContext', () => ({ useData: () => mockData }));

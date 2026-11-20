@@ -64,7 +64,8 @@ export default function FirstRunSetup() {
   useEffect(() => {
     if (fail) AccessibilityInfo.announceForAccessibility(`${SETUP_FAIL_MESSAGE[fail.kind].title}. ${SETUP_FAIL_MESSAGE[fail.kind].body}`);
   }, [fail]);
-  useEffect(() => { if (error) AccessibilityInfo.announceForAccessibility(error); }, [error]);
+  /** بيعلن في الحدث نفسه (مش effect) عشان نفس الخطأ لو اتكرر يتقرا تاني */
+  function raise(msg: string) { setError(msg); AccessibilityInfo.announceForAccessibility(msg); }
 
   const walletRows = [
     ...WALLET_OPTIONS.map(o => ({ key: o.key as string, name: o.name, custom: false, idx: 0 })),
@@ -81,7 +82,7 @@ export default function FirstRunSetup() {
     const name = newWallet.trim();
     if (!name) return;
     if (walletRows.some(r => r.name.trim().toLocaleLowerCase('ar') === name.toLocaleLowerCase('ar'))) {
-      setError(`فيه محفظة اسمها "${name}" خلاص.`); return;
+      raise(`فيه محفظة اسمها "${name}" خلاص.`); return;
     }
     setCustomWallets(w => [...w, name]);
     setPickedWallets(p => new Set(p).add(`custom:${name}`));
@@ -93,7 +94,7 @@ export default function FirstRunSetup() {
     if (!name) return;
     const all = [...CATEGORY_OPTIONS, ...customCats];
     if (all.some(c => c.toLocaleLowerCase('ar') === name.toLocaleLowerCase('ar'))) {
-      setError(`فيه فئة اسمها "${name}" خلاص.`); return;
+      raise(`فيه فئة اسمها "${name}" خلاص.`); return;
     }
     setCustomCats(c => [...c, name]);
     setPickedCats(p => new Set(p).add(name));
@@ -114,8 +115,8 @@ export default function FirstRunSetup() {
 
   function goToCategories() {
     const built = buildWallets();
-    if ('error' in built) { setError(built.error); return; }
-    if (built.wallets.length === 0) { setError('اختار محفظة واحدة على الأقل — من غيرها مش هتقدر تسجل ولا عملية.'); return; }
+    if ('error' in built) { raise(built.error); return; }
+    if (built.wallets.length === 0) { raise('اختار محفظة واحدة على الأقل — من غيرها مش هتقدر تسجل ولا عملية.'); return; }
     setError(''); setStep('categories');
   }
 
@@ -123,7 +124,7 @@ export default function FirstRunSetup() {
     // دوستين ورا بعض قبل ما شاشة التحميل تظهر (silent-failure-hunter)
     if (savingRef.current) return;
     const invalid = validateSetupChoice(choice);
-    if (invalid) { setError(invalid); return; }
+    if (invalid) { raise(invalid); return; }
     setError(''); setFail(null); setSaving(true); savingRef.current = true;
     let outcome: Awaited<ReturnType<typeof completeSetup>>;
     try {
@@ -152,7 +153,7 @@ export default function FirstRunSetup() {
 
   function finish() {
     const built = buildWallets();
-    if ('error' in built) { setError(built.error); setStep('wallets'); return; }
+    if ('error' in built) { raise(built.error); setStep('wallets'); return; }
     const categories = [...CATEGORY_OPTIONS, ...customCats].filter(c => pickedCats.has(c));
     save({ wallets: built.wallets, categories });
   }
@@ -272,9 +273,9 @@ export default function FirstRunSetup() {
             </View>
           </>
         )}
-        {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
       </ScrollView>
 
+      {!!error && <Text style={[styles.error, { paddingHorizontal: space.xxl }]} accessibilityRole="alert">{error}</Text>}
       <View style={stickyFooterStyle(colors, colors.bg, insets.bottom)}>
         {step === 'wallets' ? (
           <TouchableOpacity testID="setup_next" style={[styles.primaryBtn, styles.flexBtn]} onPress={goToCategories} accessibilityRole="button">

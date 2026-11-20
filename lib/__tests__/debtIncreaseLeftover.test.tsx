@@ -17,6 +17,8 @@ import { fmt, planInstallments, stampResidue } from '@/lib/finance';
 
 const mockData: Record<string, unknown> = {};
 jest.mock('@/context/DataContext', () => ({ ...jest.requireActual('@/context/DataContext'), useData: () => mockData }));
+/** المودال بيقرا الدين حي من `useData().debts` بالمعرّف (بند 7) ← الدين بيتحط هناك قبل الرسم */
+const withDebt = (d: { id: string }) => { mockData.debts = [...((mockData.debts as { id: string }[] | undefined) ?? []).filter(x => x.id !== d.id), d]; return d.id; };
 jest.mock('@/components/useDeviceContacts', () => ({ useDeviceContacts: () => ({}) }));
 
 const plan = planInstallments(1000, 12)!;
@@ -45,7 +47,7 @@ function textOf(node: any): string {
 }
 
 async function open(d: Debt = debt, onClose = jest.fn()) {
-  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={d} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
+  await render(<ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debtId={withDebt(d)} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>);
   return onClose;
 }
 async function type(amount: string) {
@@ -199,7 +201,7 @@ describe('الحفظ', () => {
 
   it('الدين اتغيّر من جهاز تاني والشيت مفتوحة (نفس المبلغ) ← الاختيار بيتصفّر ومبيتبعتش على أرقام جديدة', async () => {
     const onClose = jest.fn();
-    const ui = (d: Debt) => <ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debt={d} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>;
+    const ui = (d: Debt) => <ThemeProvider><NoticeProvider><PrivacyProvider><DebtIncreaseModal debtId={withDebt(d)} onClose={onClose} /></PrivacyProvider></NoticeProvider></ThemeProvider>;
     const r = await render(ui(debt));
     await type('100');
     await pick('debt_leftover_absorb');
@@ -258,23 +260,23 @@ describe('رسالة بعد الحفظ', () => {
   });
 
   it('A والعدد اتغيّر (+100) ← رسالة الزيادة الحالية + " آخر قسط بقى 100.04 ج.م."', async () => {
-    mockData.addDebtIncrease = jest.fn(async () => ({ outcome: 'done', note: 'بعد الزيادة، الأقساط بقت 13 بدل 12.' }));
+    mockData.addDebtIncrease = jest.fn(async () => ({ outcome: 'done', note: 'بعد الزيادة، عدد الأقساط بقى 13 بدل 12.' }));
     await open();
     await type('100');
     await pick('debt_leftover_absorb');
     await save();
     expect(screen.getByTestId('notice_title').props.children).toBe(INSTALLMENTS_CHANGED_TITLE);
-    expect(screen.getByTestId('notice_body').props.children).toBe(`بعد الزيادة، الأقساط بقت 13 بدل 12. آخر قسط بقى ${fmt(100.04)} ج.م.`);
+    expect(screen.getByTestId('notice_body').props.children).toBe(`بعد الزيادة، عدد الأقساط بقى 13 بدل 12. آخر قسط بقى ${fmt(100.04)} ج.م.`);
   });
 
   it('B ← رسالة الزيادة الحالية زي ما هي', async () => {
-    mockData.addDebtIncrease = jest.fn(async () => ({ outcome: 'done', note: 'بعد الزيادة، الأقساط بقت 14 بدل 12.' }));
+    mockData.addDebtIncrease = jest.fn(async () => ({ outcome: 'done', note: 'بعد الزيادة، عدد الأقساط بقى 14 بدل 12.' }));
     await open();
     await type('100');
     await pick('debt_leftover_separate');
     await save();
     expect(screen.getByTestId('notice_title').props.children).toBe(INSTALLMENTS_CHANGED_TITLE);
-    expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، الأقساط بقت 14 بدل 12.');
+    expect(screen.getByTestId('notice_body').props.children).toBe('بعد الزيادة، عدد الأقساط بقى 14 بدل 12.');
   });
 
   it('B من غير تغيير عدد (note فاضية) ← مفيش رسالة', async () => {

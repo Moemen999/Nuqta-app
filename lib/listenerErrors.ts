@@ -24,16 +24,26 @@ export const LISTENER_LABELS = {
 
 export type ListenerName = keyof typeof LISTENER_LABELS;
 
+/**
+ * snapshot وصل لـlistener (مراجعة التطبيق كله، الميزة 7 — الجولة الأخيرة، H1-B): لو كان واقع، بيتشال من `loadErrors` بس
+ * لما الـsnapshot من السيرفر. «جرّب تاني» من غير نت بيفتح الـlistener من الكاش (فاضي أو قديم) — ده مش رجوع، و«بياناتك
+ * وصلت» كانت بتتقال كدب. نفس المصفوفة لو مفيش تغيير (مفيش render زيادة مع كل snapshot عادي).
+ * **حد معروف:** listener من غير `includeMetadataChanges` اتفتح من غير نت ومحتواه على السيرفر زي الكاش (مجموعة فاضية
+ * مثلًا) مبيرميش snapshot تاني لما النت يرجع — فالبانر بيفضل لحد «جرّب تاني» والنت شغال. إنذار زيادة، مش بلع.
+ */
+export function loadErrorsAfterSnapshot(prev: ListenerName[], name: ListenerName, fromCache: boolean): ListenerName[] {
+  if (!prev.includes(name) || fromCache) return prev;
+  return prev.filter(n => n !== name);
+}
+
 export const LOAD_ERROR_TITLE = 'مقدرناش نجيب بياناتك';
 export const LOAD_ERROR_RETRY = 'جرّب تاني';
 
-/** "المحافظ" / "المحافظ والديون" / "المحافظ، العمليات، والديون" — بترتيب ثابت */
+/** "المحافظ" / "المحافظ والديون" / "المحافظ والعمليات والديون" — بترتيب ثابت، من غير فاصلة قبل الواو (arabic-copy-reviewer) */
 export function listenerNamesPhrase(names: ListenerName[]): string {
   const order = Object.keys(LISTENER_LABELS) as ListenerName[];
   const labels = order.filter(n => names.includes(n)).map(n => LISTENER_LABELS[n]);
-  if (labels.length <= 1) return labels[0] ?? '';
-  if (labels.length === 2) return `${labels[0]} و${labels[1]}`;
-  return `${labels.slice(0, -1).join('، ')}، و${labels[labels.length - 1]}`;
+  return labels.join(' و');
 }
 
 /**
@@ -91,3 +101,32 @@ export function walletsNotReadyNotice(loadErrors: ListenerName[], figuresPending
 export function walletBlockedBody(missing: ListenerName[]): string {
   return `بيانات ${listenerNamesPhrase(missing)} ما وصلتش، فمش هنقدر نتأكد من رصيد المحفظة ولا إيه اللي مربوط بيها. دوس "${LOAD_ERROR_RETRY}" فوق، وهتقدر تكمل بعد ما البيانات توصل.`;
 }
+
+/**
+ * H1 (الميزة 10، الجولة الأخيرة): الفحص كان على `loadErrors` بس — بس قبل ما المجموعة توصل أصلاً القايمة فاضية **ومش
+ * مرفوضة**، فـ"مفيش تاريخ" و"الرصيد صفر" كانوا بيتحسبوا على قايمة لسه ما وصلتش. نفس فكرة `loading` في
+ * `cascadeDeleteBlock`: `figuresPending` (المحافظ/العمليات لسه ما جاش منها snapshot من السيرفر) + `undelivered` (أي
+ * listener لسه مرماش أول snapshot — `DataContext`). الشباك ضيّق (أول ثواني بعد الفتح)، بس لو اتداس فيه كان ممكن تتمسح
+ * محفظة عليها عمليات نهائي.
+ */
+export function walletActionLoading(figuresPending: readonly ListenerName[], undelivered: readonly ListenerName[]): ListenerName[] {
+  const fromFigures: ListenerName[] = figuresPending.filter(n => n === 'wallets' || n === 'transactions');
+  const rest = undelivered.filter(n => WALLET_BALANCE_SOURCES.includes(n) && !fromFigures.includes(n));
+  return [...fromFigures, ...rest];
+}
+
+export function categoryActionLoading(figuresPending: readonly ListenerName[], undelivered: readonly ListenerName[]): ListenerName[] {
+  const fromFigures: ListenerName[] = figuresPending.filter(n => n === 'transactions');
+  const rest = undelivered.filter(n => CATEGORY_USAGE_SOURCES.includes(n) && !fromFigures.includes(n));
+  return [...fromFigures, ...rest];
+}
+
+/** المسح/الأرشفة اتداسوا والبيانات لسه بتوصل — العنوان نفسه بتاع `WALLET_BLOCKED_TITLE` */
+export const DATA_LOADING_BODY = 'بياناتك لسه بتوصل، فما اتعملش حاجة. استنى شوية وجرّب تاني.';
+/**
+ * نفس المنع بس **من غير نت** (الميزة 10، جولة 2 — money-reviewer + silent-failure-hunter): «استنى شوية» كانت بتوعد بحاجة
+ * مش هتحصل لحد ما النت يرجع، فالسبب بيتقال بالاسم
+ */
+export const DATA_OFFLINE_BODY = 'مفيش نت دلوقتي، فمقدرناش نتأكد إيه اللي مربوط بيها، وما اتعملش حاجة. جرّب لما النت يرجع.';
+/** نص منع «لسه بتوصل» حسب النت */
+export const dataLoadingBody = (serverReachable: boolean) => (serverReachable ? DATA_LOADING_BODY : DATA_OFFLINE_BODY);

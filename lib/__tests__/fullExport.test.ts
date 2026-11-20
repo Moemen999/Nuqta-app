@@ -1,4 +1,4 @@
-import { buildFullExportSheets, type FullExportInput } from '@/lib/fullExport';
+import { buildFullExportSheets, COLUMN_NAMES_AR, type FullExportInput } from '@/lib/fullExport';
 
 /**
  * التصدير الكامل: **كل** اللي متخزّن بيطلع (كل نوع ورقة، وكل عنصر صف — حتى المؤرشف)، والأوراق بتتربط
@@ -61,6 +61,7 @@ it('كل عنصر صف — المؤرشف والواقف جوّه', () => {
   expect(sheet('Wallets')).toHaveLength(2);
   expect(sheet('Wallets')[1]).toMatchObject({ Id: 'w2', Archived: true, ArchivedAt: '2026-10-01' });
   expect(sheet('Subscriptions')[0]).toMatchObject({ Id: 's1', Active: false, Frequency: 'custom', CustomDays: 45, ChargeMode: 'auto', ChargeAutoSince: '2026-09-01' });
+  expect(sheet('Subscriptions')[0]).toHaveProperty('AnchorDay');
   expect(sheet('GamiyaMonths').map(r => r.Id)).toEqual(['m1', 'm2']);
   expect(sheet('Shakhbata').map(r => r.Month)).toEqual(['2026-10', '2026-11']);
 });
@@ -191,5 +192,24 @@ describe('feedbackFromDoc — مفيش قيمة متخزّنة بتتبلع (sil
       { ...base, id: 'z', createdAt: '' }, { ...base, id: 'b', createdAt: '2026-11-02T00:00:00.000Z' }, { ...base, id: 'a', createdAt: '2026-11-02T00:00:00.000Z' },
     ] }).find(x => x.name === 'Feedback')!.rows;
     expect(rows.map(r => r.Id)).toEqual(['a', 'b', 'z']);
+  });
+});
+
+describe('Feature 9: الأسامي في الملف الكامل', () => {
+  it('محفظة/فئة ممسوحة ← نفس كلمة تصدير الفترة («محفظة ممسوحة»/«فئة ممسوحة») مش خلية فاضية؛ من غير معرّف ← فاضية', () => {
+    const sh = buildFullExportSheets({ ...input, transactions: [
+      { id: 'tx', type: 'expense', amount: 5, walletId: 'gone_w', categoryId: 'gone_c', date: '2026-11-03' },
+      { id: 'ty', type: 'income', amount: 5, walletId: 'w1', date: '2026-11-04' },
+    ] }).find(x => x.name === 'Transactions')!.rows;
+    expect(sh[0]).toMatchObject({ Wallet: 'محفظة ممسوحة', Category: 'فئة ممسوحة', ToWallet: '' });
+    expect(sh[1]).toMatchObject({ Wallet: 'الكاش', Category: '', ToWallet: '' });
+  });
+  it('رؤوس الأعمدة: الإصدار ونظام التشغيل، ويوم الأسبوع بيقول الترقيم (getUTCDay: 0 = الأحد)', () => {
+    expect(COLUMN_NAMES_AR.FullVersion).toBe('الإصدار الكامل');
+    expect(COLUMN_NAMES_AR.Platform).toBe('نظام التشغيل');
+    expect(COLUMN_NAMES_AR.OsVersion).toBe('إصدار نظام التشغيل');
+    expect(COLUMN_NAMES_AR.Weekday).toBe('يوم الأسبوع (0 = الأحد)');
+    // الترقيم نفسه من `recurringIncome` (getUTCDay): 2026-11-08 كان يوم أحد
+    expect(new Date(Date.UTC(2026, 10, 8)).getUTCDay()).toBe(0);
   });
 });

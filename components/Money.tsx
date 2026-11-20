@@ -17,6 +17,11 @@ type Props = {
   currency?: boolean;
   /** «+» أو «-» قبل الرقم (العمليات). بتفضل ظاهرة مع القناع: اللون بيقولها أصلاً */
   sign?: string;
+  /**
+   * لقارئ الشاشة: اسم قبل المبلغ في عقدة واحدة (شريحة المحفظة — الميزة 7). ظاهر ← «كاش، 950 جنيه»؛ مخفي ← «كاش: مبلغ مخفي»
+   * (الزرار «اكشف» بيفضل هو نفسه العقدة). من غيره السلوك القديم: الرقم بيتقري زي ما هو.
+   */
+  labelPrefix?: string;
 };
 
 /**
@@ -27,7 +32,7 @@ type Props = {
  * الأرقام بعرض ثابت (`tabular-nums`) عشان الرقم ميتهزّش والخانات تحت بعض.
  * لو المبالغ مخفية، الدوسة بتكشف الرقم ده لوحده ٣ ثواني.
  */
-export function Money({ value, style, currency = true, sign = '', fit = false }: Props) {
+export function Money({ value, style, currency = true, sign = '', fit = false, labelPrefix }: Props) {
   const { amountsHidden } = usePrivacy();
   const [revealed, setRevealed] = useState(false);
 
@@ -59,7 +64,9 @@ export function Money({ value, style, currency = true, sign = '', fit = false }:
       onPress={masked ? reveal : undefined}
       suppressHighlighting
       accessibilityRole={masked ? 'button' : 'text'}
-      accessibilityLabel={masked ? 'مبلغ مخفي' : undefined}
+      accessibilityLabel={labelPrefix
+        ? (masked ? `${labelPrefix}: مبلغ مخفي` : `${labelPrefix}، ${sign}${fmt(value)} جنيه`)
+        : (masked ? 'مبلغ مخفي' : undefined)}
       accessibilityHint={masked ? 'دوس عشان يبان ٣ ثواني' : undefined}
     >
       {text}

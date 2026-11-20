@@ -4,20 +4,28 @@ import { Money } from '@/components/Money';
 import { useNotice } from '@/components/NoticeProvider';
 import { useConfirm } from '@/components/ConfirmProvider';
 import {
-  PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, useData, type ChargeKind, type Gamiya, type Subscription,
+  CHARGE_BAD_INSTALLMENT_ALERT, CHARGE_MISSING_ALERT, CHARGE_UNCERTAIN_ALERT, CHARGE_UNCERTAIN_ALERT_PAYOUT, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT,
+  PAY_OUTCOME_ALERT, PAY_OUTCOME_ALERT_GAMIYA, PAY_OUTCOME_ALERT_GAMIYA_PAYOUT, PERIOD_CHANGED_ALERT, useData,
+  type ChargeEntry, type ChargeKind, type Gamiya, type Subscription,
 } from '@/context/DataContext';
+import {
+  PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT, PAYOUT_INSTALLMENT_UNREADABLE_LINE, PayoutInstallmentError, PayoutInstallmentField, parseInstallment,
+} from '@/components/PayoutInstallmentField';
+import { storableAmount } from '@/lib/linkedEdit';
 import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { chargeDateLabel, gamiyaOpenCharges, subscriptionOpenCharges, type OpenCharge } from '@/lib/autoCharge';
 import { todayStr, walletHistoryName } from '@/lib/finance';
-import { MONEY_MASK } from '@/lib/money';
+import { MONEY_MASK, moneyText, speakable } from '@/lib/money';
 import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
 import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
-import { useBusyKey } from '@/lib/useBusy';
+import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
+import { useLockShown } from '@/context/LockShownContext';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView,
+  KeyboardAvoidingView, Modal, Platform, ScrollView,
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -37,8 +45,22 @@ export type PendingCharge = {
   charges: OpenCharge[];
   /** شهر الاستلام: فلوس داخلة مش خصم */
   payout: boolean;
+  /** شهر الاستلام: قسطك في الشهر ده — بيتسجل مصروف مع الاستلام (اختيار أ، 2026-11-18)، فالكارت بيقوله */
+  installment?: number;
   labelOf: (key: string) => string;
 };
+
+/** سطر الكارت (وشيت "المبلغ مختلف") تحت مبلغ الاستلام */
+export const PAYOUT_INSTALLMENT_LINE = 'ومعاه هيتسجل قسطك في الشهر ده من نفس المحفظة:';
+
+/**
+ * قسطك في شهر الاستلام زي ما هيتسجل: رقم، أو `null` لو المتخزّن مش مقروء (المستخدم بيكتبه — الجولة 1 على 3a72d99)،
+ * أو `undefined` لو ده مش كارت استلام
+ */
+function payoutInstallment(p: PendingCharge): number | null | undefined {
+  if (!p.payout) return undefined;
+  return typeof p.installment === 'number' ? storableAmount(p.installment) : null;
+}
 
 // "لسه" في الجمعية: الكارت بيستخبّى النهاردة بس (القسط لسه عليك — مش بيتقفل).
 // في الذاكرة بس عن قصد: فتحة التطبيق الجاية بكرة بترجّعه
@@ -75,9 +97,48 @@ function pendingFromGamiya(g: Gamiya, today: string): PendingCharge[] {
   const payouts = open.filter(c => monthOf(c.key)?.isPayoutMonth);
   return [
     ...(installments.length ? [{ ...base, charges: installments, payout: false }] : []),
-    ...(payouts.length ? [{ ...base, charges: payouts, payout: true }] : []),
+    ...(payouts.length ? [{ ...base, charges: payouts, payout: true, installment: g.monthlyAmount }] : []),
   ];
 }
+
+/** الكارت اتدَس على فترة اتقفلت "ما اتخصمش" من جهاز تاني — مش "اتسجلت قبل كده" (مفيش خصم اتسجل) */
+export const CHARGE_SKIPPED_ELSEWHERE_ALERT = {
+  title: 'اتقفلت على إنها ما اتخصمتش',
+  body: 'المرة دي اتقفلت قبل كده على إنها ما اتخصمتش (يمكن من جهاز تاني)، فما سجلناش خصم. لو اتخصم فعلاً، سجّله مصروف عادي من "+".',
+};
+/** "ما اتخصمش" على فترة اتسجل عليها خصم فعلاً — ممنوع "مش هنسجل خصم" والخصم موجود */
+export const SKIP_ALREADY_RECORDED_ALERT = {
+  title: 'اتسجل عليها خصم خلاص',
+  body: 'المرة دي اتسجل عليها خصم قبل كده (يمكن من جهاز تاني)، فما غيّرناش حاجة. لو ما اتخصمش فعلاً، امسح العملية من الأرشيف.',
+};
+export const SKIP_STOPPED_ALERT = {
+  title: 'الاشتراك ده اتوقف',
+  body: 'اتوقف من جهاز تاني، فما غيّرناش حاجة.',
+};
+/** مفيش حساب مفتوح — السبب مش النت (الجولة الأخيرة 2026-11-18) */
+export const SKIP_NO_ACCOUNT_ALERT = {
+  title: 'ما اتغيّرش حاجة',
+  body: 'مفيش حساب مفتوح دلوقتي، فلسه هيسألك. سجّل دخول تاني وجرب.',
+};
+export const SKIP_UNCERTAIN_ALERT = {
+  title: 'مش متأكدين اتحفظ ولا لأ',
+  body: 'النت قطع واحنا بنحفظ. لو الكارت لسه موجود في "مستنيين ردك"، جرّب تاني.',
+};
+/** المبلغ المتخزّن مش رقم صالح (بيانات قديمة) — ما اتسجلش، والمستخدم يكتب المبلغ بنفسه */
+export const CHARGE_BAD_AMOUNT_ALERT = {
+  title: 'المبلغ مش مقروء',
+  body: 'المبلغ المتسجل مش رقم صالح، فما اتسجلش أي خصم. دوس "المبلغ مختلف" واكتب المبلغ اللي اتخصم.',
+};
+/** نفس الحالة على شهر الاستلام — فلوس داخلة، فـ"خصم" غلط هناك (الجولة 1 على 3a72d99) */
+export const CHARGE_BAD_AMOUNT_ALERT_PAYOUT = {
+  title: 'المبلغ مش مقروء',
+  body: 'مبلغ الاستلام المتسجل مش رقم صالح، فما اتسجلش حاجة. دوس "المبلغ مختلف" واكتب المبلغ اللي استلمته.',
+};
+/** الجمعية: الشهر مابقاش مستني ردك (اتغيّر من جهاز تاني) */
+const GAMIYA_CHANGED_ALERT = {
+  title: 'الجمعية اتغيّرت',
+  body: 'الشهر ده اتغيّر من جهاز تاني، فما اتسجلش حاجة. راجعه تاني.',
+};
 
 /** اشتراك فترته من شهر فات: التأكيد بإيدك بيتسجل بتاريخ النهاردة (قرار مؤمن 2026-11-12) فبيتحسب على الشهر ده */
 export const SUB_RECORDS_TODAY_HINT = 'هيتسجل بتاريخ النهاردة، فهيتحسب على الشهر ده';
@@ -95,9 +156,13 @@ export function usePendingCharges(): PendingCharge[] {
   ].filter(p => !snoozed.has(snoozeKey(p, today)));
 }
 
+/** من غير إيموجي لقارئ الشاشة */
+function plainTitleOf(p: PendingCharge) {
+  if (p.kind === 'subscription') return `اشتراك "${p.name}" اتخصم؟`;
+  return p.payout ? `استلمت جمعية "${p.name}"؟` : `قسط جمعية "${p.name}" اتدفع؟`;
+}
 function titleOf(p: PendingCharge) {
-  if (p.kind === 'subscription') return `🧾 اشتراك "${p.name}" اتخصم؟`;
-  return p.payout ? `🤝 استلمت جمعية "${p.name}"؟` : `🤝 قسط جمعية "${p.name}" اتدفع؟`;
+  return `${p.kind === 'subscription' ? '🧾' : '🤝'} ${plainTitleOf(p)}`;
 }
 function yesLabel(p: PendingCharge) {
   if (p.kind === 'subscription') return 'اتخصم';
@@ -112,25 +177,27 @@ function yesLabel(p: PendingCharge) {
 export function ChargeAutoNotices() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { notices, dismiss } = useChargeAutoRecord();
+  // التطبيق مقفول ← التسجيل التلقائي والإعلان بيستنوا الفتح (security M1: إشعار وإعلان بالاسم فوق شاشة القفل)
+  const lockShown = useLockShown();
+  const { notices, dismiss } = useChargeAutoRecord({ paused: lockShown });
+  const announce = useLockAwareAnnounce();
 
-  // نتيجة فلوس (اتسجل / ما اتسجلش): `accessibilityLiveRegion` أندرويد بس
+  // نتيجة فلوس (اتسجل / ما اتسجلش): بتتقال بـ`announceForAccessibility` مرة واحدة (من غير liveRegion على نفس الرسالة — كانت بتتقال مرتين)
   const announced = useRef(new Set<string>());
   useEffect(() => {
     notices.forEach(n => {
       if (announced.current.has(n.id)) return;
       announced.current.add(n.id);
-      AccessibilityInfo.announceForAccessibility(n.text);
+      announce(n.text);
     });
-  }, [notices]);
+  }, [notices, announce]);
 
   if (notices.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
       {notices.map(n => (
-        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
-          accessibilityLiveRegion="polite">
+        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}>
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
             {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
@@ -148,36 +215,85 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { wallets, recordCharges, skipSubscriptionCharge } = useData();
+  const { amountsHidden } = usePrivacy();
   const notice = useNotice();
   const confirm = useConfirm();
-  const { busyKey, run } = useBusyKey();
+  // دوسة اتسقطت عشان عملية تانية شغالة ← بتتقال (مش بتختفي) — نفس شاشة الاشتراكات
+  const { busyKey, run } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
+  // النتيجة ممكن توصل والتطبيق اتقفل في النص (الذرة بتستنى السيرفر) ← بتتقال بعد الفتح مش فوق القفل
+  const announce = useLockAwareAnnounce();
   const [editing, setEditing] = useState<{ p: PendingCharge; charge: OpenCharge } | null>(null);
   const today = todayStr();
   const pending = usePendingCharges().filter(p => !kind || p.kind === kind);
 
-  const alertFor = (p: PendingCharge) => (p.kind === 'gamiya' ? PAY_OUTCOME_ALERT_GAMIYA : PAY_OUTCOME_ALERT);
+  // شهر الاستلام فلوس داخلة: "مفيش أي خصم اتسجل" غلط هناك (مراجعة الجمعية 2026-11-18)
+  const alertFor = (p: PendingCharge) => (p.kind === 'gamiya' ? (p.payout ? PAY_OUTCOME_ALERT_GAMIYA_PAYOUT : PAY_OUTCOME_ALERT_GAMIYA) : PAY_OUTCOME_ALERT);
   const busyId = (p: PendingCharge) => `charge_${p.id}_${p.payout ? 'in' : 'out'}`;
 
   /** بيرجّع اتسجل ولا لأ — شيت المبلغ مبيتقفلش على فشل عشان الرقم اللي اتكتب مايضيعش */
-  async function record(p: PendingCharge, charge: OpenCharge, amount: number) {
+  async function record(p: PendingCharge, charge: OpenCharge, amount: number, typedInstallment?: number) {
     let ok = false;
+    // شهر الاستلام: قسطك اللي على الكارت (اتغيّر ← الذرة بترفض)، أو اللي المستخدم كتبه لما المتخزّن مش مقروء
+    const inst = payoutInstallment(p);
+    const entry: ChargeEntry = inst === undefined ? { key: charge.key, amount }
+      : inst !== null ? { key: charge.key, amount, seenInstallment: p.installment }
+      : { key: charge.key, amount, ...(typedInstallment !== undefined ? { installment: typedInstallment } : {}) };
     await run(busyId(p), async () => {
-      const r = await recordCharges(p.kind, p.id, [{ key: charge.key, amount }]);
+      const r = await recordCharges(p.kind, p.id, [entry]);
+      // اتمسح من جهاز تاني ← مفيش حاجة تتعاد، فالشيت بيتقفل
+      if (r.outcome === 'missing') {
+        ok = true;
+        notice(CHARGE_MISSING_ALERT[p.kind].title, CHARGE_MISSING_ALERT[p.kind].body);
+        return;
+      }
+      // ممكن يكون اتسجل — الشيت بيتقفل عشان "اتخصم" تاني ميتداسش قبل ما يبص في الأرشيف
+      if (r.outcome === 'uncertain') {
+        ok = true;
+        // شهر الاستلام فلوس داخلة — "الخصم" غلط هناك
+        const m = p.kind === 'gamiya' && p.payout ? CHARGE_UNCERTAIN_ALERT_PAYOUT : CHARGE_UNCERTAIN_ALERT;
+        notice(m.title, m.body);
+        return;
+      }
+      // قسطك (أو الاستلام) اتغيّر من جهاز تاني والكارت مفتوح — مفيش فلوس اتحركت، والكارت بيتحدّث بالرقم الجديد
+      if (r.outcome === 'amount-changed') {
+        notice(GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.title, GAMIYA_PAYOUT_AMOUNT_CHANGED_ALERT.body);
+        return;
+      }
       if (r.outcome !== 'done') {
         notice(alertFor(p)[r.outcome].title, alertFor(p)[r.outcome].body);
         return;
       }
       ok = true;
-      // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال
+      // اتقفلت قبلنا (جهاز تاني، أو "سدّد" من الشاشة) ← مبلغنا ما اتكتبش، ولازم يتقال **السبب الحقيقي**
       if (r.recorded.length === 0 && r.stopped) {
         notice('الاشتراك ده اتوقف', 'اتوقف من جهاز تاني، فما اتسجلش أي خصم. لو عايز تسجّله، رجّعه من شاشة الاشتراكات الأول.');
+        return;
+      }
+      if (r.recorded.length === 0 && r.skipped) {
+        notice(CHARGE_SKIPPED_ELSEWHERE_ALERT.title, CHARGE_SKIPPED_ELSEWHERE_ALERT.body);
+        return;
+      }
+      if (r.recorded.length === 0 && r.badInstallment) {
+        // مفيش حاجة اتسجلت — الشيت بيفضل مفتوح عشان قسطك المكتوب مايضيعش (الجولة 2)
+        ok = false;
+        notice(CHARGE_BAD_INSTALLMENT_ALERT.title, CHARGE_BAD_INSTALLMENT_ALERT.body);
+        return;
+      }
+      if (r.recorded.length === 0 && r.badAmount) {
+        const m = p.payout ? CHARGE_BAD_AMOUNT_ALERT_PAYOUT : CHARGE_BAD_AMOUNT_ALERT;
+        notice(m.title, m.body);
+        return;
+      }
+      if (r.recorded.length === 0 && r.changed) {
+        const m = p.kind === 'subscription' ? PERIOD_CHANGED_ALERT : GAMIYA_CHANGED_ALERT;
+        notice(m.title, m.body);
         return;
       }
       if (r.recorded.length === 0) {
         notice('اتسجلت قبل كده', 'المرة دي كانت اتسجلت خلاص (من جهاز تاني أو من الالتزامات)، فما سجلناش تاني. لو المبلغ مختلف عدّله من الأرشيف.');
         return;
       }
-      AccessibilityInfo.announceForAccessibility(`اتسجل "${p.name}"`);
+      announce(`اتسجل "${p.name}"`);
     });
     return ok;
   }
@@ -191,13 +307,24 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         onPress: () => {
           run(busyId(p), async () => {
             const r = await skipSubscriptionCharge(p.id, charge.key);
-            if (r !== 'done') notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
-            else AccessibilityInfo.announceForAccessibility(`مش هنسجل خصم "${p.name}" عن ${label}`);
+            // بند E (2026-11-17): كل نتيجة بتقول اللي حصل فعلاً — "مش هنسجل خصم" بس لما الفترة اتقفلت فعلاً من غير خصم
+            if (r === 'done') announce(`مش هنسجل خصم "${p.name}" عن ${label}`);
+            else if (r === 'already-recorded') notice(SKIP_ALREADY_RECORDED_ALERT.title, SKIP_ALREADY_RECORDED_ALERT.body);
+            else if (r === 'stopped') notice(SKIP_STOPPED_ALERT.title, SKIP_STOPPED_ALERT.body);
+            else if (r === 'missing') notice(CHARGE_MISSING_ALERT.subscription.title, CHARGE_MISSING_ALERT.subscription.body);
+            else if (r === 'period-changed') notice(PERIOD_CHANGED_ALERT.title, PERIOD_CHANGED_ALERT.body);
+            else if (r === 'uncertain') notice(SKIP_UNCERTAIN_ALERT.title, SKIP_UNCERTAIN_ALERT.body);
+            else if (r === 'no-account') notice(SKIP_NO_ACCOUNT_ALERT.title, SKIP_NO_ACCOUNT_ALERT.body);
+            else notice(PAY_OUTCOME_ALERT[r].title, 'ما اتغيّرش حاجة — لسه هيسألك. جرب تاني أول ما النت يرجع.');
           });
         },
       },
     ]);
   }
+
+  // الشيت مفتوح على نسخة الكارت وقت ما اتفتح — قسطك ممكن يتغيّر (أو يبقى مقروء) وهو مفتوح، والذرة بترفض (amount-changed).
+  // من غير النسخة الحالية الإعادة كانت هتبعت نفس الرقم القديم وتترفض للأبد (الجولة 2، مع M1)
+  const editingLive = editing ? (pending.find(x => busyId(x) === busyId(editing.p)) ?? editing.p) : null;
 
   if (pending.length === 0) return null;
 
@@ -207,9 +334,14 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         const charge = p.charges[0];
         const busy = busyKey === busyId(p);
         const more = p.charges.length - 1;
+        const inst = payoutInstallment(p);
+        const showInst = typeof inst === 'number';
+        // قسطك مش مقروء ← "استلمت" بيفتح الشيت بخانة قسطك (مش تسجيل هيترفض)
+        const instUnreadable = inst === null;
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
-            <Text numberOfLines={2} style={styles.title}>{titleOf(p)}</Text>
+            <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(inst, amountsHidden)}` : ''}${instUnreadable ? `، ${PAYOUT_INSTALLMENT_UNREADABLE_LINE}` : ''}`)}>
+            <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{titleOf(p)}</Text>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -218,13 +350,22 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
               <Text style={styles.sub} testID={`charge_card_today_hint_${p.id}`}>{SUB_RECORDS_TODAY_HINT}</Text>
             )}
             <Money value={charge.amount} sign={p.payout ? '+' : '−'} style={[styles.amount, !p.payout && { color: colors.expenseText }]} />
-            <View style={styles.actions}>
+            {showInst && (
+              <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>
+                {PAYOUT_INSTALLMENT_LINE} <Money value={inst} sign="−" />
+              </Text>
+            )}
+            {instUnreadable && (
+              <Text style={styles.sub} testID={`charge_card_installment_${p.id}`}>{PAYOUT_INSTALLMENT_UNREADABLE_LINE}</Text>
+            )}
+            </View>
+            <View style={styles.cardActions}>
               <Button
                 testID={`charge_card_yes_${p.id}`}
                 label={yesLabel(p)}
                 disabled={busyKey !== null}
                 busy={busy}
-                onPress={() => record(p, charge, charge.amount)}
+                onPress={() => (instUnreadable ? setEditing({ p, charge }) : record(p, charge, charge.amount))}
                 accessibilityLabel={`"${p.name}" ${yesLabel(p)}`} />
               <Button variant="secondary" size="sm" label="المبلغ مختلف" disabled={busyKey !== null}
                 onPress={() => setEditing({ p, charge })}
@@ -237,7 +378,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
                 <Button variant="secondary" size="sm" label="لسه" disabled={busyKey !== null}
                   onPress={() => {
                     snooze(snoozeKey(p, today));
-                    AccessibilityInfo.announceForAccessibility(`"${p.name}" هيسألك تاني بكرة`);
+                    announce(`"${p.name}" هيسألك تاني بكرة`);
                   }}
                   accessibilityLabel={`"${p.name}" لسه`} accessibilityHint="الكارت هيستخبّى النهاردة بس" />
               )}
@@ -246,14 +387,15 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         );
       })}
 
-      {editing && (
+      {editing && editingLive && (
         <ChargeAmountSheet
           name={editing.p.name}
           question={`${editing.p.payout ? 'استلمت' : editing.p.kind === 'gamiya' ? 'اتدفع' : 'اتخصم'} كام في ${editing.p.labelOf(editing.charge.key)}؟`}
           yes={yesLabel(editing.p)}
           base={editing.charge.amount}
+          installment={payoutInstallment(editingLive)}
           busy={busyKey === busyId(editing.p)}
-          onSave={async amount => { if (await record(editing.p, editing.charge, amount)) setEditing(null); }}
+          onSave={async (amount, inst) => { if (await record(editingLive, editing.charge, amount, inst)) setEditing(null); }}
           onClose={() => setEditing(null)}
         />
       )}
@@ -265,25 +407,32 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
  * مبلغ الفترة دي بس — المبلغ المعتاد مبيتغيّرش. لو المبالغ مخفية الخانة
  * بتبدأ فاضية بقناع، والفاضي معناه "المعتاد" (زي شيت الدخل الثابت).
  */
-function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }: {
-  name: string; question: string; yes: string; base: number; busy: boolean;
-  onSave: (amount: number) => void; onClose: () => void;
+/**
+ * شهر الاستلام (`installment` مش `undefined`): قسطك بيتسجل مع الاستلام، فالشيت بيقوله (قاعدة 7 — الجولة 1 على 3a72d99)؛
+ * ولو مش مقروء (`null`) بيتكتب هنا للشهر ده بس، والزرار مقفول لحد ما يبقى مبلغ.
+ */
+function ChargeAmountSheet({ name, question, yes, base, installment, busy, onSave, onClose }: {
+  name: string; question: string; yes: string; base: number; installment?: number | null; busy: boolean;
+  onSave: (amount: number, installment?: number) => void; onClose: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const { amountsHidden, money } = usePrivacy();
   const [value, setValue] = useState(amountsHidden ? '' : String(base));
+  const [instValue, setInstValue] = useState('');
+  const typedInst = installment === null ? parseInstallment(instValue) : undefined;
   const typed = value.trim() === '' ? base : Number(value.replace(/,/g, ''));
   const valid = Number.isFinite(typed) && typed > 0;
+  const instValid = installment !== null || typedInst !== null;
   const diff = valid && value.trim() !== '' ? incomeDiffNote(typed, base, money) : null;
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.overlay}>
-          <View style={styles.sheet}>
+          <View style={styles.sheet} accessibilityViewIsModal>
             <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.sheetTitle}>{question}</Text>
+              <Text style={styles.sheetTitle} accessibilityRole="header">{question}</Text>
               <TextInput
                 testID="charge_amount_input"
                 style={styles.bigInput}
@@ -296,14 +445,23 @@ function ChargeAmountSheet({ name, question, yes, base, busy, onSave, onClose }:
                 placeholderTextColor={colors.textMuted}
                 accessibilityLabel={question}
               />
-              {!valid && <Text style={styles.error}>المبلغ لازم يكون أكبر من صفر.</Text>}
-              {!!diff && <Text style={styles.diff}>{diff}</Text>}
+              {!valid && <Text style={styles.error} accessibilityLiveRegion="polite">المبلغ لازم يبقى أكبر من صفر.</Text>}
+              {!!diff && <Text style={styles.diff} accessibilityLiveRegion="polite">{diff}</Text>}
+              {typeof installment === 'number' && (
+                <Text style={styles.diff} testID="charge_amount_installment_line" accessible
+                  accessibilityLabel={speakable(`${PAYOUT_INSTALLMENT_LINE} ${moneyText(installment, amountsHidden)}`)}>
+                  {PAYOUT_INSTALLMENT_LINE} <Money value={installment} sign="−" />
+                </Text>
+              )}
+              {installment === null && <PayoutInstallmentField value={instValue} onChange={setInstValue} />}
               <Text style={styles.hint}>{`ده للمرة دي بس — "${name}" هيفضل بمبلغه المعتاد.`}</Text>
             </ScrollView>
+            {installment === null && <PayoutInstallmentError value={instValue} />}
             <View style={styles.footer}>
               <Button variant="secondary" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
               <Button testID="charge_amount_save" label={yes} style={styles.saveBtn}
-                disabled={!valid} busy={busy} onPress={() => onSave(typed)} />
+                disabled={!valid || !instValid} busy={busy} onPress={() => onSave(typed, typedInst ?? undefined)}
+                accessibilityHint={!instValid ? PAYOUT_INSTALLMENT_SAVE_DISABLED_HINT : undefined} />
             </View>
           </View>
         </View>
@@ -322,7 +480,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
-    actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
+    cardActions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
       borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,

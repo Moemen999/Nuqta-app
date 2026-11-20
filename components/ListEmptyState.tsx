@@ -1,12 +1,28 @@
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { LOAD_ERROR_RETRY } from '@/lib/listenerErrors';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { radius, typeScale } from '@/lib/tokens';
 
-export const EMPTY_OFFLINE_NOTE =
-  'وإحنا مش شايفين نت دلوقتي، فيمكن تكون لسه ما وصلتش — مش ضايعة.';
+type Kind = 'wallets' | 'categories';
+
+const COPY: Record<Kind, { empty: string; offline: string; failed: string }> = {
+  wallets: {
+    empty: 'لسه مفيش محافظ شغالة. اعمل واحدة من تحت.',
+    offline: 'مفيش نت دلوقتي، فمحافظك ممكن تكون لسه ما وصلتش — مش ضايعة. استنى لحد ما النت يرجع قبل ما تعمل واحدة جديدة.',
+    failed: `محافظك ما وصلتش من السيرفر، فالقايمة دي ممكن تبان فاضية وهي مش فاضية — مش ضايعة. دوس "${LOAD_ERROR_RETRY}" فوق.`,
+  },
+  categories: {
+    empty: 'لسه مفيش فئات شغالة. اعمل واحدة من تحت.',
+    offline: 'مفيش نت دلوقتي، ففئاتك ممكن تكون لسه ما وصلتش — مش ضايعة. استنى لحد ما النت يرجع قبل ما تعمل واحدة جديدة.',
+    failed: `فئاتك ما وصلتش من السيرفر، فالقايمة دي ممكن تبان فاضية وهي مش فاضية — مش ضايعة. دوس "${LOAD_ERROR_RETRY}" فوق.`,
+  },
+};
+
+/** الجملة من غير نت — بتتعرض **بدل** "اعمل واحدة" مش بعدها (الميزة 10): "اعمل واحدة… ومفيش نت" كانت بتقول الاتنين */
+export const emptyOfflineText = (kind: Kind) => COPY[kind].offline;
 
 /**
  * الحالة الفاضية في شاشات المحافظ والفئات.
@@ -17,19 +33,27 @@ export const EMPTY_OFFLINE_NOTE =
  * قايمة فاضية فعلاً. المستخدم يفتح الإعدادات يلاقي مفيش محافظ خالص، وهو
  * عامل خمسة. دي نفس الحكاية اللي بانر الرئيسية اتكتب عشانها.
  *
- * فالسطر هنا بيفرّق بين الحالتين: لو مفيش نت بيقول كده صريح.
+ * تلات حالات غير "فاضية فعلاً" (الميزة 10، الجولة الأخيرة):
+ * - الـlistener اترفض ← مبنقولش "اعمل واحدة" (هيعمل نسخة من حاجة موجودة)، بنقول دوس "جرّب تاني" اللي في البانر فوق.
+ * - لسه ما وصلتش (بنت أو من غيره) ← ولا حاجة (ثواني بعد الفتح) — "مفيش" كانت بتلمع قبل ما القايمة توصل.
+ * - وصلت فاضية ومفيش نت ← جملة النت لوحدها، بتقول استنى قبل ما تعمل جديدة.
  */
-export default function ListEmptyState({ testID, message }: { testID: string; message: string }) {
+export default function ListEmptyState({ testID, kind }: { testID: string; kind: Kind }) {
   const { colors } = useTheme();
-  const { serverReachable } = useData();
+  const { serverReachable, loadErrors, figuresPending, undelivered } = useData();
   const styles = useMemo(() => makeStyles(colors), [colors]);
+
+  const failed = loadErrors.includes(kind);
+  // المحافظ: `figuresPending` (لسه ما جاش snapshot)؛ الفئات: `undelivered`
+  const arriving = kind === 'wallets' ? figuresPending.includes('wallets') : undelivered.includes('categories');
+  const copy = COPY[kind];
+  // المرفوض الأول، وبعدين «لسه بتوصل» (حتى من غير نت — أول snapshot من الكاش بيوصل في ثواني)، وبعدين النت (جولة 2)
+  const text = failed ? copy.failed : arriving ? null : !serverReachable ? copy.offline : copy.empty;
+  if (text === null) return null;
 
   return (
     <View testID={testID} style={styles.box}>
-      <Text style={styles.text}>
-        {message}
-        {!serverReachable ? ` ${EMPTY_OFFLINE_NOTE}` : ''}
-      </Text>
+      <Text style={styles.text}>{text}</Text>
     </View>
   );
 }

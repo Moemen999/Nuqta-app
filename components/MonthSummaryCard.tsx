@@ -10,11 +10,12 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PIASTRE_EPS } from '@/lib/finance';
 import { speakable } from '@/lib/money';
 import type { MonthSummary } from '@/lib/monthSummary';
-import { TRANSFERS_FAILED_NOTE } from '@/lib/spending';
+import { TRANSFERS_FAILED_NOTE, TX_LOAD_ERROR } from '@/lib/spending';
 import { cardElevation, radius, space, typeScale } from '@/lib/tokens';
 
 export const MONTH_CARD_TITLE = 'صرفت الشهر ده';
-export const MONTH_CARD_ERROR = 'مقدرناش نجيب عملياتك';
+// نفس جملة التقارير والأرشيف (Feature 9) — مصدر واحد
+export const MONTH_CARD_ERROR = TX_LOAD_ERROR;
 export const MONTH_CARD_HINT = 'بيفتح التقارير';
 const ZERO_LAST = 'مصرفتش حاجة';
 

@@ -342,13 +342,14 @@ describe('DataContext — الجولة 1 على D2', () => {
     expect(b).toMatch(/installmentResidue: stamped \?\? deleteField\(\)/);
   });
 
-  it('stageReconcile (مسح عملية زيادة): الفرق المتجاهَل بيتسجّل قبل الطيّ زي باقي مسارات الدين', () => {
-    const b = fnBody('  function stageReconcile(');
+  // الجولة 2 (بند 1): مسح عملية الزيادة اتنقل من `stageReconcile` لذرة من السيرفر (`deleteDebtLinkedTransaction`)
+  it('deleteDebtLinkedTransaction (مسح عملية زيادة): الفرق المتجاهَل بيتسجّل قبل الطيّ زي باقي مسارات الدين', () => {
+    const b = fnBody('  async function deleteDebtLinkedTransaction(');
     // D3 (2026-10-30): الطيّ بقى جوه transactionDeleteDebtPlan؛ السطر لازم يفضل قبل كتابة الفرق
-    const ignored = b.indexOf('noteIgnoredResidue(d);');
+    const ignored = b.indexOf('noteIgnoredResidue(debt);');
     const write = b.indexOf('patch.installmentResidue =');
     expect(ignored).toBeGreaterThan(-1);
-    expect(b).toMatch(/if \(plan\.kind === 'increase'\) noteIgnoredResidue\(d\);/);
+    expect(b).toMatch(/if \(plan\.kind === 'increase'\) noteIgnoredResidue\(debt\);/);
     expect(ignored).toBeLessThan(write);
   });
 

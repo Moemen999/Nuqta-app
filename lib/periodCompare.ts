@@ -1,4 +1,4 @@
-import { addDays, daysBetween, endOfMonth, isDateStr, startOfMonth } from '@/lib/finance';
+import { PIASTRE_EPS, addDays, daysBetween, endOfMonth, isDateStr, startOfMonth } from '@/lib/finance';
 
 export type CompareWindow = { from: string; to: string };
 export type ComparePreset = 'thisMonth' | 'last7' | 'lastMonth' | 'last6Months' | 'custom';
@@ -33,4 +33,19 @@ export function comparisonWindows(
   }
 
   return { current, previous: { from: addDays(current.from, -days), to: addDays(current.from, -1) } };
+}
+
+/**
+ * نص نسبة التغيّر عن الفترة اللي فاتت (Feature 9). بالكلام مش بإشارة: «+41%» في سطر RTL كانت بتترسم «%41+»،
+ * و«—» لما مفيش فترة سابقة كانت بتتقري «شرطة». `label` لقارئ الشاشة («بالمية» بدل «%»).
+ * `diff` = الفرق الخام بالجنيه (الحالية − اللي فاتت): «زي ما هو» بس لو أقل من نص قرش؛ النسبة اتقرّبت لصفر والفرق
+ * حقيقي (1000 ← 1003) ← «تقريبًا زي ما هو» (الجولة الأخيرة).
+ */
+export function changeText(change: number | null, diff: number): { text: string; label: string } {
+  if (change === null) return { text: 'مفيش فترة سابقة نقارن بيها', label: 'مفيش فترة سابقة نقارن بيها' };
+  if (Math.abs(diff) < PIASTRE_EPS) return { text: 'زي ما هو', label: 'زي ما هو' };
+  if (change === 0) return { text: 'تقريبًا زي ما هو', label: 'تقريبًا زي ما هو' };
+  const word = change > 0 ? 'زاد' : 'قلّ';
+  const n = Math.abs(change);
+  return { text: `${word} ${n}%`, label: `${word} ${n} بالمية` };
 }

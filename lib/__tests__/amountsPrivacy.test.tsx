@@ -167,17 +167,18 @@ describe('الإشعارات والمبالغ مخفية', () => {
     await run(true);
     expect(scheduled).toHaveLength(3);
     for (const n of scheduled) {
-      expect(n.body).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
+      // رقم الشهر في «قسط شهر N» مش فلوس
+      expect(n.body.replace(/قسط شهر \d+/, 'قسط شهر')).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
     }
     expect(scheduled.map(n => n.body)).toEqual(expect.arrayContaining([
-      'مستحق النهاردة', 'قسط الشهر قرب', 'المعاد النهاردة — لسه فيه متبقي',
+      'مستحق النهاردة', 'قسط شهر 1 النهاردة', 'المعاد النهاردة — لسه فيه متبقي',
     ]));
   });
 
   it('ولما تكون ظاهرة المبالغ موجودة زي الأول', async () => {
     await run(false);
     expect(scheduled.map(n => n.body)).toEqual(expect.arrayContaining([
-      'مستحق النهاردة — 150 ج.م', 'قسط الشهر قرب — 2,000 ج.م', 'المعاد النهاردة — متبقي 900 ج.م',
+      'مستحق النهاردة — 150 ج.م', 'قسط شهر 1 النهاردة — 2,000 ج.م', 'المعاد النهاردة — متبقي 900 ج.م',
     ]));
   });
 });
@@ -195,9 +196,9 @@ const PLAIN_AMOUNT_ALLOWED: Record<string, { count: number; why: string }> = {
   'components/AmountPreview.tsx': { count: 1, why: 'صدى الرقم اللي بيتكتب في الخانة دلوقتي' },
   'app/(tabs)/debts.tsx': { count: 1, why: 'تأكيد قبل مسح دفعة أو زيادة — الرقم هو اللي بيتمسح' },
   'components/DebtEntryModals.tsx': { count: 4, why: 'تأكيد قبل تسجيل دفعة أكبر من المتبقي' },
-  'app/(tabs)/index.tsx': { count: 1, why: 'قارئ الشاشة لصف كاش أول فتحة — مبلغ العملية، وهو ظاهر أصلاً زي الصف الحقيقي (العين للأرصدة بس)' },
+  // صف العملية الحقيقي بقى من `lib/txRowLabel.ts` (مشترك مع الأرشيف — Feature 9)، فواحدة أقل هنا
+  'app/(tabs)/index.tsx': { count: 2, why: 'قارئ الشاشة لصف الكاش — مبلغ العملية ظاهر أصلاً (العين للأرصدة بس)؛ و«N جنيه» للإجمالي بس والعين مفتوحة (الميزة 7)' },
   'components/ArchivedSettlement.tsx': { count: 1, why: 'تأكيد قبل تحويل فرق المحفظة المؤرشفة' },
-  'app/settings-screens/wallets.tsx': { count: 1, why: 'رسالة ليه الأرشفة اتمنعت — الرصيد هو السبب' },
   'components/IncomesView.tsx': { count: 1, why: 'تأكيد "نزل" قبل تسجيل الدخل الثابت' },
   'app/modal.tsx': { count: 1, why: 'تأكيد قبل حفظ تعديل بيخلّي المدفوع أكتر من الدين' },
 };
@@ -283,8 +284,10 @@ describe('جرد الإخفاء في كل الشاشات', () => {
   });
 
   it('التصدير بيستخدم الأرقام الحقيقية (t.amount خام)', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'app', 'archive.tsx'), 'utf8');
+    // صفوف تصدير الفترة اتنقلت لـ`lib/periodExport.ts` (Feature 9)، والأرشيف بيبنيها من هناك
+    const src = fs.readFileSync(path.join(ROOT, 'lib', 'periodExport.ts'), 'utf8');
     expect(src).toMatch(/Amount: t\.amount,/);
+    expect(fs.readFileSync(path.join(ROOT, 'app', 'archive.tsx'), 'utf8')).toContain('buildPeriodExportRows(filtered');
   });
 
   /**
@@ -295,13 +298,12 @@ describe('جرد الإخفاء في كل الشاشات', () => {
   it('الجمل اللي فيها مبلغ في lib/ في الاستثناءات المكتوبة بس', () => {
     const LIB_FMT_ALLOWED: Record<string, { count: number; why: string }> = {
       'lib/money.ts': { count: 1, why: 'moneyText نفسها — بتختار القناع أو الرقم' },
-      'lib/walletCopy.ts': { count: 5, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)' },
+      'lib/walletCopy.ts': { count: 6, why: 'تأكيد الرصيد الابتدائي في شاشة المحافظ — الشاشة بتعرض أرقامها أصلًا (العين للرئيسية بس)؛ وسقف الخانة (رقم تقني ثابت مش فلوس المستخدم) — والسقف مرتين كمان في رسالة «بين سالب X وX» (الميزة 10، جولة 2)' },
       'lib/scheduleAllReminders.ts': { count: 2, why: 'محكومة بـ hideAmounts — الإشعار من غير رقم لو مخفي' },
       'lib/finance.ts': { count: 2, why: '«دفعت X بدل Y» في installmentChangeMessage — صدى المبلغ اللي لسه دافعه في نفس اللحظة' },
-      'lib/archiving.ts': { count: 1, why: 'walletDeleteConsequences — تأكيد قبل المسح، والرصيد هو تمن القرار' },
       'lib/recurringIncome.ts': { count: 1, why: 'incomeRecordedNotification — محكومة بـ hideAmounts زي باقي الإشعارات' },
       'lib/outbox.ts': { count: 1, why: 'txLabel (rejectedReplayBody + walletGoneReplayBody) — عملية مستنية النت اترفضت وهي بتترفع بعد فتحة جديدة؛ المبلغ والتاريخ هما الطريقة الوحيدة يعرف أنهي عملية يسجّلها تاني (مفيش سجل مسمّى زي باقي رسايل الفشل)' },
-      'lib/autoCharge.ts': { count: 4, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل؛ وتأكيد دفع الاشتراك وشهر الجمعية (subscriptionPayConfirmBody / gamiyaMarkConfirmBody) — تأكيد قبل الخصم، الرقم هو تمن القرار، زي باقي التأكيدات فوق' },
+      'lib/autoCharge.ts': { count: 5, why: 'chargeRecordedNotification — محكومة بـ hideAmounts زي إشعار الدخل؛ وتأكيد دفع الاشتراك وشهر الجمعية (subscriptionPayConfirmBody / gamiyaMarkConfirmBody) — تأكيد قبل الخصم، الرقم هو تمن القرار، زي باقي التأكيدات فوق؛ وتأكيد الاستلام بيقول قسطك كمان (اختيار أ، 2026-11-18)' },
     };
     const libFiles = fs.readdirSync(path.join(ROOT, 'lib')).filter(n => /\.tsx?$/.test(n));
     const found: Record<string, number> = {};

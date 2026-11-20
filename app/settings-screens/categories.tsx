@@ -1,5 +1,5 @@
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
-import ArchivedList from '@/components/ArchivedList';
+import ArchivedList, { restoredAnnouncement } from '@/components/ArchivedList';
 import CategoryIconPicker from '@/components/CategoryIconPicker';
 import ListEmptyState from '@/components/ListEmptyState';
 import BackButton from '@/components/BackButton';
@@ -7,13 +7,17 @@ import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import {
-  categoryArchiveBlock, categoryDeleteConsequences, categoryHasHistory, categoryLinkSummary,
-  categoryReferences, type ArchiveBlock,
+  categoryArchiveBlock, categoryDeleteBlock, categoryDeleteConsequences, categoryHasHistory, categoryLinkSummary,
+  categoryReferences, reassignTargetsBlock, type ArchiveBlock,
 } from '@/lib/archiving';
-import { WALLET_BLOCKED_TITLE, categoryActionBlockedBy, categoryBlockedBody } from '@/lib/listenerErrors';
+import {
+  WALLET_BLOCKED_TITLE, dataLoadingBody, categoryActionBlockedBy, categoryActionLoading, categoryBlockedBody,
+} from '@/lib/listenerErrors';
+import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
-import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AUTOSAVED_ANNOUNCEMENT, SHEET_RELINKED_NOTICE, goneFromAnotherDeviceNotice, nameEmptyNotice } from '@/lib/walletCopy';
+import { useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH, categoryIconSize, space, typeScale, radius } from '@/lib/tokens';
@@ -24,17 +28,29 @@ import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 
-/** إدارة الفئات — اتنقلت من شاشة الإعدادات بنفس منطق الحفظ بالحرف */
+function announce(text: string) {
+  try { AccessibilityInfo.announceForAccessibility(text); } catch { /* زينة */ }
+}
+
+/**
+ * إدارة الفئات — اتنقلت من شاشة الإعدادات بنفس منطق الحفظ بالحرف.
+ *
+ * **نفس قواعد المحافظ** (الميزة 10، الجولة الأخيرة): الفحص بيتعاد لحظة الدوسة على كل تأكيد من `live` (آخر بيانات
+ * وصلت)، والمسح/الأرشفة بيستنوا البيانات توصل، وآخر فئة شغالة مبتتمسحش ولا بتتأرشف، والفئة اللي اتختارت للنقل لازم تكون
+ * لسه شغالة، واللي بيترمي قبل الكتابة بيتقال ويوصل Sentry.
+ */
 export default function CategoriesScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const notice = useNotice();
   const confirm = useConfirm();
+  const data = useData();
   const {
-    categories, transactions, brokenTransactions, debts, subscriptions, budgets, loadErrors,
-    addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
-  } = useData();
+    categories, addCategory, updateCategory, deleteCategory, archiveCategory, restoreCategory,
+  } = data;
+  const live = useRef(data);
+  live.current = data;
   const { categoryColors } = useChartColors();
 
   const [newCategory, setNewCategory] = useState('');
@@ -43,6 +59,7 @@ export default function CategoriesScreen() {
   const [sheet, setSheet] = useState<{
     id: string; name: string; items: ReassignItem[]; targets: ReassignTarget[]; note?: string;
   } | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const { busy: adding, run: runAdd } = useBusy();
   const { busyKey: deletingKey, run: runDelete } = useBusyKey(() => notice(BUSY_NOTICE.title, BUSY_NOTICE.body));
@@ -51,6 +68,7 @@ export default function CategoriesScreen() {
   const archivedCategories = useMemo(() => categories.filter(c => c.archived), [categories]);
 
   function refsFor(id: string) {
+    const { transactions, brokenTransactions, subscriptions, debts, budgets } = live.current;
     return categoryReferences(id, { transactions: [...transactions, ...brokenTransactions], subscriptions, debts, budgets });
   }
 
@@ -67,44 +85,80 @@ export default function CategoriesScreen() {
     const val = nameDrafts[id];
     if (val === undefined) return;
     const name = val.trim();
-    if (!name || name === current) { clearNameDraft(id); return; }
     clearNameDraft(id);
+    if (!name) { if (current) notice(...nameEmptyNotice('الفئة')); return; }
+    if (name === current) return;
     updateCategory(id, { name });
+    announce(AUTOSAVED_ANNOUNCEMENT);
   }
 
-  function showBlock(block: ArchiveBlock) {
+  function showBlock(block: ArchiveBlock, name: string, action: 'archive' | 'delete') {
     if (block.kind === 'last-active') {
       notice('دي آخر فئة شغالة',
-        'لازم تفضل عندك فئة واحدة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية الأول.');
+        action === 'delete'
+          ? 'لازم تفضل عندك فئة واحدة شغالة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية أو رجّع واحدة من المؤرشفة، وبعدين امسح دي.'
+          : 'لازم تفضل عندك فئة واحدة على الأقل عشان تصنّف مصاريفك. اعمل فئة تانية الأول.');
+      return;
+    }
+    if (block.kind === 'target-gone') {
+      notice('فيه حاجة اتغيّرت',
+        `الفئة اللي اخترتها للنقل اتأرشفت أو اتمسحت من جهاز تاني، فما أرشفناش "${name}". افتح الأرشفة تاني واختار فئة شغالة.`);
       return;
     }
     notice('مفيش فئة تانية',
       'الاشتراكات الشغالة محتاجة فئة تتنقل لها. اعمل فئة تانية الأول.');
   }
 
-  /** لو بيانات الاستخدام ما وصلتش، بيقول كده وبيرجّع true — والمسح/الأرشفة بيقفوا */
+  /** لو بيانات الاستخدام ما وصلتش (اترفضت أو لسه بتوصل — H1)، بيقول كده وبيرجّع true. وقت الفتح **ولحظة الدوسة** */
   function blockedByMissingData() {
+    const { loadErrors, figuresPending, undelivered, serverReachable } = live.current;
     const missing = categoryActionBlockedBy(loadErrors);
-    if (missing.length === 0) return false;
-    notice(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing));
+    if (missing.length > 0) { notice(WALLET_BLOCKED_TITLE, categoryBlockedBody(missing)); return true; }
+    if (categoryActionLoading(figuresPending, undelivered).length > 0) { notice(WALLET_BLOCKED_TITLE, dataLoadingBody(serverReachable)); return true; }
+    return false;
+  }
+
+  /** آخر فئة شغالة مبتتمسحش (بند 2) — بيقول كده وبيرجّع true */
+  function blockedAsLastActive(id: string, name: string) {
+    const block = categoryDeleteBlock(id, live.current.categories);
+    if (!block) return false;
+    showBlock(block, name, 'delete');
     return true;
+  }
+
+  /** المسح نفسه بعد فحص أخير لحظة الدوسة — ونفس حماية المحافظ للي بيترمي (بند 9) */
+  function deleteNow(id: string, name: string, fromSimple = false) {
+    if (blockedByMissingData()) return;
+    if (!live.current.categories.some(c => c.id === id)) { notice(...goneFromAnotherDeviceNotice('الفئة', name, 'delete')); return; }
+    if (blockedAsLastActive(id, name)) return;
+    if (fromSimple && categoryHasHistory(refsFor(id))) { confirmDelete(id, name); return; }
+    runDelete(id, async () => {
+      try {
+        const result = await deleteCategory(id);
+        if (result?.outcome === 'blocked') showBlock(result.block, name, 'delete');
+      } catch (e) {
+        reportAtomicFailure('مسح الفئة', e);
+        notice('حصل خطأ، جرب تاني', `"${name}" ما اتمسحتش — حصلت مشكلة قبل ما نمسحها، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`);
+      }
+    });
   }
 
   function confirmDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (blockedAsLastActive(id, name)) return;
     const refs = refsFor(id);
     if (!categoryHasHistory(refs)) {
       const budgetNote = refs.hasBudget ? ' وميزانيتها هتتمسح معاها.' : '';
-      confirm('حذف فئة', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية عليها.${budgetNote}`, [
-        { text: 'إلغاء', style: 'cancel' },
-        { text: 'حذف', style: 'destructive', onPress: () => runDelete(id, () => deleteCategory(id)) },
+      confirm('تمسح الفئة؟', `متأكد إنك عايز تمسح "${name}"؟ مفيش أي عملية عليها${budgetNote ? `،${budgetNote}` : '.'}`, [
+        { text: 'سيبها', style: 'cancel' },
+        { text: 'امسحها', style: 'destructive', onPress: () => deleteNow(id, name, true) },
       ]);
       return;
     }
-    confirm('الفئة دي عليها عمليات',
+    confirm('الفئة دي ليها تاريخ',
       `"${name}" عليها ${categoryLinkSummary(refs)}. لو مسحتها العمليات هتظهر باسم فئة ممسوحة. تقدر تأرشفها بدل كده.`,
       [
-        { text: 'إلغاء', style: 'cancel' },
+        { text: 'سيبها', style: 'cancel' },
         { text: 'أرشفها', onPress: () => startArchive(id, name) },
         { text: 'امسحها برضه', style: 'destructive', onPress: () => confirmHardDelete(id, name) },
       ]);
@@ -112,31 +166,46 @@ export default function CategoriesScreen() {
 
   function confirmHardDelete(id: string, name: string) {
     if (blockedByMissingData()) return;
+    if (!live.current.categories.some(c => c.id === id)) { notice(...goneFromAnotherDeviceNotice('الفئة', name, 'delete')); return; }
+    if (blockedAsLastActive(id, name)) return;
     confirm('مسح نهائي', categoryDeleteConsequences(refsFor(id)).join('\n'), [
       { text: 'ارجع', style: 'cancel' },
-      { text: 'امسحها نهائي', style: 'destructive', onPress: () => runDelete(id, () => deleteCategory(id)) },
+      { text: 'امسحها نهائي', style: 'destructive', onPress: () => deleteNow(id, name) },
     ]);
   }
 
-  function startArchive(id: string, name: string) {
-    if (blockedByMissingData()) return;
-    const refs = refsFor(id);
-    const others = activeCategories.filter(x => x.id !== id);
-    const block = categoryArchiveBlock({
-      refs,
-      activeCategoryCount: activeCategories.length,
-      otherActiveCategoryCount: others.length,
+  /** شروط الأرشفة على البيانات **دلوقتي** — وقت الفتح، ولحظة الدوسة على التأكيد البسيط والشيت (بند 2) */
+  function archiveBlockFor(id: string) {
+    const active = live.current.categories.filter(c => !c.archived);
+    return categoryArchiveBlock({
+      refs: refsFor(id),
+      activeCategoryCount: active.length,
+      otherActiveCategoryCount: active.filter(x => x.id !== id).length,
     });
-    if (block) { showBlock(block); return; }
+  }
 
-    const budgetNote = refs.hasBudget ? ' ونمسح ميزانيتها الشهرية' : '';
+  /** نفس `startArchive` بتاع المحافظ: التأكيد البسيط بيرجع هنا (`confirmed`) فكل الفحوص بتتعاد */
+  function startArchive(id: string, name: string, confirmed = false) {
+    if (blockedByMissingData()) return;
+    if (!live.current.categories.some(c => c.id === id)) {
+      if (confirmed) notice('الفئة دي اتمسحت', `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`);
+      return;
+    }
+    const block = archiveBlockFor(id);
+    if (block) { showBlock(block, name, 'archive'); return; }
+
+    const refs = refsFor(id);
     if (refs.activeSubscriptions.length === 0) {
+      if (confirmed) { void archiveNow(id, name, {}); return; }
+      // الترتيب: الأرشفة الأول، وبعدها الميزانية، وبعدها العمليات (arabic-copy-reviewer)
+      const budgetNote = refs.hasBudget ? ' ونمسح ميزانيتها الشهرية' : '';
       confirm('أرشفة فئة', `هنأرشف "${name}"${budgetNote}. العمليات القديمة هتفضل زي ما هي.`, [
         { text: 'إلغاء', style: 'cancel' },
-        { text: 'أرشفها', onPress: () => archiveCategory(id, {}) },
+        { text: 'أرشفها', onPress: () => startArchive(id, name, true) },
       ]);
       return;
     }
+    const others = live.current.categories.filter(x => !x.archived && x.id !== id);
     setSheet({
       id, name,
       items: refs.activeSubscriptions.map(x => ({ ...x, kind: 'اشتراك' })),
@@ -145,10 +214,50 @@ export default function CategoriesScreen() {
     });
   }
 
+  /** الأرشفة نفسها — DataContext بيرفض هو كمان (آخر شغالة، نقل لفئة مش شغالة)، واللي بيترمي بيتقال */
+  async function archiveNow(id: string, name: string, reassign: Record<string, string>) {
+    try {
+      const result = await archiveCategory(id, reassign);
+      if (result?.outcome === 'blocked') showBlock(result.block, name, 'archive');
+    } catch (e) {
+      reportAtomicFailure('أرشفة الفئة', e);
+      notice('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`);
+    }
+  }
+
+  async function confirmSheet(assignments: Record<string, string>) {
+    if (!sheet) return;
+    const { id, name, items } = sheet;
+    const refuse = (fn: () => void) => { setSheet(null); fn(); };
+    if (categoryActionBlockedBy(live.current.loadErrors).length > 0
+      || categoryActionLoading(live.current.figuresPending, live.current.undelivered).length > 0) {
+      refuse(() => { blockedByMissingData(); });
+      return;
+    }
+    if (!live.current.categories.some(c => c.id === id)) {
+      refuse(() => notice('الفئة دي اتمسحت', `"${name}" اتمسحت من جهاز تاني، فمفيش حاجة تتأرشف.`));
+      return;
+    }
+    const block = archiveBlockFor(id);
+    if (block) { refuse(() => showBlock(block, name, 'archive')); return; }
+    // اشتراك شغال جديد اتربط والشيت مفتوح ← الشيت من جديد (بند 2). اللي اتمسح بيتفوّت في DataContext
+    const now = refsFor(id).activeSubscriptions;
+    if (now.some(n => !items.some(i => i.id === n.id))) { refuse(() => notice(...SHEET_RELINKED_NOTICE, () => startArchive(id, name))); return; }
+    const targetBlock = reassignTargetsBlock(Object.values(assignments), live.current.categories, id);
+    if (targetBlock) { refuse(() => showBlock(targetBlock, name, 'archive')); return; }
+    setArchiving(true);
+    try {
+      await archiveNow(id, name, assignments);
+    } finally {
+      setArchiving(false);
+      setSheet(null);
+    }
+  }
+
   function confirmRestore(id: string, name: string) {
     confirm('رجّع الفئة', `"${name}" هترجع من غير ميزانية، تقدر تحددلها ميزانية من جديد.`, [
       { text: 'إلغاء', style: 'cancel' },
-      { text: 'رجّعها', onPress: () => restoreCategory(id) },
+      { text: 'رجّعها', onPress: () => { restoreCategory(id); announce(restoredAnnouncement(name)); } },
     ]);
   }
 
@@ -164,9 +273,7 @@ export default function CategoriesScreen() {
         </View>
         <Text style={styles.hint}>تقدر تدوس على اسم الفئة تعدله مباشرة</Text>
 
-        {activeCategories.length === 0 && (
-          <ListEmptyState testID="categories_empty" message="لسه مفيش فئات شغالة. اعمل واحدة من تحت." />
-        )}
+        {activeCategories.length === 0 && <ListEmptyState testID="categories_empty" kind="categories" />}
 
         {activeCategories.map(c => (
           <View key={c.id} testID={`category_row_${c.id}`} style={styles.catRow}>
@@ -186,12 +293,13 @@ export default function CategoriesScreen() {
               onChangeText={v => setNameDrafts(d => ({ ...d, [c.id]: v }))}
               onBlur={() => saveName(c.id, c.name)}
               textAlign="right"
+              accessibilityLabel={`اسم الفئة ${c.name}`}
             />
             {/* نفس "حذف" المحفظة: اسم بيقول أنهي فئة، وحالة الانشغال، وطول 44 (a11y-architect جولة 2) */}
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح فئة ${c.name}`} accessibilityState={{ busy: deletingKey === c.id, disabled: deletingKey === c.id }}
               testID={`category_delete_${c.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
               <Text style={[styles.deleteText, deletingKey === c.id && styles.btnBusy]}>
-                {deletingKey === c.id ? '...' : 'حذف'}
+                {deletingKey === c.id ? '...' : 'امسح'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -199,7 +307,7 @@ export default function CategoriesScreen() {
 
         <View style={styles.addRow}>
           <TextInput testID="category_add_input" style={styles.addInput} placeholder="فئة جديدة" placeholderTextColor={colors.textSecondary}
-            maxLength={NAME_MAX_LENGTH} value={newCategory} onChangeText={setNewCategory} textAlign="right" />
+            maxLength={NAME_MAX_LENGTH} value={newCategory} onChangeText={setNewCategory} textAlign="right" accessibilityLabel="اسم فئة جديدة" />
           <Button
             testID="category_add_button"
             size="sm"
@@ -230,6 +338,7 @@ export default function CategoriesScreen() {
 
         {sheet && (
           <ArchiveSheet
+            key={sheet.items.map(i => i.id).join('|')}
             title="أرشفة فئة"
             intro={`قبل ما نأرشف "${sheet.name}" لازم الاشتراكات الشغالة دي تلاقي فئة تانية.`}
             items={sheet.items}
@@ -237,7 +346,8 @@ export default function CategoriesScreen() {
             targetLabel="الفئة الجديدة"
             note={sheet.note}
             confirmText="أرشفها"
-            onConfirm={assignments => { if (blockedByMissingData()) return; archiveCategory(sheet.id, assignments); setSheet(null); }}
+            busy={archiving}
+            onConfirm={assignments => { void confirmSheet(assignments); }}
             onClose={() => setSheet(null)}
           />
         )}
@@ -254,7 +364,7 @@ function makeStyles(c: ThemeColors) {
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md },
     iconBtn: { width: MIN_TOUCH, height: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     catRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm, paddingVertical: space.sm, borderBottomWidth: 1, borderBottomColor: c.border },
-    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2 },
+    nameInput: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', paddingVertical: 2, minHeight: MIN_TOUCH },
     deleteBtn: { minHeight: MIN_TOUCH, minWidth: MIN_TOUCH, alignItems: 'center', justifyContent: 'center' },
     deleteText: { color: c.dangerText, fontSize: typeScale.body },
     addRow: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md, marginBottom: space.xs, alignItems: 'center' },

@@ -9,8 +9,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
+import { useNotice } from '@/components/NoticeProvider';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
+/** أكتر من مؤرشفة في نفس التغيير (arabic-copy-reviewer، الميزة 10) */
+export const SETTLE_TITLE_MANY = 'المحافظ دي مؤرشفة';
+export const settleTitle = (count: number) => (count > 1 ? SETTLE_TITLE_MANY : SETTLE_TITLE);
+/** الشيت كانت مفتوحة والمؤرشفة رجعت أو اتمسحت ← اتقفلت ومفيش حاجة اتعملت — كانت بتختفي ساكتة (الميزة 10) */
+export const SETTLE_GONE_NOTICE: [string, string] = [
+  'ما اتعملش حاجة',
+  'المحفظة المؤرشفة اتغيّرت وانت بتختار (رجعت أو اتمسحت)، فما اتعملش حاجة والعملية زي ما هي. راجع الشاشة وجرّب تاني.',
+];
 
 /**
  * الجملة بتقول الاتجاه بالكلام مش بعلامة على الرقم.
@@ -19,11 +28,13 @@ export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
  * وده بالظبط النوع اللي بيتقري غلط في الفلوس. "هينقّص ... 100" مفيهاش
  * ترجمة: الفعل بيقول الاتجاه، والرقم بيبقى مطلق دايمًا.
  */
-export function settleBody(name: string, delta: number) {
+export function settleBody(name: string, delta: number, isDelete = false) {
   const amount = plainAmount(Math.abs(delta));
+  // المسح كان بيتقال "التعديل ده" (arabic-copy-reviewer، الميزة 10)
+  const subject = isDelete ? 'مسح العملية دي' : 'التعديل ده';
   return delta > 0
-    ? `التعديل ده هيزوّد رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق يروح لأنهي محفظة؟`
-    : `التعديل ده هينقّص رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق هيتاخد من أنهي محفظة؟`;
+    ? `${subject} هيزوّد رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق يروح لأنهي محفظة؟`
+    : `${subject} هينقّص رصيد "${name}" المؤرشفة ${amount} ج.م. الفرق هيتاخد من أنهي محفظة؟`;
 }
 
 /**
@@ -41,8 +52,8 @@ export function settleBlockedBody(name: string, delta: number, isDelete: boolean
 
 export function settleBlockedHint(isDelete: boolean) {
   return isDelete
-    ? 'مفيش ولا محفظة شغالة نحط فيها الفرق، فما اتمسحش حاجة والرصيد زي ما هو. رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة، وبعدين امسح تاني.'
-    : 'مفيش ولا محفظة شغالة نحط فيها الفرق، فما اتعدّلش حاجة والرصيد زي ما هو. رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة، وبعدين عدّل تاني.';
+    ? 'مفيش ولا محفظة شغالة نحط فيها الفرق، فالعملية ما اتمسحتش والرصيد زي ما هو. رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة، وبعدين امسح تاني.'
+    : 'مفيش ولا محفظة شغالة نحط فيها الفرق، فالعملية ما اتعدّلتش والرصيد زي ما هو. رجّع محفظة من الإعدادات ← المحافظ، أو ضيف محفظة جديدة، وبعدين عدّل تاني.';
 }
 
 /**
@@ -62,6 +73,7 @@ export function settleBlockedHint(isDelete: boolean) {
  */
 export function useArchivedSettlement() {
   const { wallets } = useData();
+  const notice = useNotice();
   const [pending, setPending] = useState<{
     changes: TxChange[];
     run: (settlements: Settlement[]) => void;
@@ -83,7 +95,8 @@ export function useArchivedSettlement() {
   // مبقاش فيه مؤرشفة هتتأثر ← الشيت بتتقفل ومفيش حاجة اتعملت. مبنشغّلش المسح
   // لوحده: المستخدم ما شافش الحالة الجديدة، والعملية لسه قدامه في المودال
   useEffect(() => {
-    if (pending && deltas.length === 0) setPending(null);
+    if (pending && deltas.length === 0) { setPending(null); notice(...SETTLE_GONE_NOTICE); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- notice ثابتة؛ الشرط على pending/deltas بس
   }, [pending, deltas]);
 
   /**
@@ -168,15 +181,15 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
             keyboardShouldPersistTaps="handled">
             {/* الممنوعة بتتقري رسالة واحدة زي NoticeProvider، مش عناصر متفرقة */}
             <View accessible={blocked} accessibilityLabel={blocked
-              ? speakable([SETTLE_TITLE, ...deltas.map(d => settleBlockedBody(d.name, d.delta, isDelete, money)), settleBlockedHint(isDelete)].join(' '))
+              ? speakable([settleTitle(deltas.length), ...deltas.map(d => settleBlockedBody(d.name, d.delta, isDelete, money)), settleBlockedHint(isDelete)].join(' '))
               : undefined}>
-            <Text style={styles.sheetTitle}>{SETTLE_TITLE}</Text>
+            <Text style={styles.sheetTitle} accessibilityRole="header">{settleTitle(deltas.length)}</Text>
             {/* الممنوعة مبتسألش "متأكد؟": مفيش حاجة هتتعمل أصلاً */}
             {!blocked && intro ? <Text testID="settle_intro" style={styles.body}>{intro}</Text> : null}
             {deltas.map(d => (
               <View key={d.walletId} style={styles.card}>
                 <Text style={[styles.body, blocked && styles.bodyBlocked]}>
-                  {blocked ? settleBlockedBody(d.name, d.delta, isDelete, money) : settleBody(d.name, d.delta)}
+                  {blocked ? settleBlockedBody(d.name, d.delta, isDelete, money) : settleBody(d.name, d.delta, isDelete)}
                 </Text>
                 {!blocked && (
                   <View style={styles.chipRow}>
@@ -212,6 +225,8 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                   label={confirmLabel ?? 'احفظ'}
                   style={styles.saveBtn}
                   disabled={!allPicked}
+                  // المقفول كان بيتقري "مش متاح" من غير ما يقول ليه (a11y-architect)
+                  accessibilityHint={allPicked ? undefined : (deltas.length > 1 ? 'اختار محفظة لكل فرق' : 'اختار المحفظة اللي الفرق هيروح لها')}
                   onPress={() => {
                     if (confirmed.current) return;
                     confirmed.current = true;

@@ -37,6 +37,19 @@ type Confirm = (title: string, body: string, buttons: ConfirmButton[], options?:
 type Pending = { title: string; body: string; buttons: ConfirmButton[]; options?: ConfirmOptions };
 
 const ConfirmContext = createContext<Confirm | null>(null);
+/** بيشيل تأكيد معيّن (بالـ`key`) من الطابور أو من على الشاشة — كأنه اتلغى */
+type DismissConfirm = (key: string) => void;
+const DismissContext = createContext<DismissConfirm | null>(null);
+const noDismiss: DismissConfirm = () => {};
+
+/**
+ * تأكيد اتطلب وصاحبه مابقاش محتاجه (الشاشة اتشالت، أو الشرط اتغيّر — سؤال «تخرج؟» بعد ما الحفظ بدأ): من غير ده كان بيفضل في
+ * الطابور ويظهر بعدين على شاشة تانية، و«اخرج» كان هيرجع خطوة زيادة (الميزة 10، a11y-architect). من غير Provider ← ولا حاجة
+ * (الـAlert الأصلي مبيتشالش من برّه).
+ */
+export function useConfirmDismiss(): DismissConfirm {
+  return useContext(DismissContext) ?? noDismiss;
+}
 
 const nativeConfirm: Confirm = (title, body, buttons, options) => {
   const { key: _key, ...alertOptions } = options ?? {};
@@ -99,6 +112,14 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
     action?.();
   }, []);
 
+  const dismissKey = useCallback<DismissConfirm>(key => {
+    const dropped = live.current.filter(p => p.options?.key === key);
+    if (dropped.length === 0) return;
+    live.current = live.current.filter(p => p.options?.key !== key);
+    setQueue(live.current);
+    dropped.forEach(p => safely(dismissAction(p)));
+  }, []);
+
   useEffect(() => {
     if (!isLocked || live.current.length === 0) return;
     const dropped = live.current;
@@ -109,8 +130,10 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
 
   return (
     <ConfirmContext.Provider value={show}>
-      {children}
-      <ConfirmDialog pending={current} onChoose={choose} />
+      <DismissContext.Provider value={dismissKey}>
+        {children}
+        <ConfirmDialog pending={current} onChoose={choose} />
+      </DismissContext.Provider>
     </ConfirmContext.Provider>
   );
 }

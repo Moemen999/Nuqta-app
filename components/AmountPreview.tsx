@@ -1,5 +1,6 @@
 import { plainAmount } from '@/lib/money';
 import { Money } from '@/components/Money';
+import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { type BalanceProjection } from '@/lib/finance';
 import { useMemo } from 'react';
@@ -21,24 +22,40 @@ import { typeScale } from '@/lib/tokens';
  * حجم في محفظة كبيرة بتفضل موجبة، فلون على السالب بس هيعلّم المستخدم إن
  * "مفيش أحمر يبقى تمام" وده مش صحيح.
  */
-export default function AmountPreview({ amount, projections }: { amount: string; projections: BalanceProjection[] }) {
+export default function AmountPreview({ amount, value, projections }: {
+  amount: string;
+  /**
+   * المبلغ زي ما هيتخزّن (مودال العملية: `parseTxAmountInput` — الميزة 8). موجود ← هو اللي بيتعرض بدل `Number(amount)`،
+   * فـ«٢٠٠» و«1,500» بيبانوا، واللي بيتعرض = اللي بيتحفظ. `null` = مش مبلغ (مفيش صدى)
+   */
+  value?: number | null;
+  projections: BalanceProjection[];
+}) {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
-  const num = Number(amount);
-  const showAmount = amount.trim() !== '' && isFinite(num) && num > 0;
+  const num = value !== undefined ? (value ?? NaN) : Number(amount);
+  const showAmount = (value !== undefined || amount.trim() !== '') && isFinite(num) && num > 0;
   if (!showAmount && projections.length === 0) return null;
 
   return (
     <View style={styles.wrap}>
       {/* الرقم اللي بيتكتب دلوقتي — استثناء الإخفاء: ده صدى الخانة نفسها */}
       {showAmount && <Text style={styles.amountText}>{plainAmount(num)} ج.م</Text>}
-      {projections.map(p => (
-        <View key={p.walletId} style={styles.row}>
-          <Text style={styles.walletName}>{p.name}</Text>
-          <Text style={styles.balanceText}>من <Money value={p.before} currency={false} /> إلى <Money value={p.after} currency={false} /></Text>
-        </View>
-      ))}
+      {/* كل صف عقدة واحدة لقارئ الشاشة (الميزة 8): قبل كده الاسم و«من» والرقمين كانوا 4 محطات من غير «جنيه» */}
+      {projections.map(p => <PreviewRow key={p.walletId} p={p} styles={styles} />)}
+    </View>
+  );
+}
+
+/** صف لوحده عشان `usePrivacy` يتنادى بس لما فيه صف — زي `Money` (شاشات من غير PrivacyProvider في الاختبارات) */
+function PreviewRow({ p, styles }: { p: BalanceProjection; styles: ReturnType<typeof makeStyles> }) {
+  const { amountsHidden, money } = usePrivacy();
+  return (
+    <View style={styles.row} accessible
+      accessibilityLabel={amountsHidden ? `${p.name}، رصيد مخفي` : `${p.name}، من ${money(p.before)} إلى ${money(p.after)} جنيه`}>
+      <Text style={styles.walletName}>{p.name}</Text>
+      <Text style={styles.balanceText}>من <Money value={p.before} currency={false} /> إلى <Money value={p.after} currency={false} /></Text>
     </View>
   );
 }

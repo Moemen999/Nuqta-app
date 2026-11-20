@@ -6,8 +6,9 @@ import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, glyphSize, radius, space, typeScale } from '@/lib/tokens';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
 
 /**
@@ -22,10 +23,13 @@ import { Text } from '@/components/AppText';
  * نفسها. تخبيتهم في شيت بتخلي المستخدم يقرا رصيد غلط وهو فاكره مظبوط.
  */
 
+const PENDING_ANNOUNCE_AFTER_MS = 2500;
+
 export default function PendingSummary() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const incomes = usePendingIncomes().length;
+  const pendingIncomes = usePendingIncomes();
+  const incomes = pendingIncomes.length;
   const charges = usePendingCharges();
   const subscriptions = charges.filter(p => p.kind === 'subscription').length;
   const gamiyas = charges.filter(p => p.kind === 'gamiya').length;
@@ -39,13 +43,38 @@ export default function PendingSummary() {
     if (count === 0 && open) setOpen(false);
   }, [count, open]);
 
-  // المفتاح بالعدد (silent-failure-hunter): السطر ده الطريق الوحيد للكروت، فحاجة جديدة
-  // مستنية رد بترجّعه حتى لو اللي قبلها اتقفل
-  if (!phrase || hidden('pending', String(count))) return null;
+  /**
+   * المفتاح بالحاجات نفسها مش بالعدد (الميزة 7 — MEDIUM): السطر ده الطريق الوحيد للكروت، فحاجة جديدة مستنية رد
+   * بترجّعه حتى لو اللي قبلها اتقفل — وبالعدد بس، الرد على حاجة ومجي غيرها بنفس العدد كان بيسيبه مقفول. نفس فكرة
+   * مفاتيح الميزانية: الفترة جوه المفتاح، فدورة جديدة لنفس الاشتراك حاجة جديدة.
+   */
+  const dismissKey = useMemo(() => [
+    ...pendingIncomes.map(x => `inc:${x.inc?.id}:${(x.keys ?? []).join('+')}`),
+    ...charges.map(p => `${p.kind}:${p.id}:${(p.charges ?? []).map(c => c.key).join('+')}`),
+  ].sort().join(','), [pendingIncomes, charges]);
+
+  // العدد زاد بعد أول رسمة ← بيتقال لقارئ الشاشة (نفس نمط `AttentionSheet`): السطر بيظهر جوه التمرير ومحدش بيعدّي عليه.
+  // أول رسمة مش بتتقال (موجود من الفتح)
+  // وبعد مهلة تحميل الرئيسية (2.5 ثانية) بس: البيانات بتوصل في أول ثواني والعدد بيطلع من صفر — ده مش «جديد»
+  // **حاجة جديدة** مش «العدد زاد» (LOW، الجولة الأخيرة): رد على حاجة وجت غيرها بنفس العدد ← بيتقال برضه (نفس فكرة مفتاح الـ✕)
+  const mountedAt = useRef(Date.now());
+  const lastKeys = useRef<Set<string>>(new Set());
+  // والتطبيق مقفول بيتشال (security M1) — نفس `AttentionSheet`
+  const announce = useLockAwareAnnounce();
+  useEffect(() => {
+    const keys = dismissKey ? dismissKey.split(',') : [];
+    const hasNew = keys.some(k => !lastKeys.current.has(k));
+    if (Date.now() - mountedAt.current >= PENDING_ANNOUNCE_AFTER_MS && hasNew && phrase) {
+      announce(phrase, 'drop');
+    }
+    lastKeys.current = new Set(keys);
+  }, [dismissKey, phrase, announce]);
+
+  if (!phrase || hidden('pending', dismissKey)) return null;
 
   return (
     <>
-      <View style={styles.lineRow}>
+      <View testID="home_pending_row" style={styles.lineRow}>
       <TouchableOpacity
         testID="home_pending_summary"
         style={[styles.line, styles.lineFlex]}
@@ -56,7 +85,7 @@ export default function PendingSummary() {
         <Text style={styles.lineText}>{phrase}</Text>
         <Text style={styles.chevron} accessible={false}>‹</Text>
       </TouchableOpacity>
-      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending', String(count))} hint={DISMISS_HINT}
+      <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending', dismissKey)} hint={DISMISS_HINT}
         label={dismissLabel('pending')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
 
@@ -108,7 +137,7 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8,
     },
     // الـ✕ جنب السطر مش جوّاه: زرار جوه زرار قارئ الشاشة بيدمجهم في عنصر واحد
-    lineRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 4, marginTop: 10 },
+    lineRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     lineFlex: { flex: 1 },
     lineText: { flex: 1, color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     chevron: { color: c.textSecondary, fontSize: glyphSize.chevron },

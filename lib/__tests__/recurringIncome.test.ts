@@ -144,10 +144,11 @@ describe('الكلام', () => {
   });
 
   it('رسالة واحدة للكذا فترة', () => {
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر'])).toBe('سجلنا "المرتب" عن سبتمبر');
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر'])).toBe('سجلنا "المرتب" عن سبتمبر وأكتوبر');
-    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر', 'نوفمبر'])).toBe('سجلنا "المرتب" عن سبتمبر وأكتوبر ونوفمبر');
-    expect(incomeRecordedMessage('المرتب', ['يناير', 'فبراير', 'مارس', 'أبريل'])).toBe('سجلنا "المرتب" عن 4 فترات، من يناير لـ أبريل');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر'])).toBe('سجلنا لوحدنا "المرتب" عن سبتمبر');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر'])).toBe('سجلنا لوحدنا "المرتب" عن سبتمبر وأكتوبر');
+    expect(incomeRecordedMessage('المرتب', ['سبتمبر', 'أكتوبر', 'نوفمبر'])).toBe('سجلنا لوحدنا "المرتب" عن سبتمبر وأكتوبر ونوفمبر');
+    expect(incomeRecordedMessage('المرتب', ['يناير', 'فبراير', 'مارس', 'أبريل'])).toBe('سجلنا لوحدنا "المرتب" عن 4 شهور، من يناير لـ أبريل');
+    expect(incomeRecordedMessage('المرتب', ['أ', 'ب', 'ج', 'د'], 'weekly')).toBe('سجلنا لوحدنا "المرتب" عن 4 فترات، من أ لـ د');
   });
 
   it('المواعيد بالكلام', () => {
@@ -172,6 +173,9 @@ describe('validateIncomeDraft', () => {
     [{ ...ok, name: '  ' }, 'اكتب اسم للدخل ده (زي "المرتب").'],
     [{ ...ok, amount: 0 }, 'المبلغ لازم يكون أكبر من صفر.'],
     [{ ...ok, amount: NaN }, 'المبلغ لازم يكون أكبر من صفر.'],
+    // M4 (مراجعة الدخل 2026-11-18): بيتقرّب للقرش الأول — 0.004 بيبقى صفر، و1e307 بيبقى Infinity
+    [{ ...ok, amount: 0.004 }, 'المبلغ لازم يكون أكبر من صفر.'],
+    [{ ...ok, amount: 1e307 }, 'المبلغ لازم يكون أكبر من صفر.'],
     [{ ...ok, walletId: '' }, 'اختار المحفظة اللي الفلوس بتنزل فيها.'],
     [{ ...ok, dayOfMonth: 0 }, 'اليوم لازم يكون من 1 لـ 31.'],
     [{ ...ok, dayOfMonth: 32 }, 'اليوم لازم يكون من 1 لـ 31.'],
@@ -181,11 +185,11 @@ describe('validateIncomeDraft', () => {
 
 describe('إشعار "اتسجل لوحده"', () => {
   it('بالرقم لما المبالغ ظاهرة', () => {
-    expect(incomeRecordedNotification('سجلنا "المرتب" عن سبتمبر', 8000, false))
-      .toBe('سجلنا "المرتب" عن سبتمبر — 8,000 ج.م. لو الرقم مختلف عدّله من الأرشيف.');
+    expect(incomeRecordedNotification('سجلنا لوحدنا "المرتب" عن سبتمبر', 8000, false))
+      .toBe('سجلنا لوحدنا "المرتب" عن سبتمبر — 8,000 ج.م. لو الرقم مختلف عدّله من الأرشيف.');
   });
   it('من غير رقم خالص لما مخفية (شاشة القفل)', () => {
-    const body = incomeRecordedNotification('سجلنا "المرتب" عن سبتمبر', 8000, true);
+    const body = incomeRecordedNotification('سجلنا لوحدنا "المرتب" عن سبتمبر', 8000, true);
     expect(body).not.toMatch(/[0-9٠-٩]|ج\.م|•/);
   });
 });
@@ -240,13 +244,13 @@ describe('تغيير الجدول مايسجلش نفس الوقت مرتين', 
 describe('العدد بالعربي (arabic-copy-reviewer)', () => {
   it('فترات تانية: واحدة، مثنى، جمع، وفوق العشرة مفرد', () => {
     expect(morePeriodsPhrase(1)).toBe('وفيه فترة تانية');
-    expect(morePeriodsPhrase(2)).toBe('وفيه فترتين تانيين');
+    expect(morePeriodsPhrase(2)).toBe('وفيه فترتين تانيتين');
     expect(morePeriodsPhrase(3)).toBe('وفيه 3 فترات تانية');
     expect(morePeriodsPhrase(11)).toBe('وفيه 11 فترة تانية');
   });
   it('رسالة اللحاق فوق العشرة', () => {
     const labels = Array.from({ length: 12 }, (_, i) => `ش${i + 1}`);
-    expect(incomeRecordedMessage('المرتب', labels)).toBe('سجلنا "المرتب" عن 12 فترة، من ش1 لـ ش12');
+    expect(incomeRecordedMessage('المرتب', labels, 'weekly')).toBe('سجلنا لوحدنا "المرتب" عن 12 فترة، من ش1 لـ ش12');
   });
 });
 

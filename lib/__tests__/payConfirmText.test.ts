@@ -91,8 +91,9 @@ describe('نص تأكيد شهر الجمعية', () => {
   });
 
   it('استلام: بصيغة الاستلام والمحفظة اللي هيتسجل فيها', () => {
-    expect(gamiyaMarkConfirmBody({ name: 'Work', monthIndex: 4, dueDate: '2027-01-05', amount: 15000, isPayout: true }, 'CIB', TODAY))
-      .toBe('استلام جمعية "Work" (شهر 4، 5 يناير 2027) — نسجّل استلام 15,000 ج.م في CIB؟ هيتسجل بتاريخ المعاد مش النهاردة.');
+    // اختيار أ (2026-11-18): الاستلام بيسجّل قسطك في الشهر ده كمان — الرقمين في التأكيد هما اللي هيتكتبوا
+    expect(gamiyaMarkConfirmBody({ name: 'Work', monthIndex: 4, dueDate: '2027-01-05', amount: 15000, installment: 1500, isPayout: true }, 'CIB', TODAY))
+      .toBe('استلام جمعية "Work" (شهر 4، 5 يناير 2027) — نسجّل استلام 15,000 ج.م في CIB، وقسطك في الشهر ده 1,500 ج.م يتدفع من نفس المحفظة؟ هيتسجل بتاريخ المعاد مش النهاردة.');
   });
 
   it('اسم فيه علامة تنصيص: زوج واحد بس', () => {
@@ -103,7 +104,7 @@ describe('نص تأكيد شهر الجمعية', () => {
   it('معاد ناقص: جملة عامة للقسط وللاستلام', () => {
     const noDate = { ...base, dueDate: undefined as unknown as string };
     expect(gamiyaMarkConfirmBody({ ...noDate, isPayout: false }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل خصم القسط ده؟');
-    expect(gamiyaMarkConfirmBody({ ...noDate, isPayout: true }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل استلام الجمعية؟');
+    expect(gamiyaMarkConfirmBody({ ...noDate, installment: 1500, isPayout: true }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل استلام الجمعية وقسطك في الشهر ده؟');
   });
 
   it('مبلغ NaN: جملة عامة من غير 0 ج.م', () => {
@@ -118,6 +119,6 @@ describe('نص تأكيد شهر الجمعية', () => {
       expect(body).toBe('جمعية "Work" — نسجّل خصم القسط ده؟');
       expect(body).not.toMatch(/NaN|Infinity/);
     }
-    expect(gamiyaMarkConfirmBody({ ...base, monthIndex: NaN, isPayout: true }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل استلام الجمعية؟');
+    expect(gamiyaMarkConfirmBody({ ...base, monthIndex: NaN, installment: 1500, isPayout: true }, 'CIB', TODAY)).toBe('جمعية "Work" — نسجّل استلام الجمعية وقسطك في الشهر ده؟');
   });
 });

@@ -1,3 +1,4 @@
+import { plainAmount } from '@/lib/money';
 import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataContext';
 import {
   categoryArchiveBlock,
@@ -310,9 +311,9 @@ describe('صيغة الأعداد بالعربي', () => {
 });
 
 describe('سطور "هيحصل إيه لو مسحتها نهائي"', () => {
-  it('السطر اللي مالوش رقم مبيتكتبش', () => {
+  it('مفيش ولا حاجة ← سطر واحد بيقول إنها هتتمسح نهائي (مش تأكيد فاضي — الميزة 10)', () => {
     const refs = walletReferences('w1', EMPTY);
-    expect(walletDeleteConsequences({ balance: 0, refs })).toEqual([]);
+    expect(walletDeleteConsequences({ balance: 0, refs, money: plainAmount })).toEqual(['المحفظة هتتمسح نهائي، ومش هتقدر ترجّعها.']);
   });
 
   it('بتقول الرصيد والعمليات والديون والأسماء', () => {
@@ -325,20 +326,20 @@ describe('سطور "هيحصل إيه لو مسحتها نهائي"', () => {
         months: [{ id: 'm1', monthIndex: 1, dueDate: '2026-04-01', isPayoutMonth: false, amount: 500, status: 'pending' }],
       })],
     });
-    const lines = walletDeleteConsequences({ balance: 1500, refs });
+    const lines = walletDeleteConsequences({ balance: 1500, refs, money: plainAmount });
     expect(lines).toEqual([
-      'رصيدها 1,500 ج.م هيختفي من الإجمالي.',
+      'رصيدها 1,500 ج.م هيختفي من الإجمالي، يعني إجمالي فلوسك هيقل 1,500 ج.م.',
       'عملية واحدة هتظهر باسم محفظة ممسوحة.',
-      'دين واحد مربوط بيها.',
-      'الاشتراكات دي هتقف لحد ما تختارلها محفظة: نتفليكس.',
-      'الجمعيات دي هتقف لحد ما تختارلها محفظة: جمعية الشغل.',
+      'مربوط بيها دين واحد.',
+      'الاشتراك ده هيقف لحد ما تختارله محفظة: نتفليكس.',
+      'الجمعية دي هتقف لحد ما تختارلها محفظة: جمعية الشغل.',
     ]);
   });
 
-  it('الرصيد السالب بيتكتب زي ما هو', () => {
+  it('الرصيد السالب بالكلام مش بعلامة (الميزة 10، بند 6)', () => {
     const refs = walletReferences('w1', EMPTY);
-    expect(walletDeleteConsequences({ balance: -300, refs })[0])
-      .toBe('رصيدها -300 ج.م هيختفي من الإجمالي.');
+    expect(walletDeleteConsequences({ balance: -300, refs, money: plainAmount })[0])
+      .toBe('رصيدها سالب 300 ج.م هيختفي من الإجمالي، يعني إجمالي فلوسك هيزيد 300 ج.م.');
   });
 
   it('الفئة: العمليات والاشتراكات والميزانية', () => {
@@ -349,8 +350,8 @@ describe('سطور "هيحصل إيه لو مسحتها نهائي"', () => {
       budgets: { c1: 500 },
     });
     expect(categoryDeleteConsequences(refs)).toEqual([
-      'عمليتين هتظهر باسم فئة ممسوحة.',
-      'الاشتراكات دي هتقف لحد ما تختارلها فئة: نتفليكس.',
+      'عمليتين هيظهروا باسم فئة ممسوحة.',
+      'الاشتراك ده هيفضل يتخصم عادي، بس عملياته الجديدة هتظهر باسم "فئة ممسوحة": نتفليكس.',
       'ميزانيتها الشهرية هتتمسح.',
     ]);
   });
@@ -359,7 +360,7 @@ describe('سطور "هيحصل إيه لو مسحتها نهائي"', () => {
     const refs = categoryReferences('c1', {
       transactions: [], subscriptions: [], debts: [], budgets: {},
     });
-    expect(categoryDeleteConsequences(refs)).toEqual([]);
+    expect(categoryDeleteConsequences(refs)).toEqual(['الفئة هتتمسح نهائي، ومش هتقدر ترجّعها.']);
   });
 });
 

@@ -1,6 +1,6 @@
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { dayText } from '@/lib/dateText';
-import { DUE_NOT_RESTORED, dueDateLabel } from '@/lib/reopenDue';
+import { dueDateLabel, dueNotRestoredNotice } from '@/lib/reopenDue';
 import FoldedSection from '@/components/FoldedSection';
 import { debtHasPendingEntry, isDebtSettled, splitDone } from '@/lib/doneSections';
 import { Money } from '@/components/Money';
@@ -18,7 +18,7 @@ import { LineIcon } from '@/components/LineIcon';
 import { EmptyHint } from '@/components/EmptyHint';
 import { DEBT_ENTRY_DELETE_ALERT, useData, type Debt, type DebtIncreaseDeleteOut } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { cascadeDeleteBlock, cascadeDeleteConfirm, debtsPhrase, debtTransactionIds, linkedTransactions } from '@/lib/archiving';
+import { cascadeDeleteBlock, cascadeDeleteConfirm, debtsPhrase, debtTransactionIds, installmentsPhrase, linkedTransactions } from '@/lib/archiving';
 import { phoneForDisplay } from '@/lib/contacts';
 import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
@@ -28,7 +28,7 @@ import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleS
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Button } from '@/components/Button';
@@ -50,7 +50,7 @@ function installmentSummary(d: Debt, money: AmountFormatter) {
   const valueText = value ? `${money(value)} ج.م` : null;
   if (progress && valueText) return `${progress} · ${valueText}`;
   if (progress) return progress;
-  return `أقساط (${d.installmentCount || '-'})`;
+  return d.installmentCount ? installmentsPhrase(d.installmentCount) : 'أقساط';
 }
 
 export const INSTALLMENT_COUNT_INVALID = 'عدد الأقساط لازم يكون رقم صحيح أكبر من صفر.';
@@ -66,12 +66,18 @@ function debtDate(d: Debt) {
 }
 
 type Tab = 'debts' | 'subscriptions' | 'gamiya';
+const isTab = (v: unknown): v is Tab => v === 'debts' || v === 'subscriptions' || v === 'gamiya';
 
 export default function DebtsTabScreen() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const [tab, setTab] = useState<Tab>('debts');
+  // `tab` جاي من الدوس على إشعار (lib/notificationRoute.ts)، و`at` عشان الدوسة التانية على نفس التاب تتنفّذ
+  const params = useLocalSearchParams<{ tab?: string; at?: string }>();
+  const [tab, setTab] = useState<Tab>(isTab(params.tab) ? params.tab : 'debts');
+  useEffect(() => {
+    if (isTab(params.tab)) setTab(params.tab);
+  }, [params.tab, params.at]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 16 }]}>
@@ -148,7 +154,7 @@ function DebtsContent() {
     confirm(title, body, [
       { text: 'إلغاء', style: 'cancel' },
       {
-        text: 'حذف', style: 'destructive', onPress: () => runBusy(d.id, async () => {
+        text: 'امسحه', style: 'destructive', onPress: () => runBusy(d.id, async () => {
           const result = await deleteDebt(d.id);
           if (result.outcome === 'blocked') notice(result.title, result.body);
         }),
@@ -175,14 +181,16 @@ function DebtsContent() {
         style: 'destructive',
         onPress: () => runBusy(entryId, async () => {
           const out: DebtIncreaseDeleteOut = {};
-          const outcome = kind === 'payment' ? await deleteDebtPayment(d.id, entryId) : await deleteDebtIncrease(d.id, entryId, out);
+          const outcome = kind === 'payment' ? await deleteDebtPayment(d.id, entryId, out) : await deleteDebtIncrease(d.id, entryId, out);
           if (outcome !== 'done') {
             notice(DEBT_ENTRY_DELETE_ALERT[outcome].title, DEBT_ENTRY_DELETE_ALERT[outcome].body);
             return;
           }
           // التأكيد وعد إن المعاد هيرجع والذرة (من السيرفر) ما رجّعتوش ← بنقول، مش بنسيب الوعد ساكت (بند 12)
-          if (kind === 'increase' && plan.dueRestore && !out.entryGone && out.dueRestored !== plan.dueRestore) {
-            notice(DUE_NOT_RESTORED.title, DUE_NOT_RESTORED.body);
+          // الدفعة كمان (الجولة 2، بند 2): التأكيد بيوعد بالمعاد في الاتنين (`debtEntryDeletePlan.dueRestore`)
+          if (plan.dueRestore && !out.entryGone && out.dueRestored !== plan.dueRestore) {
+            const n = dueNotRestoredNotice(kind);
+            notice(n.title, n.body);
           }
           // السطر بيختفي من غير أي صوت — قارئ الشاشة مش بيعلن عن عنصر اتشال
           AccessibilityInfo.announceForAccessibility(kind === 'payment' ? 'اتمسحت الدفعة' : 'اتمسحت الزيادة');
@@ -215,8 +223,19 @@ function DebtsContent() {
           });
         }
         return;
-      } catch {
-        // الكارت مفتحش (جهة اتصال اتمسحت مثلاً) — بنكمل على البديل تحت
+      } catch (e) {
+        // الكارت مفتحش (جهة اتصال اتمسحت مثلاً). كود الخطأ بس في اللوج — مفيش اسم ولا رقم (sentryScrub)
+        console.warn('[contacts] contact card failed', (e as { code?: string })?.code ?? 'unknown');
+        // قبل ما نروح للرقم بنقول ليه — من غيرها المستخدم بيلاقي شاشة الاتصال قدامه من غير سبب
+        if (d.personPhone) {
+          const phone = d.personPhone;
+          notice('مقدرناش نفتح الكارت', 'جهة الاتصال دي مش بتتفتح من هنا، يمكن اتمسحت من الموبايل.', () => {
+            Linking.openURL(`tel:${phone}`).catch(() => notice('مقدرتش أفتح', 'مقدرتش أفتح جهة الاتصال دي.'));
+          });
+          return;
+        }
+        notice('مقدرناش نفتح الكارت', 'جهة الاتصال دي مش بتتفتح من هنا، يمكن اتمسحت من الموبايل.');
+        return;
       }
     }
     if (d.personPhone) {
@@ -244,6 +263,15 @@ function DebtsContent() {
     const color = settled ? colors.incomeText : overdue ? colors.dangerText : colors.accentText;
     const textColor = settled ? colors.incomeText : overdue ? colors.dangerText : colors.text;
     const expanded = expandedDebt === d.id;
+    // جملة واحدة للكارت المقفول: القارئ بيجمع اللي جواه، فالنسبة والمتأخر والتذكير لازم يتقالوا بالكلام (مش بشريط ولا 🔔)
+    const cardLabel = [
+      d.personName,
+      settled ? 'اتسدد بالكامل' : amountsHidden ? 'المتبقي مخفي' : `المتبقي ${money(remaining)} ج.م`,
+      `اتسدد ${Math.round(pct)}% من الدين`,
+      overdue ? 'متأخر' : '',
+      !!d.dueDate && !settled ? `معاده ${dueDateLabel(d.dueDate, today)}` : '',
+      !!d.dueDate && !settled && d.reminderDaysBefore !== undefined ? 'فيه تذكير' : '',
+    ].filter(Boolean).join('، ');
 
     const timeline = [
       { kind: 'initial' as const, date: debtDate(d), amount: d.totalAmount, walletId: d.initialWalletId },
@@ -256,13 +284,14 @@ function DebtsContent() {
         {/* الكارت بيتفتح ويتقفل: القارئ بيقول الحالة. وزرار جهة الاتصال جوّاه مبيوصلوش TalkBack (الأب بيجمع اللي جواه)، فهو
             "إجراء" على الكارت نفسه (a11y-architect جولة 2) */}
         <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded }}
+          accessibilityLabel={cardLabel}
           accessibilityActions={(d.personContactId || d.personPhone) ? [{ name: 'openContact', label: `افتح كارت ${d.personName}` }] : undefined}
           onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'openContact') openContactCard(d); }}
           onPress={() => setExpandedDebt(expanded ? null : d.id)}>
           <View style={styles.debtHead}>
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
-                <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} onPress={() => openContactCard(d)}>
+                <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} accessibilityHint="افتح كارت جهة الاتصال" onPress={() => openContactCard(d)}>
                   <View style={styles.personLinkRow}>
                     <Text style={[styles.personName, styles.personNameLink, { flexShrink: 1 }]}>{d.personName}</Text>
                     <LineIcon name="person-circle-outline" size={16} color={colors.accentText} />
@@ -277,13 +306,13 @@ function DebtsContent() {
             </Text>
           </View>
           {/* الكارت المقفول: الاسم والمبلغ وشريط رفيع وسطر واحد (دراسة الشكل). الرقم والملاحظة جوّه المفتوح */}
-          <View style={styles.track}>
+          <View style={styles.track} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             <View style={[styles.fill, { width: `${pct}%`, backgroundColor: color }]} />
           </View>
           <Text style={[styles.progressText, overdue && { color: colors.dangerText }]} numberOfLines={2}>
             {/* «متأخر» أول السطر: هو الإشارة الوحيدة غير اللون، ومينفعش يتقص في الآخر (visual-identity-reviewer) */}
             {overdue ? 'متأخر — ' : ''}{debtPaidLabel(d, money)}
-            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate, today)}${d.reminderDaysBefore !== undefined ? ' 🔔' : ''}` : ''}
+            {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate, today)}${d.reminderDaysBefore !== undefined ? ' · فيه تذكير' : ''}` : ''}
           </Text>
         </TouchableOpacity>
 
@@ -344,7 +373,7 @@ function DebtsContent() {
                 disabled={busyKey === d.id} accessibilityState={{ disabled: busyKey === d.id, busy: busyKey === d.id }}
                 accessibilityHint="بيفتح قايمة" ref={el => { moreRefs.current.set(d.id, el); }}
                 style={[styles.moreBtn, busyKey === d.id && styles.btnBusy]} onPress={() => { menuReturnFocus.current = moreRefs.current.get(d.id) ?? null; setMenuDebtId(d.id); }}>
-                <Text style={styles.moreBtnText}>{busyKey === d.id ? '...' : '⋯'}</Text>
+                <Text style={styles.moreBtnText} importantForAccessibility="no">{busyKey === d.id ? '...' : '⋯'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -390,8 +419,8 @@ function DebtsContent() {
       </FoldedSection>
 
       {showAddDebt && <AddDebtModal onClose={() => setShowAddDebt(false)} />}
-      {paymentForDebt && <DebtPaymentModal debt={paymentForDebt} onClose={() => setPaymentForDebt(null)} />}
-      {increaseForDebt && <DebtIncreaseModal debt={increaseForDebt} onClose={() => setIncreaseForDebt(null)} />}
+      {paymentForDebt && <DebtPaymentModal debtId={paymentForDebt.id} onClose={() => setPaymentForDebt(null)} />}
+      {increaseForDebt && <DebtIncreaseModal debtId={increaseForDebt.id} onClose={() => setIncreaseForDebt(null)} />}
       {editDebt && <EditDebtModal debt={editDebt} onClose={() => setEditDebt(null)} />}
       {reverseForDebt && (
         <AddDebtModal onClose={() => setReverseForDebt(null)} prefill={reverseDebtPrefill(reverseForDebt)} />
@@ -432,22 +461,21 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const [error, setError] = useState('');
 
   async function handleSave() {
-    if (!personName.trim()) { setError('لازم تسيب اسم للشخص'); return; }
+    if (!personName.trim()) { setError('لازم تكتب اسم الشخص'); return; }
 
-    // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه
-    if (debt.isInstallment && installmentCount.trim()) {
-      const next = Number(installmentCount);
-      // آمن مش صحيح بس: 1e20 "صحيح" بس مبيتخزّنش كعدد بدقته (`storableCount`)
-      if (!storableCount(next)) { setError(INSTALLMENT_COUNT_INVALID); return; }
-      if (next !== debt.installmentCount) {
-        const done = await setInstallmentCount(debt.id, next);
+    // آمن مش صحيح بس: 1e20 "صحيح" بس مبيتخزّنش كعدد بدقته (`storableCount`) — الفحص قبل الزرار ما يلف
+    const nextCount = debt.isInstallment && installmentCount.trim() ? Number(installmentCount) : null;
+    if (nextCount !== null && !storableCount(nextCount)) { setError(INSTALLMENT_COUNT_INVALID); return; }
+    await runBusy(async () => {
+      // عدد الأقساط ليه مسار كتابة لوحده لأنه بيعيد حساب قيمة القسط معاه — **جوه** `runBusy` (بند 10): دوستين
+      // ورا بعض كانوا بيكتبوا العدد مرتين قبل ما الزرار يتقفل
+      if (nextCount !== null && nextCount !== debt.installmentCount) {
+        const done = await setInstallmentCount(debt.id, nextCount);
         // السبب من نفس الحسبة (عدد أقل من الدفعات، دين متسدد، قسط أقل من قرش).
         // ولو الحسبة هنا قابلاه والكتابة اترفضت (الدين اتمسح أو اتغيّر من جهاز
         // تاني) ← "مقدرناش نحفظ"، مش سبب مش حقيقي
-        if (!done) { setError(installmentCountEditRefusal(debt, next) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
+        if (!done) { setError(installmentCountEditRefusal(debt, nextCount) ?? INSTALLMENT_COUNT_NOT_SAVED); return; }
       }
-    }
-    await runBusy(async () => {
       try {
         await updateDebt(debt.id, {
           personName,
@@ -474,9 +502,9 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
-          <Text style={styles.sheetTitle}>تعديل بيانات الدين</Text>
+          <Text style={styles.sheetTitle} accessibilityRole="header">تعديل بيانات الدين</Text>
           <Text style={styles.hintText}>
             المبلغ مش بيتعدّل من هنا. لو عايز تزوّد الدين استخدم &quot;زيادة على الدين&quot;، ولو المبلغ الأساسي غلط امسح الدين وسجّله تاني.
           </Text>
@@ -493,16 +521,16 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
             </TouchableOpacity>
           </View>
-          <TextInput maxLength={NAME_MAX_LENGTH} style={styles.input} value={personName} onChangeText={setPersonName}
+          <TextInput accessibilityLabel="اسم الشخص" maxLength={NAME_MAX_LENGTH} style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
           <Text style={styles.label}>رقم التليفون</Text>
-          <TextInput style={styles.input} value={personPhone} onChangeText={setPersonPhone}
+          <TextInput accessibilityLabel="رقم التليفون" style={styles.input} value={personPhone} onChangeText={setPersonPhone}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} keyboardType="phone-pad" textAlign="right" />
 
           {!!personContactId && (
             <View style={styles.linkedRow}>
-              <TouchableOpacity accessibilityRole="button" onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="إلغاء ربط جهة الاتصال" onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
                 <Text style={styles.unlinkText}>إلغاء الربط</Text>
               </TouchableOpacity>
               <Text style={styles.linkedText}>مربوط بجهة اتصال على الموبايل</Text>
@@ -525,6 +553,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               </Text>
               <TextInput
                 testID="debt_edit_installment_count"
+                accessibilityLabel="عدد الأقساط"
                 style={styles.input}
                 value={installmentCount}
                 onChangeText={setInstallmentCountDraft}
@@ -536,12 +565,12 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           )}
 
           <Text style={styles.label}>ملاحظة</Text>
-          <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
+          <TextInput accessibilityLabel="ملاحظة" maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={setNote}
             placeholder="اختياري" placeholderTextColor={colors.textSecondary} textAlign="right" />
 
-          {!!error && <Text style={styles.error}>{error}</Text>}
-
         </ScrollView>
+
+        {!!error && <Text style={[styles.error, styles.errorBar]} accessibilityLiveRegion="polite">{error}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="debt_edit_cancel" label="إلغاء" style={styles.cancelBtn} onPress={onClose} />
@@ -556,7 +585,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
           onPick={ct => {
             setPersonName(ct.name);
             setPersonPhone(ct.phone);
-            setPersonContactId(ct.id);
+            setPersonContactId(ct.contactId ?? '');
             picker.close();
           }}
           onCreateContact={picker.createContact}
@@ -584,7 +613,7 @@ function DebtMenu({ debt, busy, ledgerKey, returnFocusTo, onClose, onIncrease, o
     { key: 'edit', label: 'تعديل البيانات', testID: 'debt_menu_edit', disabled: busy, onPress: () => onEdit(d) },
     ...(ledgerKey ? [{ key: 'ledger', label: 'كشف الحساب', testID: 'debt_menu_ledger', onPress: () => router.push({ pathname: '/person-ledger', params: { personKey: ledgerKey } }) }] : []),
     { key: 'reverse', label: d.direction === 'owed_to_me' ? 'سجّل فلوس ليه عندي' : 'سجّل فلوس ليا عنده', testID: 'debt_menu_reverse', disabled: busy, onPress: () => onReverse(d) },
-    { key: 'delete', label: 'حذف', danger: true, testID: 'debt_menu_delete', disabled: busy, onPress: () => onDelete(d) },
+    { key: 'delete', label: 'امسح الدين', danger: true, testID: 'debt_menu_delete', disabled: busy, onPress: () => onDelete(d) },
   ] : [];
   return <ActionSheet visible={!!debt} testID="debt_menu" title={d?.personName ?? ''} actions={actions} onClose={onClose} returnFocusTo={returnFocusTo} />;
 }
@@ -649,6 +678,7 @@ function makeStyles(c: ThemeColors) {
     installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: 16 },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    errorBar: { paddingHorizontal: space.xxxl, paddingBottom: space.sm },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

@@ -1,6 +1,6 @@
 import type { Debt, Gamiya } from '@/context/DataContext';
 import { monthSpend } from '@/lib/finance';
-import { cashTotals, isCreditPurchase, monthSpendTotal, spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
+import { cashTotals, isCreditPurchase, isTransferTx, monthSpendTotal, spendInRange, spendingExpenses, thisMonthRange, transferTransactionIds } from '@/lib/spending';
 
 /**
  * السلفة والجمعية مش مصروف ولا دخل (خطوة 8). بتتعرف من المعرّفات المتخزّنة
@@ -86,6 +86,14 @@ describe('المراجعة: سلفة اتدّت فئة بالتعديل مبتت
   it('من غير transfers (زي قبل) بتتحسب — الفرق هو التصليح', () => {
     expect(monthSpend(txs as never, 'food', '2026-09')).toBe(2150);
   });
+
+  // Feature 9، الجولة الأخيرة: نفس `isTransferTx` بتاعة `spendingExpenses` — قسط جمعية ربطه بالشهر اتشال (`gamiyaId` بس)
+  // كان بيدخل ميزانية الفئة وتوقّعها وبانر الرئيسية، وهو برّه الإجمالي
+  it('عملية عليها gamiyaId من غير معرّف في الجمعية ← برّه الفئة زي الإجمالي', () => {
+    const withGam = [...txs, { id: 'orphan_inst', type: 'expense', amount: 500, date: '2026-09-12', categoryId: 'food', gamiyaId: 'g' }];
+    expect(monthSpend(withGam as never, 'food', '2026-09', transfers)).toBe(150);
+    expect(monthSpendTotal(withGam, '2026-09', transfers)).toBe(150);
+  });
 });
 
 describe('شرا بالأجل (قرار مؤمن 2026-11-05): دين "عليك له" من غير محفظة سداده مصروف', () => {
@@ -145,5 +153,35 @@ describe('spendInRange / thisMonthRange: رقم واحد للتقارير وال
     const tx = [row('a', 'expense', 100, '2026-11-02'), row('b', 'expense', 5, '2026-10-02'), row('loan', 'expense', 2000, '2026-11-06')];
     const t = new Set(['loan']);
     expect(spendInRange(tx, t, thisMonthRange('2026-11-13'))).toBe(monthSpendTotal(tx, '2026-11', t));
+  });
+});
+
+/**
+ * Feature 9 بند 4 (money): عملية جمعية **اتفكّ ربطها بالشهر** — بعد ما المستخدم مسح النص البايظ من «صلّح العملية»
+ * (`deleteGamiyaLinkedTransaction` بـ`onlyThis`: الشهر بيرجع يسأل ومعرّفاته بتتشال، والعملية التانية بتفضل). المعرّف
+ * مبقاش جوه الجمعية، فـ`transferTransactionIds` مش شايفاه — بس العملية لسه عليها `gamiyaId`. من غير القاعدة دي
+ * استلام 10,000 كان هيتعدّ دخل، وقسط 1,000 مصروف.
+ */
+describe('عملية جمعية من غير شهر مربوط (gamiyaId على العملية) = تحويل', () => {
+  const g = { months: [{ id: 'm5', status: 'pending', reopened: true }] } as unknown as Gamiya;
+  const transfers = transferTransactionIds([], [g]);
+  const pair = [
+    { id: 'gamiya_g1_m5', type: 'income', amount: 10000, date: '2026-09-10', gamiyaId: 'g1' },
+    { id: 'gamiya_inst_g1_m5', type: 'expense', amount: 1000, date: '2026-09-10', gamiyaId: 'g1' },
+    tx('food', 'expense', 150),
+  ];
+  it('spendingExpenses: القسط مش مصروف', () => {
+    expect(spendingExpenses(pair, transfers).map(t => t.id)).toEqual(['food']);
+  });
+  it('cashTotals: الاستلام مش دخل والقسط مش مصروف، والاتنين محسوبين تحويلات', () => {
+    expect(cashTotals(pair, transfers)).toEqual({ income: 0, expense: 150, transfers: 2 });
+  });
+  it('spendInRange: الرقم البطل 150 مش 1,150', () => {
+    expect(spendInRange(pair, transfers, { from: '2026-09-01', to: '2026-09-30' })).toBe(150);
+  });
+  it('isTransferTx: المعرّف في الجمعية أو gamiyaId على العملية', () => {
+    expect(isTransferTx(pair[0], transfers)).toBe(true);
+    expect(isTransferTx(pair[2], transfers)).toBe(false);
+    expect(isTransferTx({ id: 't_g1' }, transferTransactionIds([], [gam]))).toBe(true);
   });
 });

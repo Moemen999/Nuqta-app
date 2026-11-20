@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { ConfirmProvider } from '@/components/ConfirmProvider';
 import { NoticeProvider } from '@/components/NoticeProvider';
 import { BrokenTransactionsSection } from '@/components/BrokenTransactions';
+import { FIX_SAVE_FAILED_TITLE } from '@/lib/brokenDocs';
 import { PrivacyProvider } from '@/context/PrivacyContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 
@@ -19,6 +20,7 @@ const retryLoad = jest.fn();
 function seed(broken: object[], extra: Record<string, unknown> = {}) {
   for (const k of Object.keys(mockData)) delete mockData[k];
   updateTransaction.mockReset(); deleteTransaction.mockReset();
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'done' }));
   Object.assign(mockData, {
     wallets: [{ id: 'w1', name: 'كاش', openingBalance: 0, lowAlert: 0 }, { id: 'old', name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true }],
     categories: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
@@ -43,7 +45,7 @@ it('بايظة المبلغ ← ظاهرة بالعلامة والسبب، وا�
   expect(screen.getByText(/المبلغ مش مقروء/)).toBeTruthy();
   await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b1')); });
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
-  expect(screen.getByTestId('broken_fix_error')).toBeTruthy();
+  expect(screen.getByTestId('broken_fix_error').props.children).toBeTruthy();
   expect(updateTransaction).not.toHaveBeenCalled();
   await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75.5'); });
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
@@ -72,6 +74,31 @@ it('مربوطة بدين ← مفيش تصليح، وتأكيد المسح بي
   expect(screen.queryByTestId('broken_fix_save')).toBeNull();
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
   expect(screen.getByTestId('confirm_body').props.children).toBe('تحذير الدين');
+});
+
+it('الجولة 2 (بند 1): مسح عملية دين بايظة ما اتمسحتش (مفيش نت) ← الورقة مفتوحة والرسالة بتقول، مش «اتمسحت»', async () => {
+  const { TX_DELETE_OUTCOME_ALERT } = jest.requireActual('@/context/DataContext');
+  seed([{ id: 'b3', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }], {
+    debts: [{ id: 'd', personName: 'س', totalAmount: 100, direction: 'i_owe', date: '2026-09-01', payments: [{ id: 'p', amount: 10, walletId: 'w1', date: '2026-09-01', transactionId: 'b3' }], increases: [] }],
+    transactionLinkWarning: () => 'تحذير الدين',
+  });
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'no-connection' }));
+  await render(ui());
+  await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b3')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  await act(async () => {});
+  expect(deleteTransaction).toHaveBeenCalledWith('b3');
+  expect(screen.getByText(TX_DELETE_OUTCOME_ALERT['no-connection'].title)).toBeTruthy();
+  // الورقة لسه مفتوحة، وزرار المسح رجع يشتغل
+  expect(screen.getByTestId('broken_fix_delete')).toBeTruthy();
+  deleteTransaction.mockImplementation(async () => ({ outcome: 'done' }));
+  await act(async () => { fireEvent.press(screen.getByTestId('notice_ok')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_delete')); });
+  await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
+  await act(async () => {});
+  expect(deleteTransaction).toHaveBeenCalledTimes(2);
+  expect(screen.queryByTestId('broken_fix_delete')).toBeNull();
 });
 
 it('التاريخ ناقص ← الخانة فاضية والحفظ بيطلب تاريخ (مش النهارده ساكت)', async () => {
@@ -113,4 +140,91 @@ it('الديون ما وصلتش لأن الـlistener وقع ← رسالة + "
   expect(screen.getByTestId('broken_fix_load_failed')).toBeTruthy();
   await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_retry')); });
   expect(retryLoad).toHaveBeenCalled();
+});
+
+describe('الميزة 8 (مراجعة التطبيق كله)', () => {
+  it('L: الحفظ رمى ← الورقة مفتوحة ورسالة، مش «العملية اتحفظت»', async () => {
+    const { AccessibilityInfo } = require('react-native');
+    const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    announce.mockClear();
+    seed([{ id: 'b1', reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }]);
+    updateTransaction.mockImplementation(async () => { throw new Error('stage'); });
+    await render(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId('archive_broken_b1')); });
+    await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    expect(screen.getByTestId('broken_fix_save')).toBeTruthy();
+    expect(screen.getByTestId('broken_fix_error').props.children).toBe('التعديل ما اتحفظش والعملية زي ما كانت، جرّب تاني');
+    expect(announce).not.toHaveBeenCalledWith('العملية اتحفظت');
+    announce.mockRestore();
+  });
+
+  it('صف من غير أي تفاصيل ← «عملية من غير تفاصيل» مش «—»', async () => {
+    seed([{ id: 'b9', reasons: ['type'] }]);
+    await render(ui());
+    expect(screen.getByText('عملية من غير تفاصيل')).toBeTruthy();
+  });
+});
+
+describe('الجولة 2 (الأخيرة) على f0badf9 — ورقة «صلّح العملية»', () => {
+  const { AccessibilityInfo } = require('react-native');
+  let announce: jest.SpyInstance;
+  beforeEach(async () => {
+    announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility').mockImplementation(() => {});
+    // إعلانات متأخرة (`announceAfterLeave`) من اختبارات قبل كده تخلص الأول
+    await new Promise(r => setTimeout(r, 800));
+    announce.mockClear();
+  });
+  afterEach(() => announce.mockRestore());
+  const openSheet = async (id = 'b1') => {
+    seed([{ id, reasons: ['amount'], type: 'expense', walletId: 'w1', date: '2026-09-01' }]);
+    await render(ui());
+    await act(async () => { fireEvent.press(screen.getByTestId(`archive_broken_${id}`)); });
+  };
+
+  it('L7: الورقة اتقفلت قبل ما الحفظ يخلص والحفظ فشل ← رسالة التطبيق (مش ساكت)', async () => {
+    let fail!: (e: Error) => void;
+    await openSheet();
+    updateTransaction.mockImplementation(() => new Promise((_, rej) => { fail = rej; }));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_cancel')); });
+    expect(screen.queryByTestId('broken_fix_save')).toBeNull();
+    await act(async () => { fail(new Error('stage')); });
+    expect(screen.getByTestId('notice_title').props.children).toBe(FIX_SAVE_FAILED_TITLE);
+  });
+
+  it('L7: الورقة اتقفلت قبل ما الحفظ ينجح ← مفيش «اتحفظت» على ورقة مش موجودة', async () => {
+    let ok!: () => void;
+    await openSheet();
+    updateTransaction.mockImplementation(() => new Promise<void>(r => { ok = r; }));
+    await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_cancel')); });
+    await act(async () => { ok(); });
+    await act(async () => { await new Promise(r => setTimeout(r, 1000)); });
+    expect(announce).not.toHaveBeenCalledWith('العملية اتحفظت');
+  });
+
+  it('L8: «اتحفظت» بتتقال بعد ما الورقة تتقفل بشوية', async () => {
+    await openSheet();
+    updateTransaction.mockImplementation(async () => {});
+    await act(async () => { fireEvent.changeText(screen.getByTestId('broken_fix_amount'), '75'); });
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    expect(announce).not.toHaveBeenCalledWith('العملية اتحفظت');
+    await act(async () => { await new Promise(r => setTimeout(r, 1000)); });
+    expect(announce).toHaveBeenCalledWith('العملية اتحفظت');
+  });
+
+  it('M3: سطر الخطأ متركّب دايمًا، ونفس الخطأ مرتين اسمه بيتغيّر (منطقة أندرويد الحية تتقري تاني)', async () => {
+    await openSheet();
+    const line = () => screen.getByTestId('broken_fix_error');
+    expect(line().props.children).toBe('');
+    expect(line().props.accessibilityLiveRegion).toBe('polite');
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    const first = line().props.accessibilityLabel;
+    await act(async () => { fireEvent.press(screen.getByTestId('broken_fix_save')); });
+    expect(line().props.accessibilityLabel).not.toBe(first);
+    expect(line().props.children).toBeTruthy();
+  });
 });

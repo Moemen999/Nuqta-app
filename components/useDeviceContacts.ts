@@ -1,5 +1,5 @@
 import { useNotice } from '@/components/NoticeProvider';
-import { makeContactEntry, type ContactEntry } from '@/lib/contacts';
+import { contactDisplayName, makeContactEntry, type ContactEntry } from '@/lib/contacts';
 import * as Contacts from 'expo-contacts';
 import { useState } from 'react';
 
@@ -31,26 +31,29 @@ export function useDeviceContacts() {
         fields: [
           Contacts.Fields.Name,
           Contacts.Fields.FirstName,
+          Contacts.Fields.MiddleName,
           Contacts.Fields.LastName,
+          Contacts.Fields.Company,
           Contacts.Fields.PhoneNumbers,
         ],
       });
-      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل.
-      // وبناخد كل أرقام الشخص مش الأول بس، عشان البحث بالرقم يلاقيه برقم الشغل كمان.
+      // بعض الأجهزة بترجّع name فاضي للأسماء العربية، فبنركّب الاسم من الحقول التانية كبديل — والشركة أو الرقم
+      // لو مفيش اسم خالص بدل ما جهة الاتصال تختفي (`contactDisplayName`). وبناخد كل أرقام الشخص مش الأول بس،
+      // عشان البحث بالرقم يلاقيه برقم الشغل كمان. جهة من غير معرّف ← مفيش `personContactId` يتخزّن (مش معرّف عشوائي)
       const named = (data || [])
-        .map(x => {
-          const composed = [x.firstName, x.lastName].filter(Boolean).join(' ').trim();
-          const finalName = (x.name && x.name.trim()) || composed;
+        .map((x, i) => {
           const phones = (x.phoneNumbers || []).map(p => p.number || '');
-          return makeContactEntry(x.id || String(Math.random()), finalName, phones);
+          return makeContactEntry(x.id || undefined, contactDisplayName({ ...x, phones }), phones, `local-${i}`);
         })
         .filter(x => x.name);
       // ترتيب أبجدي بيتعامل مع العربي والإنجليزي مع بعض
       named.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
       setContacts(named);
       return named;
-    } catch (e: any) {
-      notice('حصل خطأ', String(e?.message || 'مقدرش أفتح جهات الاتصال دلوقتي'));
+    } catch (e) {
+      // كود الخطأ بس في اللوج — رسالة النظام مبتتعرضش للمستخدم (إنجليزي ومش مفهومة)
+      console.warn('[contacts] load failed', (e as { code?: string })?.code ?? 'unknown');
+      notice('مقدرناش نفتح جهات الاتصال', 'جرّب تاني بعد شوية.');
       return null;
     }
   }
@@ -59,7 +62,7 @@ export function useDeviceContacts() {
     const loaded = await load();
     if (!loaded) return;
     if (loaded.length === 0) {
-      notice('مفيش جهات اتصال', 'ملقيتش أسماء محفوظة على الموبايل.');
+      notice('مفيش جهات اتصال', 'مفيش أسماء محفوظة على موبايلك.');
       return;
     }
     setVisible(true);
@@ -90,8 +93,9 @@ export function useDeviceContacts() {
         },
         { isNew: true }
       );
-    } catch (e: any) {
-      notice('مقدرتش أفتح', String(e?.message || 'مقدرتش أفتح شاشة إضافة جهة اتصال.'));
+    } catch (e) {
+      console.warn('[contacts] create form failed', (e as { code?: string })?.code ?? 'unknown');
+      notice('مقدرناش نفتح شاشة الإضافة', 'جرّب تاني بعد شوية.');
       return;
     }
     await load();

@@ -106,7 +106,7 @@ describe('"نسيت الباسورد؟"', () => {
     });
     await act(async () => { fireEvent.press(screen.getByTestId('auth_reset_button')); });
 
-    expect(screen.getByText('مفيش نت. وصّل النت وحاول تاني')).toBeTruthy();
+    expect(screen.getByText('مفيش نت. وصّل النت وجرّب تاني')).toBeTruthy();
     expect(Alert.alert).not.toHaveBeenCalled();
   });
 

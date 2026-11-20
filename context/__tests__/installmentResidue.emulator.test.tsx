@@ -210,7 +210,7 @@ describe('زيادة بتسيب تقريب بس (قرار مؤمن 2026-09-29)',
     const { walletId, debtId } = await makeDebt(1000, 12);
     const res = await harness.api().addDebtIncrease(debtId, 500, '2026-02-01', walletId);
     expect(res.outcome).toBe('done');
-    expect(res.note).toBe('بعد الزيادة، الأقساط بقت 18 بدل 12.');
+    expect(res.note).toBe('بعد الزيادة، عدد الأقساط بقى 18 بدل 12.');
     await harness.waitForData(api => (api.debts[0].increases || []).length === 1);
     const server = await serverDebt(debtId);
     expect(server.installmentCount).toBe(18);
@@ -319,7 +319,7 @@ describe('تعديل عملية مربوطة بيطوي الفرق', () => {
     const initTxId = harness.api().debts[0].initialTransactionId!;
     const r = await harness.api().updateDebtLinkedTransaction(initTxId, { amount: 2000, walletId, date: '2026-01-01' }, seen(initTxId));
     expect(r.outcome).toBe('done');
-    expect(r.note).toBe('بعد التعديل، الأقساط بقت 24 بدل 12.');
+    expect(r.note).toBe('بعد التعديل، عدد الأقساط بقى 24 بدل 12.');
     const s = await serverDebt(debtId);
     expect(s.totalAmount).toBe(2000);
     expect(s.installmentCount).toBe(24);

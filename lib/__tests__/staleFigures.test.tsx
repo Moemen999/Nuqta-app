@@ -123,8 +123,10 @@ describe('figuresFresh — المحافظ والعمليات الاتنين من
     [false, true, false],   // المحافظ رجعت والعمليات لسه من الكاش ← لسه قديمة
     [true, false, false],
     [true, true, false],
-    [false, null, true],    // العمليات لسه مرمتش (مجموعة فاضية) ← مبيمنعش
-    [null, false, true],
+    // العمليات أو المحافظ لسه مرمتش ← مش متزامنة (مراجعة التطبيق كله، الميزة 7: رصيد افتتاحي بس كان بيتقال «اتحدّث»).
+    // مجموعة فاضية بترمي snapshot من السيرفر (figuresFromServer.emulator.test.tsx)
+    [false, null, false],
+    [null, false, false],
     [null, null, false],    // ولا واحد وصل
     [true, null, false],
   ] as const)('محافظ fromCache=%s، عمليات fromCache=%s ← %s', (w, t, fresh) => {

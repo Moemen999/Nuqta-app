@@ -51,7 +51,7 @@ let resolveAdd: () => void = () => {};
 function seed() {
   for (const k of Object.keys(mockData)) delete mockData[k];
   Object.assign(mockData, {
-    wallets: [wallet], categories: [], transactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
+    wallets: [wallet], categories: [], transactions: [], brokenTransactions: [], debts: [], subscriptions: [], gamiyas: [], incomes: [],
     linkSourcesReady: true, loadErrors: [], figuresPending: [], retryLoad: jest.fn(), transactionLinkWarning: () => null,
     // الكتابة المتينة: بترجع بعد ما نسخة الـoutbox تتكتب — هنا بتفضل معلّقة لحد ما الاختبار يقول
     addTransaction: jest.fn(() => new Promise<void>(r => { resolveAdd = r; })),
@@ -188,10 +188,10 @@ describe('الحذف', () => {
     let resolveDelete!: () => void;
     mockData.deleteTransaction = jest.fn(() => {
       mockData.transactions = []; // الكتابة المحلية بترد فورًا: العملية بتختفي والحذف لسه ما رجعش
-      return new Promise<void>(r => { resolveDelete = r; });
+      return new Promise<{ outcome: 'done' }>(r => { resolveDelete = () => r({ outcome: 'done' }); });
     });
     await openEdit();
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
     expect(mockData.deleteTransaction).toHaveBeenCalledTimes(1);
     await act(async () => { navRef.goBack(); });
@@ -205,9 +205,9 @@ describe('الحذف', () => {
   it('الحذف فشل ← رسالة على الشاشة والرجوع بيتفتح تاني', async () => {
     mockData.deleteTransaction = jest.fn(async () => { throw new Error('stage'); });
     await openEdit();
-    await act(async () => { fireEvent.press(screen.getByText('حذف')); });
+    await act(async () => { fireEvent.press(screen.getByText('امسحها')); });
     await act(async () => { fireEvent.press(screen.getByTestId('confirm_action_0')); });
-    expect(screen.getByTestId('tx_error')).toBeTruthy();
+    expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
     expect(router.back).not.toHaveBeenCalled();
     await act(async () => { navRef.goBack(); });
     expect(routeNames()).toEqual(['root', 'home']);
@@ -239,7 +239,7 @@ describe('التعديل بعد رد شيت التسوية', () => {
       await openEdit();
       await act(async () => { fireEvent.press(screen.getByTestId('tx_save_button')); });
       await act(async () => { await mockSettleReply!([]); });
-      expect(screen.getByTestId('tx_error')).toBeTruthy();
+      expect(screen.getByTestId('tx_error').props.children).toBeTruthy();
       await act(async () => { navRef.goBack(); });
       expect(routeNames()).toEqual(['root', 'home']);
     } finally { warn.mockRestore(); }

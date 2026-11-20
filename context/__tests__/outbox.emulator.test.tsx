@@ -13,6 +13,7 @@ import * as Sentry from '@sentry/react-native';
 import {
   OUTBOX_PREFIX, OUTBOX_UNREADABLE_TITLE, openEntry, outboxSecureKeyName, outboxStorageKey, parseStored, rejectedReplayBody,
   unreadableReplayBody, walletGoneReplayBody, repeatedFailReplayBody, OUTBOX_EDIT_UNPROTECTED_TITLE, OUTBOX_EDIT_UNPROTECTED_BODY,
+  OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY, OUTBOX_MAX, OUTBOX_SWEPT_TITLE, outboxSweptBody,
 } from '@/lib/outbox';
 import {
   __newOutboxSessionForTests, markUserSignOut, putOutboxEntry, readOutboxKey, replayOutboxDoc, serverTxStatus, updateOutboxMeta,
@@ -54,7 +55,20 @@ jest.mock('expo-crypto', () => {
 });
 
 const mockNotice = jest.fn();
-jest.mock('@/components/NoticeProvider', () => ({ useNotice: () => mockNotice }));
+/**
+ * رسايل بروفايدر من اختبار قبل كده (اتشال) مبتتعدّش هنا: `unprotected` بيسيب مؤقّت 8 ثواني (`OUTBOX_UNPROTECTED_RECHECK_MS`)
+ * لما الحفظ يفشل والنت شغال، والمؤقّت ده كان بيرن في نص اختبار بعده ويتعدّ رسالة زيادة (بند 4 كان بيطلع 2 في السويت
+ * كله وواحدة لوحده — اتأكد بالستاك: `Timeout.showUnprotected` قبل ما بروفايدر الاختبار يترسم). كل اختبار ليه رقم
+ * (`mockNoticeGen`)، والبروفايدر بياخد رقم الاختبار اللي اترسم فيه.
+ */
+let mockNoticeGen = 0;
+const mockStaleNotice = jest.fn();
+jest.mock('@/components/NoticeProvider', () => ({
+  useNotice: () => {
+    const gen = mockNoticeGen;
+    return (...args: unknown[]) => (gen === mockNoticeGen ? mockNotice : mockStaleNotice)(...args);
+  },
+}));
 jest.mock('@/components/ConfirmProvider', () => ({ useConfirm: () => jest.fn() }));
 
 const secure = (SecureStore as unknown as { __store: Record<string, string> }).__store;
@@ -67,6 +81,7 @@ let h: Awaited<ReturnType<typeof renderDataProvider>> | undefined;
 let uid: string;
 
 beforeEach(async () => {
+  mockNoticeGen++;
   mockNotice.mockClear();
   await AsyncStorage.clear();
   Object.keys(secure).forEach(k => delete secure[k]);
@@ -595,3 +610,202 @@ it('21. فحص قبل "سجّلها تاني": موجودة ← present، مش �
   expect(src).toMatch(/if \(status === 'missing'\) confirmedGiveUp\.push\(g\);/);
 });
 
+
+describe('الميزة 8 (مراجعة التطبيق كله)', () => {
+  it('M: من غير نت ونسخة الموبايل ما اتحفظتش ← رسالة «مش محمية» (كانت Sentry بس)', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+      try { await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true }); }
+      finally { restore(); }
+      await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY), { timeout: 5000 });
+    } finally {
+      await enableNetwork(db);
+    }
+  }, 60000);
+
+  it('M: من غير نت والحد اتملى (skipped) ← نفس الرسالة', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await AsyncStorage.multiSet(Array.from({ length: OUTBOX_MAX }, (_, i) => [outboxStorageKey(uid, `fill${i}`), 'x'] as [string, string]));
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true });
+      await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, OUTBOX_ADD_UNPROTECTED_BODY), { timeout: 5000 });
+    } finally {
+      await enableNetwork(db);
+      await AsyncStorage.multiRemove(Array.from({ length: OUTBOX_MAX }, (_, i) => outboxStorageKey(uid, `fill${i}`)));
+    }
+  }, 60000);
+
+  it('M: النت شغال والحفظ فشل ← مفيش رسالة (الكتابة بتوصل في ثواني)', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+    try { await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true }); }
+    finally { restore(); }
+    await settle(1000);
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_ADD_UNPROTECTED_TITLE, expect.anything());
+  }, 60000);
+
+  it('M: كنس حساب تاني ← حدث Sentry من غير عدد، وصاحبه بيشوف رسالة بالعدد أول ما يدخل، وبعد «تمام» مبتظهرش تاني', async () => {
+    const w = await preparedAccount();
+    const other = 'someoneElse';
+    await putOutboxEntry(other, newTxId(), { type: 'expense', amount: 77, walletId: w, date: todayStr() });
+    await putOutboxEntry(other, newTxId(), { type: 'expense', amount: 78, walletId: w, date: todayStr() });
+    // `reportOutboxEvent` بيبعت مرة لكل سبب في الجلسة (اختبار 4 ممكن يكون بعته قبل كده) ← بنراقب النداء نفسه
+    const report = jest.spyOn(require('@/lib/outboxStore'), 'reportOutboxEvent');
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await waitFor(async () => expect(await outboxKeysOf(other)).toEqual([]), { timeout: 10000 });
+    await waitFor(() => expect(report).toHaveBeenCalledWith('swept-other-account'), { timeout: 5000 });
+    report.mockRestore();
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, expect.anything(), expect.anything());
+    // صاحب المدخلات دخل على نفس الموبايل
+    setMockUid(other as never);
+    await act(async () => { h!.rerender(); });
+    // الحساب التاني مالوش وصول للسيرفر في المحاكي ← بعد سقف الاستنى (10 ثواني) العدد كله بـ«ممكن» (الجولة 2، بند 2)
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.any(Function)), { timeout: 20000 });
+    const ok = mockNotice.mock.calls.find(c => c[0] === OUTBOX_SWEPT_TITLE)![2] as () => void;
+    await act(async () => { ok(); });
+    mockNotice.mockClear();
+    setMockUid(uid);
+    await act(async () => { h!.rerender(); });
+    setMockUid(other as never);
+    await act(async () => { h!.rerender(); });
+    await settle(1000);
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, expect.anything(), expect.anything());
+  }, 60000);
+
+  it('L: تغيير النوع (تحويل ← مصروف) بيشيل الوجهة من المستند ومن نسخة الطابور', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady(2);
+    const [w1, w2] = h.api().wallets.map(x => x.id);
+    await disableNetwork(db);
+    let id = '';
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      id = await h.api().addTransaction({ type: 'withdraw', amount: 40, walletId: w1, toWalletId: w2, date: todayStr() }, { durable: true });
+      await h.waitForData(api => api.transactions.some(t => t.id === id));
+      await h.api().updateTransaction(id, { type: 'expense' }, [], { clear: ['toWalletId'] });
+      const opened = await openStored(uid, id);
+      expect(opened?.ok && opened.data).toEqual(expect.objectContaining({ type: 'expense', amount: 40, walletId: w1 }));
+      expect(opened?.ok && 'toWalletId' in opened.data).toBe(false);
+    } finally {
+      await enableNetwork(db);
+    }
+    await h.waitForData(api => api.serverReachable, 30000, 'f8:reconnect');
+    await waitFor(async () => {
+      const snap = await getDocFromServer(txDoc(uid, id));
+      expect(snap.data()?.type).toBe('expense');
+      expect('toWalletId' in (snap.data() ?? {})).toBe(false);
+    }, { timeout: 30000 });
+  }, 90000);
+});
+
+describe('الميزة 8 — الجولة 2 (الأخيرة) على f0badf9', () => {
+  it('بند 2: كنس حساب تاني ← لما صاحبها يدخل والنت شغال، اللي وصلت السيرفر مش بتتعدّ («ممكن يكون فيه عملية واحدة»)', async () => {
+    const w = await preparedAccount();
+    const onServer = newTxId();
+    const lost = newTxId();
+    const data = { type: 'expense', amount: 5, walletId: w, date: todayStr() };
+    await putOutboxEntry(uid, onServer, data);
+    await putOutboxEntry(uid, lost, data);
+    await setDoc(txDoc(uid, onServer), data);
+    // حساب تاني دخل على نفس الموبايل ← مدخلات الحساب ده بتتكنس
+    setMockUid('someoneElse' as never);
+    h = await renderDataProvider();
+    await waitFor(async () => expect(await outboxKeysOf(uid)).toEqual([]), { timeout: 10000 });
+    setMockUid(uid);
+    await act(async () => { h!.rerender(); });
+    await waitFor(() => expect(mockNotice).toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(1), expect.any(Function)), { timeout: 20000 });
+    expect(mockNotice).not.toHaveBeenCalledWith(OUTBOX_SWEPT_TITLE, outboxSweptBody(2), expect.anything());
+  }, 60000);
+
+  it('بند 4: من غير نت وعمليتين نسختهم ما اتحفظتش ← رسالة «مش محمية» مرة واحدة بس', async () => {
+    h = await renderDataProvider();
+    await h.waitForReady();
+    const w = h.api().wallets[0].id;
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      // الفشل بيفضل لحد ما الحفظين يخلصوا فعلاً (العدد يرجع صفر = الاتنين فشلوا واتشالوا) وبعد الهدوء: `addTransaction`
+      // بيرجع بعد `OUTBOX_PERSIST_TIMEOUT_MS` حتى لو الحفظ لسه شغال، فالرجوع قبلها كان بيخلي حفظ متأخر ينجح —
+      // ساعات صفر رسايل (الاختبار كان متقلّب، مش منتج بيكرر)
+      const restore = failStorage('setItem', (k: string) => k.startsWith(OUTBOX_PREFIX));
+      try {
+        await h.api().addTransaction({ type: 'expense', amount: 10, walletId: w, date: todayStr() }, { durable: true });
+        await h.api().addTransaction({ type: 'expense', amount: 11, walletId: w, date: todayStr() }, { durable: true });
+        await h.waitForData(api => api.outboxCount === 0, 10000, 'r2-4:both-failed');
+        await settle(1500);
+      } finally { restore(); }
+      expect(mockNotice.mock.calls.filter(c => c[0] === OUTBOX_ADD_UNPROTECTED_TITLE)).toHaveLength(1);
+    } finally {
+      await enableNetwork(db);
+    }
+  }, 60000);
+
+  it('بند 5: رفض مش نهائي ← «محفوظة على الموبايل» بس بعد ما الحفظ يخلص ويطلع نجح (مش قبله)', () => {
+    const src: string = require('fs').readFileSync('context/DataContext.tsx', 'utf8');
+    expect(src).toMatch(/void put\.then\(\(\) => noteOutboxKept\(forUid, id, e\)\)/);
+  });
+
+  it('بند 6: قراية قديمة للطابور فشلت بعد ما الإعادة قرته ← العدد مش «مجهول»', async () => {
+    const w = await preparedAccount();
+    await putOutboxEntry(uid, newTxId(), { type: 'expense', amount: 5, walletId: w, date: todayStr() });
+    const mg = AsyncStorage.multiGet as unknown as jest.Mock;
+    const orig = mg.getMockImplementation()!;
+    let first = true;
+    mg.mockImplementation(async (...args: any[]) => {
+      // أول قراية للطابور نفسه (`listOutboxEntries` بيبعت المفاتيح لوحدها؛ `getItem` بيعدّي على `multiGet` بمعامل تاني)
+      const isList = args.length === 1 && Array.isArray(args[0]) && args[0].some((k: string) => k.startsWith(OUTBOX_PREFIX));
+      if (first && isList) { first = false; await new Promise(r => setTimeout(r, 4000)); throw new Error('disk'); }
+      return orig(...args);
+    });
+    try {
+      h = await renderDataProvider();
+      await h.waitForReady();
+      await h.waitForData(api => api.outboxCount === 1, 4000, 'r2-6:listed');
+      await settle(4500);
+      expect(h.api().outboxCountUnknown).toBe(false);
+    } finally { mg.mockImplementation(orig); }
+  }, 60000);
+});
+
+describe('الميزة 11 — money M1: عدد التعديلات اللي هتضيع مع «نسيت الكود؟»', () => {
+  it('3 مدخلات في الطابور من قبل الفتحة + تعديلين عاديين من غير نت + عملية محمية ← 2 مش محميين', async () => {
+    const w = await preparedAccount();
+    for (let i = 0; i < 3; i++) await putOutboxEntry(uid, newTxId(), { type: 'expense', amount: 10 + i, walletId: w, date: todayStr() });
+    h = await renderDataProvider();
+    await h.waitForReady();
+    await h.waitForData(api => api.outboxCount === 3, 10000, 'm1:listed');
+    await disableNetwork(db);
+    try {
+      await h.waitForData(api => !api.serverReachable, 10000);
+      await act(async () => {
+        h!.api().updateWallet(w, { lowAlert: 5 });
+        await h!.api().addTransaction({ type: 'expense', amount: 7, walletId: w, date: todayStr() });
+      });
+      await h.waitForData(api => api.pendingWrites === 2, 10000, 'm1:plain');
+      expect(h.api().countUnprotectedPendingWrites()).toBe(2);
+      // الطرح القديم كان بيدّي -1 (= «مفيش») والتعديلين هيضيعوا
+      expect(h.api().pendingWrites - h.api().outboxCount).toBe(-1);
+      // عملية محمية (في الطابور) بتزوّد الاتنين ومبتغيّرش العدد اللي هيضيع
+      await act(async () => {
+        await h!.api().addTransaction({ type: 'expense', amount: 8, walletId: w, date: todayStr() }, { durable: true });
+      });
+      await h.waitForData(api => api.pendingWrites === 3 && api.outboxCount === 4, 10000, 'm1:durable');
+      expect(h.api().countUnprotectedPendingWrites()).toBe(2);
+    } finally {
+      await enableNetwork(db);
+    }
+    await h.waitForData(api => api.serverReachable, 30000, 'm1:reconnect');
+  }, 60000);
+});

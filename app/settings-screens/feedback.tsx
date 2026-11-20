@@ -39,18 +39,18 @@ export default function FeedbackScreen() {
 
   const [type, setType] = useState<FeedbackType | null>(null);
   const [text, setText] = useState('');
-  const [result, setResult] = useState<string>('');
+  const [result, setResult] = useState<{ text: string; ok: boolean } | null>(null);
 
   const remaining = feedbackRemaining(text);
   const canSend = !!type && feedbackTextValid(text) && !busy;
 
   function handleSend() {
     if (!canSend || !type) return;
-    setResult('');
+    setResult(null);
     run(async () => {
       const outcome = await submitFeedback(type, text);
-      if (outcome === 'failed') { setResult(FEEDBACK_FAILED); return; }
-      setResult(outcome === 'sent' ? FEEDBACK_SENT : FEEDBACK_PENDING);
+      if (outcome === 'failed') { setResult({ text: FEEDBACK_FAILED, ok: false }); return; }
+      setResult({ text: outcome === 'sent' ? FEEDBACK_SENT : FEEDBACK_PENDING, ok: true });
       setText('');
       setType(null);
     });
@@ -99,7 +99,10 @@ export default function FeedbackScreen() {
 
         <Text style={styles.note}>{FEEDBACK_PRIVACY_NOTE}</Text>
 
-        {!!result && <Text style={styles.result}>{result}</Text>}
+        {!!result && (
+          <Text accessibilityRole="alert" accessibilityLiveRegion="polite"
+            style={[styles.result, !result.ok && { color: colors.dangerText }]}>{result.text}</Text>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>

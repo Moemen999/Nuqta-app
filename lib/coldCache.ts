@@ -102,6 +102,19 @@ export function parseColdSnapshot(raw: string | null, uid: string, now: number):
   return s as ColdSnapshot;
 }
 
+/**
+ * الكاش يتعرض؟ للعرض بس، وبس طول ما الأرقام مش من السيرفر، و(العمليات لسه ما وصلتش من السيرفر — حتى لو فيه عملية محلية
+ * لسه بترفع، اللي كانت بتطلّع «رصيد افتتاحي + العملية» على إنه الرصيد (الميزة 7، الجولة الأخيرة H1-A) — أو مفيش ولا
+ * محفظة ولا عملية لسه). عمليات حقيقية من السيرفر ← مفيش كاش جنبها (money-reviewer). كاش من غير محافظ ← مبيتعرضش.
+ */
+export function coldSnapshotToShow(i: {
+  stored: ColdSnapshot | null; figuresFromServer: boolean; walletsCount: number; txNotYet: boolean; txCount: number;
+}): ColdSnapshot | null {
+  if (!i.stored || i.stored.wallets.length === 0 || i.figuresFromServer) return null;
+  if (i.txNotYet) return i.stored;
+  return i.walletsCount === 0 && i.txCount === 0 ? i.stored : null;
+}
+
 /** اسم العملية المربوطة في الكاش — النوع بس، من غير اسم الشخص أو الاشتراك أو الجمعية */
 export const COLD_KIND_LABEL: Record<ColdTxKind, string> = {
   debt: 'دين', subscription: 'اشتراك', gamiya: 'جمعية', income: 'دخل ثابت', settlement: 'تسوية',

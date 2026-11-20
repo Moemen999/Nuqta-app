@@ -1,4 +1,5 @@
 import { planWalletAmountCommit, type WalletAmountPlan } from '@/lib/finance';
+import { normalizeAmountInput } from '@/lib/firstRunSetup';
 import { useEffect, useRef, useState } from 'react';
 import { useConfirm } from '@/components/ConfirmProvider';
 
@@ -35,9 +36,29 @@ export type AmountDraftOptions = {
    * تضيع ساكت (silent-failure-hunter + money-reviewer 2026-11-07)
    */
   onDroppedConfirm?: (id: string, value: number) => void;
-  /** "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول */
-  onStaleConfirm?: (id: string) => void;
+  /**
+   * "أيوه" اتداست بس الرقم المتخزّن اتغيّر من جهاز تاني والتأكيد مفتوح — مفيش كتابة، والشاشة لازم تقول. `'drop'` = السجل
+   * نفسه مشي (اتمسح/اتأرشف) ← المسوّدة بتتشال، فرسالة `onDroppedConfirm` مبتطلعش تاني على نفس الحاجة وقت الخروج (money L1)
+   */
+  onStaleConfirm?: (id: string) => void | 'drop';
+  /**
+   * خانة فاضية تتحفظ لوحدها بعد ثانية؟ الافتراضي أيوه (رصيد المحفظة). الميزانية والدخل بيبعتوا `false` (الميزة 6):
+   * المسح عشان تكتب رقم جديد كان بيحفظ صفر بعد ثانية والكارت ينط للمطوي. الفاضي بيتحفظ بس لما تسيب الخانة أو الشاشة
+   */
+  autosaveBlank?: boolean;
+  /** رقم مرفوض (`reject`) والمستخدم ساب الخانة — الخانة بترجع للمحفوظ، والشاشة **بتقول** بدل الرجوع الساكت */
+  onReject?: (id: string) => void;
+  /** رقم مرفوض والشاشة اتشالت (نفس `onDroppedConfirm`) — مفيش كتابة، والشاشة بتقول برّه */
+  onDroppedReject?: (id: string) => void;
+  /**
+   * خانة **فاضية** (بعد التنضيف — «,» لوحدها فاضية) اتحفظت صفر لما سبتها أو سبت الشاشة. سحبة على الشاشة بتقفل الكيبورد
+   * وبتعمل blur، فالمسح كان بيتحفظ ساكت (الجولة الأخيرة، L2): الكتابة زي ما هي، والشاشة بتقول. صفر مكتوب بإيدك مش هنا
+   */
+  onBlankCleared?: (id: string) => void;
 };
+
+/** فاضية بعد التنضيف: «,» أو مسافات لوحدها = مفيش رقم اتكتب */
+const isBlank = (raw: string) => normalizeAmountInput(raw).trim() === '';
 
 /**
  * خانة رقم فلوس بتتحفظ لوحدها — رصيد محفظة، سقف ميزانية، دخل شهر، نسبة.
@@ -57,7 +78,8 @@ export type AmountDraftOptions = {
  *    بيبعت كتابة لفايربيز حتى لو مفيش حاجة اتغيرت.
  *
  * 2. **الكلام اللي مش رقم مترفوض مش متحوّل لصفر.** الخانة بترجع لآخر قيمة
- *    محفوظة، والمستخدم يشوف إن اللي كتبه مادخلش.
+ *    محفوظة، والشاشة بتقول (`onReject`/`onDroppedReject`) — الرجوع لوحده كان ساكت
+ *    (الميزة 6 من مراجعة التطبيق كله).
  *
  * 3. **القاعدة نفسها بارامتر.** المحفظة بتسمح بالسالب بتأكيد
  *    (`planWalletAmountCommit`)، والميزانية والدخل بيرفضوا السالب من أصله
@@ -75,7 +97,8 @@ export type AmountDraftOptions = {
  */
 export function useAmountDrafts(
   storedFor: (id: string) => number,
-  write: (id: string, value: number) => void,
+  /** `false` = ما اتكتبش (السجل مشي) ← مفيش «اتشال» (الميزة 10، جولة 2). أي حاجة تانية = اتكتب */
+  write: (id: string, value: number) => void | boolean,
   opts: AmountDraftOptions = {},
 ) {
   const plan = opts.plan ?? planWalletAmountCommit;
@@ -90,8 +113,13 @@ export function useAmountDrafts(
   // `plan` داخل الـref كمان: الاستدعاءات الحالية كلها بتبعت دوال ثابتة من
   // `lib/finance.ts`، بس لو حد بعدين بعت دالة متعرّفة جوه الكومبوننت،
   // المؤقّت وflush الخروج كانوا هيمسكوا نسخة قديمة منها من غير ما حد ياخد باله.
-  const latest = useRef({ storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm });
-  useEffect(() => { latest.current = { storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm }; });
+  const autosaveBlank = opts.autosaveBlank ?? true;
+  const pick = () => ({
+    storedFor, write, plan, onDroppedConfirm: opts.onDroppedConfirm, onStaleConfirm: opts.onStaleConfirm,
+    onReject: opts.onReject, onDroppedReject: opts.onDroppedReject, onBlankCleared: opts.onBlankCleared, autosaveBlank,
+  });
+  const latest = useRef(pick());
+  useEffect(() => { latest.current = pick(); });
 
   function clearDraft(id: string) {
     setDrafts(d => {
@@ -103,13 +131,14 @@ export function useAmountDrafts(
   }
 
   /** الكتابة دايمًا بتشيل المسوّدة معاها، فالخانة ترجع تقرا من المصدر الحقيقي */
-  function commitWrite(id: string, value: number) {
+  function commitWrite(id: string, value: number): boolean {
     clearDraft(id);
-    latest.current.write(id, value);
+    return latest.current.write(id, value) !== false;
   }
 
   /** الحفظ التلقائي. بيرجّع true لو خلص الموضوع فعلاً */
   function autoCommit(id: string, raw: string): boolean {
+    if (!latest.current.autosaveBlank && isBlank(raw)) return false;
     const p = latest.current.plan(raw, latest.current.storedFor(id));
     if (p.action !== 'write') return false;
     commitWrite(id, p.value);
@@ -134,8 +163,11 @@ export function useAmountDrafts(
       Object.entries(held.current).forEach(([id, raw]) => {
         // مفيش setState ولا ديالوج والشاشة بتتشال — فبنكتب الأكيد بس
         const p = latest.current.plan(raw, latest.current.storedFor(id));
-        if (p.action === 'write') latest.current.write(id, p.value);
-        else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
+        if (p.action === 'write') {
+          const wrote = latest.current.write(id, p.value) !== false;
+          if (wrote && isBlank(raw)) latest.current.onBlankCleared?.(id);
+        } else if (p.action === 'confirm') latest.current.onDroppedConfirm?.(id, p.value);
+        else if (p.action === 'reject') latest.current.onDroppedReject?.(id);
       });
       held.current = {};
     };
@@ -175,8 +207,12 @@ export function useAmountDrafts(
     if (raw === undefined) return;
 
     const p = plan(raw, latest.current.storedFor(id));
-    if (p.action === 'none' || p.action === 'reject') { clearDraft(id); return; }
-    if (p.action === 'write') { commitWrite(id, p.value); return; }
+    if (p.action === 'none') { clearDraft(id); return; }
+    if (p.action === 'reject') { clearDraft(id); latest.current.onReject?.(id); return; }
+    if (p.action === 'write') {
+      if (commitWrite(id, p.value) && isBlank(raw)) latest.current.onBlankCleared?.(id);
+      return;
+    }
 
     const confirmed = p.value;
     // حد معروف (silent-failure-hunter): التطبيق اتقفل والتأكيد مفتوح، أو الـblur جه من القفل نفسه ←
@@ -194,7 +230,7 @@ export function useAmountDrafts(
           if (!(Object.is(now, shownStored) || now === shownStored)) {
             // مفيش كتابة — بس منسكتش (silent-failure-hunter جولة 2): المسوّدة بترجع "مستنية" والشاشة بتقول
             pending.current[id] = raw;
-            latest.current.onStaleConfirm?.(id);
+            if (latest.current.onStaleConfirm?.(id) === 'drop') { delete pending.current[id]; clearDraft(id); }
             return;
           }
           commitWrite(id, confirmed);
