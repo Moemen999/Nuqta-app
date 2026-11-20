@@ -162,7 +162,7 @@ function makeStyles(c: ThemeColors) {
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, ...cardElevation(c) },
     status: { color: c.incomeText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
     row: { flexDirection: 'row-reverse', gap: space.sm },
-    btnLabel: { color: c.text, fontSize: typeScale.body },
+    btnLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     graceLabel: { color: c.text, fontSize: typeScale.caption },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: MIN_TOUCH },

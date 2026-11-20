@@ -24,6 +24,11 @@ const TITLE: Record<Mode, string> = { enable: 'تفعيل القفل', change: '
 export const VERIFY_SUBLINE = 'عشان نخفّف القفل لازم نتأكد إنك انت.';
 /** زرار التأكيد بيقول هيعمل إيه (arabic-copy-reviewer) — كان «تأكيد» في الأربعة */
 const SUBMIT: Record<Mode, string> = { enable: 'فعّل القفل', change: 'غيّر الكود', disable: 'الغي القفل', verify: 'كمّل' };
+export const CODES_MISMATCH = 'الكودين مش زي بعض — اكتبهم تاني نفس الحاجة';
+/** بيبان أول ما خانة التأكيد توصل لطول الأولى وتبقى مختلفة — من غير ما يستنى «حفظ» */
+export function codesMismatch(code1: string, code2: string): boolean {
+  return code1.length > 0 && code2.length >= code1.length && code1 !== code2;
+}
 export const PIN_FORMAT_ERROR = 'الرقم السري لازم يكون 4 أرقام بس، من غير حروف ولا مسافات';
 export const PASSWORD_SHORT_ERROR = 'الباسورد لازم يكون 4 حروف أو أرقام على الأقل';
 
@@ -84,7 +89,7 @@ export default function SetLockModal({ visible, mode, onClose, onVerified }: {
       return;
     }
     if (mode === 'change' && !oldCode) { setError(missingCurrent); return; }
-    if (!code1 || code1 !== code2) { setError('الكود الجديد مش متطابق في الحقلين'); return; }
+    if (!code1 || code1 !== code2) { setError(CODES_MISMATCH); return; }
     // أرقام إنجليزي بس (بند 9): «12a4» أو «1 23» كانوا بيعدّوا بالطول ولوحة الأرقام في شاشة القفل مبتكتبهمش = مقفول برّه
     if (type === 'pin' && !PIN_PATTERN.test(code1)) { setError(PIN_FORMAT_ERROR); return; }
     if (type === 'password' && code1.length < 4) { setError(PASSWORD_SHORT_ERROR); return; }
@@ -139,10 +144,10 @@ export default function SetLockModal({ visible, mode, onClose, onVerified }: {
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
                 <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin', 'radio')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
-                  <Text style={{ color: colors.text, fontSize: typeScale.body }}>رقم سري (4 أرقام)</Text>
+                  <Text style={{ color: colors.text, fontSize: typeScale.body, textAlign: 'center' }}>رقم سري (4 أرقام)</Text>
                 </TouchableOpacity>
                 <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password', 'radio')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
-                  <Text style={{ color: colors.text, fontSize: typeScale.body }}>باسورد نصي</Text>
+                  <Text style={{ color: colors.text, fontSize: typeScale.body, textAlign: 'center' }}>باسورد نصي</Text>
                 </TouchableOpacity>
               </View>
 
@@ -159,14 +164,19 @@ export default function SetLockModal({ visible, mode, onClose, onVerified }: {
                 secureTextEntry keyboardType={type === 'pin' ? 'numeric' : 'default'}
                 maxLength={type === 'pin' ? 4 : undefined}
                 placeholderTextColor={colors.textSecondary} textAlign="right" />
+              {codesMismatch(code1, code2) && (
+                <Text testID="setlock_mismatch" style={styles.mismatch} accessibilityLiveRegion="polite">{CODES_MISMATCH}</Text>
+              )}
             </>
           )}
 
-          {/* دايمًا متركّب: live region بيتركّب ونصه جواه مبيتقريش على أندرويد (a11y-architect) */}
-          {waitShown
-            ? <Text testID="setlock_wait" style={styles.error}>{`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - now)}`}</Text>
-            : <Text style={[styles.error, !error && { marginTop: 0 }]} accessibilityLiveRegion="assertive">{error || ''}</Text>}
         </ScrollView>
+
+        {/* برّه الـScrollView فوق الفوتر: جوّاه كانت بتقع تحت الكيبورد ومحدش بيشوفها (ملاحظة مؤمن على 1.0.0.036).
+            دايمًا متركّب: live region بيتركّب ونصه جواه مبيتقريش على أندرويد (a11y-architect) */}
+        {waitShown
+          ? <Text testID="setlock_wait" style={styles.error}>{`${LOCK_WAIT_REASON}. ${lockWaitMessage(waitUntil - now)}`}</Text>
+          : <Text testID="setlock_error" style={[styles.error, !error && styles.errorEmpty]} accessibilityLiveRegion="assertive">{error || ''}</Text>}
 
         <View style={styles.footer}>
           <Button variant="secondary" testID="setlock_cancel" label="إلغاء" style={styles.cancelBtn} onPress={() => { reset(); onClose(); }} />
@@ -194,7 +204,9 @@ function makeStyles(c: ThemeColors) {
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, padding: space.lg, fontSize: typeScale.title },
     row: { flexDirection: 'row-reverse', gap: space.sm },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
-    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
+    error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.lg, paddingTop: space.sm },
+    errorEmpty: { paddingTop: 0 },
+    mismatch: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

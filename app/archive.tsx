@@ -364,7 +364,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: space.huge * 2 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-    transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: -6, marginBottom: 10 },
+    transfersNote: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, marginBottom: 12 },
     dateRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8, marginTop: 10 },
     dateBtn: { flex: 1, backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.md, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, justifyContent: 'center' },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
