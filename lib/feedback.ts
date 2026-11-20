@@ -16,7 +16,7 @@ export const FEEDBACK_TYPE_LABEL: Record<FeedbackType, string> = {
 export const FEEDBACK_MAX_LENGTH = 1000;
 
 export const FEEDBACK_PRIVACY_NOTE =
-  'هنبعت مع رأيك رقم الإصدار ونوع الموبايل بس، مفيش أي بيانات مالية.';
+  'هنبعت مع رأيك رقم الإصدار ونوع الموبايل ونظامه، ومربوط بحسابك. مفيش أي بيانات مالية.';
 
 /**
  * هل الرأي ده ينفع يتبعت؟ النص الفاضي أو المسافات بس مالوش معنى.

@@ -62,7 +62,7 @@ export default function SettingsScreen() {
   const { user, logOut } = useAuth();
   const { enabled: lockEnabled } = useAppLock();
   const notifs = useNotifications();
-  const { wallets, categories, pendingWrites, outboxCount, outboxCountUnknown, deletionPending } = useData();
+  const { wallets, categories, undelivered, loadErrors, pendingWrites, outboxCount, outboxCountUnknown, deletionPending } = useData();
   const confirm = useConfirm();
   const notice = useNotice();
 
@@ -78,13 +78,22 @@ export default function SettingsScreen() {
   const activeWallets = useMemo(() => wallets.filter(w => !w.archived).length, [wallets]);
   const activeCategories = useMemo(() => categories.filter(c => !c.archived).length, [categories]);
 
+  /** مفيش «مفيش محافظ» وهي لسه بتحمّل أو فشلت — العدد بعد ما توصل بس */
+  function listStatus(name: 'wallets' | 'categories', count: string) {
+    if (loadErrors.includes(name)) return 'ما قدرناش نجيبها';
+    if (undelivered.includes(name)) return 'بنحمّل…';
+    return count;
+  }
+
   function replayOnboarding() {
-    confirm('شاشة الترحيب', 'هتظهرلك تاني أول ما تفتح التطبيق المرة الجاية.', [
+    confirm('شاشة الترحيب', 'هتظهرلك تاني بعد ما تقفل التطبيق خالص وتفتحه من الأول.', [
       { text: 'إلغاء', style: 'cancel' },
       {
         text: 'اعرضها تاني',
         onPress: async () => {
-          try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {}
+          try { await AsyncStorage.removeItem(ONBOARDING_KEY); } catch {
+            notice('ما اتحفظش', 'ما قدرناش نظبط شاشة الترحيب. جرّب تاني.');
+          }
         },
       },
     ]);
@@ -142,13 +151,13 @@ export default function SettingsScreen() {
         {
           key: 'wallets',
           title: 'المحافظ',
-          status: walletsPhrase(activeWallets),
+          status: listStatus('wallets', walletsPhrase(activeWallets)),
           onPress: () => router.push('/settings-screens/wallets'),
         },
         {
           key: 'categories',
           title: 'الفئات',
-          status: categoriesPhrase(activeCategories),
+          status: listStatus('categories', categoriesPhrase(activeCategories)),
           onPress: () => router.push('/settings-screens/categories'),
         },
         {

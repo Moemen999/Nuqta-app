@@ -1952,7 +1952,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const payload = { ...buildFeedbackDoc(uid, type, text), createdAt: serverTimestamp() };
     const write = countPending(addDoc(collection(db, 'feedback'), payload));
     // الأخطاء بتتلقط هنا مش في track: الشاشة بتعرض النتيجة بنفسها
-    write.catch(() => {});
+    write.catch(e => reportAtomicFailure('إرسال الرأي', e));
 
     if (!serverReachableRef.current) return 'pending';
     const timeout = new Promise<'pending'>(r => setTimeout(() => r('pending'), FEEDBACK_ACK_MS));

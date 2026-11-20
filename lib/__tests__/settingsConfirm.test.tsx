@@ -23,7 +23,7 @@ jest.mock('@/context/NotificationsContext', () => ({
   useNotifications: () => ({ enabled: false, dailyEnabled: false, dailyHour: 20 }),
 }));
 jest.mock('@/context/DataContext', () => ({
-  useData: () => ({ wallets: [], categories: [], pendingWrites: mockPending, outboxCount: mockOutboxCount, outboxCountUnknown: mockOutboxUnknown }),
+  useData: () => ({ wallets: [], categories: [], undelivered: [], loadErrors: [], pendingWrites: mockPending, outboxCount: mockOutboxCount, outboxCountUnknown: mockOutboxUnknown }),
 }));
 const mockReport = jest.fn();
 jest.mock('@/lib/atomicFailure', () => ({ reportAtomicFailure: (...a: unknown[]) => mockReport(...a) }));
