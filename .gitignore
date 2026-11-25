@@ -55,3 +55,4 @@ test-lab/*.local.json
 
 # قفل الأدوات (scripts/agent-lock.sh) — محلي لكل نسخة، مش بيتعمله كوميت
 .agent-lock
+graphify-out/
