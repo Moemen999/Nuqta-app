@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>سياسة الخصوصية — نقطة</title>
+<meta name="description" content="سياسة الخصوصية لتطبيق نقطة لتتبع المصاريف الشخصية: بنجمع إيه، وبيتخزن فين، وإزاي تمسح حسابك.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+<header>
+  <p class="brand">نقطة</p>
+  <h1>سياسة الخصوصية</h1>
+  <p class="meta">آخر تحديث: 26 نوفمبر 2026 · <a href="#en">English below</a></p>
+</header>
+
+<p>«نقطة» تطبيق موبايل لتتبع مصاريفك الشخصية: محافظك، عملياتك، ديونك، اشتراكاتك، جمعياتك، وميزانيتك. الصفحة دي بتقول بالظبط إيه اللي بنخزّنه، وليه، وفين، وإزاي تمسحه.</p>
+<p>التطبيق ده بيطوّره <strong>{{DEVELOPER_NAME}}</strong>. لأي سؤال عن خصوصيتك: <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>.</p>
+
+<div class="card">
+  <strong>باختصار:</strong>
+  <ul>
+    <li>بياناتك المالية بتتخزن في حسابك عشان تشوفها على أي موبايل تدخل منه. مش بنبيعها، ومش بنشاركها مع حد، ومفيش إعلانات في التطبيق.</li>
+    <li>التطبيق مش بنك ومش بيحرّك فلوس: كل الأرقام انت اللي بتكتبها بإيدك.</li>
+    <li>تقدر تمسح حسابك وكل بياناتك من جوه التطبيق في أي وقت، أو تطلب ده من <a href="/delete-account">صفحة مسح الحساب</a>.</li>
+  </ul>
+</div>
+
+<h2>1. بنجمع إيه</h2>
+
+<h3>حساب الدخول</h3>
+<p>إيميلك واسمك (لو دخلت بجوجل، الاسم بييجي من حساب جوجل)، وتاريخ إنشاء الحساب. الباسورد مش بنشوفه، وخدمة Firebase Authentication من جوجل هي اللي بتتحقق منه.</p>
+
+<h3>البيانات المالية اللي انت بتكتبها</h3>
+<ul>
+  <li>المحافظ: الاسم والرصيد الافتتاحي وحد التنبيه.</li>
+  <li>العمليات: المبلغ، النوع (مصروف/دخل/تحويل)، المحفظة، الفئة، التاريخ، وأي ملاحظة كتبتها.</li>
+  <li>الفئات والميزانية الشهرية وتوزيع الدخل.</li>
+  <li>الاشتراكات والجمعيات والدخل الثابت: الاسم والمبلغ والمواعيد.</li>
+  <li>الديون: اسم الشخص، والمبلغ، والدفعات، ومعاد السداد.</li>
+</ul>
+
+<h3>جهات الاتصال — لو اخترت تستخدمها بس</h3>
+<p>في شاشة الديون تقدر تختار شخص من جهات الاتصال بدل ما تكتب اسمه. التطبيق بيطلب الإذن ساعتها بس، وبيقرا القايمة على الموبايل عشان تختار منها. <strong>القايمة نفسها مش بتترفع.</strong> اللي بيتحفظ مع الدين هو الشخص اللي اخترته بس: اسمه، ورقم تليفونه لو موجود، ومعرّف جهة الاتصال على موبايلك (عشان زرار «افتح جهة الاتصال» يشتغل). لو مش عايز ده، اكتب الاسم بإيدك ومتديش الإذن.</p>
+
+<h3>الرأي اللي بتبعته</h3>
+<p>لو بعتّ رأي أو مشكلة من الإعدادات، بيتحفظ نص الرسالة ونوعها، ومعاها رقم إصدار التطبيق، ونوع الموبايل ونسخة أندرويد — عشان نعرف نلاقي المشكلة.</p>
+
+<h3>تقارير الأعطال</h3>
+<p>لو التطبيق وقع أو حصل خطأ، بيتبعت تقرير لخدمة Sentry فيه نوع الخطأ ومكانه في الكود، ورقم الإصدار، ونوع الموبايل ونسخة النظام. <strong>التقرير بيتنضّف قبل ما يخرج من الموبايل:</strong> مفيش مبالغ، ولا أرصدة، ولا أسامي محافظ أو فئات أو ناس، ولا إيميل، ولا عنوان IP، ولا لقطات شاشة.</p>
+
+<h3>اللي بيفضل على موبايلك بس</h3>
+<ul>
+  <li>قفل التطبيق: الـPIN أو الباسورد بيتخزن متشفّر (hash) في التخزين الآمن بتاع الموبايل، ومش بيتبعت لأي مكان.</li>
+  <li>إعدادات الإشعارات والثيم، ونسخة صغيرة من آخر أرصدة وعمليات عشان الرئيسية تفتح بسرعة (من غير الملاحظات).</li>
+  <li>التذكيرات (الاشتراكات، الجمعية، الديون، التذكير اليومي) بتتجدول على الموبايل نفسه.</li>
+  <li>العملية اللي سجّلتها من غير نت بتتحفظ نسخة منها <strong>متشفّرة</strong> على الموبايل لحد ما ترفع، وبعدها بتتشال.</li>
+</ul>
+
+<h3>اللي مش بنجمعه</h3>
+<p>مفيش مكانك، ولا صورك، ولا رسايلك، ولا حساباتك في البنك، ولا أرقام كروت. ومفيش أدوات إعلانات أو تتبّع سلوك في التطبيق.</p>
+
+<h2>2. بنستخدمها في إيه</h2>
+<ul>
+  <li>عشان التطبيق يشتغل: نعرض أرصدتك، ونحسب تقاريرك، ونفكّرك بمواعيدك، ونزامن بين أجهزتك.</li>
+  <li>عشان نصلّح الأعطال ونحسّن التطبيق (تقارير الأعطال والرأي).</li>
+</ul>
+<p>مش بنستخدمها في إعلانات، ومش بنبيعها، ومش بنعمل منها تقييم ائتماني أو أي قرار عنك.</p>
+
+<h2>3. بتتخزن فين، ومين بيشوفها</h2>
+<ul>
+  <li><strong>Google Firebase</strong> (Authentication وFirestore): حسابك وبياناتك المالية والرأي. قواعد الأمان بتسمح لحسابك بس إنه يقرا ويكتب بياناته.</li>
+  <li><strong>Sentry</strong>: تقارير الأعطال المتنضّفة اللي فوق.</li>
+</ul>
+<p>الاتنين بيشتغلوا كمقدّمي خدمة لينا بس. البيانات بتتنقل متشفّرة (HTTPS/TLS)، وممكن تتخزن على سيرفرات برّه مصر.</p>
+<p>مش هنديّ بياناتك لحد إلا لو القانون طلب مننا كده.</p>
+
+<h2>4. بتفضل قد إيه</h2>
+<ul>
+  <li>بياناتك بتفضل طول ما حسابك موجود.</li>
+  <li>لما تمسح حسابك، بياناتك المالية والرأي اللي بعتّه وحساب الدخول نفسه بيتمسحوا على طول — مفيش فترة انتظار، ومبيترجعوش.</li>
+  <li>تقارير الأعطال بتتمسح لوحدها عند Sentry بعد مدة الحفظ بتاعتهم (90 يوم بالكتير)، ومش مربوطة بحسابك.</li>
+</ul>
+
+<h2>5. حقوقك</h2>
+<ul>
+  <li><strong>تشوف وتصدّر:</strong> كل بياناتك ظاهرة في التطبيق، وتقدر تصدّرها ملف إكسيل من الأرشيف.</li>
+  <li><strong>تعدّل:</strong> أي حاجة كتبتها تقدر تعدّلها أو تمسحها من جوه التطبيق.</li>
+  <li><strong>تمسح كل حاجة:</strong> الإعدادات ← مسح الحساب. الخطوات بالتفصيل في <a href="/delete-account">صفحة مسح الحساب</a>.</li>
+  <li><strong>تسحب الأذونات:</strong> جهات الاتصال والإشعارات من إعدادات الموبايل في أي وقت.</li>
+</ul>
+
+<h2>6. الأطفال</h2>
+<p>التطبيق مش موجّه لأطفال تحت 13 سنة، ومش بنجمع بيانات منهم عن قصد.</p>
+
+<h2>7. التغييرات</h2>
+<p>لو غيّرنا حاجة في السياسة دي، هنحدّث التاريخ فوق. ولو التغيير بيوسّع اللي بنجمعه، هنقولك جوه التطبيق قبل ما يحصل.</p>
+
+<section lang="en" id="en">
+  <h2>Privacy Policy (English summary)</h2>
+  <p class="meta">Last updated: 26 November 2026. The Arabic text above is the full policy; this summary says the same.</p>
+  <p>Nuqta is a personal expense-tracking app developed by <strong>{{DEVELOPER_NAME}}</strong>. Contact: <a href="mailto:{{CONTACT_EMAIL}}">{{CONTACT_EMAIL}}</a>. Nuqta is not a bank and does not move money; every amount is entered by you.</p>
+  <h3>What we collect</h3>
+  <ul>
+    <li><strong>Account:</strong> email address, display name, account creation date (via Firebase Authentication). We never see your password.</li>
+    <li><strong>Financial records you enter:</strong> wallets (name, opening balance, low-balance alert), transactions (amount, type, category, date, note), budgets, income plans, subscriptions, savings circles (gamiya), recurring income, and debts (the other person's name, amounts, payments, due dates).</li>
+    <li><strong>Contacts (optional):</strong> only if you choose a person from your contacts when recording a debt. The contact list is read on the device and is not uploaded; only the chosen person's name, phone number (if any) and device contact ID are saved with that debt.</li>
+    <li><strong>Feedback you send:</strong> the message, its type, app version, device model and OS version.</li>
+    <li><strong>Crash reports (Sentry):</strong> error type, stack trace, app version, device model and OS version. Reports are scrubbed on the device before sending: no amounts, balances, wallet/category/person names, email, IP address or screenshots.</li>
+    <li><strong>On the device only:</strong> app-lock PIN/password (stored as a hash in secure storage), theme and notification settings, a small cache of recent balances and transactions without notes, an encrypted copy of any transaction saved offline until it uploads, and locally scheduled reminders.</li>
+  </ul>
+  <p>We do not collect location, photos, messages, bank or card details, and the app contains no advertising or behavioural tracking SDKs.</p>
+  <h3>How we use and share it</h3>
+  <p>Only to run the app (balances, reports, reminders, sync across your devices) and to fix bugs. We do not sell your data, use it for advertising, or share it with anyone except our service providers Google Firebase (storage and sign-in) and Sentry (crash reports), or where required by law. Data is encrypted in transit (HTTPS/TLS) and may be stored on servers outside Egypt.</p>
+  <h3>Retention and deletion</h3>
+  <p>Your data is kept while your account exists. Deleting your account (Settings → Delete account, or see <a href="/delete-account">the account deletion page</a>) immediately and permanently deletes your financial records, the feedback you sent, and your sign-in account. Crash reports are not linked to your account and expire under Sentry's retention period (at most 90 days).</p>
+  <h3>Your choices</h3>
+  <p>You can view, edit and delete any record in the app, export everything to Excel from the Archive screen, revoke contacts and notification permissions in Android settings, and delete your account at any time. The app is not directed at children under 13.</p>
+  <h3>Changes</h3>
+  <p>If we change this policy we will update the date above. If a change expands what we collect, we will tell you in the app before it happens.</p>
+</section>
+
+<footer>
+  <nav><a href="/">نقطة</a><a href="/delete-account">مسح الحساب</a></nav>
+</footer>
+</main>
+</body>
+</html>
