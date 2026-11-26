@@ -2,7 +2,7 @@ import { arrayRemove, collection, deleteField, doc, getDocFromServer, getDocsFro
 import { db } from '@/firebaseConfig';
 import { gamiyaTxId, subscriptionTxId } from '@/lib/autoCharge';
 import { addDays, addMonths, todayStr } from '@/lib/finance';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser, writeRawDoc } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -373,6 +373,51 @@ describe('H: مسح الاشتراك', () => {
     expect(await paying).toBe('done');
     expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
   });
+});
+
+/**
+ * 9.5-3: المسح بقى ذرة من السيرفر. جهاز تاني سجّل خصم (العملية + `closed` على السيرفر) ولسه ما وصلش الـlistener ←
+ * العملية بتتمسح مع الاشتراك بدل ما تفضل يتيمة بتحرّك الرصيد. والرد اللي بيضيع بعد ما المسح وصل ← `done` مش «ما اتمسحش».
+ */
+describe('9.5-3: مسح الاشتراك ذرة من السيرفر', () => {
+  it('خصم من جهاز تاني لسه ما وصلناش ← بيتمسح مع الاشتراك', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    await writeRawDoc(`users/${uid}/transactions/otherDevice`, {
+      type: 'expense', amount: 200, walletId, date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 'otherDevice', at: 'x' } } });
+    // من غير ما نستنى الـlistener: النسخة عندنا لسه ما تعرفش العملية دي
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect(await serverTx('otherDevice')).toBeUndefined();
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
+  it('المسح وصل والرد ضاع ← done', async () => {
+    const { id } = await makeSub();
+    landThenFail();
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
+  it('ما وصلش ← blocked «مفيش نت» والاشتراك لسه موجود', async () => {
+    const { id } = await makeSub();
+    failWithoutLanding();
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'no-connection' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
+  it('ما وصلش وسؤال السيرفر كمان فشل ← uncertain (مش «اتمسح» ولا «ما اتمسحش»)', async () => {
+    const { id } = await makeSub();
+    failWithoutLanding();
+    serverCheckFails();
+    expect(await harness.api().deleteSubscription(id)).toMatchObject({ outcome: 'blocked', reason: 'uncertain' });
+    serverGetMock.mockImplementation((...args: unknown[]) => (actualFs.getDocFromServer as (...a: unknown[]) => unknown)(...args));
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
 });
 
 describe('مبلغ مش صالح من الكارت', () => {

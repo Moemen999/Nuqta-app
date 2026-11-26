@@ -90,3 +90,19 @@ export function nameEmptyNotice(kind: 'المحفظة' | 'الفئة'): [string,
 
 /** بيتقال لقارئ الشاشة بعد ما خانة بتتحفظ لوحدها كتبت فعلًا (a11y-architect) — من غيره مفيش أي إشارة إن الرقم اتحفظ */
 export const AUTOSAVED_ANNOUNCEMENT = 'اتحفظ';
+
+/**
+ * مسح/أرشفة المحفظة بقوا ذرة من السيرفر (9.5-3) — النتايج اللي مش «اتعمل» ولا «ممنوع». `gone` بنفس رسالة
+ * `goneFromAnotherDeviceNotice`. `uncertain`: المسح والأرشفة بيتعادوا من غير ضرر، فالكلام «بص وجرب تاني».
+ */
+export function walletWriteNotice(outcome: 'no-connection' | 'failed' | 'gone' | 'uncertain', name: string, action: 'delete' | 'archive'): [string, string] {
+  if (outcome === 'gone') return goneFromAnotherDeviceNotice('المحفظة', name, action);
+  const verb = action === 'delete' ? 'ما اتمسحتش' : 'ما اتأرشفتش';
+  const must = action === 'delete' ? 'المسح لازم يتأكد' : 'الأرشفة لازم تتأكد';
+  if (outcome === 'no-connection') {
+    return ['مفيش نت دلوقتي', `"${name}" ${verb} ولسه زي ما هي. ${must} من السيرفر إنها مش آخر محفظة شغالة — جرب تاني أول ما النت يرجع.`];
+  }
+  if (outcome === 'failed') return [verb, `"${name}" لسه زي ما هي ومفيش حاجة اتغيّرت. اتأكد إن النت شغال وجرب تاني.`];
+  const stillThere = action === 'delete' ? 'لو لسه موجودة' : 'لو لسه في المحافظ الشغالة';
+  return ['مش متأكدين', `مقدرناش نعرف "${name}" ${action === 'delete' ? 'اتمسحت' : 'اتأرشفت'} ولا لأ. استنى ثواني وبص على القايمة — ${stillThere} جرب تاني.`];
+}

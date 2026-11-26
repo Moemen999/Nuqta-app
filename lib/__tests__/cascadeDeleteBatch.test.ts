@@ -41,7 +41,8 @@ const CODE = SOURCE.split('\n')
   .filter(line => !/^\s*(\/\/|\/\*|\*)/.test(line))
   .join('\n');
 
-const CASCADE_FUNCTIONS = ['deleteDebt', 'deleteSubscription', 'deleteGamiya'] as const;
+// `deleteSubscription` بقت ذرة من السيرفر (9.5-3) — ليها اختبارها تحت، ومبقتش من نمط الدفعة اللي مبتستناش
+const CASCADE_FUNCTIONS = ['deleteDebt', 'deleteGamiya'] as const;
 
 /** بيجيب نص الدالة من سطر تعريفها لحد أول سطر بيقفل على نفس المستوى */
 function bodyOf(name: string): string {
@@ -65,6 +66,17 @@ describe('حذف السجل بكل عملياته', () => {
     const body = bodyOf(name);
     // دفعة واحدة بتضم العمليات والسجل — كله أو مفيش
     expect(body).toMatch(/deleteWithTransactions\(/);
+  });
+
+  it('deleteSubscription ذرة من السيرفر: بترفض من غير نت، بتستنى كتاباتنا، وبتسأل السيرفر لو فشلت (9.5-3)', () => {
+    const body = bodyOf('deleteSubscription');
+    expect(body).toMatch(/serverReachableRef\.current\) return \{ outcome: 'blocked', \.\.\.NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION/);
+    expect(body).toMatch(/await waitForOurWritesToLand\(\)/);
+    expect(body).toMatch(/runTransaction\(db/);
+    expect(body).toMatch(/getDocFromServer\(subRef\)/);
+    // العمليات بتتمسح هي والاشتراك في نفس الذرة — مش track لوحدها
+    expect(body).toMatch(/t\.delete\(subRef\)/);
+    expect(body).not.toMatch(/await\s+deleteTransactionDoc/);
   });
 
   it('مفيش أي دالة حذف تانية رجعت لنمط الانتظار القديم', () => {

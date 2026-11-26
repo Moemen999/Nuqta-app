@@ -606,7 +606,10 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
   gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
-export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account'; title: string; body: string };
+export type CascadeDeleteBlock = {
+  reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account' | 'no-connection' | 'failed' | 'uncertain';
+  title: string; body: string;
+};
 
 /** بند H: خصم شغال على نفس الاشتراك ("سدّد"/الكارت/التلقائي) ← المسح بيستنى لحد ما يخلص */
 export const CHARGE_IN_FLIGHT_DELETE_BLOCK: CascadeDeleteBlock = {
@@ -633,6 +636,26 @@ export const NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
   reason: 'no-account',
   title: 'ما اتمسحش',
   body: 'الاشتراك لسه موجود — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
+};
+/**
+ * مسح الاشتراك بقى ذرة من السيرفر (9.5-3): بيقرا الاشتراك من السيرفر جوه الذرة، فعملية سجّلها جهاز تاني (تلقائي أو
+ * «سدّد») ولسه ما وصلتناش بتتمسح معاه بدل ما تفضل يتيمة بتحرّك الرصيد. التمن: المسح محتاج نت — والنتيجة قاطعة.
+ */
+export const NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'no-connection',
+  title: 'مفيش نت دلوقتي',
+  body: 'الاشتراك ما اتمسحش والرصيد زي ما هو. المسح لازم يتأكد من السيرفر عشان كل الدفعات اللي اتسجلت منه تتمسح معاه — جرب تاني أول ما النت يرجع.',
+};
+export const FAILED_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'failed',
+  title: 'ما اتمسحش',
+  body: 'الاشتراك لسه زي ما هو والرصيد ما اتلمسش. اتأكد إن النت شغال وجرب تاني.',
+};
+/** الذرة فشلت وسؤال السيرفر كمان — المسح بيتعاد من غير ضرر (اللي اتمسح مبيتمسحش مرتين)، فالكلام «بص وجرب» */
+export const UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'uncertain',
+  title: 'مش متأكدين',
+  body: 'مقدرناش نعرف الاشتراك اتمسح ولا لأ. استنى ثواني وبص على القايمة — لو لسه موجود جرب تاني.',
 };
 export const NO_ACCOUNT_DELETE_BLOCK_DEBT: CascadeDeleteBlock = {
   reason: 'no-account',
