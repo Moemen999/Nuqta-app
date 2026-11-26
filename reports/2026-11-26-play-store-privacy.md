@@ -23,9 +23,13 @@
    ⚠️ الريبو عام: لو عملت كوميت بيهم هيبقوا في التاريخ. ده مقبول لو ده إيميل المطوّر العام اللي هيتحط في المتجر أصلاً — قرارك.
 2. `node scripts/hosting-check.js` ← لازم يقول ✓.
 3. `npx firebase login` ثم `npx firebase deploy --only hosting`.
-4. افتح الرابطين من موبايل **من غير تسجيل دخول** واتأكد إنهم بيفتحوا (Google بترفض رابط محتاج دخول أو PDF).
+4. **قبل ما تقدّم:** `node scripts/rules-published-check.js` (بعد الدخول) — مسح الرأي بيفشل لو قواعد `feedback` مش منشورة؛ واتأكد من كونسول Firestore إن **PITR والنسخ الاحتياطية مقفولين** (لو مفتوحين، جملة «بيتمسحوا على طول» محتاجة سطر عن مدة النسخ)؛ وخطة Sentry (مدة الحفظ 30 يوم في Developer، 90 في Team).
+5. افتح الرابطين من موبايل **من غير تسجيل دخول** واتأكد إنهم بيفتحوا (Google بترفض رابط محتاج دخول أو PDF).
 
 ### فاضل (مش جوه 9.5-1)
+- **باگ محتمل (MEDIUM، من `security-reviewer`، ما اتثبتش باختبار):** بعد مسح الحساب، `NotificationsContext` لسه `enabled` في الذاكرة، فلما `DataContext` يفضّي القوايم الجدولة بتشتغل تاني وترجّع التذكير اليومي — وفي الفتحة الجاية `enabled` false فمحدش بيلغيه. وكمان `nuqta_notifs_daily_minute` مش في `multiRemove` (`delete-account.tsx:63`). **قبل التصليح: المشكّك + اختبار.** لحد ما يتصلح، صفحة المسح **مبتقولش** إن التذكيرات بتتمسح.
+- `WRITE_CONTACTS` بييجي من plugin `expo-contacts` والتطبيق مبيستخدموش ← `android.blockedPermissions` (بناء + `app.json`).
+- `redactText` مبيشيلش الإيميلات تحديدًا (`lib/sentryScrub.ts`) — الصفحة مبقتش بتوعد بده.
 - **لينك سياسة الخصوصية جوه التطبيق** (Google بتطلبه في التطبيق نفسه كمان، مش المتجر بس): صف في «عن التطبيق» بيفتح `/privacy`. تغيير شاشة ← بند لوحده مع `visual-identity-reviewer` + `a11y-architect`.
 
 ## 2) مسودة Data safety
@@ -53,7 +57,8 @@
 | App activity ← **Other user-generated content** | أيوه | اختياري | App functionality | نص الرأي، والملاحظات على العمليات |
 | App info and performance ← **Crash logs** | أيوه | إجباري | Analytics | Sentry، بعد التنضيف |
 | App info and performance ← **Diagnostics** | أيوه | إجباري | Analytics | نوع الجهاز ونسخة النظام (Sentry + الرأي) |
-| Device or other IDs | **يتحدد من مراجعة Sentry تحت** | | | |
+| **Device or other IDs** | أيوه | إجباري | Analytics | sentry-android بيحط معرّف تثبيت عشوائي في `user.id`/`device.id` (مش مربوط بالحساب). **يتأكد من حدث حقيقي في Sentry** |
+| Financial info ← Purchase history | **اختياري تعلنه للأمان** | إجباري | App functionality | المصاريف اللي المستخدم بيسجّلها؛ الوكيل اقترح تتعلن احتياطيًا — قرار مؤمن |
 
 **مش بنجمع:** Location، Phone number بتاع المستخدم نفسه، Photos/Videos، Audio، Files، Calendar، Messages، Web browsing، Installed apps، Health.
 
@@ -67,7 +72,9 @@
 - **ده قرار مؤمن وقت الملء**؛ الصياغة الدقيقة للاستمارة ما اتشافتش.
 
 ## 4) المراجعات
-<!-- REVIEWS -->
+- **`arabic-copy-reviewer`:** مفيش HIGH؛ 2 MEDIUM (زرار التصدير بيفتح الأرشيف، «زرار امسح حسابي») + LOW اتطبقوا كلهم ماعدا اللي مالوش تغيير.
+- **`security-reviewer` (opus، صحة الادعاءات):** اتصلّح في الصفحات: تقارير Sentry فيها معرّف تثبيت ومعلومات جهاز أكتر (مش «الموديل والنظام» بس) والوعد المطلق «مفيش إيميل/IP» اتشال؛ بيانات Auth اللي فايربيز بتحفظها + اختيار أول تجهيز؛ الرأي فيه معرّف الحساب والوقت؛ جلسة الدخول على الجهاز؛ التذكير على شاشة القفل؛ وصول المطوّر من الكونسول؛ «على طول» = من جوه التطبيق (الإيميل 30 يوم)؛ خط Google Fonts اتشال (كان بيبعت IP الزوّار لجوجل من صفحة الخصوصية نفسها). اتأكد صح: مفيش إعلانات ولا analytics ولا push tokens ولا fetch؛ القفل hash في SecureStore؛ الطابور متشفّر وبيتمسح؛ المسح بيغطي كل المجموعات العشرة + الرأي + `users/{uid}` + حساب الدخول.
+- **المشكّك** (قاعدة 2026-11-17) ما اتشغّلش على باگ التذكيرات — مش هيتصلّح في الجلسة دي.
 
 ## المصادر
 - Financial features declaration: https://support.google.com/googleplay/android-developer/answer/13849271
