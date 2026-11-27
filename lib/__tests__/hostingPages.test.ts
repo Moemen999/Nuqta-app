@@ -84,3 +84,21 @@ describe('صفحات الاستضافة', () => {
     expect(sentry).toMatch(/attachScreenshot: false/);
   });
 });
+
+describe('لينك الخصوصية جوه التطبيق', () => {
+  const appInfo = read(path.join('lib', 'appInfo.ts'));
+  const about = read(path.join('app', 'settings-screens', 'about.tsx'));
+  const url = appInfo.match(/PRIVACY_POLICY_URL = '([^']+)'/)?.[1] ?? '';
+
+  it('بيشاور على صفحة موجودة في الاستضافة وعلى مشروع فايربيز نفسه', () => {
+    const projectId = read('firebaseConfig.js').match(/projectId:\s*"([^"]+)"/)?.[1];
+    expect(url).toBe(`https://${projectId}.web.app/privacy`);
+    // `cleanUrls`: ‎/privacy ← privacy.html
+    expect(fs.existsSync(path.join(root, 'hosting', 'public', 'privacy.html'))).toBe(true);
+  });
+
+  it('شاشة «عن التطبيق» بتفتحه، والفشل بيطلّع رسالة فيها اللينك', () => {
+    expect(about).toMatch(/Linking\.openURL\(PRIVACY_POLICY_URL\)\.catch\(/);
+    expect(about).toMatch(/notice\([^)]*\$\{PRIVACY_POLICY_URL\}/s);
+  });
+});
