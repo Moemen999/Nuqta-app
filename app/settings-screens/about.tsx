@@ -40,7 +40,7 @@ ${PRIVACY_POLICY_URL}`));
         variant="secondary"
         icon="shield-checkmark-outline"
         label="سياسة الخصوصية"
-        accessibilityHint="بتفتح في المتصفح"
+        accessibilityHint="بيفتح الصفحة في المتصفح"
         onPress={openPrivacy}
         style={styles.link}
       />
