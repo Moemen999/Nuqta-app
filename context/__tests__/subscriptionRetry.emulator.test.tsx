@@ -432,6 +432,30 @@ describe('9.5-3: مسح الاشتراك ذرة من السيرفر', () => {
     expect(await serverTx('paid1')).toBeDefined();
   });
 
+  it('M1: closed على السيرفر مش object ← blocked «data-broken» ومفيش حاجة اتمسحت', async () => {
+    const { id } = await makeSub();
+    const uid = getMockUid();
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: 'corrupt' });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'data-broken' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
+  it('سطر في closed معرّفه بايظ وعمليته بالمعرّف الثابت على السيرفر بس ← بتتمسح مع الاشتراك', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    // من غير subscriptionId عن قصد: المعرّف الثابت هو الطريق الوحيد اللي يوصلها
+    await writeRawDoc(`users/${uid}/transactions/${subscriptionTxId(id, today)}`, {
+      type: 'expense', amount: 200, walletId, date: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 5, at: 'x' } } });
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect(await serverTx(subscriptionTxId(id, today))).toBeUndefined();
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
   it('M3: محفظة مؤرشفة على السيرفر لسه ما وصلتناش ← blocked «wallet-archived» ومفيش حاجة اتمسحت', async () => {
     const { id } = await makeSub();
     const uid = getMockUid();

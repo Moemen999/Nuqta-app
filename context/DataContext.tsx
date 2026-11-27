@@ -1920,13 +1920,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return walletAtomic(id, 'archive', async (t, serverWallets) => {
       // كل القرايات قبل كل الكتابات (شرط فايربيز)
       const moveSnaps = await Promise.all(moves.map(m => t.get(m.ref)));
+      // بننقل بس اللي لسه على المحفظة دي. اللي اتمسح أو اتنقل من جهاز تاني بيتفوّت — وبيتقال في اللوج (النوع والمعرّف بس،
+      // من غير أسامي ولا مبالغ — قاعدة Sentry) عشان التفويت ميبقاش ساكت (LOW-3)
+      const applyMoves = () => moves.forEach((m, i) => {
+        const d = moveSnaps[i];
+        const onServer = d.exists() ? (d.data() as { walletId?: unknown }).walletId : undefined;
+        if (onServer === id) { t.update(m.ref, { walletId: m.walletId }); return; }
+        console.warn('[wallet] archive move skipped', m.ref.parent.id, m.ref.id, d.exists() ? 'moved-elsewhere' : 'deleted');
+      });
       // اتأرشفت خلاص (محاولة قبل كده وصلت، أو من جهاز تاني) ← بننقل بس اللي لسه على المحفظة دي (money-reviewer M2:
       // جهاز تاني أرشفها من غير ما يعرف اشتراك عندنا، فكان هيفضل على مؤرشفة و«اتعمل»)
       if (serverWallets.find(w => w.id === id)?.archived) {
-        moves.forEach((m, i) => {
-          const d = moveSnaps[i];
-          if (d.exists() && (d.data() as { walletId?: unknown }).walletId === id) t.update(m.ref, { walletId: m.walletId });
-        });
+        applyMoves();
         return null;
       }
       const block = walletDeleteBlock(id, serverWallets) ?? reassignTargetsBlock(targets, serverWallets, id);
@@ -1934,10 +1939,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
       // اللي اتمسح (من الجهاز ده أو من جهاز تاني — دلوقتي من السيرفر، فالشباك اللي كان بيوقّع الدفعة اتقفل) بيتفوّت
       // واللي اتنقل لمحفظة تانية من جهاز تاني والشيت مفتوح (LOW-5) بيتفوّت كمان — مبنكتبش فوق اختياره هناك
-      moves.forEach((m, i) => {
-        const d = moveSnaps[i];
-        if (d.exists() && (d.data() as { walletId?: unknown }).walletId === id) t.update(m.ref, { walletId: m.walletId });
-      });
+      applyMoves();
       t.update(walletRef, { archived: true, archivedAt: new Date().toISOString() });
       return null;
     }, data => data?.archived === true);
@@ -3648,7 +3650,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بيشاور عليها: `history`، و`closed` (عملية قفلت فترة وسطرها ضاع من `history`)، وأي عملية عليها `subscriptionId`.
    * وخصم شغال على نفس الاشتراك ← المسح بيستنى: الذرة كانت هتكتب عملية بعد المسح وتفضل يتيمة.
    * 9.5-3: بقى ذرة من السيرفر (تحت) — عملية تلقائي من جهاز تاني لسه ما وصلتش الـlistener بتتمسح معاه، وفحص المحفظة
-   * المؤرشفة على العمليات ومحافظها كما هي على السيرفر (M3). `history`/`closed` بايظ ← `data-broken` (M1). **حد باقي:** عملية
+   * المؤرشفة على العمليات ومحافظها كما هي على السيرفر (M3). `history` أو `closed` مش بالشكل الصح (قايمة/object) ← `data-broken`
+   * (M1)؛ وسطر في `closed` معرّفه بايظ بيتغطّى بالمعرّف الثابت `subscriptionTxId(id, المفتاح)` (`subscriptionTransactionIds`). **حد باقي:** عملية
    * عليها `subscriptionId` ومش في `closed`/`history` على السيرفر ولا عندنا (مش بتحصل من مسارات التطبيق) مش هتتلاقى.
    */
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
@@ -3682,9 +3685,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
         let serverSub: Subscription;
         try {
           serverSub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
+          // `subscriptionFromDoc` بيفحص `history` بس — `closed` بايظ (مش object) كان بيعدّي ومعرّفاته بتضيع ساكت
+          const rawClosed = (snap.data() as { closed?: unknown }).closed;
+          if (rawClosed != null && (typeof rawClosed !== 'object' || Array.isArray(rawClosed))) throw new DocShapeError();
         } catch (shapeError) {
           if (!(shapeError instanceof DocShapeError)) throw shapeError;
-          // M1: `history`/`closed` على السيرفر شكله غلط ← مش عارفين كل العمليات، فمبنمسحش. ومش «النت» (الشكل اتبعت Sentry من `fromDoc`)
+          // M1: `history`/`closed` على السيرفر شكله غلط ← مش عارفين كل العمليات، فمبنمسحش. ومش «النت» (شكل `history` بيتبعت Sentry من `fromDoc`، و`closed` في السطر ده)
           console.warn('[subscription] delete refused, stored history/closed unreadable', id);
           result = { outcome: 'blocked', ...BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION };
           return;
@@ -3693,7 +3699,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // M3: العمليات **ومحافظها** بتتقري من السيرفر جوه الذرة (قليلين): لو واحدة منهم على محفظة مؤرشفة، مسحها هيحرّك رصيد
         // مؤرشف ساكت — ومحفظة اتأرشفت من جهاز تاني أو عملية اتنقلت لمحفظة تانية لسه ما وصلوناش كانوا بيعدّوا من نسختنا
         const txSnaps = await Promise.all(txIds.map(x => t.get(doc(db, 'users', user, 'transactions', x))));
-        // البايظة برّه كل رصيد (بند B)، فمسحها مبيحرّكش رقم ظاهر — زي نسختنا المحلية
+        // البايظة برّه كل رصيد (بند B)، فمسحها مبيحرّكش رقم ظاهر — زي نسختنا المحلية.
+        // حد معروف: البايظة مبتدخلش فحص المحفظة المؤرشفة تحت بس بتتمسح — مبتأثرش على أي رصيد ظاهر، فمش بنمنع عشانها
         const serverTxs = txSnaps.filter(x => x.exists()).flatMap(x => {
           const r = transactionFromDoc<Transaction>(x.id, x.data());
           return r.ok ? [r.tx] : [];

@@ -2,7 +2,7 @@ import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataCont
 import type { RecurringIncome } from '@/lib/recurringIncome';
 import { walletBalance } from '@/lib/finance';
 import type { AmountFormatter } from '@/lib/money';
-import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId } from '@/lib/autoCharge';
+import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId, subscriptionTxId } from '@/lib/autoCharge';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
@@ -539,16 +539,19 @@ export function debtTransactionIds(d: Pick<Debt, 'initialTransactionId' | 'payme
 
 /**
  * كل عمليات الاشتراك (بند H، 2026-11-17): من `history`، ومن `closed` (عملية قفلت فترة وسطرها ضاع من `history`)،
- * ولو اتبعتت `transactions`: أي عملية عليها `subscriptionId` بتاعه — مسح الاشتراك كان بيسيبهم يتامى بيحرّكوا الرصيد.
+ * والمعرّف الثابت لكل فترة في `closed` (`subscriptionTxId` — 9.5-3؛ مسح معرّف مش موجود مبيعملش حاجة)، ولو اتبعتت `transactions`: أي عملية عليها `subscriptionId` بتاعه — مسح الاشتراك كان بيسيبهم يتامى بيحرّكوا الرصيد.
  */
 export function subscriptionTransactionIds(
   s: (Pick<Subscription, 'history'> & { id?: string; closed?: Record<string, { txId?: string }> }) | undefined,
   transactions: { id: string; subscriptionId?: string }[] = [],
 ): string[] {
   if (!s) return [];
+  const closed = s.closed && typeof s.closed === 'object' && !Array.isArray(s.closed) ? s.closed : {};
   const ids = [
-    ...(s.history || []).map(h => h.transactionId),
-    ...Object.values(s.closed || {}).map(c => c?.txId),
+    ...(Array.isArray(s.history) ? s.history : []).map(h => h?.transactionId),
+    ...Object.values(closed).map(c => c?.txId),
+    // المعرّف الثابت لكل فترة في `closed` (زي `gamiyaTxId` في الجمعية): سطر معرّفه بايظ أو ناقص عمليته بتتلاقى برضه
+    ...(s.id ? Object.keys(closed).map(k => subscriptionTxId(s.id!, k)) : []),
     ...(s.id ? transactions.filter(t => t.subscriptionId === s.id).map(t => t.id) : []),
   ].filter((x): x is string => typeof x === 'string' && !!x);
   return [...new Set(ids)];
@@ -655,11 +658,12 @@ export const FAILED_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
  * 9.5-3 (M1): سجل دفعات الاشتراك على السيرفر متخزّن بشكل مش مقروء (`history` مش قايمة ← `DocShapeError`). منقدرش
  * نعرف كل العمليات اللي اتسجلت منه، فالمسح كان هيسيب منها يتامى بتحرّك الرصيد ساكت ← مبنمسحش. قبل كده الرسالة كانت
  * «اتأكد إن النت شغال» للأبد، والنت مش السبب. نفس الذرات التانية (دفعة الدين، شهر الجمعية): الشكل البايظ ← مفيش كتابة.
+ * «وقّفه مؤقتًا» (`setSubscriptionActive`) شغال هنا لأنه مبيقراش `history` — فالمستخدم عنده مخرج يوقف بيه الخصم.
  */
 export const BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
   reason: 'data-broken',
   title: 'ما اتمسحش',
-  body: 'سجل الدفعات بتاع الاشتراك ده متخزّن بشكل مش مقروء، فمش قادرين نعرف كل الدفعات اللي اتسجلت منه عشان تتمسح معاه. الاشتراك والرصيد زي ما هما — ابعتلنا من "شاركنا رأيك" في الإعدادات.',
+  body: 'سجل الدفعات بتاع الاشتراك ده متخزّن بشكل مش مقروء، فمش قادرين نعرف كل الدفعات اللي اتسجلت منه عشان تتمسح معاه. الاشتراك والرصيد زي ما هما. لو عايز توقّف خصمه دلوقتي دوس "وقّفه مؤقتًا"، وابعتلنا من "شاركنا رأيك" في الإعدادات.',
 };
 /** الذرة فشلت وسؤال السيرفر كمان — المسح بيتعاد من غير ضرر (اللي اتمسح مبيتمسحش مرتين)، فالكلام «بص وجرب» */
 export const UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
