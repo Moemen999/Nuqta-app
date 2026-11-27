@@ -607,7 +607,7 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
 };
 
 export type CascadeDeleteBlock = {
-  reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account' | 'no-connection' | 'failed' | 'uncertain';
+  reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account' | 'no-connection' | 'failed' | 'uncertain' | 'data-broken';
   title: string; body: string;
 };
 
@@ -650,6 +650,16 @@ export const FAILED_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
   reason: 'failed',
   title: 'ما اتمسحش',
   body: 'الاشتراك لسه زي ما هو والرصيد ما اتلمسش. اتأكد إن النت شغال وجرب تاني.',
+};
+/**
+ * 9.5-3 (M1): سجل دفعات الاشتراك على السيرفر متخزّن بشكل مش مقروء (`history` مش قايمة ← `DocShapeError`). منقدرش
+ * نعرف كل العمليات اللي اتسجلت منه، فالمسح كان هيسيب منها يتامى بتحرّك الرصيد ساكت ← مبنمسحش. قبل كده الرسالة كانت
+ * «اتأكد إن النت شغال» للأبد، والنت مش السبب. نفس الذرات التانية (دفعة الدين، شهر الجمعية): الشكل البايظ ← مفيش كتابة.
+ */
+export const BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'data-broken',
+  title: 'ما اتمسحش',
+  body: 'سجل الدفعات بتاع الاشتراك ده متخزّن بشكل مش مقروء، فمش قادرين نعرف كل الدفعات اللي اتسجلت منه عشان تتمسح معاه. الاشتراك والرصيد زي ما هما — ابعتلنا من "شاركنا رأيك" في الإعدادات.',
 };
 /** الذرة فشلت وسؤال السيرفر كمان — المسح بيتعاد من غير ضرر (اللي اتمسح مبيتمسحش مرتين)، فالكلام «بص وجرب» */
 export const UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {

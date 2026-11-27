@@ -418,6 +418,37 @@ describe('9.5-3: مسح الاشتراك ذرة من السيرفر', () => {
     expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
   });
 
+  it('M1: history على السيرفر مش قايمة ← blocked «data-broken» (مش «النت») ومفيش حاجة اتمسحت', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    await writeRawDoc(`users/${uid}/transactions/paid1`, {
+      type: 'expense', amount: 200, walletId, date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, history: 'corrupt' });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'data-broken' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+    expect(await serverTx('paid1')).toBeDefined();
+  });
+
+  it('M3: محفظة مؤرشفة على السيرفر لسه ما وصلتناش ← blocked «wallet-archived» ومفيش حاجة اتمسحت', async () => {
+    const { id } = await makeSub();
+    const uid = getMockUid();
+    // محفظة مؤرشفة وعملية عليها من جهاز تاني. **حد الاختبار:** الـlistener غالبًا بيلحق قبل الذرة (اتجرب: النسخة القديمة
+    // اللي بتاخد المحافظ من نسختنا بتعدّيه كمان)، فده بيثبّت النتيجة مش إن الفحص من السيرفر — مفيش طريقة نوقّف بيها الـlistener هنا
+    await writeRawDoc(`users/${uid}/wallets/archivedElsewhere`, { name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true });
+    await writeRawDoc(`users/${uid}/transactions/onArchived`, {
+      type: 'expense', amount: 200, walletId: 'archivedElsewhere', date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 'onArchived', at: 'x' } } });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'wallet-archived' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+    expect(await serverTx('onArchived')).toBeDefined();
+  });
+
 });
 
 describe('مبلغ مش صالح من الكارت', () => {
