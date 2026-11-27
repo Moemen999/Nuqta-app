@@ -173,14 +173,9 @@ export default function FirstRunSetup() {
       <View style={[styles.center, { paddingTop: insets.top }]} testID="setup_error">
         <Text style={styles.failTitle} accessibilityRole="alert">{msg.title}</Text>
         <Text style={styles.centerText}>{msg.body}</Text>
-        <TouchableOpacity testID="setup_retry" style={[styles.primaryBtn, styles.wideBtn]} onPress={() => save(fail.choice)}
-          accessibilityRole="button">
-          <Text style={styles.primaryText}>جرّب تاني</Text>
-        </TouchableOpacity>
-        <TouchableOpacity testID="setup_error_back" style={[styles.ghostBtn, styles.wideBtn]} onPress={() => setFail(null)}
-          accessibilityRole="button">
-          <Text style={styles.ghostText}>رجوع للاختيارات</Text>
-        </TouchableOpacity>
+        <Button testID="setup_retry" label="جرّب تاني" style={styles.wideBtn} onPress={() => save(fail.choice)} />
+        <Button variant="secondary" testID="setup_error_back" label="رجوع للاختيارات" style={styles.wideBtn}
+          onPress={() => setFail(null)} />
       </View>
     );
   }
@@ -193,14 +188,9 @@ export default function FirstRunSetup() {
         <Text style={styles.centerText}>
           اختار المحافظ اللي بتصرف منها ورصيد كل واحدة دلوقتي، والفئات اللي بتصرف عليها. تقدر تغيّر أي حاجة بعدين من الإعدادات.
         </Text>
-        <TouchableOpacity testID="setup_start" style={[styles.primaryBtn, styles.wideBtn]} onPress={() => setStep('wallets')}
-          accessibilityRole="button">
-          <Text style={styles.primaryText}>يلا نجهّز</Text>
-        </TouchableOpacity>
-        <TouchableOpacity testID="setup_skip" style={[styles.ghostBtn, styles.wideBtn]} onPress={() => save(SKIP_SETUP)}
-          accessibilityRole="button" accessibilityHint="هنعملك محفظة كاش وفئات أساسية">
-          <Text style={styles.ghostText}>تخطي</Text>
-        </TouchableOpacity>
+        <Button testID="setup_start" label="يلا نجهّز" style={styles.wideBtn} onPress={() => setStep('wallets')} />
+        <Button variant="secondary" testID="setup_skip" label="تخطي" style={styles.wideBtn} onPress={() => save(SKIP_SETUP)}
+          accessibilityHint="هنعملك محفظة كاش وفئات أساسية" />
         <Text style={styles.hint}>{'"تخطي" بيعملك محفظة كاش رصيدها صفر وفئات أساسية.'}</Text>
         {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
       </View>
@@ -278,18 +268,12 @@ export default function FirstRunSetup() {
       {!!error && <Text style={[styles.error, { paddingHorizontal: space.xxl }]} accessibilityRole="alert">{error}</Text>}
       <View style={stickyFooterStyle(colors, colors.bg, insets.bottom)}>
         {step === 'wallets' ? (
-          <TouchableOpacity testID="setup_next" style={[styles.primaryBtn, styles.flexBtn]} onPress={goToCategories} accessibilityRole="button">
-            <Text style={styles.primaryText}>التالي</Text>
-          </TouchableOpacity>
+          <Button testID="setup_next" label="التالي" style={styles.flexBtn} onPress={goToCategories} />
         ) : (
-          <TouchableOpacity testID="setup_finish" style={[styles.primaryBtn, styles.flexBtn]} onPress={finish} accessibilityRole="button">
-            <Text style={styles.primaryText}>خلّصنا</Text>
-          </TouchableOpacity>
+          <Button testID="setup_finish" label="خلّصنا" style={styles.flexBtn} onPress={finish} />
         )}
-        <TouchableOpacity testID="setup_back" style={[styles.ghostBtn, styles.flexBtn]}
-          onPress={() => { setError(''); setStep(step === 'wallets' ? 'welcome' : 'wallets'); }} accessibilityRole="button">
-          <Text style={styles.ghostText}>رجوع</Text>
-        </TouchableOpacity>
+        <Button variant="secondary" testID="setup_back" label="رجوع" style={styles.flexBtn}
+          onPress={() => { setError(''); setStep(step === 'wallets' ? 'welcome' : 'wallets'); }} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -329,10 +313,6 @@ function makeStyles(c: ThemeColors) {
     },
     addBtn: { minWidth: MIN_TOUCH + 16 },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.lg },
-    primaryBtn: { backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    primaryText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
-    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    ghostText: { color: c.textSecondary, fontSize: typeScale.title },
     wideBtn: { alignSelf: 'stretch', marginTop: space.xxs },
     flexBtn: { flex: 1 },
   });

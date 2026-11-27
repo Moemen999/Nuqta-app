@@ -126,20 +126,10 @@ export default function LockScreen_Settings() {
           )}
 
           <View style={[styles.row, { marginTop: space.xxl }]}>
-            <TouchableOpacity
-              testID="lock_change_button"
-              accessibilityRole="button"
-              style={styles.changeBtn}
-              onPress={() => setModalMode('change')}>
-              <Text style={styles.btnLabel}>تغيير الكود</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="lock_disable_button"
-              accessibilityRole="button"
-              style={styles.disableBtn}
-              onPress={() => setModalMode('disable')}>
-              <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>إلغاء القفل</Text>
-            </TouchableOpacity>
+            <Button variant="secondary" testID="lock_change_button" label="تغيير الكود" style={styles.flexBtn}
+              onPress={() => setModalMode('change')} />
+            <Button variant="danger" testID="lock_disable_button" label="إلغاء القفل" style={styles.flexBtn}
+              onPress={() => setModalMode('disable')} />
           </View>
         </View>
       )}
@@ -166,7 +156,6 @@ function makeStyles(c: ThemeColors) {
     graceLabel: { color: c.text, fontSize: typeScale.caption },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: MIN_TOUCH },
-    changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
-    disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
+    flexBtn: { flex: 1 },
   });
 }
