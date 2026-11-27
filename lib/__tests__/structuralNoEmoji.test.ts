@@ -9,7 +9,7 @@ import { join } from 'path';
 const read = (p: string) => readFileSync(join(__dirname, '..', '..', p), 'utf8');
 // إيموجي الصور + الرموز المتنوعة (ساعة رملية، ترس، سهم الاتجاهين، علامة صح) — الأسهم العادية في التعليقات مسموحة.
 // ✕ (U+2715) برّه عن قصد: التعليقات بتسمّي بيه زرار الإغلاق (`DismissButton`)
-const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2194}\u{2300}-\u{23FF}\u{2600}-\u{2714}\u{2716}-\u{27BF}\u{FE0F}]/u;
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2194}\u{2300}-\u{23FF}\u{2600}-\u{2714}\u{2716}-\u{27BF}\u{2B00}-\u{2BFF}\u{200D}\u{FE0F}]/u;
 
 const FILES = [
   'components/MutedMark.tsx',
@@ -32,7 +32,7 @@ describe('مفيش إيموجي في الهيكل', () => {
     for (const f of ['components/ChargeHomeCards.tsx', 'components/IncomeHomeCards.tsx']) {
       const src = read(f);
       expect(src).toContain('checkmark-circle-outline');
-      expect(src).toMatch(/<View style=\{styles\.titleRow\}>\s*<LineIcon/);
+      expect(src).toMatch(/<View style=\{styles\.titleRow\}>\s*<View style=\{styles\.titleIcon\}><LineIcon/);
     }
   });
 });

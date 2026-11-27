@@ -21,5 +21,5 @@ export default function MutedMark({ icon, text, label, testID }: { icon: LineIco
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.xxs, marginTop: 2 },
-  mark: { fontSize: typeScale.caption },
+  mark: { fontSize: typeScale.caption, flexShrink: 1, textAlign: 'right' },
 });

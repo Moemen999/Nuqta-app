@@ -341,7 +341,7 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
             <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(inst, amountsHidden)}` : ''}${instUnreadable ? `، ${PAYOUT_INSTALLMENT_UNREADABLE_LINE}` : ''}`)}>
             <View style={styles.titleRow}>
-              <LineIcon name={p.kind === 'subscription' ? 'receipt-outline' : 'people-outline'} size={typeScale.title} color={colors.accentText} />
+              <View style={styles.titleIcon}><LineIcon name={p.kind === 'subscription' ? 'receipt-outline' : 'people-outline'} size={typeScale.title} color={colors.accentText} /></View>
               <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{plainTitleOf(p)}</Text>
             </View>
             <Text style={styles.sub}>
@@ -479,7 +479,8 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
-    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm },
+    titleIcon: { marginTop: 2 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     noticeIcon: { marginTop: 2 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },

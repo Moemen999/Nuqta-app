@@ -152,7 +152,7 @@ export default function IncomeHomeCards() {
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
             <View style={styles.titleRow}>
-              <LineIcon name="cash-outline" size={typeScale.title} color={colors.accentText} />
+              <View style={styles.titleIcon}><LineIcon name="cash-outline" size={typeScale.title} color={colors.accentText} /></View>
               <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{`"${inc.name}" نزل؟`}</Text>
             </View>
             <Text style={styles.sub}>
@@ -253,7 +253,8 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
-    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm },
+    titleIcon: { marginTop: 2 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
     noticeIcon: { marginTop: 2 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
