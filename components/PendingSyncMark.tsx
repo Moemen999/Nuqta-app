@@ -1,7 +1,4 @@
-import { useTheme } from '@/context/ThemeContext';
-import { StyleSheet} from 'react-native';
-import { Text } from '@/components/AppText';
-import { typeScale } from '@/lib/tokens';
+import MutedMark from '@/components/MutedMark';
 
 /**
  * علامة صغيرة جنب تاريخ العملية معناها إنها اتحفظت على الموبايل ولسه بترفع.
@@ -11,11 +8,5 @@ import { typeScale } from '@/lib/tokens';
  * "لسه بترفع" مش "لسه ما اترفعتش": الأولى بتقول إنها شغالة، التانية بتوحي بفشل.
  */
 export default function PendingSyncMark() {
-  const { colors } = useTheme();
-  // قارئ الشاشة كان بيقرا اسم الإيموجي «ساعة رملية» قبل الكلام (الميزة 8)
-  return <Text style={[styles.mark, { color: colors.textMuted }]} accessibilityLabel="لسه بترفع">⏳ لسه بترفع</Text>;
+  return <MutedMark icon="cloud-upload-outline" text="لسه بترفع" label="لسه بترفع" />;
 }
-
-const styles = StyleSheet.create({
-  mark: { fontSize: typeScale.caption, marginTop: 2 },
-});

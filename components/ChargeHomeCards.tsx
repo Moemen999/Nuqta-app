@@ -29,6 +29,7 @@ import {
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { LineIcon } from '@/components/LineIcon';
 
 /**
  * كروت "اتخصم؟" — الاشتراكات وأقساط الجمعية اللي "بتأكيد" (الافتراضي) ومعادها
@@ -156,13 +157,10 @@ export function usePendingCharges(): PendingCharge[] {
   ].filter(p => !snoozed.has(snoozeKey(p, today)));
 }
 
-/** من غير إيموجي لقارئ الشاشة */
+/** عنوان الكارت — الأيقونة جنبه (`LineIcon`، كانت إيموجي لحد 9.5-5) */
 function plainTitleOf(p: PendingCharge) {
   if (p.kind === 'subscription') return `اشتراك "${p.name}" اتخصم؟`;
   return p.payout ? `استلمت جمعية "${p.name}"؟` : `قسط جمعية "${p.name}" اتدفع؟`;
-}
-function titleOf(p: PendingCharge) {
-  return `${p.kind === 'subscription' ? '🧾' : '🤝'} ${plainTitleOf(p)}`;
 }
 function yesLabel(p: PendingCharge) {
   if (p.kind === 'subscription') return 'اتخصم';
@@ -198,8 +196,9 @@ export function ChargeAutoNotices() {
     <View style={styles.wrap}>
       {notices.map(n => (
         <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}>
+          {n.kind === 'recorded' && <View style={styles.noticeIcon}><LineIcon name="checkmark-circle-outline" size={16} color={colors.textSecondary} /></View>}
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
-            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
+            {n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
           {/* رسالة حدث (اتسجل/ما اتسجلش) مش حالة — الـ✕ هنا بيقفلها خالص ومبترجعش */}
@@ -341,7 +340,10 @@ export default function ChargeHomeCards({ kind }: { kind?: ChargeKind } = {}) {
         return (
           <View key={busyId(p)} style={styles.card} testID={`charge_card_${p.id}${p.payout ? '_payout' : ''}`}>
             <View accessible accessibilityLabel={speakable(`${plainTitleOf(p)} ${p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)}، من ${walletHistoryName(wallets, p.walletId)}${more > 0 ? `، ${morePeriodsPhrase(more)} بعدها` : ''}${p.kind === 'subscription' && charge.key.slice(0, 7) !== today.slice(0, 7) ? `، ${SUB_RECORDS_TODAY_HINT}` : ''}، ${p.payout ? 'هتستلم' : 'هيتخصم'} ${moneyText(charge.amount, amountsHidden)}${showInst ? `، ${PAYOUT_INSTALLMENT_LINE} ${moneyText(inst, amountsHidden)}` : ''}${instUnreadable ? `، ${PAYOUT_INSTALLMENT_UNREADABLE_LINE}` : ''}`)}>
-            <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{titleOf(p)}</Text>
+            <View style={styles.titleRow}>
+              <LineIcon name={p.kind === 'subscription' ? 'receipt-outline' : 'people-outline'} size={typeScale.title} color={colors.accentText} />
+              <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{plainTitleOf(p)}</Text>
+            </View>
             <Text style={styles.sub}>
               {p.kind === 'subscription' ? `معاده ${p.labelOf(charge.key)}` : p.labelOf(charge.key)} · من {walletHistoryName(wallets, p.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -477,7 +479,9 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
+    noticeIcon: { marginTop: 2 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
     cardActions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },

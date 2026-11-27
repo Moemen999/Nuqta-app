@@ -22,6 +22,7 @@ import {
   StyleSheet, View,
 } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { LineIcon } from '@/components/LineIcon';
 
 /**
  * كروت الدخل الثابت:
@@ -75,10 +76,11 @@ export function IncomeAutoNotices() {
       {notices.map(n => (
         <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
           accessibilityLiveRegion="polite">
-          {/* العلامة ✓ شكل بس — الاسم المنطوق من غيرها */}
+          {/* علامة «اتسجل» شكل بس (`LineIcon` مخفية) — الاسم المنطوق من غيرها */}
+          {n.kind === 'recorded' && <View style={styles.noticeIcon}><LineIcon name="checkmark-circle-outline" size={16} color={colors.textSecondary} /></View>}
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}
             accessibilityLabel={`${n.text}${n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}`}>
-            {n.kind === 'recorded' ? '✓ ' : ''}{n.text}
+            {n.text}
             {n.kind === 'recorded' ? '. لو الرقم مختلف عدّله من الأرشيف.' : ''}
           </Text>
           {/* رسالة حدث (اتسجل/ما اتسجلش) مش حالة — الـ✕ هنا بيقفلها خالص ومبترجعش */}
@@ -149,8 +151,10 @@ export default function IncomeHomeCards() {
         const more = keys.length - 1;
         return (
           <View key={inc.id} style={styles.card} testID={`income_card_${inc.id}`}>
-            <Text numberOfLines={2} style={styles.title} accessibilityRole="header"
-              accessibilityLabel={`"${inc.name}" نزل؟`}>{`💵 "${inc.name}" نزل؟`}</Text>
+            <View style={styles.titleRow}>
+              <LineIcon name="cash-outline" size={typeScale.title} color={colors.accentText} />
+              <Text numberOfLines={2} style={styles.title} accessibilityRole="header">{`"${inc.name}" نزل؟`}</Text>
+            </View>
             <Text style={styles.sub}>
               {incomePeriodLabel(inc, key, today)} · في {walletHistoryName(wallets, inc.walletId)}
               {more > 0 ? ` · ${morePeriodsPhrase(more)} بعدها` : ''}
@@ -249,7 +253,9 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md,
       borderWidth: 1, borderColor: c.border, borderRightWidth: 4, borderRightColor: c.accent,
     },
+    titleRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.sm },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', flexShrink: 1 },
+    noticeIcon: { marginTop: 2 },
     sub: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs },
     amount: { color: c.incomeText, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', marginTop: space.sm },
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
