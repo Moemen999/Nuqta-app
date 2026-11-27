@@ -56,6 +56,14 @@ describe('Button', () => {
     expect(screen.getByTestId('b').props.accessibilityLabel).toBe('إضافة فئة');
   });
 
+  // الأزرار اللي اتنقلت من TouchableOpacity خرجت من مسح touchTargets.test.ts — فالحد الأدنى يتثبّت هنا مرة للكل
+  it.each(['md', 'sm'] as const)('هدف اللمس ≥44 حتى بالمقاس %s', async (size) => {
+    await wrap(<Button testID="b" label="حفظ" size={size} />);
+    const style = screen.getByTestId('b').props.style;
+    const flat = Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+    expect(flat.minHeight).toBeGreaterThanOrEqual(44);
+  });
+
   it('accessibilityHint بيتمرر للـPressable', async () => {
     await wrap(<Button testID="b" label="لسه" accessibilityHint="الكارت هيستخبّى النهاردة بس" />);
     expect(screen.getByTestId('b').props.accessibilityHint).toBe('الكارت هيستخبّى النهاردة بس');
