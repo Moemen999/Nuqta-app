@@ -49,7 +49,11 @@ describe('معرّفات العمليات لكل نوع', () => {
       ...sub, id: 's', closed: { '2026-01-01': { txId: 't_s1', at: 'a' }, '2026-02-01': { txId: 't_closed_only', at: 'a' }, '2026-03-01': { skipped: true, at: 'a' } },
     } as unknown as Subscription;
     expect(subscriptionTransactionIds(s, [{ id: 't_stray', subscriptionId: 's' }, { id: 'other', subscriptionId: 'x' }, { id: 't_s2', subscriptionId: 's' }]))
-      .toEqual(['t_s1', 't_s2', 't_closed_only', 't_stray']);
+      .toEqual(['t_s1', 't_s2', 't_closed_only', 'sub_s_2026-01-01', 'sub_s_2026-02-01', 'sub_s_2026-03-01', 't_stray']);
+  });
+  it('الاشتراك (9.5-3): closed مش object (قايمة/نص) ← مبيطلعش منه معرّفات بالغلط', () => {
+    expect(subscriptionTransactionIds({ ...sub, closed: 'xyz' } as unknown as Subscription)).toEqual(['t_s1', 't_s2']);
+    expect(subscriptionTransactionIds({ ...sub, closed: [{ txId: 'arr' }] } as unknown as Subscription)).toEqual(['t_s1', 't_s2']);
   });
   it('الجمعية (بند C، 2026-11-18): المربوطة في الشهور + المعرّف الثابت لكل شهر + أي عملية عليها gamiyaId، من غير تكرار', () => {
     expect(gamiyaTransactionIds(gam)).toEqual(['t_g1', 'gamiya_g_m1', 'gamiya_g_m2']);

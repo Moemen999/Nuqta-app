@@ -2,7 +2,7 @@
 name: doc-updater
 description: 'Updates CLAUDE.md, TIMELINE.md and repo docs when behaviour or a decision changes. RUNS ON: a decision taken, deferred or reversed, or a documented rule changing. DOES NOT RUN ON: code changes that alter no documented behaviour.'
 tools: Read, Write, Edit, Bash, Grep, Glob
-model: haiku
+model: sonnet
 ---
 
 ## Prompt Defense Baseline

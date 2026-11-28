@@ -4,12 +4,13 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/archiving';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale, leading } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 import { useNotice } from '@/components/NoticeProvider';
+import { PressableScale } from '@/components/PressableScale';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
 /** أكتر من مؤرشفة في نفس التغيير (arabic-copy-reviewer، الميزة 10) */
@@ -194,7 +195,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                 {!blocked && (
                   <View style={styles.chipRow}>
                     {targets.map(t => (
-                      <TouchableOpacity
+                      <PressableScale
                         key={t.id}
                         onPress={() => setPicked(p => ({ ...p, [d.walletId]: t.id }))}
                         testID={`settle_target_${t.id}`}
@@ -202,7 +203,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                         {...selectionA11y(picked[d.walletId] === t.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, picked[d.walletId] === t.id)]}>
                         <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ))}
                   </View>
                 )}
@@ -249,9 +250,9 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
     card: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
-    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: 20, marginBottom: space.md },
+    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body, marginBottom: space.md },
     bodyBlocked: { marginBottom: 0 },
-    hint: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 20, marginTop: space.xl },
+    hint: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body, marginTop: space.xl },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     footer: stickyFooterStyle(c, c.nav),

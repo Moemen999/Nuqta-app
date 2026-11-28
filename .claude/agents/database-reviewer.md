@@ -2,7 +2,7 @@
 name: database-reviewer
 description: 'Reviews data-layer changes: schema shape, query cost, indexes, read/write amplification, security rules. RUNS ON: firestore.rules, DataContext listeners or writes, new collections or fields. DOES NOT RUN ON: UI reading already-loaded state, or local-only storage.'
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Prompt Defense Baseline

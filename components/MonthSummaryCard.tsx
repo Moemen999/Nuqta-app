@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from 'react';
 import { budgetLevelColor } from '@/lib/budgetForecast';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ProgressRing } from '@/components/ProgressRing';
 import { HeroAmount } from '@/components/HeroAmount';
@@ -12,6 +12,7 @@ import { speakable } from '@/lib/money';
 import type { MonthSummary } from '@/lib/monthSummary';
 import { TRANSFERS_FAILED_NOTE, TX_LOAD_ERROR } from '@/lib/spending';
 import { cardElevation, radius, space, typeScale } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 export const MONTH_CARD_TITLE = 'صرفت الشهر ده';
 // نفس جملة التقارير والأرشيف (Feature 9) — مصدر واحد
@@ -121,7 +122,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
   }
 
   return (
-    <TouchableOpacity
+    <PressableScale
       testID={testID}
       style={styles.card}
       onPress={onPress}
@@ -130,7 +131,7 @@ export default function MonthSummaryCard({ state, onPress, testID }: { state: Mo
       accessibilityHint={MONTH_CARD_HINT}>
       <Text style={styles.title} accessible={false}>{MONTH_CARD_TITLE}</Text>
       {body}
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 

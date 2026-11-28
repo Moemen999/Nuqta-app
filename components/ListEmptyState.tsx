@@ -4,7 +4,7 @@ import { LOAD_ERROR_RETRY } from '@/lib/listenerErrors';
 import { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { radius, typeScale } from '@/lib/tokens';
+import { radius, typeScale, leading } from '@/lib/tokens';
 
 type Kind = 'wallets' | 'categories';
 
@@ -64,6 +64,6 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface2, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border,
       paddingHorizontal: 14, paddingVertical: 16, marginTop: 4,
     },
-    text: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 19 },
+    text: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: leading.caption },
   });
 }

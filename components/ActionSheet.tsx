@@ -2,8 +2,9 @@ import { Text } from '@/components/AppText';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, typeScale } from '@/lib/tokens';
 import { createContext, useContext, useEffect, useMemo, useRef, type Context, type RefObject } from 'react';
-import { AccessibilityInfo, findNodeHandle, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import * as SafeArea from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 export type SheetAction = {
   key: string; label: string; onPress: () => void; danger?: boolean; testID?: string; disabled?: boolean;
@@ -63,28 +64,28 @@ export function ActionSheet({ visible, title, actions, onClose, testID, returnFo
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={cancel} onDismiss={runPending}>
-      <TouchableOpacity accessible={false} activeOpacity={1} style={styles.overlay} onPress={cancel}>
-        <TouchableOpacity accessible={false} activeOpacity={1} onPress={() => {}} testID={visible ? testID : undefined}
+      <PressableScale accessible={false} activeOpacity={1} style={styles.overlay} onPress={cancel}>
+        <PressableScale accessible={false} activeOpacity={1} onPress={() => {}} testID={visible ? testID : undefined}
           accessibilityViewIsModal onAccessibilityEscape={cancel}
           style={[styles.sheet, { paddingBottom: space.xxxl + bottomInset }]}>
           <Text style={styles.title} accessibilityRole="header" numberOfLines={2}>{title}</Text>
           {/* سقف وتمرير: بخط كبير أو شاشة صغيرة "إلغاء" و"حذف" كانوا ممكن يطلعوا برّه (a11y-architect) */}
           <ScrollView style={styles.list} bounces={false}>
             {actions.map(a => (
-              <TouchableOpacity key={a.key} testID={a.testID} accessibilityRole={a.selected !== undefined ? 'radio' : 'button'} disabled={a.disabled}
+              <PressableScale key={a.key} testID={a.testID} accessibilityRole={a.selected !== undefined ? 'radio' : 'button'} disabled={a.disabled}
                 accessibilityState={{ disabled: !!a.disabled, ...(a.selected !== undefined ? { checked: a.selected } : {}) }}
                 accessibilityHint={a.danger ? 'هيسألك الأول قبل ما يمسح' : undefined}
                 style={[styles.item, a.danger && styles.itemDanger, a.disabled && styles.itemDisabled]}
                 onPress={() => choose(a)}>
                 <Text style={[styles.itemText, a.danger && { color: colors.dangerText }]}>{a.label}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </ScrollView>
-          <TouchableOpacity accessibilityRole="button" testID={testID ? `${testID}_cancel` : undefined} style={styles.cancel} onPress={cancel}>
+          <PressableScale accessibilityRole="button" testID={testID ? `${testID}_cancel` : undefined} style={styles.cancel} onPress={cancel}>
             <Text style={styles.cancelText}>إلغاء</Text>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+          </PressableScale>
+        </PressableScale>
+      </PressableScale>
     </Modal>
   );
 }

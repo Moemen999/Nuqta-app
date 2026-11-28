@@ -2,14 +2,14 @@ import { useNotice } from '@/components/NoticeProvider';
 import { useAuth } from '@/context/AuthContext';
 import { figuresFresh, pendingFigureSources } from '@/lib/staleFigures';
 import { transfersStatusFrom, type TransfersStatus } from '@/lib/spending';
-import { debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, splitTransactions, subscriptionFromDoc, walletFromDoc, withId, type BrokenTransaction } from '@/lib/fromDoc';
+import { DocShapeError, debtFromDoc, finiteOr, gamiyaFromDoc, incomeFromDoc, numberField, splitTransactions, subscriptionFromDoc, transactionFromDoc, walletFromDoc, withId, type BrokenTransaction } from '@/lib/fromDoc';
 import { dueDateAfterIncreaseRemoval, dueDateAfterPaymentRemoval, paymentsAfterRemoval, reopenedDueMessage } from '@/lib/reopenDue';
 import { buildColdSnapshot, COLD_CACHE_PREFIX, COLD_CACHE_WRITE_DELAY_MS, coldCacheKey, coldSnapshotToShow, parseColdSnapshot, type ColdSnapshot } from '@/lib/coldCache';
 import type { FullExportInput } from '@/lib/fullExport';
 import { feedbackFromDoc } from '@/lib/fullExport';
 import { db } from '@/firebaseConfig';
 import {
-  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_DEBT, NO_ACCOUNT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION, cascadeDeleteBlock, categoryDeleteBlock, debtTransactionIds, gamiyaTransactionIds, reassignTargetsBlock, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
+  CHARGE_IN_FLIGHT_DELETE_BLOCK, CHARGE_IN_FLIGHT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_DEBT, NO_ACCOUNT_DELETE_BLOCK_GAMIYA, NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION, NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION, FAILED_DELETE_BLOCK_SUBSCRIPTION, UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION, BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION, cascadeDeleteBlock, categoryDeleteBlock, debtTransactionIds, gamiyaTransactionIds, reassignTargetsBlock, settlementNote, subscriptionTransactionIds, walletDeleteBlock,
   type ArchiveBlock, type CascadeDeleteBlock, type CascadeKind,
 } from '@/lib/archiving';
 import { reportAtomicFailure, type AtomicOp } from '@/lib/atomicFailure';
@@ -214,6 +214,13 @@ export type GamiyaEdit = Partial<Pick<Gamiya, 'name' | 'walletId' | 'reminderDay
 
 /** نتيجة `deleteWallet`/`archiveWallet` (والفئة زيها) — `blocked` بنفس نوع حظر الشاشة، فالرسالة واحدة */
 export type WalletWriteResult = { outcome: 'done' } | { outcome: 'blocked'; block: ArchiveBlock };
+/**
+ * المحفظة بس (9.5-3): المسح والأرشفة بقوا ذرة من السيرفر عشان حارس «آخر محفظة شغالة» يتحسب على المحافظ اللي على
+ * السيرفر مش على نسختنا — جهازين كل واحد بيمسح واحدة من آخر اتنين كانوا بيوصلوا لصفر. فيه نتايج زيادة:
+ * `no-connection`/`failed` = مفيش حاجة اتغيّرت، `gone` = اتمسحت من مكان تاني، `uncertain` = الذرة فشلت وسؤال السيرفر كمان
+ * (المسح والأرشفة بيتعادوا من غير ضرر، فالشاشة بتقول «بص على القايمة وجرب تاني»). الرسايل: `walletWriteNotice` في `lib/walletCopy.ts`
+ */
+export type WalletAtomicResult = WalletWriteResult | { outcome: 'no-connection' | 'failed' | 'gone' | 'uncertain' };
 
 /**
  * وقت كتابة **فريد على الجهاز ده**: نفس `toISOString` بس لو اتطلب مرتين في نفس الملّي ثانية التاني بيتزق ملّي.
@@ -958,10 +965,10 @@ type DataContextType = {
   completeSetup: (choice: SetupChoice) => Promise<SetupOutcome>;
   addWallet: (name: string) => Promise<void>;
   updateWallet: (id: string, data: Partial<Wallet>) => Promise<void>;
-  deleteWallet: (id: string) => Promise<WalletWriteResult>;
+  deleteWallet: (id: string) => Promise<WalletAtomicResult>;
   archiveWallet: (id: string, reassign: {
     subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string>;
-  }) => Promise<WalletWriteResult>;
+  }) => Promise<WalletAtomicResult>;
   restoreWallet: (id: string) => Promise<void>;
   addCategory: (name: string) => Promise<void>;
   updateCategory: (id: string, data: Partial<Category>) => Promise<void>;
@@ -1813,16 +1820,66 @@ export function DataProvider({ children }: { children: ReactNode }) {
   function categoryNameFor(id: string) {
     return latestCategories.current.find(c => c.id === id)?.name;
   }
-  async function deleteWallet(id: string): Promise<WalletWriteResult> {
-    if (!uid) return { outcome: 'done' };
-    // بند 13: آخر محفظة شغالة مبتتمسحش — نفس حظر الشاشة (`walletDeleteBlock`) هنا
-    // كمان، فالمتصل اللي نسي الفحص بيترفض بدل ما المستخدم يفضل من غير محفظة.
-    // **حد:** من المحافظ اللي وصلت النسخة دي — جهازين كل واحد بيمسح واحدة من آخر
-    // اتنين لسه ممكن يوصلوا لصفر (محتاج مستند عدّاد أو قاعدة، والقواعد برّه الجولة)
-    const block = walletDeleteBlock(id, latestWallets.current);
-    if (block) return { outcome: 'blocked', block };
-    track(deleteDoc(doc(db, 'users', uid, 'wallets', id)), namedLabel('مسح المحفظة', walletNameFor(id)));
-    return { outcome: 'done' };
+  /**
+   * المسح والأرشفة (9.5-3): ذرة من السيرفر بتقرا المحفظة نفسها وكل المحافظ اللي نعرفها، وحارس «آخر محفظة شغالة»
+   * بيتحسب على النسخة اللي على السيرفر. فايرستور بتتأكد إن المستندات اللي اتقرت ما اتغيّرتش لحد الـcommit، فجهازين
+   * بيمسحوا آخر اتنين في نفس اللحظة: التاني بيتعاد وبيلاقي واحدة بس ← `blocked`. محفظة اتعملت على جهاز تاني ولسه
+   * ما وصلتش مبتتقريش — الحارس ساعتها بيرفض أكتر من اللازم مش أقل، وده الاتجاه الآمن.
+   *
+   * **ده استثناء قاعدة 7** (بتقرا من السيرفر): من غير نت بترفض على طول، وبتستنى كتاباتنا اللي لسه بترفع (محفظة
+   * لسه اتعملت كانت هتبان مش موجودة)، والنتيجة قاطعة — ولو الذرة فشلت بنسأل السيرفر هي اتكتبت ولا لأ.
+   */
+  async function walletAtomic(
+    id: string, op: 'delete' | 'archive',
+    write: (t: FirestoreTransaction, serverWallets: { id: string; archived?: boolean }[]) => Promise<ArchiveBlock | null>,
+    landed: (data: Record<string, unknown> | undefined) => boolean,
+  ): Promise<WalletAtomicResult> {
+    if (!uid) return { outcome: 'failed' };
+    if (deletingRef.current) { console.warn('[wallet] refused, account deletion in progress', op); return { outcome: 'failed' }; }
+    if (!serverReachableRef.current) return { outcome: 'no-connection' };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'no-connection' };
+    const ref = doc(db, 'users', uid, 'wallets', id);
+    const known = [...new Set([id, ...latestWallets.current.map(w => w.id)])];
+    const label: AtomicOp = op === 'delete' ? 'مسح المحفظة' : 'أرشفة المحفظة';
+    let result: WalletAtomicResult = { outcome: 'done' };
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        result = { outcome: 'done' };
+        const snaps = await Promise.all(known.map(k => t.get(doc(db, 'users', uid!, 'wallets', k))));
+        const mine = snaps[0];
+        if (!mine.exists()) { result = { outcome: 'gone' }; return; }
+        const serverWallets = snaps.filter(x => x.exists()).map(x => ({ id: x.id, archived: (x.data() as { archived?: unknown }).archived === true }));
+        const block = await write(t, serverWallets);
+        if (block) result = { outcome: 'blocked', block };
+      }));
+      return result;
+    } catch (e) {
+      try {
+        const snap = await withTimeout(getDocFromServer(ref), LANDED_CHECK_TIMEOUT_MS);
+        // الـcommit وصل والرد ضاع ← اتعمل فعلاً
+        if (landed(snap.exists() ? snap.data() as Record<string, unknown> : undefined)) return { outcome: 'done' };
+        noteAtomicFailure(label, e);
+        return { outcome: (e as { code?: string })?.code === 'unavailable' ? 'no-connection' : 'failed' };
+      } catch (checkError) {
+        console.warn('[wallet] landed check failed', op, (checkError as { code?: string })?.code ?? 'timeout');
+        noteAtomicFailure(label, e);
+        return { outcome: 'uncertain' };
+      }
+    }
+  }
+
+  async function deleteWallet(id: string): Promise<WalletAtomicResult> {
+    if (!uid) return { outcome: 'failed' };
+    // فحص سريع على نسختنا الأول: الرفض الواضح مبيستناش السيرفر ويشتغل من غير نت. الحكم النهائي جوه الذرة
+    const local = walletDeleteBlock(id, latestWallets.current);
+    if (local) return { outcome: 'blocked', block: local };
+    const ref = doc(db, 'users', uid, 'wallets', id);
+    return walletAtomic(id, 'delete', async (t, serverWallets) => {
+      const block = walletDeleteBlock(id, serverWallets);
+      if (block) return block;
+      t.delete(ref);
+      return null;
+    }, data => data === undefined);
   }
 
   /**
@@ -1841,43 +1898,51 @@ export function DataProvider({ children }: { children: ReactNode }) {
   async function archiveWallet(
     id: string,
     reassign: { subscriptions?: Record<string, string>; gamiyas?: Record<string, string>; incomes?: Record<string, string> },
-  ): Promise<WalletWriteResult> {
-    if (!uid) return { outcome: 'done' };
-    // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل
-    // محتاجين العمليات والشيت، وبيتفحصوا في الشاشة). نفس حد سباق الجهازين اللي في المسح
-    // جولة 2: «آخر شغالة» بس لو المحفظة دي نفسها شغالة — نفس `walletDeleteBlock` (مؤرشفة/ممسوحة مبتعدّش من الشغالة)
+  ): Promise<WalletAtomicResult> {
+    if (!uid) return { outcome: 'failed' };
+    // بند 13: نفس جزء "آخر محفظة شغالة" من `walletArchiveBlock` (الرصيد والنقل محتاجين العمليات والشيت، وبيتفحصوا في
+    // الشاشة). فحص سريع على نسختنا الأول، والحكم النهائي على السيرفر جوه الذرة (9.5-3)
+    // **حدود الحكم النهائي:** اللي بيتفحص على السيرفر هو «آخر شغالة» ومحفظة النقل والمستندات اللي بتتنقل بس. الرصيد
+    // (`walletArchiveBlock`) والروابط اللي لسه ما اتنقلتش لسه من نسختنا في الشاشة — سجل اتربط بالمحفظة من جهاز تاني ولسه ما وصلناش مش بيتشاف
     const lastActive = walletDeleteBlock(id, latestWallets.current);
     if (lastActive) return { outcome: 'blocked', block: lastActive };
     // بند 3 (الميزة 10): المحفظة اللي اتختارت للنقل اتأرشفت أو اتمسحت والشيت مفتوح ← منكتبش اشتراك على مؤرشفة
     const targets = [...Object.values(reassign.subscriptions || {}), ...Object.values(reassign.gamiyas || {}), ...Object.values(reassign.incomes || {})];
-    const targetBlock = reassignTargetsBlock(targets, latestWallets.current, id);
-    if (targetBlock) return { outcome: 'blocked', block: targetBlock };
-    const batch = writeBatch(db);
-    // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على
-    // محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
-    // الدخل اللي اتمسح (`deleteIncome`) وشيت الأرشفة مفتوح بيتفوّت: `update`
-    // على مستند مش موجود كان هيوقّع الدفعة كلها والمحفظة ما تتأرشفش
-    Object.entries(reassign.incomes || {}).forEach(([incomeId, walletId]) => {
-      if (!incomes.some(i => i.id === incomeId)) return;
-      batch.update(doc(db, 'users', uid, 'incomes', incomeId), { walletId });
-    });
-    // نفس الحاجة للاشتراك والجمعية اللي اتمسحوا من جهاز تاني والشيت مفتوح.
-    // **فاضل شباك صغير:** التفويت بيشتغل بس لما المسح يكون وصل النسخة دي. لو
-    // اتمسح على السيرفر ولسه الـsnapshot ما وصلش، الدفعة بتقع زي الأول —
-    // والرسالة بتسمّي المحفظة، فالمستخدم عارف إيه اللي ما اتأرشفش ويجرب تاني
-    Object.entries(reassign.subscriptions || {}).forEach(([subId, walletId]) => {
-      if (!subscriptions.some(s => s.id === subId)) return;
-      batch.update(doc(db, 'users', uid, 'subscriptions', subId), { walletId });
-    });
-    Object.entries(reassign.gamiyas || {}).forEach(([gamiyaId, walletId]) => {
-      if (!gamiyas.some(g => g.id === gamiyaId)) return;
-      batch.update(doc(db, 'users', uid, 'gamiyas', gamiyaId), { walletId });
-    });
-    batch.update(doc(db, 'users', uid, 'wallets', id), {
-      archived: true, archivedAt: new Date().toISOString(),
-    });
-    track(batch.commit(), namedLabel('أرشفة المحفظة', walletNameFor(id)));
-    return { outcome: 'done' };
+    const localTarget = reassignTargetsBlock(targets, latestWallets.current, id);
+    if (localTarget) return { outcome: 'blocked', block: localTarget };
+    const user = uid;
+    const moves: { ref: DocumentReference; walletId: string }[] = [
+      ...Object.entries(reassign.incomes || {}).map(([k, w]) => ({ ref: doc(db, 'users', user, 'incomes', k), walletId: w })),
+      ...Object.entries(reassign.subscriptions || {}).map(([k, w]) => ({ ref: doc(db, 'users', user, 'subscriptions', k), walletId: w })),
+      ...Object.entries(reassign.gamiyas || {}).map(([k, w]) => ({ ref: doc(db, 'users', user, 'gamiyas', k), walletId: w })),
+    ];
+    const walletRef = doc(db, 'users', user, 'wallets', id);
+    return walletAtomic(id, 'archive', async (t, serverWallets) => {
+      // كل القرايات قبل كل الكتابات (شرط فايربيز)
+      const moveSnaps = await Promise.all(moves.map(m => t.get(m.ref)));
+      // بننقل بس اللي لسه على المحفظة دي. اللي اتمسح أو اتنقل من جهاز تاني بيتفوّت — وبيتقال في اللوج (النوع والمعرّف بس،
+      // من غير أسامي ولا مبالغ — قاعدة Sentry) عشان التفويت ميبقاش ساكت (LOW-3)
+      const applyMoves = () => moves.forEach((m, i) => {
+        const d = moveSnaps[i];
+        const onServer = d.exists() ? (d.data() as { walletId?: unknown }).walletId : undefined;
+        if (onServer === id) { t.update(m.ref, { walletId: m.walletId }); return; }
+        console.warn('[wallet] archive move skipped', m.ref.parent.id, m.ref.id, d.exists() ? 'moved-elsewhere' : 'deleted');
+      });
+      // اتأرشفت خلاص (محاولة قبل كده وصلت، أو من جهاز تاني) ← بننقل بس اللي لسه على المحفظة دي (money-reviewer M2:
+      // جهاز تاني أرشفها من غير ما يعرف اشتراك عندنا، فكان هيفضل على مؤرشفة و«اتعمل»)
+      if (serverWallets.find(w => w.id === id)?.archived) {
+        applyMoves();
+        return null;
+      }
+      const block = walletDeleteBlock(id, serverWallets) ?? reassignTargetsBlock(targets, serverWallets, id);
+      if (block) return block;
+      // الدخل الثابت زي الاشتراك بالظبط: بيولّد عمليات جديدة، فلو فضل على محفظة مؤرشفة كل تسجيل بعد كده هيترفض.
+      // اللي اتمسح (من الجهاز ده أو من جهاز تاني — دلوقتي من السيرفر، فالشباك اللي كان بيوقّع الدفعة اتقفل) بيتفوّت
+      // واللي اتنقل لمحفظة تانية من جهاز تاني والشيت مفتوح (LOW-5) بيتفوّت كمان — مبنكتبش فوق اختياره هناك
+      applyMoves();
+      t.update(walletRef, { archived: true, archivedAt: new Date().toISOString() });
+      return null;
+    }, data => data?.archived === true);
   }
 
   async function restoreWallet(id: string) {
@@ -3584,14 +3649,96 @@ export function DataProvider({ children }: { children: ReactNode }) {
    * بند H (2026-11-17): العمليات من آخر render (`cascadeInputs`) — مش من الـclosure اللي فتح التأكيد — ومن كل مكان
    * بيشاور عليها: `history`، و`closed` (عملية قفلت فترة وسطرها ضاع من `history`)، وأي عملية عليها `subscriptionId`.
    * وخصم شغال على نفس الاشتراك ← المسح بيستنى: الذرة كانت هتكتب عملية بعد المسح وتفضل يتيمة.
-   * **متبقّي:** المسح دفعة أوفلاين (مش ذرة من السيرفر) — عملية تلقائي من جهاز تاني لسه ما وصلتش الـlistener مش هتتمسح.
+   * 9.5-3: بقى ذرة من السيرفر (تحت) — عملية تلقائي من جهاز تاني لسه ما وصلتش الـlistener بتتمسح معاه، وفحص المحفظة
+   * المؤرشفة على العمليات ومحافظها كما هي على السيرفر (M3). `history` أو `closed` مش بالشكل الصح (قايمة/object) ← `data-broken`
+   * (M1)؛ وسطر في `closed` معرّفه بايظ بيتغطّى بالمعرّف الثابت `subscriptionTxId(id, المفتاح)` (`subscriptionTransactionIds`). **حد باقي:** عملية
+   * عليها `subscriptionId` ومش في `closed`/`history` على السيرفر ولا عندنا (مش بتحصل من مسارات التطبيق) مش هتتلاقى.
    */
   async function deleteSubscription(id: string): Promise<CascadeDeleteResult> {
     if (!uid) return { outcome: 'blocked', ...NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION };
+    const user = uid;
     const sub = latestSubscriptions.current.find(s => s.id === id);
     if (chargeInFlight.current.has(id)) return { outcome: 'blocked', ...CHARGE_IN_FLIGHT_DELETE_BLOCK };
-    return deleteWithTransactions('subscription', sub?.name ?? '', doc(db, 'users', uid, 'subscriptions', id),
-      subscriptionTransactionIds(sub, cascadeInputs.current.transactions), namedLabel('حذف الاشتراك', sub?.name));
+    const name = sub?.name ?? '';
+    const label = namedLabel('حذف الاشتراك', sub?.name);
+    // نفس فحص الشاشة على نسختنا الأول (بيانات ناقصة/محفظة مؤرشفة) — الرفض الواضح مبيستناش السيرفر
+    const pre = cascadeDeleteBlock({
+      kind: 'subscription', name, txIds: subscriptionTransactionIds(sub, cascadeInputs.current.transactions),
+      ...cascadeInputs.current, loading: pendingFigures(),
+    });
+    if (pre) return { outcome: 'blocked', ...pre };
+    // 9.5-3: ذرة من السيرفر — `closed`/`history` على السيرفر فيهم عمليات جهاز تاني (تلقائي/«سدّد») لسه ما وصلتناش،
+    // فبتتمسح مع الاشتراك بدل ما تفضل يتيمة. والخصم اللي بييجي بعد المسح بيلاقي الاشتراك مش موجود ومبيكتبش (`ChargeMissingError`)
+    if (!serverReachableRef.current) return { outcome: 'blocked', ...NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION };
+    if (!(await waitForOurWritesToLand())) return { outcome: 'blocked', ...NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION };
+    const subRef = doc(db, 'users', user, 'subscriptions', id);
+    let result: CascadeDeleteResult = { outcome: 'done' };
+    let tooBig: string[] | null = null;
+    try {
+      await countPending(runTransaction(db, async (t) => {
+        result = { outcome: 'done' };
+        tooBig = null;
+        const snap = await t.get(subRef);
+        // اتمسح خلاص (محاولة قبل كده وصلت، أو من جهاز تاني) ← مفيش حاجة تتمسح
+        if (!snap.exists()) return;
+        const local = cascadeInputs.current;
+        let serverSub: Subscription;
+        try {
+          serverSub = subscriptionFromDoc<Subscription>(id, snap.data(), true);
+          // `subscriptionFromDoc` بيفحص `history` بس — `closed` بايظ (مش object) كان بيعدّي ومعرّفاته بتضيع ساكت
+          const rawClosed = (snap.data() as { closed?: unknown }).closed;
+          if (rawClosed != null && (typeof rawClosed !== 'object' || Array.isArray(rawClosed))) throw new DocShapeError();
+        } catch (shapeError) {
+          if (!(shapeError instanceof DocShapeError)) throw shapeError;
+          // M1: `history`/`closed` على السيرفر شكله غلط ← مش عارفين كل العمليات، فمبنمسحش. ومش «النت» (شكل `history` بيتبعت Sentry من `fromDoc`، و`closed` في السطر ده)
+          console.warn('[subscription] delete refused, stored history/closed unreadable', id);
+          result = { outcome: 'blocked', ...BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION };
+          return;
+        }
+        const txIds = subscriptionTransactionIds(serverSub, local.transactions);
+        // M3: العمليات **ومحافظها** بتتقري من السيرفر جوه الذرة (قليلين): لو واحدة منهم على محفظة مؤرشفة، مسحها هيحرّك رصيد
+        // مؤرشف ساكت — ومحفظة اتأرشفت من جهاز تاني أو عملية اتنقلت لمحفظة تانية لسه ما وصلوناش كانوا بيعدّوا من نسختنا
+        const txSnaps = await Promise.all(txIds.map(x => t.get(doc(db, 'users', user, 'transactions', x))));
+        // البايظة برّه كل رصيد (بند B)، فمسحها مبيحرّكش رقم ظاهر — زي نسختنا المحلية.
+        // حد معروف: البايظة مبتدخلش فحص المحفظة المؤرشفة تحت بس بتتمسح — مبتأثرش على أي رصيد ظاهر، فمش بنمنع عشانها
+        const serverTxs = txSnaps.filter(x => x.exists()).flatMap(x => {
+          const r = transactionFromDoc<Transaction>(x.id, x.data());
+          return r.ok ? [r.tx] : [];
+        });
+        const walletIds = [...new Set(serverTxs.flatMap(tx => [tx.walletId, tx.toWalletId]).filter((w): w is string => typeof w === 'string' && !!w))];
+        const walletSnaps = await Promise.all(walletIds.map(w => t.get(doc(db, 'users', user, 'wallets', w))));
+        const serverWallets = walletSnaps.filter(x => x.exists()).map(x => {
+          const d = x.data() as { name?: unknown; archived?: unknown };
+          return { id: x.id, name: typeof d.name === 'string' ? d.name : '', archived: d.archived === true };
+        });
+        const block = cascadeDeleteBlock({
+          kind: 'subscription', name: serverSub.name || name, txIds,
+          transactions: serverTxs, wallets: serverWallets, loadErrors: local.loadErrors, loading: [],
+        });
+        if (block) { result = { outcome: 'blocked', ...block }; return; }
+        // حد الكتابات في الذرة 500 — اشتراك بأكتر من 499 عملية مش واقعي؛ لو حصل بيرجع للدفعات القديمة برّه الذرة
+        if (txIds.length + 1 > BATCH_LIMIT) {
+          console.warn('[subscription] delete too big for one transaction, falling back to batches', id, txIds.length);
+          tooBig = txIds; return;
+        }
+        txIds.forEach(x => t.delete(doc(db, 'users', user, 'transactions', x)));
+        t.delete(subRef);
+      }));
+      if (tooBig) return deleteWithTransactions('subscription', name, subRef, tooBig, label);
+      return result;
+    } catch (e) {
+      try {
+        const snap = await withTimeout(getDocFromServer(subRef), LANDED_CHECK_TIMEOUT_MS);
+        // الـcommit وصل والرد ضاع ← اتمسح (الاشتراك وعملياته في نفس الذرة)
+        if (!snap.exists()) return { outcome: 'done' };
+        noteAtomicFailure('حذف الاشتراك', e);
+        return { outcome: 'blocked', ...((e as { code?: string })?.code === 'unavailable' ? NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION : FAILED_DELETE_BLOCK_SUBSCRIPTION) };
+      } catch (checkError) {
+        console.warn('[subscription] delete landed check failed', (checkError as { code?: string })?.code ?? 'timeout');
+        noteAtomicFailure('حذف الاشتراك', e);
+        return { outcome: 'blocked', ...UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION };
+      }
+    }
   }
   /**
    * بيتعمل جوه runTransaction عشان القراية والكتابة يبقوا خطوة واحدة ذرية.

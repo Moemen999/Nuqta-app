@@ -165,7 +165,7 @@ describe('جرد: `durable` من مودال العملية الجديدة بس',
     const users = ['app', 'components', 'lib', 'hooks', 'context']
       .flatMap(d => walk(path.join(root, d)))
       .filter(f => /durable:\s*true/.test(fs.readFileSync(f, 'utf8')))
-      .map(f => path.relative(root, f));
+      .map(f => path.relative(root, f).split(path.sep).join('/')); // ويندوز: `app\modal.tsx` (9.5-3)
     expect(users).toEqual(['app/modal.tsx']);
   });
 });

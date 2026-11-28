@@ -3,11 +3,12 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
 import { useEffect, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { LOCK_WAIT_REASON, PIN_PATTERN, lockWaitMessage } from '@/lib/lockThrottle';
+import { PressableScale } from '@/components/PressableScale';
 
 /** علامة «استنى» — النص بيتحسب وقت الرسم من `waitUntil` (الحالة بتتحدّث بعد ما `verify` يرجع) */
 const WAIT = '__lock_wait__';
@@ -143,12 +144,12 @@ export default function SetLockModal({ visible, mode, onClose, onVerified }: {
             <>
               <Text style={styles.label}>نوع القفل</Text>
               <View style={styles.row}>
-                <TouchableOpacity testID="setlock_type_pin" {...selectionA11y(type === 'pin', 'radio')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
+                <PressableScale testID="setlock_type_pin" {...selectionA11y(type === 'pin', 'radio')} onPress={() => setType('pin')} style={[styles.typeBtn, selectionStyle(colors, type === 'pin')]}>
                   <Text style={{ color: colors.text, fontSize: typeScale.body, textAlign: 'center' }}>رقم سري (4 أرقام)</Text>
-                </TouchableOpacity>
-                <TouchableOpacity testID="setlock_type_password" {...selectionA11y(type === 'password', 'radio')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
+                </PressableScale>
+                <PressableScale testID="setlock_type_password" {...selectionA11y(type === 'password', 'radio')} onPress={() => setType('password')} style={[styles.typeBtn, selectionStyle(colors, type === 'password')]}>
                   <Text style={{ color: colors.text, fontSize: typeScale.body, textAlign: 'center' }}>باسورد نصي</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
 
               <Text style={styles.label}>{type === 'pin' ? 'الرقم السري الجديد' : 'الباسورد الجديد'}</Text>

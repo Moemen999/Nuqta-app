@@ -11,12 +11,13 @@ import { BANNER_LABELS, BANNER_TYPES, WARNING_BANNERS, intervalMs, intervalOptio
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { exactAlarmStatus } from '@/lib/exactAlarm';
 import { useMemo, useState } from 'react';
-import { Linking, Platform, ScrollView, StyleSheet, Switch, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cardElevation, typeScale, radius, space } from '@/lib/tokens';
+import { cardElevation, typeScale, radius, space, leading } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
 export const PERMISSION_DENIED_BODY = 'التطبيق مش مسموح له يبعت إشعارات. فعّلها من إعدادات الموبايل.';
@@ -188,14 +189,14 @@ export default function NotificationsScreen() {
           {/* alarmText مش hint (a11y-architect): textMuted 11.5 كان تحت 4.5:1 في الثيمين، والسطرين دول الإرشاد الوحيد */}
           <Text style={styles.alarmText}>{EXACT_ALARM_BODY}</Text>
           <Text testID="exact_alarm_status" style={[styles.alarmText, { marginTop: space.xs }]}>{EXACT_ALARM_STATUS_UNKNOWN}</Text>
-          <TouchableOpacity testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
+          <PressableScale testID="exact_alarm_open" style={styles.alarmBtn} disabled={openingAlarm}
             onPress={() => runOpenAlarm(async () => {
               if (!(await notifs.openExactAlarmSettings())) notice(EXACT_ALARM_FAILED_TITLE, EXACT_ALARM_FAILED_BODY);
             })}
             accessibilityRole="button" accessibilityLabel={EXACT_ALARM_BUTTON} accessibilityHint="بيفتح إعدادات الموبايل"
             accessibilityState={{ busy: openingAlarm, disabled: openingAlarm }}>
             <Text style={styles.alarmBtnText}>{EXACT_ALARM_BUTTON}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       )}
 
@@ -207,24 +208,24 @@ export default function NotificationsScreen() {
           {`بانر "لسه ما سجلتش مصاريف النهاردة" بيظهر في الرئيسية من معاد التذكير. ولو التذكير اليومي شغّال، الإشعار بيوصلك في نفس المعاد.`}
         </Text>
         {/* منتقي الوقت بتاع النظام (أي ساعة وأي دقيقة — 9:13، 9:55). أندرويد: نافذة النظام؛ غيره: منتقي جوه الشاشة */}
-        <TouchableOpacity testID="notifications_time_button" style={styles.timeBtn}
+        <PressableScale testID="notifications_time_button" style={styles.timeBtn}
           onPress={openTimePicker}
           accessibilityRole="button" accessibilityLabel={`معاد التذكير ${timeLabel(notifs.dailyHour, notifs.dailyMinute)}`}
           accessibilityHint="بيفتح منتقي الوقت">
           <Text testID="notifications_time_value" style={styles.timeValue}>{timeLabel(notifs.dailyHour, notifs.dailyMinute)}</Text>
-        </TouchableOpacity>
+        </PressableScale>
         {Platform.OS !== 'android' && showTimeIos && (
           <>
             <DateTimePicker value={iosDraft ?? pickerValue} mode="time" display="spinner" onChange={onIosChange} />
             <View style={styles.row}>
-              <TouchableOpacity testID="notifications_time_confirm" style={styles.graceBtn} onPress={confirmIosTime}
+              <PressableScale testID="notifications_time_confirm" style={styles.graceBtn} onPress={confirmIosTime}
                 accessibilityRole="button" accessibilityLabel="تمام">
                 <Text style={{ color: colors.accentText, fontSize: typeScale.body, fontWeight: '700' }}>تمام</Text>
-              </TouchableOpacity>
-              <TouchableOpacity testID="notifications_time_cancel" style={styles.graceBtn} onPress={cancelIosTime}
+              </PressableScale>
+              <PressableScale testID="notifications_time_cancel" style={styles.graceBtn} onPress={cancelIosTime}
                 accessibilityRole="button" accessibilityLabel="إلغاء">
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>إلغاء</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </>
         )}
@@ -247,24 +248,24 @@ export default function NotificationsScreen() {
               <Text style={styles.typeLabel}>{BANNER_LABELS[type]}</Text>
               <View style={styles.row}>
                 {intervalOptions(type).map(o => (
-                  <TouchableOpacity key={o.id} testID={`banner_interval_${snake(type)}_${o.id}`}
+                  <PressableScale key={o.id} testID={`banner_interval_${snake(type)}_${o.id}`}
                     onPress={() => banners.setInterval(type, o.id)}
                     {...selectionA11y(chosen === o.ms, 'radio')}
                     accessibilityLabel={`${BANNER_LABELS[type]}: يرجع بعد ${o.label}`}
                     style={[styles.graceBtn, selectionStyle(colors, chosen === o.ms)]}>
                     <Text style={{ color: colors.text, fontSize: typeScale.caption }}>{o.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </View>
           );
         })}
-        <TouchableOpacity testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
+        <PressableScale testID="banner_intervals_toggle" style={styles.toggleRow} onPress={() => setShowRoutine(v => !v)}
           accessibilityRole="button" accessibilityState={{ expanded: showRoutine }}>
           {showRoutine
             ? <Text style={styles.toggleText}>اخفِ باقي التنبيهات</Text>
             : <CountedText title="اظهر باقي التنبيهات" count={BANNER_TYPES.length - WARNING_BANNERS.length} style={styles.toggleText} />}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </ScrollView>
   );
@@ -278,14 +279,14 @@ function makeStyles(c: ThemeColors) {
     switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.lg },
     switchLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     status: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: leading.caption },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, ...cardElevation(c) },
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
     timeBtn: { minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: space.md },
     timeValue: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
+    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.body },
     alarmBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: space.md, paddingHorizontal: space.lg },
     alarmBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
     groupLabel: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },

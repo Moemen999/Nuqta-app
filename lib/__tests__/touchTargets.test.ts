@@ -11,7 +11,7 @@ import ts from 'typescript';
  * الـhitSlop لازم يتقري: رقم، أو object مكتوب، أو ثابت في نفس الملف. أي حاجة تانية = وقع.
  */
 const TARGET = 44;
-const TOUCHABLE = /^(TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|Pressable)$/;
+const TOUCHABLE = /^(TouchableOpacity|TouchableHighlight|TouchableWithoutFeedback|Pressable|PressableScale)$/;
 
 function tsxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(f => {

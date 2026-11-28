@@ -2,7 +2,7 @@ import { Money } from '@/components/Money';
 import { ProgressRing } from '@/components/ProgressRing';
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
-import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
@@ -273,8 +273,8 @@ function makeStyles(c: ThemeColors) {
     track: { height: 4, backgroundColor: c.borderStrong, borderRadius: radius.track, marginTop: space.lg, overflow: 'hidden' },
     fill: { height: '100%', borderRadius: radius.track },
     sub: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
-    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.lg, lineHeight: 18 },
-    empty: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm, lineHeight: 22 },
+    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.lg, lineHeight: leading.caption },
+    empty: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.sm, lineHeight: leading.body },
     forecast: { color: c.textSecondary, fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
   });
 }

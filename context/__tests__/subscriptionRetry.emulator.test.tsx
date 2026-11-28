@@ -2,7 +2,7 @@ import { arrayRemove, collection, deleteField, doc, getDocFromServer, getDocsFro
 import { db } from '@/firebaseConfig';
 import { gamiyaTxId, subscriptionTxId } from '@/lib/autoCharge';
 import { addDays, addMonths, todayStr } from '@/lib/finance';
-import { clearFirestore, signInTestUser } from '@/test-utils/emulator';
+import { clearFirestore, signInTestUser, writeRawDoc } from '@/test-utils/emulator';
 import { getMockUid, setMockUid } from '@/test-utils/mockAuth';
 import { renderDataProvider } from '@/test-utils/renderDataProvider';
 
@@ -373,6 +373,106 @@ describe('H: مسح الاشتراك', () => {
     expect(await paying).toBe('done');
     expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
   });
+});
+
+/**
+ * 9.5-3: المسح بقى ذرة من السيرفر. جهاز تاني سجّل خصم (العملية + `closed` على السيرفر) ولسه ما وصلش الـlistener ←
+ * العملية بتتمسح مع الاشتراك بدل ما تفضل يتيمة بتحرّك الرصيد. والرد اللي بيضيع بعد ما المسح وصل ← `done` مش «ما اتمسحش».
+ */
+describe('9.5-3: مسح الاشتراك ذرة من السيرفر', () => {
+  it('خصم من جهاز تاني لسه ما وصلناش ← بيتمسح مع الاشتراك', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    await writeRawDoc(`users/${uid}/transactions/otherDevice`, {
+      type: 'expense', amount: 200, walletId, date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 'otherDevice', at: 'x' } } });
+    // من غير ما نستنى الـlistener: النسخة عندنا لسه ما تعرفش العملية دي
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect(await serverTx('otherDevice')).toBeUndefined();
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
+  it('المسح وصل والرد ضاع ← done', async () => {
+    const { id } = await makeSub();
+    landThenFail();
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
+  it('ما وصلش ← blocked «مفيش نت» والاشتراك لسه موجود', async () => {
+    const { id } = await makeSub();
+    failWithoutLanding();
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'no-connection' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
+  it('ما وصلش وسؤال السيرفر كمان فشل ← uncertain (مش «اتمسح» ولا «ما اتمسحش»)', async () => {
+    const { id } = await makeSub();
+    failWithoutLanding();
+    serverCheckFails();
+    expect(await harness.api().deleteSubscription(id)).toMatchObject({ outcome: 'blocked', reason: 'uncertain' });
+    serverGetMock.mockImplementation((...args: unknown[]) => (actualFs.getDocFromServer as (...a: unknown[]) => unknown)(...args));
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
+  it('M1: history على السيرفر مش قايمة ← blocked «data-broken» (مش «النت») ومفيش حاجة اتمسحت', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    await writeRawDoc(`users/${uid}/transactions/paid1`, {
+      type: 'expense', amount: 200, walletId, date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, history: 'corrupt' });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'data-broken' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+    expect(await serverTx('paid1')).toBeDefined();
+  });
+
+  it('M1: closed على السيرفر مش object ← blocked «data-broken» ومفيش حاجة اتمسحت', async () => {
+    const { id } = await makeSub();
+    const uid = getMockUid();
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: 'corrupt' });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'data-broken' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+  });
+
+  it('سطر في closed معرّفه بايظ وعمليته بالمعرّف الثابت على السيرفر بس ← بتتمسح مع الاشتراك', async () => {
+    const { id, walletId } = await makeSub();
+    const uid = getMockUid();
+    // من غير subscriptionId عن قصد: المعرّف الثابت هو الطريق الوحيد اللي يوصلها
+    await writeRawDoc(`users/${uid}/transactions/${subscriptionTxId(id, today)}`, {
+      type: 'expense', amount: 200, walletId, date: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 5, at: 'x' } } });
+    expect(await harness.api().deleteSubscription(id)).toEqual({ outcome: 'done' });
+    expect(await serverTx(subscriptionTxId(id, today))).toBeUndefined();
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(false);
+  });
+
+  it('M3: محفظة مؤرشفة على السيرفر لسه ما وصلتناش ← blocked «wallet-archived» ومفيش حاجة اتمسحت', async () => {
+    const { id } = await makeSub();
+    const uid = getMockUid();
+    // محفظة مؤرشفة وعملية عليها من جهاز تاني. **حد الاختبار:** الـlistener غالبًا بيلحق قبل الذرة (اتجرب: النسخة القديمة
+    // اللي بتاخد المحافظ من نسختنا بتعدّيه كمان)، فده بيثبّت النتيجة مش إن الفحص من السيرفر — مفيش طريقة نوقّف بيها الـlistener هنا
+    await writeRawDoc(`users/${uid}/wallets/archivedElsewhere`, { name: 'قديمة', openingBalance: 0, lowAlert: 0, archived: true });
+    await writeRawDoc(`users/${uid}/transactions/onArchived`, {
+      type: 'expense', amount: 200, walletId: 'archivedElsewhere', date: today, subscriptionId: id, periodKey: today, createdAt: new Date().toISOString(),
+    });
+    const onServer = await serverSub(id);
+    await writeRawDoc(`users/${uid}/subscriptions/${id}`, { ...onServer, closed: { ...(onServer.closed || {}), [today]: { txId: 'onArchived', at: 'x' } } });
+    const r = await harness.api().deleteSubscription(id);
+    expect(r).toMatchObject({ outcome: 'blocked', reason: 'wallet-archived' });
+    expect((await actualFs.getDocFromServer(userDoc('subscriptions', id))).exists()).toBe(true);
+    expect(await serverTx('onArchived')).toBeDefined();
+  });
+
 });
 
 describe('مبلغ مش صالح من الكارت', () => {

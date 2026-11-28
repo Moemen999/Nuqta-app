@@ -2,7 +2,7 @@ import type { Debt, Gamiya, Subscription, Transaction } from '@/context/DataCont
 import type { RecurringIncome } from '@/lib/recurringIncome';
 import { walletBalance } from '@/lib/finance';
 import type { AmountFormatter } from '@/lib/money';
-import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId } from '@/lib/autoCharge';
+import { gamiyaInstallmentTxId, gamiyaMonthTxIds, gamiyaTxId, subscriptionTxId } from '@/lib/autoCharge';
 import { LOAD_ERROR_RETRY, listenerNamesPhrase, type ListenerName } from '@/lib/listenerErrors';
 
 /**
@@ -539,16 +539,19 @@ export function debtTransactionIds(d: Pick<Debt, 'initialTransactionId' | 'payme
 
 /**
  * كل عمليات الاشتراك (بند H، 2026-11-17): من `history`، ومن `closed` (عملية قفلت فترة وسطرها ضاع من `history`)،
- * ولو اتبعتت `transactions`: أي عملية عليها `subscriptionId` بتاعه — مسح الاشتراك كان بيسيبهم يتامى بيحرّكوا الرصيد.
+ * والمعرّف الثابت لكل فترة في `closed` (`subscriptionTxId` — 9.5-3؛ مسح معرّف مش موجود مبيعملش حاجة)، ولو اتبعتت `transactions`: أي عملية عليها `subscriptionId` بتاعه — مسح الاشتراك كان بيسيبهم يتامى بيحرّكوا الرصيد.
  */
 export function subscriptionTransactionIds(
   s: (Pick<Subscription, 'history'> & { id?: string; closed?: Record<string, { txId?: string }> }) | undefined,
   transactions: { id: string; subscriptionId?: string }[] = [],
 ): string[] {
   if (!s) return [];
+  const closed = s.closed && typeof s.closed === 'object' && !Array.isArray(s.closed) ? s.closed : {};
   const ids = [
-    ...(s.history || []).map(h => h.transactionId),
-    ...Object.values(s.closed || {}).map(c => c?.txId),
+    ...(Array.isArray(s.history) ? s.history : []).map(h => h?.transactionId),
+    ...Object.values(closed).map(c => c?.txId),
+    // المعرّف الثابت لكل فترة في `closed` (زي `gamiyaTxId` في الجمعية): سطر معرّفه بايظ أو ناقص عمليته بتتلاقى برضه
+    ...(s.id ? Object.keys(closed).map(k => subscriptionTxId(s.id!, k)) : []),
     ...(s.id ? transactions.filter(t => t.subscriptionId === s.id).map(t => t.id) : []),
   ].filter((x): x is string => typeof x === 'string' && !!x);
   return [...new Set(ids)];
@@ -606,7 +609,10 @@ const CASCADE_SUBJECT: Record<CascadeKind, { label: (name: string) => string; wi
   gamiya: { label: name => `الجمعية "${name}"`, withIt: 'معاها', feminine: true },
 };
 
-export type CascadeDeleteBlock = { reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account'; title: string; body: string };
+export type CascadeDeleteBlock = {
+  reason: 'wallet-archived' | 'data-missing' | 'data-loading' | 'charge-in-flight' | 'no-account' | 'no-connection' | 'failed' | 'uncertain' | 'data-broken';
+  title: string; body: string;
+};
 
 /** بند H: خصم شغال على نفس الاشتراك ("سدّد"/الكارت/التلقائي) ← المسح بيستنى لحد ما يخلص */
 export const CHARGE_IN_FLIGHT_DELETE_BLOCK: CascadeDeleteBlock = {
@@ -633,6 +639,37 @@ export const NO_ACCOUNT_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
   reason: 'no-account',
   title: 'ما اتمسحش',
   body: 'الاشتراك لسه موجود — مفيش حساب مفتوح دلوقتي. سجّل دخول تاني وجرب.',
+};
+/**
+ * مسح الاشتراك بقى ذرة من السيرفر (9.5-3): بيقرا الاشتراك من السيرفر جوه الذرة، فعملية سجّلها جهاز تاني (تلقائي أو
+ * «سدّد») ولسه ما وصلتناش بتتمسح معاه بدل ما تفضل يتيمة بتحرّك الرصيد. التمن: المسح محتاج نت — والنتيجة قاطعة.
+ */
+export const NO_CONNECTION_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'no-connection',
+  title: 'مفيش نت دلوقتي',
+  body: 'الاشتراك ما اتمسحش والرصيد زي ما هو. المسح لازم يتأكد من السيرفر عشان كل الدفعات اللي اتسجلت منه تتمسح معاه — جرب تاني أول ما النت يرجع.',
+};
+export const FAILED_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'failed',
+  title: 'ما اتمسحش',
+  body: 'الاشتراك لسه زي ما هو والرصيد ما اتلمسش. اتأكد إن النت شغال وجرب تاني.',
+};
+/**
+ * 9.5-3 (M1): سجل دفعات الاشتراك على السيرفر متخزّن بشكل مش مقروء (`history` مش قايمة ← `DocShapeError`). منقدرش
+ * نعرف كل العمليات اللي اتسجلت منه، فالمسح كان هيسيب منها يتامى بتحرّك الرصيد ساكت ← مبنمسحش. قبل كده الرسالة كانت
+ * «اتأكد إن النت شغال» للأبد، والنت مش السبب. نفس الذرات التانية (دفعة الدين، شهر الجمعية): الشكل البايظ ← مفيش كتابة.
+ * «وقّفه مؤقتًا» (`setSubscriptionActive`) شغال هنا لأنه مبيقراش `history` — فالمستخدم عنده مخرج يوقف بيه الخصم.
+ */
+export const BROKEN_DATA_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'data-broken',
+  title: 'ما اتمسحش',
+  body: 'سجل الدفعات بتاع الاشتراك ده متخزّن بشكل مش مقروء، فمش قادرين نعرف كل الدفعات اللي اتسجلت منه عشان تتمسح معاه. الاشتراك والرصيد زي ما هما. لو الاشتراك لسه شغّال وعايز توقّف خصمه دلوقتي، دوس "وقّفه مؤقتًا". وابعتلنا من "شاركنا رأيك" في الإعدادات.',
+};
+/** الذرة فشلت وسؤال السيرفر كمان — المسح بيتعاد من غير ضرر (اللي اتمسح مبيتمسحش مرتين)، فالكلام «بص وجرب» */
+export const UNCERTAIN_DELETE_BLOCK_SUBSCRIPTION: CascadeDeleteBlock = {
+  reason: 'uncertain',
+  title: 'مش متأكدين',
+  body: 'مقدرناش نعرف الاشتراك اتمسح ولا لأ. استنى ثواني وبص على القايمة — لو لسه موجود جرب تاني.',
 };
 export const NO_ACCOUNT_DELETE_BLOCK_DEBT: CascadeDeleteBlock = {
   reason: 'no-account',

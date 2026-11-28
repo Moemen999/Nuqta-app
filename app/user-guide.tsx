@@ -1,13 +1,14 @@
 import BackButton from '@/components/BackButton';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
-import { cardElevation, glyphSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, glyphSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { TIMELINE_PARTIAL_NOTE } from '@/lib/spendTimeline';
+import { PressableScale } from '@/components/PressableScale';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -18,7 +19,7 @@ const SECTIONS: Section[] = [
     title: 'المحافظ والعمليات',
     body: [
       'أول ما تعمل حساب، التطبيق بيسألك "نبدأ بإيه؟": تختار محافظك ورصيد كل واحدة، والفئات اللي بتصرف عليها. ولو دوست "تخطي" هنعملك محفظة كاش وفئات أساسية (كل فئة بأيقونتها، ما عدا "أخرى")، وتقدر تغيّر كل ده بعدين من الإعدادات.',
-      'لو ضفت مصروف أو إيراد أو تحويل من "+" وانت من غير نت، بيتحفظ على موبايلك (مشفّر) وبيفضل محفوظ حتى لو قفلت التطبيق، وبيترفع لوحده أول ما النت يرجع أو تفتح التطبيق، وجنب العملية علامة "⏳ لسه بترفع" لحد ما توصل. ولو فتحت التطبيق من غير نت بعد ما قفلته، مش هتلاقيها في قايمة آخر العمليات، بس هيظهرلك سطر في الرئيسية بعددها لحد ما ترفع. بس لو سجّلت خروج من الإعدادات وفيه عمليات لسه ما اترفعتش، هتضيع — والتطبيق هيحذّرك ويقولك عددها. و"نسيت الكود؟" مش بيمسحها.',
+      'لو ضفت مصروف أو إيراد أو تحويل من "+" وانت من غير نت، بيتحفظ على موبايلك (مشفّر) وبيفضل محفوظ حتى لو قفلت التطبيق، وبيترفع لوحده أول ما النت يرجع أو تفتح التطبيق، وجنب تاريخ العملية علامة صغيرة مكتوب عليها "لسه بترفع" لحد ما توصل. ولو فتحت التطبيق من غير نت بعد ما قفلته، مش هتلاقيها في قايمة آخر العمليات، بس هيظهرلك سطر في الرئيسية بعددها لحد ما ترفع. بس لو سجّلت خروج من الإعدادات وفيه عمليات لسه ما اترفعتش، هتضيع — والتطبيق هيحذّرك ويقولك عددها. و"نسيت الكود؟" مش بيمسحها.',
       'لو عملية من دول ما نفعش ترفع (السيرفر رفضها، أو حاولنا كذا مرة وما نفعش، أو المحفظة بتاعتها اتأرشفت أو اتمسحت)، هنقولك برسالة فيها المبلغ والتاريخ ونشيلها — سجّلها تاني من "+".',
       'وانت بتكتب المبلغ، هتلاقي تحته الرقم بفواصل ورصيد المحفظة رايح فين: "من X إلى Y" (وفي التحويل المحفظتين). اكتب الكسر بنقطة (1.5) مش بفاصلة.',
       'لو عملية بياناتها ناقصة أو بايظة (من غير مبلغ أو تاريخ مثلًا) مش بتدخل في أي رقم، وهتلاقيها في أول الأرشيف تحت "⚠️ بيانات ناقصة". دوس عليها: تقدر تصلّح المبلغ والتاريخ، أو تمسحها.',
@@ -71,7 +72,7 @@ const SECTIONS: Section[] = [
     body: [
       'من التخطيط ← دخل ثابت: ضيف مرتبك أو أي فلوس بتنزلك بمعاد — كل شهر في يوم معيّن، أو كل أسبوع في يوم معيّن. لو اليوم 29 أو 30 أو 31 والشهر أقصر، بياخد آخر يوم.',
       '"بيسألك الأول" (المقترح): يوم المعاد بيجيلك إشعار (لو الإشعارات شغّالة)، وفي الرئيسية سطر "عندك حاجة مستنية ردك" — دوس عليه ويفتحلك كارت "نزل؟". تقدر تقول نزل، أو تكتب المبلغ لو مختلف، أو "ما نزلش".',
-      '"بيتسجل لوحده": أول ما تفتح التطبيق بعد المعاد بيتسجل، وبيجيلك إشعار إنه اتسجل (لو الإشعارات شغّالة). لو فاتك كذا شهر (أو أسبوع) بتتسجل كلها مرة واحدة برسالة واحدة. التسجيل محتاج نت، ولو مفيش بيستنى لحد ما يرجع. العمليات دي عليها علامة "⚙️ اتسجلت لوحدها" في التاريخ.',
+      '"بيتسجل لوحده": أول ما تفتح التطبيق بعد المعاد بيتسجل، وبيجيلك إشعار إنه اتسجل (لو الإشعارات شغّالة). لو فاتك كذا شهر (أو أسبوع) بتتسجل كلها مرة واحدة برسالة واحدة. التسجيل محتاج نت، ولو مفيش بيستنى لحد ما يرجع. العمليات دي عليها علامة "اتسجلت لوحدها" في التاريخ.',
       'عمره ما بيتسجل مرتين لنفس الشهر — حتى لو فتحت التطبيق من موبايلين، أو مسحت العملية بإيدك.',
       'نزل بدري؟ دوس "نزل" من صفحة الدخل الثابت، والشهر أو الأسبوع ده بيتقفل. ولو نزل بمبلغ مختلف، اكتبه من "المبلغ مختلف" قبل التسجيل، أو عدّل العملية من الأرشيف بعده — المبلغ المعتاد مبيتغيّرش.',
       'الإيقاف المؤقت: مش هيتسجل ولا هيسألك، ولما ترجّعه بيبدأ من يومها (الشهور اللي فاتت وهو واقف مش بتتسجل). "وقّفه" بيوقفه خالص، واللي اتسجل قبل كده بيفضل، وتقدر ترجّعه بعدين من "المتوقف" وبيبدأ من يوم ما رجّعته.',
@@ -113,7 +114,7 @@ const SECTIONS: Section[] = [
       'لو معاده آخر الشهر (يوم 31 مثلًا)، في الشهور الأقصر بيبقى آخر يوم فيها، وبيرجع 31 في الشهور اللي فيها 31.',
       'تغيير المعاد من "تعديل": مينفعش ترجّعه لجوه فترة اتسجلت أو اتفوّتت (كان هيتخصم مرتين). ولو قدّمته وعليه مرات متأخرة لسه ما اتسجلتش، بيقولك قبل الحفظ إنها هتتشال. ولو الاشتراك "بيتسجل لوحده"، المرات اللي معادها قبل يوم التغيير بتسألك الأول.',
       '"بيسألك الأول" (المقترح): يوم المعاد بيظهرلك في الرئيسية سطر "مستنيين ردك" — دوس عليه ويفتحلك كارت "اتخصم؟". تقدر تقول اتخصم، أو تكتب المبلغ لو مختلف، أو "ما اتخصمش" (اتلغى أو شهر مجاني).',
-      '"بيتسجل لوحده": أول ما تفتح التطبيق بعد المعاد بيتسجل، وبيجيلك إشعار إنه اتسجل. لو فاتك كذا مرة بتتسجل كلها مرة واحدة برسالة واحدة. بيبدأ من المعاد اللي بعد ما تفعّله — الشهور المتأخرة قبل كده بتسألك. العمليات دي عليها علامة "⚙️ اتسجلت لوحدها".',
+      '"بيتسجل لوحده": أول ما تفتح التطبيق بعد المعاد بيتسجل، وبيجيلك إشعار إنه اتسجل. لو فاتك كذا مرة بتتسجل كلها مرة واحدة برسالة واحدة. بيبدأ من المعاد اللي بعد ما تفعّله — الشهور المتأخرة قبل كده بتسألك. العمليات دي عليها علامة "اتسجلت لوحدها" في التاريخ.',
       'عمره ما بيتخصم مرتين لنفس المعاد — حتى لو دوست "اتخصم" بإيدك قبله، أو فتحت التطبيق من موبايلين.',
       'اتسجل بمبلغ غلط؟ عدّل العملية نفسها. اتلغى أو ما اتخصمش؟ امسح العملية: هيرجع يسألك "اتخصم؟" تاني ومش هيتسجل لوحده.',
       'وقّفت الاشتراك شوية؟ دوس "وقّف": مش هيتخصم ولا هيفكّرك بيه، والدفعات اللي اتسجلت بتفضل زي ما هي. بيروح تحت في قسم "اشتراكات واقفة".',
@@ -216,10 +217,10 @@ export default function UserGuideScreen() {
         return (
           <View key={s.id} style={styles.cardShadow}>
           <View style={styles.card}>
-            <TouchableOpacity accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
+            <PressableScale accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
               <Text style={styles.cardTitle}>{s.icon}  {s.title}</Text>
               <Text style={styles.chevron}>{isOpen ? '−' : '+'}</Text>
-            </TouchableOpacity>
+            </PressableScale>
             {isOpen && (
               <View style={styles.cardBody}>
                 {s.body.map((line, i) => (
@@ -245,7 +246,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: 19 },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: leading.caption },
     // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
     cardShadow: { borderRadius: radius.lg, backgroundColor: c.surface, marginBottom: space.md, ...cardElevation(c) },
     // الغامق مالوش ظل (shadow = null) فالإطار بيفضل هناك زي ما كان
@@ -256,7 +257,7 @@ function makeStyles(c: ThemeColors) {
     cardBody: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
     bulletRow: { flexDirection: 'row-reverse', marginBottom: 10 },
     bulletDot: { color: c.accentText, fontSize: typeScale.body, marginLeft: space.sm, marginTop: 1 },
-    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     footer: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxxl },
   });
 }

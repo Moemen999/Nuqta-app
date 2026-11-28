@@ -17,7 +17,7 @@ import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { AUTOSAVED_ANNOUNCEMENT, SHEET_RELINKED_NOTICE, goneFromAnotherDeviceNotice, nameEmptyNotice } from '@/lib/walletCopy';
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { MIN_TOUCH, categoryIconSize, space, typeScale, radius } from '@/lib/tokens';
@@ -27,6 +27,7 @@ import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 function announce(text: string) {
   try { AccessibilityInfo.announceForAccessibility(text); } catch { /* زينة */ }
@@ -280,12 +281,12 @@ export default function CategoriesScreen() {
             {/* اللون كان مجرد نقطة مش بتتدوس. بقى خلفية للأيقونة، والدوسة
                 بتفتح الاختيار — فمفيش صف زيادة ومفيش زرار تالت على الصف */}
             {/* الإيموجي لوحده كان بيتقري اسمه ("إيدين مضمومين") — دلوقتي بيقول بيعمل إيه (a11y-architect) */}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`}
+            <PressableScale accessibilityRole="button" accessibilityLabel={`غيّر أيقونة ${c.name}`}
               testID={`category_icon_${c.id}`}
               onPress={() => setIconFor(c.id)}
               style={styles.iconBtn}>
               <CategoryIcon icon={c.icon} size={categoryIconSize.bar} tint={categoryColors.get(c.id)} />
-            </TouchableOpacity>
+            </PressableScale>
             <TextInput
               testID={`category_name_input_${c.id}`}
               style={styles.nameInput}
@@ -296,12 +297,12 @@ export default function CategoriesScreen() {
               accessibilityLabel={`اسم الفئة ${c.name}`}
             />
             {/* نفس "حذف" المحفظة: اسم بيقول أنهي فئة، وحالة الانشغال، وطول 44 (a11y-architect جولة 2) */}
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح فئة ${c.name}`} accessibilityState={{ busy: deletingKey === c.id, disabled: deletingKey === c.id }}
+            <PressableScale accessibilityRole="button" accessibilityLabel={`امسح فئة ${c.name}`} accessibilityState={{ busy: deletingKey === c.id, disabled: deletingKey === c.id }}
               testID={`category_delete_${c.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(c.id, c.name)} disabled={deletingKey === c.id}>
               <Text style={[styles.deleteText, deletingKey === c.id && styles.btnBusy]}>
                 {deletingKey === c.id ? '...' : 'امسح'}
               </Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         ))}
 

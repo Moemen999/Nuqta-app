@@ -2,8 +2,9 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useMemo } from 'react';
 import FoldedSection from '@/components/FoldedSection';
 import { MIN_TOUCH, typeScale } from '@/lib/tokens';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * بيتقال لقارئ الشاشة لحظة الدوسة على «رجّعها» في التأكيد (a11y-architect، الميزة 10): الصف بيختفي من القسم والتركيز
@@ -29,10 +30,10 @@ export default function ArchivedList({ title, items, onRestore }: {
       {items.map(item => (
         <View key={item.id} style={styles.row}>
           <Text style={styles.name}>{item.name}</Text>
-          <TouchableOpacity onPress={() => onRestore(item.id, item.name)} style={styles.restoreBtn}
+          <PressableScale onPress={() => onRestore(item.id, item.name)} style={styles.restoreBtn}
             accessibilityRole="button" accessibilityLabel={`رجّعها: ${item.name}`}>
             <Text style={styles.restore}>رجّعها</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ))}
     </FoldedSection>

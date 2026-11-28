@@ -2,8 +2,9 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, typeScale } from '@/lib/tokens';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * زرار الرجوع في أعلى الشاشات الداخلية.
@@ -23,7 +24,7 @@ export default function BackButton({ onPress }: { onPress?: () => void }) {
   const styles = useMemo(() => makeStyles(colors), [colors]);
 
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={onPress ?? (() => router.back())}
       hitSlop={8}
       accessibilityRole="button"
@@ -32,7 +33,7 @@ export default function BackButton({ onPress }: { onPress?: () => void }) {
         <Text style={styles.text}>›</Text>
         <Text style={styles.text}>رجوع</Text>
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 

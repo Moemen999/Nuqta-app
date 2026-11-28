@@ -6,10 +6,11 @@ import { useAnnounceOnAppear } from '@/lib/useAnnounceOnAppear';
 import DismissButton from '@/components/DismissButton';
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
-import { AccessibilityInfo, ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { radius, space, typeScale, leading } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * «جرّب تاني» (الميزة 7): الدوسة بتفتح الـlisteners من الأول، ولو فشلوا تاني مفيش حاجة بتتغيّر — فالزرار بيلف لحد ما
@@ -81,7 +82,7 @@ export default function DataLoadErrorBanner() {
           label={dismissLabel('loadError')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
       <Text testID="data_load_error_body" style={styles.body}>{loadErrorBody(loadErrors)}</Text>
-      <TouchableOpacity
+      <PressableScale
         testID="data_load_error_retry"
         style={styles.btn}
         onPress={retry}
@@ -93,7 +94,7 @@ export default function DataLoadErrorBanner() {
           {busy && <ActivityIndicator size="small" color={colors.dangerText} />}
           <Text style={styles.btnText}>{busy ? RETRY_BUSY_TEXT : LOAD_ERROR_RETRY}</Text>
         </View>
-      </TouchableOpacity>
+      </PressableScale>
     </View>
   );
 }
@@ -107,7 +108,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.dangerText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     titleFlex: { flex: 1 },
-    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 20 },
+    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.body },
     btn: {
       alignSelf: 'flex-end', marginTop: space.sm, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md,
       paddingVertical: 8, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center',

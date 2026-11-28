@@ -9,16 +9,14 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space, leading } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
-  TouchableOpacity, View,
-} from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "نبدأ بإيه؟" — أول تجهيز للحساب الجديد (بتظهر بس لما السيرفر يأكد إنه
@@ -173,14 +171,9 @@ export default function FirstRunSetup() {
       <View style={[styles.center, { paddingTop: insets.top }]} testID="setup_error">
         <Text style={styles.failTitle} accessibilityRole="alert">{msg.title}</Text>
         <Text style={styles.centerText}>{msg.body}</Text>
-        <TouchableOpacity testID="setup_retry" style={[styles.primaryBtn, styles.wideBtn]} onPress={() => save(fail.choice)}
-          accessibilityRole="button">
-          <Text style={styles.primaryText}>جرّب تاني</Text>
-        </TouchableOpacity>
-        <TouchableOpacity testID="setup_error_back" style={[styles.ghostBtn, styles.wideBtn]} onPress={() => setFail(null)}
-          accessibilityRole="button">
-          <Text style={styles.ghostText}>رجوع للاختيارات</Text>
-        </TouchableOpacity>
+        <Button testID="setup_retry" label="جرّب تاني" style={styles.wideBtn} onPress={() => save(fail.choice)} />
+        <Button variant="secondary" testID="setup_error_back" label="رجوع للاختيارات" style={styles.wideBtn}
+          onPress={() => setFail(null)} />
       </View>
     );
   }
@@ -193,14 +186,9 @@ export default function FirstRunSetup() {
         <Text style={styles.centerText}>
           اختار المحافظ اللي بتصرف منها ورصيد كل واحدة دلوقتي، والفئات اللي بتصرف عليها. تقدر تغيّر أي حاجة بعدين من الإعدادات.
         </Text>
-        <TouchableOpacity testID="setup_start" style={[styles.primaryBtn, styles.wideBtn]} onPress={() => setStep('wallets')}
-          accessibilityRole="button">
-          <Text style={styles.primaryText}>يلا نجهّز</Text>
-        </TouchableOpacity>
-        <TouchableOpacity testID="setup_skip" style={[styles.ghostBtn, styles.wideBtn]} onPress={() => save(SKIP_SETUP)}
-          accessibilityRole="button" accessibilityHint="هنعملك محفظة كاش وفئات أساسية">
-          <Text style={styles.ghostText}>تخطي</Text>
-        </TouchableOpacity>
+        <Button testID="setup_start" label="يلا نجهّز" style={styles.wideBtn} onPress={() => setStep('wallets')} />
+        <Button variant="secondary" testID="setup_skip" label="تخطي" style={styles.wideBtn} onPress={() => save(SKIP_SETUP)}
+          accessibilityHint="هنعملك محفظة كاش وفئات أساسية" />
         <Text style={styles.hint}>{'"تخطي" بيعملك محفظة كاش رصيدها صفر وفئات أساسية.'}</Text>
         {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
       </View>
@@ -218,13 +206,13 @@ export default function FirstRunSetup() {
               const on = pickedWallets.has(r.key);
               return (
                 <View key={r.key} style={[styles.row, selectionStyle(colors, on)]}>
-                  <TouchableOpacity testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
+                  <PressableScale testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
                     onPress={() => setPickedWallets(p => toggle(p, r.key))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={r.name}>
                     <Text numberOfLines={2} style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
                       {on ? '✓ ' : ''}{r.name}
                     </Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                   {on && (
                     <TextInput testID={`setup_balance_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.balanceInput}
                       value={balances[r.key] ?? ''} onChangeText={v => setBalances(b => ({ ...b, [r.key]: v }))}
@@ -252,7 +240,7 @@ export default function FirstRunSetup() {
               {[...CATEGORY_OPTIONS, ...customCats].map((c, i) => {
                 const on = pickedCats.has(c);
                 return (
-                  <TouchableOpacity key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
+                  <PressableScale key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
@@ -260,7 +248,7 @@ export default function FirstRunSetup() {
                       <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} onSelected={on} />
                       <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c }, { icon: false })}</Text>
                     </View>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
@@ -278,18 +266,12 @@ export default function FirstRunSetup() {
       {!!error && <Text style={[styles.error, { paddingHorizontal: space.xxl }]} accessibilityRole="alert">{error}</Text>}
       <View style={stickyFooterStyle(colors, colors.bg, insets.bottom)}>
         {step === 'wallets' ? (
-          <TouchableOpacity testID="setup_next" style={[styles.primaryBtn, styles.flexBtn]} onPress={goToCategories} accessibilityRole="button">
-            <Text style={styles.primaryText}>التالي</Text>
-          </TouchableOpacity>
+          <Button testID="setup_next" label="التالي" style={styles.flexBtn} onPress={goToCategories} />
         ) : (
-          <TouchableOpacity testID="setup_finish" style={[styles.primaryBtn, styles.flexBtn]} onPress={finish} accessibilityRole="button">
-            <Text style={styles.primaryText}>خلّصنا</Text>
-          </TouchableOpacity>
+          <Button testID="setup_finish" label="خلّصنا" style={styles.flexBtn} onPress={finish} />
         )}
-        <TouchableOpacity testID="setup_back" style={[styles.ghostBtn, styles.flexBtn]}
-          onPress={() => { setError(''); setStep(step === 'wallets' ? 'welcome' : 'wallets'); }} accessibilityRole="button">
-          <Text style={styles.ghostText}>رجوع</Text>
-        </TouchableOpacity>
+        <Button variant="secondary" testID="setup_back" label="رجوع" style={styles.flexBtn}
+          onPress={() => { setError(''); setStep(step === 'wallets' ? 'welcome' : 'wallets'); }} />
       </View>
     </KeyboardAvoidingView>
   );
@@ -301,8 +283,8 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 24 },
     center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
-    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
-    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
+    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: leading.body },
+    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.body },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
     failTitle: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     row: {
@@ -329,10 +311,6 @@ function makeStyles(c: ThemeColors) {
     },
     addBtn: { minWidth: MIN_TOUCH + 16 },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.lg },
-    primaryBtn: { backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    primaryText: { color: c.onAccent, fontSize: typeScale.title, fontWeight: '700' },
-    ghostBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, alignItems: 'center', justifyContent: 'center' },
-    ghostText: { color: c.textSecondary, fontSize: typeScale.title },
     wideBtn: { alignSelf: 'stretch', marginTop: space.xxs },
     flexBtn: { flex: 1 },
   });

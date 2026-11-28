@@ -16,19 +16,17 @@ import {
 } from '@/lib/recurringIncome';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
-import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet,
-  TouchableOpacity, View,
-} from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
 import { useFabScroll } from '@/context/FabScrollContext';
+import { PressableScale } from '@/components/PressableScale';
 
 /** نفس أسامي الاشتراكات والجمعية — مصدر واحد في `lib/autoCharge.ts` */
 export const INCOME_MODE_LABEL: Record<IncomeMode, string> = CHARGE_MODE_LABEL;
@@ -123,7 +121,7 @@ export default function IncomesView() {
   function deleteButton(inc: RecurringIncome) {
     const busy = busyKey === `del_${inc.id}`;
     return (
-      <TouchableOpacity
+      <PressableScale
         testID={`income_delete_${inc.id}`}
         style={[styles.stopBtn, busy && styles.btnBusy]}
         onPress={() => confirmDelete(inc)}
@@ -139,7 +137,7 @@ export default function IncomesView() {
         ) : (
           <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>امسحه</Text>
         )}
-      </TouchableOpacity>
+      </PressableScale>
     );
   }
 
@@ -183,7 +181,7 @@ export default function IncomesView() {
             <Text style={styles.due}>{nextLine(inc)}</Text>
             <View style={styles.actionsRow}>
               {!paused && (
-                <TouchableOpacity
+                <PressableScale
                   testID={`income_arrived_${inc.id}`}
                   style={[styles.payBtn, recBusy && styles.btnBusy]}
                   onPress={() => confirmArrived(inc)}
@@ -199,13 +197,13 @@ export default function IncomesView() {
                   ) : (
                     <Text style={styles.payText}>نزل</Text>
                   )}
-                </TouchableOpacity>
+                </PressableScale>
               )}
-              <TouchableOpacity style={styles.editBtn} onPress={() => setEditing(inc)} accessibilityRole="button"
+              <PressableScale style={styles.editBtn} onPress={() => setEditing(inc)} accessibilityRole="button"
                 accessibilityLabel={`تعديل "${inc.name}"`}>
                 <Text style={styles.editText}>تعديل</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </PressableScale>
+              <PressableScale
                 style={styles.editBtn}
                 onPress={() => {
                   setIncomeStatus(inc.id, paused ? 'active' : 'paused');
@@ -214,13 +212,13 @@ export default function IncomesView() {
                 accessibilityRole="button"
                 accessibilityLabel={paused ? `رجّع "${inc.name}"` : `وقّف "${inc.name}" مؤقتًا`}>
                 <Text style={styles.editText}>{paused ? 'رجّعه' : 'وقّفه مؤقتًا'}</Text>
-              </TouchableOpacity>
+              </PressableScale>
               {/* اللي عمره ما سجّل: المسح مكان "وقّفه" — التوقيف كان هيسيب كارت مالوش لازمة */}
               {incomeHasRecords(inc, transactions) ? (
-                <TouchableOpacity testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button"
+                <PressableScale testID={`income_stop_${inc.id}`} style={styles.stopBtn} onPress={() => confirmStop(inc)} accessibilityRole="button"
                   accessibilityLabel={`وقّف "${inc.name}"`}>
                   <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>وقّفه</Text>
-                </TouchableOpacity>
+                </PressableScale>
               ) : deleteButton(inc)}
             </View>
           </View>
@@ -228,12 +226,12 @@ export default function IncomesView() {
       })}
 
       {stopped.length > 0 && (
-        <TouchableOpacity style={styles.stoppedToggle} onPress={() => setShowStopped(s => !s)} accessibilityRole="button"
+        <PressableScale style={styles.stoppedToggle} onPress={() => setShowStopped(s => !s)} accessibilityRole="button"
           accessibilityLabel={showStopped ? 'اخفِ المتوقف' : `المتوقف، ${stopped.length}`} accessibilityState={{ expanded: showStopped }}>
           {showStopped
             ? <Text style={styles.stoppedToggleText}>اخفِ المتوقف</Text>
             : <CountedText title="المتوقف" count={stopped.length} style={styles.stoppedToggleText} />}
-        </TouchableOpacity>
+        </PressableScale>
       )}
       {showStopped && stopped.map(inc => (
         <View key={inc.id} style={[styles.card, styles.cardPaused]}>
@@ -242,12 +240,12 @@ export default function IncomesView() {
             <Money value={inc.amount} sign="+" style={styles.amount} />
           </View>
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.editBtn} onPress={() => {
+            <PressableScale style={styles.editBtn} onPress={() => {
               setIncomeStatus(inc.id, 'active');
               AccessibilityInfo.announceForAccessibility(`رجع "${inc.name}" من النهاردة`);
             }} accessibilityRole="button" accessibilityLabel={`رجّع "${inc.name}" من النهاردة`}>
               <Text style={styles.editText}>رجّعه من النهاردة</Text>
-            </TouchableOpacity>
+            </PressableScale>
             {!incomeHasRecords(inc, transactions) && deleteButton(inc)}
           </View>
         </View>
@@ -407,21 +405,21 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                   <Text style={styles.label}>بينزل في محفظة</Text>
                   <View style={styles.chipRow}>
                     {selectableOptions(wallets, walletId).map(w => (
-                      <TouchableOpacity key={w.id} onPress={() => pickWallet(w.id)}
+                      <PressableScale key={w.id} onPress={() => pickWallet(w.id)}
                         {...selectionA11y(walletId === w.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                         <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ))}
                   </View>
                   <Text style={styles.label}>كل قد إيه</Text>
                   <View style={styles.row}>
                     {(['monthly', 'weekly'] as const).map(f => (
-                      <TouchableOpacity key={f} onPress={() => { freeze(); setFrequency(f); }}
+                      <PressableScale key={f} onPress={() => { freeze(); setFrequency(f); }}
                         {...selectionA11y(frequency === f, 'radio')}
                         style={[styles.typeBtn, selectionStyle(colors, frequency === f)]}>
                         <Text style={{ color: colors.text, fontSize: typeScale.body }}>{f === 'monthly' ? 'كل شهر' : 'كل أسبوع'}</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ))}
                   </View>
                   {income && scheduleChanges && !pendingOnScheduleChange && (
@@ -443,11 +441,11 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                       <Text style={styles.label}>أنهي يوم؟</Text>
                       <View style={styles.chipRow}>
                         {WEEKDAY_NAMES.map((n, i) => (
-                          <TouchableOpacity key={n} onPress={() => { freeze(); setWeekday(i); }}
+                          <PressableScale key={n} onPress={() => { freeze(); setWeekday(i); }}
                             {...selectionA11y(weekday === i, 'radio')}
                             style={[styles.chip, selectionStyle(colors, weekday === i)]}>
                             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{n}</Text>
-                          </TouchableOpacity>
+                          </PressableScale>
                         ))}
                       </View>
                     </>
@@ -458,7 +456,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
               {step === 2 && (
                 <>
                   {(['confirm', 'auto'] as const).map(m => (
-                    <TouchableOpacity key={m} testID={`income_mode_${m}`} onPress={() => { freeze(); setMode(m); }}
+                    <PressableScale key={m} testID={`income_mode_${m}`} onPress={() => { freeze(); setMode(m); }}
                       {...selectionA11y(mode === m, 'radio')}
                       style={[styles.modeCard, selectionStyle(colors, mode === m)]}>
                       <Text style={styles.modeTitle}>{INCOME_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
@@ -467,7 +465,7 @@ function IncomeSetupModal({ income, onClose }: { income: RecurringIncome | null;
                           ? 'يوم المعاد هيجيلك إشعار (لو الإشعارات شغّالة)، وفي الرئيسية سطر "مستنيين ردك" بيفتحلك كارت "نزل؟" — تأكد أو تعدّل المبلغ.'
                           : 'أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله.'}
                       </Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   ))}
                   <Text style={styles.summary}>
                     {`"${name.trim()}"`} · {incomeScheduleLabel(draft)} · {walletHistoryName(wallets, walletId)}
@@ -498,7 +496,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: 20 },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: leading.body },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
     cardPaused: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
@@ -525,7 +523,7 @@ function makeStyles(c: ThemeColors) {
     stepDot: { width: 28, height: 4, borderRadius: radius.track, backgroundColor: c.borderStrong },
     stepTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: leading.caption },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     bigInput: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
@@ -534,7 +532,7 @@ function makeStyles(c: ThemeColors) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', minHeight: MIN_TOUCH, justifyContent: 'center' },
     modeCard: { borderWidth: 1.5, borderRadius: radius.lg, padding: space.xl, marginTop: space.lg },
     modeTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
-    modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
+    modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.caption },
     summary: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxl },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.md, backgroundColor: c.nav },
     footer: stickyFooterStyle(c, c.nav),

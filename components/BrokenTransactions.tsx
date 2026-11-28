@@ -23,12 +23,13 @@ import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, categoryLabelById, todayStr } from '@/lib/finance';
 import type { BrokenTransaction } from '@/lib/fromDoc';
 import { storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
-import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, leading } from '@/lib/tokens';
 import { announceAfterLeave } from '@/lib/announceLater';
 import { useFormError } from '@/lib/useFormError';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
+import { PressableScale } from '@/components/PressableScale';
 
 export function BrokenTransactionsSection() {
   const { colors } = useTheme();
@@ -52,7 +53,7 @@ export function BrokenTransactionsSection() {
         // الاسم بيغطي اللي جوه، فلازم يقول كل اللي بيفرّق صف عن صف: المبلغ (من قناع الخصوصية) والتاريخ (a11y-architect)
         const spoken = ['بيانات ناقصة', ...parts, reasons, dayText(t.date ?? '', todayStr()), t.amount !== undefined ? money(t.amount) : undefined].filter(Boolean).join('. ');
         return (
-          <TouchableOpacity key={t.id} testID={`archive_broken_${t.id}`} accessibilityRole="button"
+          <PressableScale key={t.id} testID={`archive_broken_${t.id}`} accessibilityRole="button"
             accessibilityLabel={spoken} accessibilityHint={FIX_TITLE} style={styles.row} onPress={() => setOpen(t)}>
             <View style={styles.rowTop}>
               <Text style={styles.rowTitle} numberOfLines={2}>{parts.join(' · ') || BROKEN_NO_DETAILS}</Text>
@@ -60,7 +61,7 @@ export function BrokenTransactionsSection() {
             </View>
             <Text style={styles.rowMark}>{BROKEN_MARK} — {reasons}</Text>
             {t.date ? <Text style={styles.rowDate}>{dayText(t.date, todayStr())}</Text> : null}
-          </TouchableOpacity>
+          </PressableScale>
         );
       })}
       {open && <FixBrokenTransactionSheet t={open} onClose={() => setOpen(null)} />}
@@ -165,9 +166,9 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
               {loadFailed ? (
                 <>
                   <Text testID="broken_fix_load_failed" style={styles.blocked}>{FIX_LOAD_FAILED}</Text>
-                  <TouchableOpacity testID="broken_fix_retry" accessibilityRole="button" style={styles.retryBtn} onPress={retryLoad}>
+                  <PressableScale testID="broken_fix_retry" accessibilityRole="button" style={styles.retryBtn} onPress={retryLoad}>
                     <Text style={styles.retryText}>{FIX_RETRY}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </>
               ) : waiting ? (
                 <Text testID="broken_fix_waiting" style={styles.blocked}>{FIX_WAITING}</Text>
@@ -180,11 +181,11 @@ function FixBrokenTransactionSheet({ t, onClose }: { t: BrokenTransaction; onClo
                     onChangeText={v => { setAmount(v); setError(''); }} keyboardType="numeric" textAlign="right"
                     placeholder="0" placeholderTextColor={colors.textSecondary} accessibilityLabel="المبلغ" />
                   <Text style={styles.label} accessible={false}>التاريخ</Text>
-                  <TouchableOpacity testID="broken_fix_date" accessibilityRole="button"
+                  <PressableScale testID="broken_fix_date" accessibilityRole="button"
                     accessibilityLabel={date ? `التاريخ ${dateText(date, todayStr())}` : FIX_DATE_MISSING} accessibilityHint="بيفتح التقويم"
                     style={styles.input} onPress={() => setPicker(true)}>
                     <Text style={[styles.inputText, !date && { color: colors.textSecondary }]}>{date ? dateText(date, todayStr()) : FIX_DATE_MISSING}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </>
               )}
             </ScrollView>
@@ -221,7 +222,7 @@ function makeStyles(c: ThemeColors) {
     body: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c),
     reasons: { color: c.dangerText, fontSize: font.text, textAlign: 'right', marginBottom: space.lg },
-    blocked: { color: c.textSecondary, fontSize: font.subtitle, textAlign: 'right', lineHeight: 22 },
+    blocked: { color: c.textSecondary, fontSize: font.subtitle, textAlign: 'right', lineHeight: leading.body },
     label: { color: c.textSecondary, fontSize: font.text, textAlign: 'right', marginTop: space.sm, marginBottom: space.xxs },
     input: {
       minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.lg,

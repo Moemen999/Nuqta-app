@@ -1,7 +1,7 @@
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
-import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
@@ -25,10 +25,11 @@ import { moneyText, speakable } from '@/lib/money';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { useFabScroll } from '@/context/FabScrollContext';
+import { PressableScale } from '@/components/PressableScale';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -214,20 +215,20 @@ export default function ShakhbataView() {
         {percentDrafts ? (
           <View style={styles.percentActions}>
             {/* الاسم ثابت والحالة في `accessibilityState` (a11y-architect) — مش «...» بيتقري نقط */}
-            <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="حفظ النسب"
+            <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="حفظ النسب"
               accessibilityState={{ disabled: savingPercents, busy: savingPercents }} onPress={savePercents} disabled={savingPercents}>
               <Text style={[styles.textBtnLabel, { opacity: savingPercents ? 0.6 : 1 }]}>حفظ النسب</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="إلغاء تعديل النسب"
+            </PressableScale>
+            <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="إلغاء تعديل النسب"
               accessibilityState={{ disabled: savingPercents }} onPress={() => setPercentDrafts(null)} disabled={savingPercents}>
               <Text style={[styles.textBtnLabel, { color: colors.textSecondary }]}>إلغاء</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         ) : (
-          <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="عدّل النسب"
+          <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="عدّل النسب"
             accessibilityState={{ disabled: !percentsReady }} onPress={startEditingPercents} disabled={!percentsReady}>
             <Text style={[styles.textBtnLabel, { opacity: percentsReady ? 1 : 0.5 }]}>عدّل النسب</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
         <Text style={styles.label}>نسبك الحالية</Text>
       </View>
@@ -322,13 +323,13 @@ export default function ShakhbataView() {
               {BUCKET_META.map(b => {
                 const active = c.bucket === b.key;
                 return (
-                  <TouchableOpacity {...selectionA11y(active)}
+                  <PressableScale {...selectionA11y(active)}
                     key={b.key}
                     accessibilityLabel={`${categoryLabel(c, { icon: false })} — ${b.label}`}
                     onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
                     style={[styles.catBtn, quietSelectionStyle(colors, active)]}>
                     <Text style={{ color: active ? colors.text : colors.textSecondary, fontSize: typeScale.caption }}>{b.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
@@ -355,7 +356,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    subtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: 18 },
+    subtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: leading.caption },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs },
     incomeInput: {
       backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.lg,
@@ -369,9 +370,9 @@ function makeStyles(c: ThemeColors) {
     // زرار نصي بمساحة لمس كاملة (a11y-architect): كان hitSlop فوق وتحت بس
     textBtn: { minHeight: MIN_TOUCH, paddingHorizontal: space.md, justifyContent: 'center' },
     textBtnLabel: { color: c.accentText, fontSize: typeScale.caption, fontWeight: '700' },
-    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.sm, lineHeight: 18 },
-    hintLine: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, lineHeight: 18 },
-    warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: 17 },
+    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.sm, lineHeight: leading.caption },
+    hintLine: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, lineHeight: leading.caption },
+    warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: leading.caption },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
     bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
@@ -381,7 +382,7 @@ function makeStyles(c: ThemeColors) {
     fill: { height: '100%', borderRadius: radius.track },
     bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
-    hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
+    hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: leading.caption },
     catRow: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.sm },
     catName: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', marginBottom: 8 },
     catBtns: { flexDirection: 'row-reverse', gap: 6 },

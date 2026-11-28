@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
-import { AccessibilityInfo, StyleSheet, TouchableOpacity } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { typeScale } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * الـ✕ الواحد في التطبيق — نفس شكل اللي كان على رسايل "سجلنا/ما سجلناش" للدخل الثابت
@@ -21,12 +22,12 @@ export default function DismissButton({ onPress, testID, label, hint, announce }
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   return (
-    <TouchableOpacity
+    <PressableScale
       onPress={() => { onPress(); if (announce) AccessibilityInfo.announceForAccessibility(announce); }}
       style={styles.btn} testID={testID}
       accessibilityRole="button" accessibilityLabel={label} accessibilityHint={hint} hitSlop={8}>
       <Text style={styles.x}>✕</Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 }
 

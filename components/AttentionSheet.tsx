@@ -5,16 +5,17 @@ import { ATTENTION_LINE_HINT, ATTENTION_ROUTE_HINT, attentionSummaryPhrase } fro
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { ATTENTION_ROUTE, visibleAttention, type AttentionItem } from '@/lib/homeAttention';
 import { requestPlanning } from '@/lib/planningRequest';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize, leading } from '@/lib/tokens';
 import {
   VERIFY_RESEND_LABEL, VERIFY_SENDING_TEXT, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
 } from '@/lib/useEmailVerification';
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * «حاجات محتاجة انتباهك» في الرئيسية (2026-11-13، قرار مؤمن): الإيميل، «لسه ما سجلتش»، رصيد قرب يخلص،
@@ -96,10 +97,10 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
           <View testID={LINE_TEST_ID} style={[styles.singleRow, { borderColor: barColor(single.tone) }]}>
             {/* الـ✕ أخ للجزء اللي بيتداس مش جوّاه: زرار جوه زرار قارئ الشاشة مبيوصلوش */}
             {single.route ? (
-              <TouchableOpacity style={styles.flex} onPress={() => go(single.route!)} accessibilityRole="button"
+              <PressableScale style={styles.flex} onPress={() => go(single.route!)} accessibilityRole="button"
                 accessibilityLabel={single.label} accessibilityHint={ATTENTION_ROUTE_HINT[single.route]}>
                 <Text style={[styles.lineText, { color: toneColor(single.tone) }]}>{single.text}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ) : (
               <View style={styles.flex} accessible accessibilityLabel={single.label}>
                 <Text style={[styles.lineText, { color: toneColor(single.tone) }]}>{single.text}</Text>
@@ -110,7 +111,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
           {single.kind === 'budget' && transfersFailed && failedNote}
         </>
       ) : (
-        <TouchableOpacity
+        <PressableScale
           testID={LINE_TEST_ID}
           style={styles.line}
           onPress={() => setOpen(true)}
@@ -119,7 +120,7 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
           accessibilityHint={ATTENTION_LINE_HINT}>
           <Text style={[styles.lineText, { color: colors.text, fontWeight: '700' }]}>{phrase}</Text>
           <Text style={styles.chevron} accessible={false}>‹</Text>
-        </TouchableOpacity>
+        </PressableScale>
       )}
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -131,10 +132,10 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
                 <View key={it.id} testID={`attention_row_${it.id}`} style={[styles.row, { borderColor: barColor(it.tone) }]}>
                   <View style={styles.rowMain}>
                     {it.route ? (
-                      <TouchableOpacity style={styles.flex} onPress={() => go(it.route!)} accessibilityRole="button"
+                      <PressableScale style={styles.flex} onPress={() => go(it.route!)} accessibilityRole="button"
                         accessibilityLabel={it.label} accessibilityHint={ATTENTION_ROUTE_HINT[it.route]}>
                         <Text style={[styles.rowText, { color: toneColor(it.tone) }]}>{it.text}</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ) : (
                       <View style={styles.flex} accessible={it.kind !== 'verifyEmail'} accessibilityLabel={it.kind === 'verifyEmail' ? undefined : it.label}>
                         <Text style={[styles.rowText, { color: toneColor(it.tone) }]}>{it.text}</Text>
@@ -147,14 +148,14 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
                       {email.sent && !email.error ? (
                         <Text style={styles.bodyText}>{VERIFY_SENT_TEXT}</Text>
                       ) : (
-                        <TouchableOpacity testID="attention_verify_resend" accessibilityRole="button" onPress={email.resend}
+                        <PressableScale testID="attention_verify_resend" accessibilityRole="button" onPress={email.resend}
                           disabled={email.busy} style={styles.action}
                           accessibilityLabel={email.busy ? VERIFY_SENDING_TEXT : VERIFY_RESEND_LABEL}
                           accessibilityState={{ busy: email.busy, disabled: email.busy }}>
                           <Text style={[styles.actionText, email.busy && { opacity: 0.6 }]}>
                             {email.busy ? VERIFY_SENDING_TEXT : VERIFY_RESEND_LABEL}
                           </Text>
-                        </TouchableOpacity>
+                        </PressableScale>
                       )}
                       {/* بعد "بعتنالك رسالة جديدة" مش قبلها — النصيحة على آخر رسالة اتقال إنها اتبعتت */}
                       <Text testID="verify_spam_hint" style={styles.bodyText}>{VERIFY_SPAM_HINT}</Text>
@@ -167,10 +168,10 @@ export default function AttentionSheet({ items, email, loadWindowPassed, transfe
               {transfersFailed && budgetShown && failedNote}
             </ScrollView>
             <View style={styles.footer}>
-              <TouchableOpacity testID="attention_sheet_close" style={styles.closeBtn}
+              <PressableScale testID="attention_sheet_close" style={styles.closeBtn}
                 onPress={() => setOpen(false)} accessibilityRole="button">
                 <Text style={styles.closeText}>اقفل</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
         </View>
@@ -193,7 +194,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, borderRightWidth: 3,
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8, marginTop: space.md,
     },
-    lineText: { flex: 1, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    lineText: { flex: 1, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     chevron: { color: c.textSecondary, fontSize: glyphSize.chevron },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '85%' }), padding: 0, overflow: 'hidden' },
@@ -204,8 +205,8 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14, paddingVertical: space.sm, marginTop: space.md,
     },
     rowMain: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
-    rowText: { fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
-    bodyText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    rowText: { fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
+    bodyText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     action: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
     actionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
     footer: stickyFooterStyle(c, c.nav),

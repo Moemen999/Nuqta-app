@@ -10,13 +10,14 @@ import { setupDoneKey } from '@/lib/firstRunSetup';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REDIRECT_URI, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { cancelAllReminders } from '@/lib/notifications';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
-import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale, leading } from '@/lib/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, BackHandler, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * مسح الحساب (خط النهاية — `reports/2026-11-03-account-delete-export.md`، **على `main` من دمج `d70a52c`**):
@@ -175,10 +176,10 @@ export default function DeleteAccountScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity testID="delete_export_first" style={styles.secondaryBtn} onPress={() => router.push('/archive')} disabled={busy}
+        <PressableScale testID="delete_export_first" style={styles.secondaryBtn} onPress={() => router.push('/archive')} disabled={busy}
           accessibilityRole="button" accessibilityHint="بيفتح الأرشيف، وفيه تصدير كل بياناتك في ملف إكسيل">
           <Text style={styles.secondaryText}>صدّر كل بياناتك الأول (من الأرشيف)</Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         <Text style={styles.label} importantForAccessibility="no">اكتب «{DELETE_CONFIRM_PHRASE}» عشان تأكد</Text>
         <TextInput testID="delete_phrase" style={styles.input} value={phrase} onChangeText={setPhrase} editable={!busy}
@@ -187,11 +188,11 @@ export default function DeleteAccountScreen() {
           accessibilityHint="لازم تكتبها زي ما هي، وبعدها زرار المسح بيتفتح" />
 
         {usesGoogle ? (
-          <TouchableOpacity testID="delete_google" style={styles.secondaryBtn} onPress={openGoogle} disabled={busy || !googleRequest} accessibilityRole="button"
+          <PressableScale testID="delete_google" style={styles.secondaryBtn} onPress={openGoogle} disabled={busy || !googleRequest} accessibilityRole="button"
             accessibilityLabel={googleToken ? 'اتأكدنا إنك انت' : 'أكّد إنك انت بحساب جوجل'}
             accessibilityHint={googleToken ? undefined : 'بيفتح تسجيل جوجل'}>
             <Text style={styles.secondaryText}>{googleToken ? 'اتأكدنا إنك انت ✓' : 'أكّد إنك انت بحساب جوجل'}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ) : (
           <>
             <Text style={styles.label} importantForAccessibility="no">باسورد حسابك</Text>
@@ -207,11 +208,11 @@ export default function DeleteAccountScreen() {
         <View accessibilityLiveRegion="polite" style={styles.reasonWrap}>
           {!!reason && <Text testID="delete_reason" style={styles.hint}>{reason}</Text>}
         </View>
-        <TouchableOpacity testID="delete_confirm" style={[styles.dangerBtn, { opacity: canDelete || busy ? 1 : 0.5 }]} onPress={run}
+        <PressableScale testID="delete_confirm" style={[styles.dangerBtn, { opacity: canDelete || busy ? 1 : 0.5 }]} onPress={run}
           disabled={!canDelete} accessibilityRole="button" accessibilityLabel={busy ? 'بنمسح حسابك' : 'امسح حسابي'}
           accessibilityHint={reason ?? undefined} accessibilityState={{ disabled: !canDelete, busy }}>
           {busy ? <ActivityIndicator color={colors.dangerText} accessibilityLabel="بنمسح" /> : <Text style={styles.dangerText}>امسح حسابي</Text>}
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );
@@ -225,12 +226,12 @@ const makeStyles = (c: ThemeColors, bottomInset: number) =>
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.dangerBorder, padding: space.xl, gap: space.sm },
     cardTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 21, textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     danger: { color: c.dangerText, fontWeight: '700' },
     label: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: 18, marginBottom: space.xs },
     input: { backgroundColor: c.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, fontSize: typeScale.title },
     reasonWrap: { width: '100%' },
-    hint: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 19, textAlign: 'right' },
+    hint: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.xl, paddingHorizontal: space.xxl },
     secondaryText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     footer: { ...stickyFooterStyle(c, c.bg, bottomInset), flexDirection: 'column' },

@@ -24,18 +24,19 @@ import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
-import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, leading } from '@/lib/tokens';
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Linking, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "القسط 3 من 6 · 1,000 ج.م" — الرقم اللي المستخدم محتاجه على الكارت.
@@ -283,7 +284,7 @@ function DebtsContent() {
       <View key={d.id} style={styles.debtCard}>
         {/* الكارت بيتفتح ويتقفل: القارئ بيقول الحالة. وزرار جهة الاتصال جوّاه مبيوصلوش TalkBack (الأب بيجمع اللي جواه)، فهو
             "إجراء" على الكارت نفسه (a11y-architect جولة 2) */}
-        <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded }}
+        <PressableScale accessibilityRole="button" accessibilityState={{ expanded }}
           accessibilityLabel={cardLabel}
           accessibilityActions={(d.personContactId || d.personPhone) ? [{ name: 'openContact', label: `افتح كارت ${d.personName}` }] : undefined}
           onAccessibilityAction={e => { if (e.nativeEvent.actionName === 'openContact') openContactCard(d); }}
@@ -291,12 +292,12 @@ function DebtsContent() {
           <View style={styles.debtHead}>
             <View style={styles.personBlock}>
               {(d.personContactId || d.personPhone) ? (
-                <TouchableOpacity hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} accessibilityHint="افتح كارت جهة الاتصال" onPress={() => openContactCard(d)}>
+                <PressableScale hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="link" accessibilityLabel={`افتح كارت ${d.personName}`} accessibilityHint="افتح كارت جهة الاتصال" onPress={() => openContactCard(d)}>
                   <View style={styles.personLinkRow}>
                     <Text style={[styles.personName, styles.personNameLink, { flexShrink: 1 }]}>{d.personName}</Text>
                     <LineIcon name="person-circle-outline" size={16} color={colors.accentText} />
                   </View>
-                </TouchableOpacity>
+                </PressableScale>
               ) : (
                 <Text style={styles.personName}>{d.personName}</Text>
               )}
@@ -314,7 +315,7 @@ function DebtsContent() {
             {overdue ? 'متأخر — ' : ''}{debtPaidLabel(d, money)}
             {!!d.dueDate && !settled ? ` · معاده ${dueDateLabel(d.dueDate, today)}${d.reminderDaysBefore !== undefined ? ' · فيه تذكير' : ''}` : ''}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
 
         {expanded && (
           <View style={styles.expandedArea}>
@@ -340,7 +341,7 @@ function DebtsContent() {
                     <View style={styles.paymentMeta}>
                       <Text style={styles.paymentDate}>{dayText(t.date, today)}</Text>
                       {t.kind !== 'initial' && (
-                        <TouchableOpacity
+                        <PressableScale
                           testID={`debt_entry_delete_${t.id}`}
                           style={styles.entryDeleteBtn}
                           hitSlop={ENTRY_DELETE_SLOP}
@@ -353,7 +354,7 @@ function DebtsContent() {
                           {entryBusy
                             ? <ActivityIndicator size="small" color={colors.danger} />
                             : <LineIcon name="trash-outline" size={18} color={colors.textMuted} />}
-                        </TouchableOpacity>
+                        </PressableScale>
                       )}
                     </View>
                   </View>
@@ -365,16 +366,16 @@ function DebtsContent() {
                 (reverseDebtPrefill) عشان يقع في نفس مجموعته في كشف الحساب */}
             <View style={styles.actionsRow}>
               {!settled && (
-                <TouchableOpacity accessibilityRole="button" testID={`debt_pay_${d.id}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                <PressableScale accessibilityRole="button" testID={`debt_pay_${d.id}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                   <Text style={styles.payBtnText}>تسجيل دفعة</Text>
-                </TouchableOpacity>
+                </PressableScale>
               )}
-              <TouchableOpacity accessibilityRole="button" testID={`debt_more_${d.id}`} accessibilityLabel={`باقي الاختيارات لدين ${d.personName}`}
+              <PressableScale accessibilityRole="button" testID={`debt_more_${d.id}`} accessibilityLabel={`باقي الاختيارات لدين ${d.personName}`}
                 disabled={busyKey === d.id} accessibilityState={{ disabled: busyKey === d.id, busy: busyKey === d.id }}
                 accessibilityHint="بيفتح قايمة" ref={el => { moreRefs.current.set(d.id, el); }}
                 style={[styles.moreBtn, busyKey === d.id && styles.btnBusy]} onPress={() => { menuReturnFocus.current = moreRefs.current.get(d.id) ?? null; setMenuDebtId(d.id); }}>
                 <Text style={styles.moreBtnText} importantForAccessibility="no">{busyKey === d.id ? '...' : '⋯'}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
         )}
@@ -511,7 +512,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
 
           <View style={styles.labelRow}>
             <Text style={styles.labelInRow}>اسم الشخص</Text>
-            <TouchableOpacity
+            <PressableScale
               onPress={picker.open}
               style={styles.contactBtn}
               hitSlop={8}
@@ -519,7 +520,7 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
               accessibilityLabel="اختار من جهات الاتصال">
               <LineIcon name="person-circle-outline" size={18} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           <TextInput accessibilityLabel="اسم الشخص" maxLength={NAME_MAX_LENGTH} style={styles.input} value={personName} onChangeText={setPersonName}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
@@ -530,9 +531,9 @@ function EditDebtModal({ debt, onClose }: { debt: Debt; onClose: () => void }) {
 
           {!!personContactId && (
             <View style={styles.linkedRow}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="إلغاء ربط جهة الاتصال" onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
+              <PressableScale accessibilityRole="button" accessibilityLabel="إلغاء ربط جهة الاتصال" onPress={() => setPersonContactId('')} hitSlop={8} style={styles.unlinkBtn}>
                 <Text style={styles.unlinkText}>إلغاء الربط</Text>
-              </TouchableOpacity>
+              </PressableScale>
               <Text style={styles.linkedText}>مربوط بجهة اتصال على الموبايل</Text>
             </View>
           )}
@@ -661,7 +662,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: leading.caption },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.xl, marginBottom: space.xs },
     labelInRow: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     contactBtn: {
@@ -675,7 +676,7 @@ function makeStyles(c: ThemeColors) {
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: space.xxs },
     unlinkText: { color: c.dangerText, fontSize: typeScale.caption, fontWeight: '700' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
-    installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: 16 },
+    installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: leading.caption },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     errorBar: { paddingHorizontal: space.xxxl, paddingBottom: space.sm },

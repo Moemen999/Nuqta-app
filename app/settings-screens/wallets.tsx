@@ -3,6 +3,7 @@ import { AMOUNT_CLEARED_BODY, amountClearedTitle, planLowAlertCommit, planWallet
 import {
   AUTOSAVED_ANNOUNCEMENT, OPENING_PENDING_HINT, nameEmptyNotice, openingConfirmCopy, openingDroppedNotice, openingGoneNotice,
   openingStaleNotice, walletAmountRejectNotice, goneFromAnotherDeviceNotice, SHEET_RELINKED_NOTICE, lowAlertGoneNotice,
+  walletWriteNotice,
 } from '@/lib/walletCopy';
 import ArchiveSheet, { type ReassignItem, type ReassignTarget } from '@/components/ArchiveSheet';
 import ArchivedList, { restoredAnnouncement } from '@/components/ArchivedList';
@@ -23,7 +24,7 @@ import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
@@ -32,6 +33,7 @@ import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 /** قارئ الشاشة بس — مفيش حاجة تتعمل لو المنصة مبتدعمش */
 function announce(text: string) {
@@ -226,6 +228,7 @@ export default function WalletsScreen() {
       try {
         const result = await deleteWallet(id);
         if (result.outcome === 'blocked') showBlock(result.block, name, 'delete');
+        else if (result.outcome !== 'done') notice(...walletWriteNotice(result.outcome, name, 'delete'));
       } catch (e) {
         // نفس archiveNow: اللي بيترمي قبل الكتابة كان هيبقى unhandled rejection.
         // رمي هنا = باج، فبيوصل Sentry (كود الخطأ بس، من غير الاسم)
@@ -314,7 +317,8 @@ export default function WalletsScreen() {
 
     const items = activeItemsFor(id);
     if (items.length === 0) {
-      if (confirmed) { void archiveNow(id, name, {}); return; }
+      // الأرشفة بقت ذرة من السيرفر (9.5-3) — زرار الصف بيلف لحد ما النتيجة ترجع، زي المسح
+      if (confirmed) { runDelete(id, () => archiveNow(id, name, {})); return; }
       confirm('أرشفة محفظة', `هنأرشف "${name}". هتختفي من الاختيارات وتفضل ظاهرة في التاريخ.`, [
         { text: 'إلغاء', style: 'cancel' },
         { text: 'أرشفها', onPress: () => startArchive(id, name, true) },
@@ -330,9 +334,10 @@ export default function WalletsScreen() {
     try {
       const result = await archiveWallet(id, reassign);
       if (result.outcome === 'blocked') showBlock(result.block, name, 'archive');
+      else if (result.outcome !== 'done') notice(...walletWriteNotice(result.outcome, name, 'archive'));
     } catch (e) {
       reportAtomicFailure('أرشفة المحفظة', e);
-      // فشل الكتابة نفسها بيتقال من `track` باسم المحفظة؛ ده للي بيترمي قبلها
+      // نتايج الذرة (مفيش نت/فشل/مش متأكدين) بتتقال من `walletWriteNotice` فوق (9.5-3)؛ ده للي بيترمي برّه الذرة
       // (تجهيز الدفعة) — كان هيبقى unhandled rejection والشيت اتقفل (silent-failure-hunter)
       notice('حصل خطأ، جرب تاني', `"${name}" ما اتأرشفتش — حصلت مشكلة وإحنا بنجهّز الأرشفة، ومفيش حاجة اتغيّرت. جرب تاني، ولو اتكررت اقفل التطبيق وافتحه.`);
     }
@@ -433,12 +438,12 @@ export default function WalletsScreen() {
                 textAlign="right"
                 accessibilityLabel={`اسم المحفظة ${w.name}`}
               />
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
+              <PressableScale accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
                 testID={`wallet_delete_${w.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
                   {deletingKey === w.id ? '...' : 'امسح'}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             <View style={styles.walletRow}>
               <View style={{ flex: 1 }}>

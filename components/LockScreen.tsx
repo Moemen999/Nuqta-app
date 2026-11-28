@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  AccessibilityInfo, Alert, KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, TouchableOpacity, View,
-} from 'react-native';
+import { AccessibilityInfo, Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius, leading } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_READ_RETRY_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { pendingWritesSentence } from '@/lib/archiving';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
 import { LineIcon } from '@/components/LineIcon';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
+import { PressableScale } from '@/components/PressableScale';
 
 // أرقام لوحة القفل (مفتاح 78 ودايرة 18): الدواير نص العرض، وخط الرقم مالوش درجة
 const LOCK_DOT_RADIUS = 9;
@@ -245,10 +243,10 @@ export default function LockScreen() {
           <Text testID="lock_read_failed" style={styles.readFailed} accessibilityLiveRegion="polite">{LOCK_READ_FAILED}</Text>
           {/* «جرّب تاني» فشلت ← الرسالة بتشاور على المخرج، مش على نفس الزرار تاني (silent L2) */}
           {retryFailed && !retrying && <Text testID="lock_read_retry_failed" style={styles.error} accessibilityLiveRegion="polite">{LOCK_READ_RETRY_FAILED}</Text>}
-          <TouchableOpacity testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
+          <PressableScale testID="lock_read_retry" accessibilityRole="button" accessibilityState={{ busy: retrying, disabled: retrying }}
             disabled={retrying} style={[styles.submitBtn, retrying && { opacity: 0.6 }]} onPress={retry}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>{retrying ? 'بنجرّب…' : LOCK_RETRY}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ) : lockType === 'pin' ? (
         <>
@@ -264,7 +262,7 @@ export default function LockScreen() {
             {KEY_ROWS.map((row, ri) => (
               <View key={ri} style={styles.keyRow}>
                 {row.map((k, ki) => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={ki}
                     testID={k === '⌫' ? 'lock_key_backspace' : k === '' ? 'lock_key_empty' : `lock_key_${k}`}
                     // الخانة الفاضية مش زرار (كانت بتتقري "زرار" من غير اسم)، والمسح ليه اسم بدل "⌫"
@@ -277,7 +275,7 @@ export default function LockScreen() {
                     activeOpacity={0.6}
                     onPress={() => (k === '⌫' ? backspace() : k !== '' && pressDigit(k))}>
                     <Text style={[styles.keyText, { color: colors.text }]}>{k}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             ))}
@@ -298,10 +296,10 @@ export default function LockScreen() {
             autoFocus
           />
           {statusLine}
-          <TouchableOpacity testID="lock_submit_button" accessibilityRole="button" accessibilityState={{ disabled: waiting }}
+          <PressableScale testID="lock_submit_button" accessibilityRole="button" accessibilityState={{ disabled: waiting }}
             disabled={waiting} style={[styles.submitBtn, waiting && { opacity: 0.6 }]} onPress={() => handleSubmit()}>
             <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.title }}>دخول</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       )}
 
@@ -315,9 +313,9 @@ export default function LockScreen() {
         يعني المخرج الوحيد من الحبسة كان هو نفسه محبوس.
       */}
       <View testID="lock_footer" style={styles.footer}>
-        <TouchableOpacity testID="lock_forgot_button" accessibilityRole="button" style={styles.forgotBtn} onPress={handleForgot}>
+        <PressableScale testID="lock_forgot_button" accessibilityRole="button" style={styles.forgotBtn} onPress={handleForgot}>
           <Text style={styles.forgotText}>{FORGOT_LABEL}</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );
@@ -335,7 +333,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: typeScale.body, marginBottom: 18, minHeight: 18, textAlign: 'center' },
     status: { marginBottom: 18, gap: space.xxs },
     // ارتفاع سطر صريح: سطرين دايمًا × ارتفاع ثابت = اللوحة مبتنطش حتى مع تكبير الخط
-    statusText: { color: c.dangerText, fontSize: typeScale.body, lineHeight: 20, textAlign: 'center' },
+    statusText: { color: c.dangerText, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: LOCK_KEY_RADIUS, alignItems: 'center', justifyContent: 'center' },
@@ -344,7 +342,7 @@ function makeStyles(c: ThemeColors) {
     passwordArea: { width: '100%', maxWidth: 320 },
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.lg, color: c.text, padding: space.xxl, fontSize: typeScale.title },
     submitBtn: { backgroundColor: c.accent, borderRadius: radius.lg, alignItems: 'center', paddingVertical: 15, marginTop: space.xxs },
-    readFailed: { color: c.text, fontSize: typeScale.body, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
+    readFailed: { color: c.text, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'center', marginBottom: 18 },
     forgotBtn: { padding: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     forgotText: { color: c.textSecondary, fontSize: typeScale.body, textDecorationLine: 'underline' },
   });

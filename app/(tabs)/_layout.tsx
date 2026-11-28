@@ -1,6 +1,6 @@
 import { router, Tabs, usePathname } from 'expo-router';
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { LineIcon, type LineIconName } from '@/components/LineIcon';
@@ -10,6 +10,7 @@ import { tabLabelStyle } from '@/lib/appFont';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius } from '@/lib/tokens';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * التابات اللي الزرار العايم بيظهر فيها. الإعدادات مفيهاش عمليات خالص،
@@ -90,9 +91,9 @@ function FabButton({ visible, bottom }: { visible: boolean; bottom: number }) {
         opacity: progress,
         transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [FAB_HIDE_DISTANCE, 0] }) }],
       }]}>
-      <TouchableOpacity testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.shadow ?? colors.bg }]} onPress={() => router.push('/modal')}>
+      <PressableScale testID="tx_add_button" accessibilityRole="button" accessible accessibilityLabel="إضافة عملية" style={[styles.fab, { backgroundColor: colors.accent, shadowColor: colors.shadow ?? colors.bg }]} onPress={() => router.push('/modal')}>
         <LineIcon name="add" size={30} color={colors.onAccent} />
-      </TouchableOpacity>
+      </PressableScale>
     </Animated.View>
   );
 }

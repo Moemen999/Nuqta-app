@@ -3,15 +3,16 @@ import SetLockModal from '@/components/SetLockModal';
 import { useAppLock } from '@/context/AppLockContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, space, typeScale, radius, leading } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /** خيارات مهلة السماح — نفس اللي كانت في شاشة الإعدادات القديمة بالظبط */
 export const GRACE_OPTIONS = [
@@ -91,20 +92,20 @@ export default function LockScreen_Settings() {
 
           <Text style={styles.hint}>يطلب الكود إمتى؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity
+            <PressableScale
               testID="lock_freq_on_open"
               {...selectionA11y(frequency === 'onOpen', 'radio')}
               onPress={() => chooseFrequency('onOpen')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </PressableScale>
+            <PressableScale
               testID="lock_freq_every_resume"
               {...selectionA11y(frequency === 'everyResume', 'radio')}
               onPress={() => chooseFrequency('everyResume')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           {frequency === 'everyResume' && (
@@ -112,34 +113,24 @@ export default function LockScreen_Settings() {
               <Text style={[styles.hint, { marginTop: space.xl }]}>يقفل بعد قد إيه من خروجك من التطبيق؟</Text>
               <View style={styles.row}>
                 {GRACE_OPTIONS.map(opt => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
                     {...selectionA11y(graceMinutes === opt.m, 'radio')}
                     onPress={() => chooseGrace(opt.m)}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </>
           )}
 
           <View style={[styles.row, { marginTop: space.xxl }]}>
-            <TouchableOpacity
-              testID="lock_change_button"
-              accessibilityRole="button"
-              style={styles.changeBtn}
-              onPress={() => setModalMode('change')}>
-              <Text style={styles.btnLabel}>تغيير الكود</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              testID="lock_disable_button"
-              accessibilityRole="button"
-              style={styles.disableBtn}
-              onPress={() => setModalMode('disable')}>
-              <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>إلغاء القفل</Text>
-            </TouchableOpacity>
+            <Button variant="secondary" testID="lock_change_button" label="تغيير الكود" style={styles.flexBtn}
+              onPress={() => setModalMode('change')} />
+            <Button variant="danger" testID="lock_disable_button" label="إلغاء القفل" style={styles.flexBtn}
+              onPress={() => setModalMode('disable')} />
           </View>
         </View>
       )}
@@ -158,7 +149,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: space.xxl, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: leading.caption },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, ...cardElevation(c) },
     status: { color: c.incomeText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginBottom: space.md },
     row: { flexDirection: 'row-reverse', gap: space.sm },
@@ -166,7 +157,6 @@ function makeStyles(c: ThemeColors) {
     graceLabel: { color: c.text, fontSize: typeScale.caption },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md, justifyContent: 'center', minHeight: MIN_TOUCH },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: MIN_TOUCH },
-    changeBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
-    disableBtn: { flex: 1, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.md },
+    flexBtn: { flex: 1 },
   });
 }

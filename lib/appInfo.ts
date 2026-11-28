@@ -20,3 +20,10 @@ export function fullVersionLabel(version = APP_VERSION, build = BUILD_NUMBER) {
 }
 
 export const APP_FULL_VERSION = fullVersionLabel();
+
+/**
+ * سياسة الخصوصية على Firebase Hosting (9.5-1) — نفس اللينك اللي بيتحط في Google Play، والصفحة في
+ * `hosting/public/privacy.html` (`cleanUrls` في `firebase.json` بيشيل `.html`). الدومين الافتراضي للمشروع
+ * (`<projectId>.web.app`)، فلو المشروع اتغيّر أو اتعمل دومين مخصّص، اللينك ده يتغيّر معاه.
+ */
+export const PRIVACY_POLICY_URL = 'https://nuqta-711f2.web.app/privacy';

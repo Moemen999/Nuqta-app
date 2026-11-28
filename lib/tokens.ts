@@ -33,6 +33,21 @@ export const typeScale = {
   hero: 34,
 } as const;
 
+/**
+ * ارتفاع السطر للنص اللي ممكن يلف على أكتر من سطر. العربي محتاج 1.4–1.6× من
+ * مقاس الخط (الحروف بنقطها فوق وتحت)، وكان فيه 53 رقم صريح من 16 لـ26 لنفس
+ * المقاسين. أي `lineHeight` برقم صريح في app/ أو components/ بيقع في
+ * `tokensInventory.test.ts`.
+ */
+export const leading = {
+  /** مع `typeScale.caption` (12) — 1.5× */
+  caption: 18,
+  /** مع `typeScale.body` (14) — ~1.57× */
+  body: 22,
+  /** جملة الترحيب بس (`OnboardingScreen`) — أوسع عن قصد */
+  loose: 26,
+} as const;
+
 /** مقاس المسافات (gap / padding / margin) */
 export const space = {
   xxs: 4,

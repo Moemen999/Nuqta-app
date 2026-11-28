@@ -7,9 +7,10 @@ import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/banner
 import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * سطر "عندك … مستنيين ردك" في الرئيسية + الشيت اللي بيفتحه (2026-09-29).
@@ -75,7 +76,7 @@ export default function PendingSummary() {
   return (
     <>
       <View testID="home_pending_row" style={styles.lineRow}>
-      <TouchableOpacity
+      <PressableScale
         testID="home_pending_summary"
         style={[styles.line, styles.lineFlex]}
         onPress={() => setOpen(true)}
@@ -84,7 +85,7 @@ export default function PendingSummary() {
         accessibilityHint="بيفتح الحاجات المستنية">
         <Text style={styles.lineText}>{phrase}</Text>
         <Text style={styles.chevron} accessible={false}>‹</Text>
-      </TouchableOpacity>
+      </PressableScale>
       <DismissButton testID="home_pending_dismiss" onPress={() => dismiss('pending', dismissKey)} hint={DISMISS_HINT}
         label={dismissLabel('pending')} announce={DISMISSED_ANNOUNCEMENT} />
       </View>
@@ -114,10 +115,10 @@ export default function PendingSummary() {
               )}
             </ScrollView>
             <View style={styles.footer}>
-              <TouchableOpacity testID="pending_sheet_close" style={styles.closeBtn}
+              <PressableScale testID="pending_sheet_close" style={styles.closeBtn}
                 onPress={() => setOpen(false)} accessibilityRole="button">
                 <Text style={styles.closeText}>اقفل</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
         </View>

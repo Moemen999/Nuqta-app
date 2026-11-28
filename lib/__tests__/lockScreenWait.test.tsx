@@ -102,7 +102,7 @@ it('مساحة الحالة ثابتة في الحالتين (اللوحة مب�
   expect(count(lines())).toBe(2);
   // ارتفاع السطر صريح في الاستايل (من غيره تكبير الخط بيغيّر الارتفاع بين الحالتين)
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'components', 'LockScreen.tsx'), 'utf8');
-  expect(src).toMatch(/statusText: {[^}]*lineHeight: 20/);
+  expect(src).toMatch(/statusText: {[^}]*lineHeight: leading.body/);
 });
 
 it('مودال التأكيد (تخفيف القفل): «أكّد إنك انت» وسطر السبب — في التأكيد بس', async () => {

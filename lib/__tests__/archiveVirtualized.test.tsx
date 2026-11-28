@@ -47,13 +47,13 @@ it('مفيش عمليات ← الحالة الفاضية', async () => {
 it('الصف memo: علامة "لسه بترفع" بتظهر وتختفي مع pendingTxIds (مش بتفضل قديمة)', async () => {
   seed(3);
   const view = await render(ui());
-  expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
+  expect(screen.queryByText('لسه بترفع')).toBeNull();
   mockData.pendingTxIds = new Set(['t1']);
   await view.rerender(ui());
-  expect(screen.getAllByText('⏳ لسه بترفع')).toHaveLength(1);
+  expect(screen.getAllByText('لسه بترفع')).toHaveLength(1);
   mockData.pendingTxIds = new Set();
   await view.rerender(ui());
-  expect(screen.queryByText('⏳ لسه بترفع')).toBeNull();
+  expect(screen.queryByText('لسه بترفع')).toBeNull();
 });
 
 /** يثبّت «النهاردة» (Date بس) عشان نص التاريخ ميتغيّرش بتغيّر يوم الجهاز — باقي التايمرز حقيقية */

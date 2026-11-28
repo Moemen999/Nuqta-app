@@ -7,14 +7,15 @@ import {
   feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius, leading } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "شاركنا رأيك".
@@ -70,13 +71,13 @@ export default function FeedbackScreen() {
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
         <View style={styles.chipRow}>
           {FEEDBACK_TYPES.map(t => (
-            <TouchableOpacity {...selectionA11y(type === t, 'radio')}
+            <PressableScale {...selectionA11y(type === t, 'radio')}
               key={t}
               testID={`feedback_type_${t}`}
               onPress={() => setType(t)}
               style={[styles.chip, selectionStyle(colors, type === t)]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>{FEEDBACK_TYPE_LABEL[t]}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           ))}
         </View>
 
@@ -106,16 +107,16 @@ export default function FeedbackScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
+        <PressableScale accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
           <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button"
+        </PressableScale>
+        <PressableScale accessibilityRole="button"
           testID="feedback_send_button"
           style={[styles.sendBtn, !canSend && styles.btnBusy]}
           disabled={!canSend}
           onPress={handleSend}>
           <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'ابعت'}</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );
@@ -131,7 +132,7 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.lg, minHeight: 150 },
     counter: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'left', marginTop: space.xs },
-    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, lineHeight: 17 },
+    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, lineHeight: leading.caption },
     result: { color: c.incomeText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxl, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.nav, bottomInset),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },

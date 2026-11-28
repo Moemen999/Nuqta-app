@@ -1,12 +1,13 @@
-import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import type { LineIconName } from '@/components/LineIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
+import { PressableScale } from '@/components/PressableScale';
 
 export const ONBOARDING_KEY = 'nuqta_onboarding_done';
 
@@ -63,9 +64,9 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-      <TouchableOpacity accessibilityRole="button" testID="onboarding_skip_button" style={styles.skipBtn} onPress={finish}>
+      <PressableScale accessibilityRole="button" testID="onboarding_skip_button" style={styles.skipBtn} onPress={finish}>
         <Text style={styles.skipText}>تخطي</Text>
-      </TouchableOpacity>
+      </PressableScale>
 
       <ScrollView contentContainerStyle={styles.slideArea}>
         <View style={styles.iconWrap}><HeroIcon name={slide.icon} size={heroIconSize.welcome} animateKey={index} testID="onboarding_icon" /></View>
@@ -84,17 +85,17 @@ export default function OnboardingScreen({ onDone }: { onDone: () => void }) {
 
       <View style={styles.actions}>
         {index > 0 && (
-          <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={() => setIndex(i => i - 1)}>
+          <PressableScale accessibilityRole="button" style={styles.backBtn} onPress={() => setIndex(i => i - 1)}>
             <Text style={{ color: colors.textSecondary, fontSize: typeScale.body }}>السابق</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
-        <TouchableOpacity accessibilityRole="button"
+        <PressableScale accessibilityRole="button"
           style={styles.nextBtn}
           onPress={() => (isLast ? finish() : setIndex(i => i + 1))}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>
             {isLast ? 'يلا نبدأ' : 'التالي'}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </View>
   );
@@ -108,7 +109,7 @@ function makeStyles(c: ThemeColors) {
     slideArea: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
     iconWrap: { marginBottom: heroIconGap },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'center', marginBottom: space.xl },
-    body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 26 },
+    body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.loose },
     dotsRow: { flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginBottom: 24 },
     dot: { height: 8, borderRadius: radius.pill },
     actions: { flexDirection: 'row-reverse', gap: 10 },

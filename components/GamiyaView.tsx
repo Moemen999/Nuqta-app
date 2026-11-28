@@ -23,15 +23,16 @@ import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { gamiyaMarkConfirmBody, gamiyaMonthNote, gamiyaMonthTxIds, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { EmptyHint } from '@/components/EmptyHint';
 import FoldedSection from '@/components/FoldedSection';
 import { isGamiyaFinished, splitDone } from '@/lib/doneSections';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 /** «متأخر —» لو المعاد فات، «قرّب —» لو جوّه مهلة التذكير، وإلا ولا حاجة */
 export function gamiyaDueCue(days: number, reminderDaysBefore: number): string {
@@ -163,7 +164,7 @@ export default function GamiyaView() {
 
     return (
       <View key={g.id} style={styles.card}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={cardSentence} accessibilityHint="يفتح جدول الشهور" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
+        <PressableScale accessibilityRole="button" accessibilityLabel={cardSentence} accessibilityHint="يفتح جدول الشهور" accessibilityState={{ expanded: isExpanded }} onPress={() => setExpanded(isExpanded ? null : g.id)}>
           <View style={styles.cardHead}>
             <Text style={styles.name}>{g.name}</Text>
             <Text style={styles.sub2}>{walletLabel}</Text>
@@ -181,7 +182,7 @@ export default function GamiyaView() {
               {gamiyaNextLabel(daysUntil(nextPending.dueDate), g.reminderDaysBefore, nextPending.isPayoutMonth)}{dateText(nextPending.dueDate, todayStr())} (<Money value={nextPending.amount} />)
             </Text>
           )}
-        </TouchableOpacity>
+        </PressableScale>
 
         {isExpanded && (
           <View style={styles.expandedArea}>
@@ -211,12 +212,12 @@ export default function GamiyaView() {
               );
             })}
             <View style={styles.gamiyaActions}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تعديل جمعية ${g.name}`} style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
+              <PressableScale accessibilityRole="button" accessibilityLabel={`تعديل جمعية ${g.name}`} style={styles.editBtn} onPress={() => setEditingGamiya(g)}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>تعديل</Text>
-              </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح جمعية ${g.name}`} accessibilityState={{ disabled: busyKey === `del_${g.id}`, busy: busyKey === `del_${g.id}` }} style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
+              </PressableScale>
+              <PressableScale accessibilityRole="button" accessibilityLabel={`امسح جمعية ${g.name}`} accessibilityState={{ disabled: busyKey === `del_${g.id}`, busy: busyKey === `del_${g.id}` }} style={[styles.deleteBtnFlex, busyKey === `del_${g.id}` && styles.btnBusy]} onPress={() => confirmDelete(g)} disabled={busyKey === `del_${g.id}`}>
                 <Text style={{ color: colors.dangerText, fontSize: typeScale.body }}>{busyKey === `del_${g.id}` ? '...' : 'امسح الجمعية'}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
           </View>
         )}
@@ -357,17 +358,17 @@ function AddGamiyaModal({ visible, onClose }: { visible: boolean; onClose: () =>
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
+              <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
           <Text style={styles.label}>تاريخ أول قسط</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تاريخ أول قسط، ${dateText(startDate, todayStr())}`} accessibilityHint="يفتح التقويم" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`تاريخ أول قسط، ${dateText(startDate, todayStr())}`} accessibilityHint="يفتح التقويم" style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(startDate, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <Text style={styles.label}>التذكير قبل كل قسط بكام يوم؟</Text>
           <TextInput accessibilityLabel="عدد أيام التذكير قبل كل قسط" style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
@@ -419,7 +420,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    hintNote: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 17, marginBottom: space.xxs },
+    hintNote: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', lineHeight: leading.caption, marginBottom: space.xxs },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     bigInput: bigAmountInputStyle(c),
@@ -490,10 +491,10 @@ function EditGamiyaModal({ gamiya, onClose }: { gamiya: Gamiya; onClose: () => v
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+              <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 

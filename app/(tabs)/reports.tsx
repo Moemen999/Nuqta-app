@@ -22,13 +22,14 @@ import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
 import { quietSelectionStyle, selectionA11y } from '@/lib/selection';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabScroll } from '@/context/FabScrollContext';
 import { useReduceMotion } from '@/lib/useReduceMotion';
+import { PressableScale } from '@/components/PressableScale';
 
 /** مدة نمو الأعمدة من صفر لقيمتها */
 const BAR_GROW_MS = 400;
@@ -280,12 +281,12 @@ export default function ReportsScreen() {
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
+          <PressableScale accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {dateText(customFrom, today)}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
+          </PressableScale>
+          <PressableScale accessibilityRole="button" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
             <Text style={styles.dateBtnText}>لحد: {dateText(customTo, today)}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       )}
 
@@ -325,13 +326,13 @@ export default function ReportsScreen() {
         {chipCategories.map(c => {
           const active = catFilter.includes(c.id);
           return (
-            <TouchableOpacity {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
+            <PressableScale {...selectionA11y(active)} key={c.id} testID={`reports_filter_chip_${c.id}`} onPress={() => toggleCat(c.id)}
               style={[styles.chip, quietSelectionStyle(colors, active)]}>
               <View style={styles.chipInner}>
                 <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} />
                 <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
               </View>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
       </View>
@@ -446,7 +447,7 @@ export default function ReportsScreen() {
         <Text style={styles.emptyState}>مفيش حركة ديون في الفترة دي</Text>
       ) : (
         personSummaries.map(s => (
-          <TouchableOpacity accessibilityRole="button"
+          <PressableScale accessibilityRole="button"
             key={s.key}
             testID={`reports_person_${s.key}`}
             // عقدة واحدة: الاسم والرصيد واللي اتحرّك في الفترة (a11y-architect)
@@ -464,7 +465,7 @@ export default function ReportsScreen() {
               <Text style={styles.personSub}>منك ليه: <Money value={s.outFlow} currency={false} /></Text>
               <Text style={styles.personSub}>منه ليك: <Money value={s.inFlow} currency={false} /></Text>
             </View>
-          </TouchableOpacity>
+          </PressableScale>
         ))
       )}
 
