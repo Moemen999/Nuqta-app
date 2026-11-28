@@ -3,7 +3,7 @@ import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { radius, space, typeScale, leading } from '@/lib/tokens';
 import { PressableScale } from '@/components/PressableScale';
 
 /**
@@ -42,5 +42,5 @@ const styles = StyleSheet.create({
   label: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
   card: { borderWidth: 1.5, borderRadius: radius.lg, padding: space.xl, marginTop: space.lg },
   title: { fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
-  body: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
+  body: { fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.caption },
 });

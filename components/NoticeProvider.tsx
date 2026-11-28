@@ -1,5 +1,5 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, overlayCenteredStyle, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, radius, space, typeScale, leading } from '@/lib/tokens';
 import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { LineIcon } from '@/components/LineIcon';
@@ -199,7 +199,7 @@ function makeStyles(c: ThemeColors) {
     },
     textBlock: { gap: 10 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 22, textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     okBtn: {
       marginTop: space.sm, backgroundColor: c.accent, borderRadius: radius.md, minHeight: MIN_TOUCH,
       alignItems: 'center', justifyContent: 'center',

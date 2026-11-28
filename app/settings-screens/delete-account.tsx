@@ -10,7 +10,7 @@ import { setupDoneKey } from '@/lib/firstRunSetup';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REDIRECT_URI, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { cancelAllReminders } from '@/lib/notifications';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
-import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, space, radius, typeScale, leading } from '@/lib/tokens';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Google from 'expo-auth-session/providers/google';
 import { router } from 'expo-router';
@@ -226,12 +226,12 @@ const makeStyles = (c: ThemeColors, bottomInset: number) =>
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: space.xl },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: c.dangerBorder, padding: space.xl, gap: space.sm },
     cardTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 21, textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     danger: { color: c.dangerText, fontWeight: '700' },
     label: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: 18, marginBottom: space.xs },
     input: { backgroundColor: c.surface2, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: space.lg, minHeight: MIN_TOUCH, fontSize: typeScale.title },
     reasonWrap: { width: '100%' },
-    hint: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 19, textAlign: 'right' },
+    hint: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     secondaryBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.xl, paddingHorizontal: space.xxl },
     secondaryText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
     footer: { ...stickyFooterStyle(c, c.bg, bottomInset), flexDirection: 'column' },

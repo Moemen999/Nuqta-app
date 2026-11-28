@@ -16,7 +16,7 @@ import {
 } from '@/lib/recurringIncome';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { CHARGE_MODE_LABEL } from '@/lib/autoCharge';
-import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -496,7 +496,7 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 40 },
     titleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.xxl },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700' },
-    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: 20 },
+    emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: space.xxxl, lineHeight: leading.body },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginBottom: space.md, ...cardElevation(c) },
     cardPaused: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong },
     cardHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
@@ -523,7 +523,7 @@ function makeStyles(c: ThemeColors) {
     stepDot: { width: 28, height: 4, borderRadius: radius.track, backgroundColor: c.borderStrong },
     stepTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: leading.caption },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     bigInput: { ...bigAmountInputStyle(c), fontVariant: ['tabular-nums'] },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
@@ -532,7 +532,7 @@ function makeStyles(c: ThemeColors) {
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', minHeight: MIN_TOUCH, justifyContent: 'center' },
     modeCard: { borderWidth: 1.5, borderRadius: radius.lg, padding: space.xl, marginTop: space.lg },
     modeTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
-    modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: 18 },
+    modeBody: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.caption },
     summary: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxl },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', paddingHorizontal: space.xxxl, paddingVertical: space.md, backgroundColor: c.nav },
     footer: stickyFooterStyle(c, c.nav),

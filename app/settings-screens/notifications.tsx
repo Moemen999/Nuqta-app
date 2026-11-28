@@ -16,7 +16,7 @@ import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cardElevation, typeScale, radius, space } from '@/lib/tokens';
+import { cardElevation, typeScale, radius, space, leading } from '@/lib/tokens';
 import { PressableScale } from '@/components/PressableScale';
 
 export const PERMISSION_DENIED_TITLE = 'الإشعارات مقفولة من الموبايل';
@@ -279,14 +279,14 @@ function makeStyles(c: ThemeColors) {
     switchRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: space.lg },
     switchLabel: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     status: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 2 },
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: 3, lineHeight: leading.caption },
     card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xl, marginTop: 18, ...cardElevation(c) },
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.sm },
     graceBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', paddingVertical: space.sm, minHeight: 44 },
     timeBtn: { minHeight: 52, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center', marginTop: space.md },
     timeValue: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     typeLabel: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
-    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
+    alarmText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.body },
     alarmBtn: { minHeight: 44, borderRadius: radius.md, borderWidth: 1.5, borderColor: c.accent, alignItems: 'center', justifyContent: 'center', marginTop: space.md, paddingHorizontal: space.lg },
     alarmBtnText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700' },
     groupLabel: { color: c.textSecondary, fontSize: typeScale.caption, fontWeight: '700', textAlign: 'right' },

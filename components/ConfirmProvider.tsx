@@ -1,7 +1,7 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { useAppLock } from '@/context/AppLockContext';
 import { spoken } from '@/components/NoticeProvider';
-import { MIN_TOUCH, overlayCenteredStyle, space, radius, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayCenteredStyle, space, radius, typeScale, leading } from '@/lib/tokens';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Dimensions, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -197,7 +197,7 @@ function makeStyles(c: ThemeColors) {
     },
     textBlock: { gap: 10 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: 22, textAlign: 'right' },
+    body: { color: c.textSecondary, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'right' },
     row: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.sm },
     stack: { flexDirection: 'column' },
     btn: {

@@ -1,4 +1,4 @@
-import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, heroIconGap, heroIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import type { LineIconName } from '@/components/LineIcon';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -109,7 +109,7 @@ function makeStyles(c: ThemeColors) {
     slideArea: { flexGrow: 1, alignItems: 'center', justifyContent: 'center' },
     iconWrap: { marginBottom: heroIconGap },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'center', marginBottom: space.xl },
-    body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 26 },
+    body: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.loose },
     dotsRow: { flexDirection: 'row-reverse', gap: 6, justifyContent: 'center', marginBottom: 24 },
     dot: { height: 8, borderRadius: radius.pill },
     actions: { flexDirection: 'row-reverse', gap: 10 },

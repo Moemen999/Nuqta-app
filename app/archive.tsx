@@ -20,7 +20,7 @@ import { EXPORT_FAIL, exportFailure, writeAndShare } from '@/lib/exportFiles';
 import { txRowLabel } from '@/lib/txRowLabel';
 import { rangeText } from '@/lib/spendTimeline';
 import { SpendLoading, TransfersFailedNote } from '@/components/SpendStatus';
-import { MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { CategoryIcon, CategoryIconSpacer, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -381,7 +381,7 @@ function makeStyles(c: ThemeColors) {
     // تانوي: إطار بلون التطبيق مش زرار مليان — التصدير الأساسي هنا هو الفترة اللي فوق
     fullExportBtn: { borderWidth: 1.5, borderColor: c.accent, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH, marginTop: space.md },
     fullExportText: { color: c.accentText, fontWeight: '700', fontSize: typeScale.body },
-    fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: 18, textAlign: 'right', marginTop: 6 },
+    fullExportWait: { color: c.textSecondary, fontSize: typeScale.caption, lineHeight: leading.caption, textAlign: 'right', marginTop: 6 },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
     sectionTitleBox: { marginTop: space.huge, marginBottom: space.xs },
     emptyState: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', paddingVertical: 20 },

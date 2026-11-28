@@ -4,7 +4,7 @@ import {
 } from '@/lib/emojiIcon';
 import { CATEGORY_ICONS, DEFAULT_CATEGORY_ICON, categoryIconLabel } from '@/lib/finance';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle, space, typeScale, leading } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
 import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
@@ -213,7 +213,7 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     title: sheetTitleStyle(c, 4),
-    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 17 },
+    hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: leading.caption },
     noteRow: {
       flexDirection: 'row-reverse', alignItems: 'center', flexWrap: 'wrap', gap: space.sm,
       backgroundColor: c.surface2, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, marginBottom: space.xl,
@@ -240,7 +240,7 @@ function makeStyles(c: ThemeColors) {
     previewRow: { alignItems: 'center', gap: space.xxs },
     previewIcon: { fontSize: CATEGORY_PREVIEW_SIZE },
     subtle: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
-    errorText: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', lineHeight: 18 },
+    errorText: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.body },
     footer: stickyFooterStyle(c, c.nav),
     closeBtn: {
       flex: 1, minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md,

@@ -3,7 +3,7 @@ import { Money } from '@/components/Money';
 import AttentionSheet from '@/components/AttentionSheet';
 import { buildAttentionItems } from '@/lib/homeAttention';
 import { VERIFY_SPAM_HINT, useEmailVerification } from '@/lib/useEmailVerification';
-import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, heroIconGap, heroIconSize, leading } from '@/lib/tokens';
 import { IncomeAutoNotices } from '@/components/IncomeHomeCards';
 import { ChargeAutoNotices } from '@/components/ChargeHomeCards';
 import PendingSummary from '@/components/PendingSheet';
@@ -547,7 +547,7 @@ function makeStyles(c: ThemeColors) {
     // بانر فيه ✕: النص يمين والـ✕ شمال (RTL)
     bannerRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     bannerFlex: { flex: 1 },
-    bannerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    bannerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     // هدف لمس 44 (a11y-architect): "كمّل المسح" هو المخرج الوحيد من بانر من غير ✕، و"ابعت رسالة التأكيد تاني" بيستفيد كمان
     bannerAction: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
     bannerActionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
@@ -559,7 +559,7 @@ function makeStyles(c: ThemeColors) {
       padding: space.xxl, alignItems: 'center', gap: space.sm, marginTop: space.xs, marginBottom: space.lg,
     },
     noWalletsTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
-    noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
+    noWalletsBody: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.body },
     noWalletsBtn: {
       backgroundColor: c.accent, borderRadius: radius.lg, minHeight: MIN_TOUCH + 4, paddingHorizontal: 28,
       alignItems: 'center', justifyContent: 'center', marginTop: 6, alignSelf: 'stretch',

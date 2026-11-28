@@ -21,7 +21,7 @@ import { categoryLabel, projectBalances, todayStr, walletHistoryName } from '@/l
 import { activeWalletIds, defaultWalletId, lastTransferToWalletId } from '@/lib/defaultWallet';
 import { useWalletDefault } from '@/lib/useWalletDefault';
 import { quietSelectionStyle, selectionA11y, selectionTextColor, type SelectionTone } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, radius, space, stickyFooterStyle, typeScale, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -706,9 +706,9 @@ function makeStyles(c: ThemeColors, insetBottom: number) {
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.sm, paddingHorizontal: space.xxxl },
     errorEmpty: { height: 0, margin: 0, padding: 0 },
-    lockedHint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: 18 },
+    lockedHint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: leading.caption },
     noWallets: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.warnBorder, borderRadius: radius.lg, padding: space.xl, gap: space.md, marginBottom: space.sm },
-    noWalletsText: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    noWalletsText: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     footer: stickyFooterStyle(c, c.bg, insetBottom),
     cancelBtn: { flex: 1 },
     deleteBtn: { flex: 1 },

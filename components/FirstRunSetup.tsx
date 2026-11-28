@@ -9,7 +9,7 @@ import {
   WALLET_OPTIONS, validateSetupChoice, type SetupChoice,
 } from '@/lib/firstRunSetup';
 import { selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterStyle, typeScale, radius, space, leading } from '@/lib/tokens';
 import { HeroIcon } from '@/components/HeroIcon';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -283,8 +283,8 @@ function makeStyles(c: ThemeColors) {
     content: { padding: space.xxl, paddingBottom: 24 },
     center: { flex: 1, backgroundColor: c.bg, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.huge, gap: space.lg },
     title: { color: c.text, fontSize: typeScale.figure, fontWeight: '700', textAlign: 'right', alignSelf: 'stretch' },
-    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: 20 },
-    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: 22 },
+    sub: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs, marginBottom: space.xl, lineHeight: leading.body },
+    centerText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'center', lineHeight: leading.body },
     hint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center' },
     failTitle: { color: c.dangerText, fontSize: typeScale.title, fontWeight: '700', textAlign: 'center' },
     row: {

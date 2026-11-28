@@ -1,7 +1,7 @@
 import FoldedSection from '@/components/FoldedSection';
 import { categoriesPhrase } from '@/lib/archiving';
 import { MONTH_NAMES } from '@/lib/recurringIncome';
-import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, categoryIconSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
 
@@ -356,7 +356,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     title: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right' },
-    subtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: 18 },
+    subtitle: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: 4, marginBottom: 16, lineHeight: leading.caption },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs },
     incomeInput: {
       backgroundColor: c.surface2, borderWidth: 1.5, borderColor: c.controlEdge, borderRadius: radius.lg,
@@ -370,9 +370,9 @@ function makeStyles(c: ThemeColors) {
     // زرار نصي بمساحة لمس كاملة (a11y-architect): كان hitSlop فوق وتحت بس
     textBtn: { minHeight: MIN_TOUCH, paddingHorizontal: space.md, justifyContent: 'center' },
     textBtnLabel: { color: c.accentText, fontSize: typeScale.caption, fontWeight: '700' },
-    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.sm, lineHeight: 18 },
-    hintLine: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, lineHeight: 18 },
-    warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: 17 },
+    loadError: { color: c.dangerText, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, marginBottom: space.sm, lineHeight: leading.caption },
+    hintLine: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, lineHeight: leading.caption },
+    warnText: { color: c.accentText, fontSize: typeScale.caption, textAlign: 'right', marginTop: 8, lineHeight: leading.caption },
     bucketsWrap: { marginTop: 16, marginBottom: 10 },
     bucketCard: { backgroundColor: c.surface, borderRadius: radius.xl, padding: space.xxl, marginBottom: space.md, ...cardElevation(c) },
     bucketHead: { flexDirection: 'row-reverse', justifyContent: 'space-between' },
@@ -382,7 +382,7 @@ function makeStyles(c: ThemeColors) {
     fill: { height: '100%', borderRadius: radius.track },
     bucketSpend: { fontSize: typeScale.caption, marginTop: space.xs, textAlign: 'right' },
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: 16, marginBottom: 4 },
-    hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: 16 },
+    hint: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: 10, lineHeight: leading.caption },
     catRow: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, marginBottom: space.sm },
     catName: { color: c.text, fontSize: typeScale.body, fontWeight: '500', textAlign: 'right', marginBottom: 8 },
     catBtns: { flexDirection: 'row-reverse', gap: 6 },

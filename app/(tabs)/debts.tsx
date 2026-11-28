@@ -24,7 +24,7 @@ import {
   categoryLabelById, debtEntryArchivedWalletBlock, debtEntryDeleteMessage, debtEntryDeletePlan, debtGrandTotal, debtPaid, debtPaidLabel, groupDebtsByPerson,
   INSTALLMENT_COUNT_NOT_SAVED, installmentCountEditRefusal, storableCount, installmentProgressLabel, installmentValue,
   reverseDebtPrefill, walletHistoryName, todayStr, type DebtEntryKind } from '@/lib/finance';
-import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale } from '@/lib/tokens';
+import { cardElevation, MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, leading } from '@/lib/tokens';
 import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import * as Contacts from 'expo-contacts';
@@ -662,7 +662,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: leading.caption },
     labelRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.xl, marginBottom: space.xs },
     labelInRow: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right' },
     contactBtn: {
@@ -676,7 +676,7 @@ function makeStyles(c: ThemeColors) {
     unlinkBtn: { minHeight: MIN_TOUCH, justifyContent: 'center', paddingHorizontal: space.xxs },
     unlinkText: { color: c.dangerText, fontSize: typeScale.caption, fontWeight: '700' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
-    installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: 16 },
+    installmentHint: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xs, lineHeight: leading.caption },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },
     errorBar: { paddingHorizontal: space.xxxl, paddingBottom: space.sm },

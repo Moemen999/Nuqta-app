@@ -7,7 +7,7 @@ import {
   feedbackTextValid, type FeedbackType,
 } from '@/lib/feedback';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius, leading } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -132,7 +132,7 @@ function makeStyles(c: ThemeColors, bottomInset: number) {
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     textArea: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.lg, minHeight: 150 },
     counter: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'left', marginTop: space.xs },
-    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, lineHeight: 17 },
+    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xxl, lineHeight: leading.caption },
     result: { color: c.incomeText, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxl, fontWeight: '700' },
     footer: stickyFooterStyle(c, c.nav, bottomInset),
     cancelBtn: { flex: 1, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, alignItems: 'center', paddingVertical: space.lg },

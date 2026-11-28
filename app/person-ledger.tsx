@@ -7,7 +7,7 @@ import { usePrivacy } from '@/context/PrivacyContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { dateText, dayText } from '@/lib/dateText';
 import { todayStr, debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPiastre } from '@/lib/finance';
-import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, radius, space, typeScale, leading } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
@@ -270,7 +270,7 @@ function makeStyles(c: ThemeColors) {
     sectionTitle: { color: c.text, fontSize: typeScale.title, fontWeight: '700', textAlign: 'right', marginTop: space.huge, marginBottom: space.xs },
     sectionTitleRow: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginTop: space.huge, marginBottom: space.xs },
     addDebtBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: 17 },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.md, lineHeight: leading.caption },
     debtBlock: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.lg, borderWidth: 1, borderColor: c.border, marginBottom: space.md },
     debtBlockHead: { flexDirection: 'row-reverse', justifyContent: 'space-between', alignItems: 'center', marginBottom: space.md, gap: space.sm },
     debtBlockTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', flexShrink: 1 },

@@ -23,7 +23,7 @@ import { ENTRY_MESSAGES, LEGACY_VALUE_NOTE, gamiyaEntryProblem, parseEntryNumber
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import ChargeModePicker from '@/components/ChargeModePicker';
 import { gamiyaMarkConfirmBody, gamiyaMonthNote, gamiyaMonthTxIds, gamiyaPayoutHint, type ChargeMode } from '@/lib/autoCharge';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -420,7 +420,7 @@ function makeStyles(c: ThemeColors) {
     sheetScroll: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 10),
-    hintNote: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 17, marginBottom: space.xxs },
+    hintNote: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', lineHeight: leading.caption, marginBottom: space.xxs },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
     input: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, color: c.text, fontSize: typeScale.body, paddingHorizontal: space.xl, paddingVertical: space.md },
     bigInput: bigAmountInputStyle(c),

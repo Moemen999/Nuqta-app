@@ -5,7 +5,7 @@ import { useAppLock } from '@/context/AppLockContext';
 import { useAuth } from '@/context/AuthContext';
 import { useData } from '@/context/DataContext';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
-import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/tokens';
+import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius, leading } from '@/lib/tokens';
 import { LOCK_READ_FAILED, LOCK_READ_RETRY_FAILED, LOCK_RETRY, LOCK_STORAGE_ERROR } from '@/lib/lockMessages';
 import { pendingWritesSentence } from '@/lib/archiving';
 import { LOCK_WAIT_REASON, lockWaitMessage } from '@/lib/lockThrottle';
@@ -333,7 +333,7 @@ function makeStyles(c: ThemeColors) {
     error: { color: c.dangerText, fontSize: typeScale.body, marginBottom: 18, minHeight: 18, textAlign: 'center' },
     status: { marginBottom: 18, gap: space.xxs },
     // ارتفاع سطر صريح: سطرين دايمًا × ارتفاع ثابت = اللوحة مبتنطش حتى مع تكبير الخط
-    statusText: { color: c.dangerText, fontSize: typeScale.body, lineHeight: 20, textAlign: 'center' },
+    statusText: { color: c.dangerText, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'center' },
     keypad: { gap: 18 },
     keyRow: { flexDirection: 'row', gap: 22, justifyContent: 'center' },
     key: { width: 78, height: 78, borderRadius: LOCK_KEY_RADIUS, alignItems: 'center', justifyContent: 'center' },
@@ -342,7 +342,7 @@ function makeStyles(c: ThemeColors) {
     passwordArea: { width: '100%', maxWidth: 320 },
     input: { width: '100%', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.lg, color: c.text, padding: space.xxl, fontSize: typeScale.title },
     submitBtn: { backgroundColor: c.accent, borderRadius: radius.lg, alignItems: 'center', paddingVertical: 15, marginTop: space.xxs },
-    readFailed: { color: c.text, fontSize: typeScale.body, lineHeight: 22, textAlign: 'center', marginBottom: 18 },
+    readFailed: { color: c.text, fontSize: typeScale.body, lineHeight: leading.body, textAlign: 'center', marginBottom: 18 },
     forgotBtn: { padding: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     forgotText: { color: c.textSecondary, fontSize: typeScale.body, textDecorationLine: 'underline' },
   });

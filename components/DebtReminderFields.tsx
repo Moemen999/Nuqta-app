@@ -3,7 +3,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { dateText } from '@/lib/dateText';
 import { todayStr } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { MIN_TOUCH, typeScale, space, radius } from '@/lib/tokens';
+import { MIN_TOUCH, typeScale, space, radius, leading } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
@@ -99,6 +99,6 @@ function makeStyles(c: ThemeColors) {
     clearText: { color: c.dangerText, fontSize: typeScale.caption, fontWeight: '700' },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: 17 },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.sm, lineHeight: leading.caption },
   });
 }

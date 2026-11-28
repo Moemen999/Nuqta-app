@@ -6,7 +6,7 @@ import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
-import { cardElevation, glyphSize, radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, glyphSize, radius, space, typeScale, leading } from '@/lib/tokens';
 import { TIMELINE_PARTIAL_NOTE } from '@/lib/spendTimeline';
 import { PressableScale } from '@/components/PressableScale';
 
@@ -246,7 +246,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: 19 },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: leading.caption },
     // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
     cardShadow: { borderRadius: radius.lg, backgroundColor: c.surface, marginBottom: space.md, ...cardElevation(c) },
     // الغامق مالوش ظل (shadow = null) فالإطار بيفضل هناك زي ما كان
@@ -257,7 +257,7 @@ function makeStyles(c: ThemeColors) {
     cardBody: { paddingHorizontal: 14, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 12 },
     bulletRow: { flexDirection: 'row-reverse', marginBottom: 10 },
     bulletDot: { color: c.accentText, fontSize: typeScale.body, marginLeft: space.sm, marginTop: 1 },
-    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    bulletText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     footer: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'center', marginTop: space.xxxl },
   });
 }

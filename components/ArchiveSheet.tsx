@@ -1,6 +1,6 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
-import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale, leading } from '@/lib/tokens';
 import { useMemo, useRef, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
@@ -116,13 +116,13 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: 19, marginTop: space.xs },
+    intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: leading.caption, marginTop: space.xs },
     itemCard: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
     itemName: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, marginBottom: space.xs },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
-    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, lineHeight: 17 },
+    note: { color: c.textMuted, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, lineHeight: leading.caption },
     footer: stickyFooterStyle(c, c.nav),
     cancelBtn: { flex: 1 },
     saveBtn: { flex: 2 },

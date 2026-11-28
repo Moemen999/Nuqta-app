@@ -9,7 +9,7 @@ import { useBannerDismiss } from '@/lib/useBannerDismiss';
 import { AccessibilityInfo, ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { radius, space, typeScale, leading } from '@/lib/tokens';
 import { PressableScale } from '@/components/PressableScale';
 
 /**
@@ -108,7 +108,7 @@ function makeStyles(c: ThemeColors) {
     title: { color: c.dangerText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     titleRow: { flexDirection: 'row-reverse', alignItems: 'flex-start', gap: 8 },
     titleFlex: { flex: 1 },
-    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 20 },
+    body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.body },
     btn: {
       alignSelf: 'flex-end', marginTop: space.sm, borderWidth: 1, borderColor: c.dangerBorder, borderRadius: radius.md,
       paddingVertical: 8, paddingHorizontal: 16, minHeight: 44, justifyContent: 'center',

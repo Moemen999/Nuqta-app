@@ -11,7 +11,7 @@ import { MONEY_MASK, speakable } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
@@ -264,7 +264,7 @@ function makeStyles(c: ThemeColors) {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
       borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,
     },
-    noticeText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 19 },
+    noticeText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '70%' }), padding: 0, overflow: 'hidden' },
     sheetContent: { padding: space.xxxl },

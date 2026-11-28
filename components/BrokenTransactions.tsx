@@ -23,7 +23,7 @@ import { dateText, dayText } from '@/lib/dateText';
 import { TYPE_LABELS, categoryLabelById, todayStr } from '@/lib/finance';
 import type { BrokenTransaction } from '@/lib/fromDoc';
 import { storableAmount, transactionLinkKind } from '@/lib/linkedEdit';
-import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle } from '@/lib/tokens';
+import { MIN_TOUCH, font, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, leading } from '@/lib/tokens';
 import { announceAfterLeave } from '@/lib/announceLater';
 import { useFormError } from '@/lib/useFormError';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -222,7 +222,7 @@ function makeStyles(c: ThemeColors) {
     body: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c),
     reasons: { color: c.dangerText, fontSize: font.text, textAlign: 'right', marginBottom: space.lg },
-    blocked: { color: c.textSecondary, fontSize: font.subtitle, textAlign: 'right', lineHeight: 22 },
+    blocked: { color: c.textSecondary, fontSize: font.subtitle, textAlign: 'right', lineHeight: leading.body },
     label: { color: c.textSecondary, fontSize: font.text, textAlign: 'right', marginTop: space.sm, marginBottom: space.xxs },
     input: {
       minHeight: MIN_TOUCH, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.lg,

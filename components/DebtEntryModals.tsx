@@ -25,7 +25,7 @@ import {
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useChartColors } from '@/hooks/use-chart-colors';
-import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
+import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
@@ -713,7 +713,7 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: space.xxxl },
     sheetTitle: sheetTitleStyle(c, 4),
-    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: 17 },
+    hintText: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xs, lineHeight: leading.caption },
     installmentText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right', marginTop: space.xxs },
     row: { flexDirection: 'row-reverse', gap: space.sm, marginTop: space.md },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.xl, marginBottom: space.xs },
@@ -731,10 +731,10 @@ function makeStyles(c: ThemeColors) {
     chip: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.sm, minHeight: MIN_TOUCH, justifyContent: 'center' },
     typeBtn: { flex: 1, borderWidth: 1.5, borderRadius: radius.md, paddingVertical: space.md, alignItems: 'center', justifyContent: 'center', minHeight: MIN_TOUCH },
     // اختيارين فوق بعض بعرض كامل، كل واحد بشرحه (arabic-copy-reviewer: جنب بعض مش هيكفي الشرح)
-    leftoverQuestion: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xl, marginBottom: space.sm, lineHeight: 20 },
+    leftoverQuestion: { color: c.text, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xl, marginBottom: space.sm, lineHeight: leading.body },
     leftoverOption: { borderWidth: 1.5, borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, marginBottom: space.sm, minHeight: 44 },
     leftoverTitle: { fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
-    leftoverCaption: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: 21 },
+    leftoverCaption: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xxs, lineHeight: leading.body },
     dateBtn: { backgroundColor: c.surface2, borderWidth: 1, borderColor: c.borderStrong, borderRadius: radius.md, paddingHorizontal: space.xl, paddingVertical: space.lg },
     dateBtnText: { color: c.text, fontSize: typeScale.body, textAlign: 'center' },
     error: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'center', marginTop: space.lg },

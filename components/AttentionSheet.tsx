@@ -5,7 +5,7 @@ import { ATTENTION_LINE_HINT, ATTENTION_ROUTE_HINT, attentionSummaryPhrase } fro
 import { DISMISSED_ANNOUNCEMENT, DISMISS_HINT, dismissLabel } from '@/lib/bannerDismiss';
 import { ATTENTION_ROUTE, visibleAttention, type AttentionItem } from '@/lib/homeAttention';
 import { requestPlanning } from '@/lib/planningRequest';
-import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize } from '@/lib/tokens';
+import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, glyphSize, leading } from '@/lib/tokens';
 import {
   VERIFY_RESEND_LABEL, VERIFY_SENDING_TEXT, VERIFY_SENT_TEXT, VERIFY_SPAM_HINT, type EmailVerification,
 } from '@/lib/useEmailVerification';
@@ -194,7 +194,7 @@ function makeStyles(c: ThemeColors) {
       backgroundColor: c.surface, borderRadius: radius.lg, borderRightWidth: 3,
       paddingHorizontal: 14, minHeight: MIN_TOUCH + 8, marginTop: space.md,
     },
-    lineText: { flex: 1, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    lineText: { flex: 1, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     chevron: { color: c.textSecondary, fontSize: glyphSize.chevron },
     overlay: overlayStyle,
     sheet: { ...sheetStyle(c, { maxHeight: '85%' }), padding: 0, overflow: 'hidden' },
@@ -205,8 +205,8 @@ function makeStyles(c: ThemeColors) {
       paddingHorizontal: 14, paddingVertical: space.sm, marginTop: space.md,
     },
     rowMain: { flexDirection: 'row-reverse', alignItems: 'center', gap: 8 },
-    rowText: { fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
-    bodyText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: 21 },
+    rowText: { fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
+    bodyText: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     action: { alignSelf: 'flex-end', marginTop: 6, minHeight: MIN_TOUCH, justifyContent: 'center' },
     actionText: { color: c.accentText, fontSize: typeScale.body, fontWeight: '700', textDecorationLine: 'underline' },
     footer: stickyFooterStyle(c, c.nav),
