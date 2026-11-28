@@ -14,13 +14,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { ActionSheet } from '@/components/ActionSheet';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LineIcon, MIRRORED_ICONS, type LineIconName } from '@/components/LineIcon';
+import { PressableScale } from '@/components/PressableScale';
 
 
 type SettingsRow = {
@@ -245,7 +246,7 @@ export default function SettingsScreen() {
           <View style={styles.cardShadow}>
           <View style={styles.card}>
             {section.rows.map((row, i) => (
-              <TouchableOpacity accessibilityRole="button"
+              <PressableScale accessibilityRole="button"
                 key={row.key}
                 testID={`settings_row_${row.key}`}
                 style={[styles.row, i > 0 && styles.rowDivider]}
@@ -261,7 +262,7 @@ export default function SettingsScreen() {
                   {/* RTL: "جوّه" ناحية الشمال — "›" كان بيشاور للاتجاه الغلط */}
                   {row.tone !== 'danger' && <Text style={styles.chevron} accessible={false} importantForAccessibility="no">‹</Text>}
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
           </View>

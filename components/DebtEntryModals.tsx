@@ -28,10 +28,11 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { MIN_TOUCH, categoryIconSize, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle } from '@/lib/tokens';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { NAME_MAX_LENGTH, NOTE_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * مودالات تسجيل دفعة وزيادة على دين ودين جديد.
@@ -248,10 +249,10 @@ function DebtPaymentForm({ debt, onClose, goneShown }: FormProps) {
           <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'المحفظة اللي هتستلم فيها' : 'المحفظة اللي هتدفع منها'}</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
+              <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
@@ -260,22 +261,22 @@ function DebtPaymentForm({ debt, onClose, goneShown }: FormProps) {
               <Text style={styles.label}>الفئة (اختياري)</Text>
               <View style={styles.chipRow}>
                 {selectableOptions(categories).map(c => (
-                  <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
+                  <PressableScale {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                     style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                     <View style={categoryInlineRow}>
                       <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
                       <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                     </View>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </>
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
         </ScrollView>
@@ -397,14 +398,14 @@ function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
 
           <Text style={styles.label}>مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
+            <PressableScale {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أيوة</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
+            </PressableScale>
+            <PressableScale {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>لأ (بالأجل)</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           {/* الأصل شرا بالأجل بس (react-reviewer): زيادة "بالأجل" على استلاف نقدي تحويل مش شرا */}
           {!linkedToWallet && isCreditPurchase(debt) && <Text testID="debt_increase_credit_hint" style={styles.hintText}>{CREDIT_PURCHASE_HINT}</Text>}
@@ -426,7 +427,7 @@ function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
                   ? `الأقساط هتبقى ${installmentsPhrase(choice.absorb.count)}، وآخر قسط ${money(choice.absorb.last)} ج.م بدل ${money(choice.value)} ج.م${choice.absorb.last >= NEAR_DOUBLE * choice.value ? '، يعني تقريبًا ضعف القسط العادي' : ''}.`
                   : `هيتضاف قسط أخير قيمته ${money(choice.leftover)} ج.م، والأقساط هتبقى ${installmentsPhrase(choice.separate.count)}.`;
                 return (
-                  <TouchableOpacity key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
+                  <PressableScale key={mode} testID={mode === 'absorb' ? 'debt_leftover_absorb' : 'debt_leftover_separate'}
                     {...selectionA11y(selected, 'radio')}
                     onPress={() => { freeze(); setLeftoverMode(mode); setError(e => (e === LEFTOVER_REQUIRED ? '' : e)); }}
                     style={[styles.leftoverOption, selectionStyle(colors, selected)]}>
@@ -434,7 +435,7 @@ function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
                       {mode === 'absorb' ? 'يتضاف على آخر قسط' : 'قسط منفصل في الآخر'}
                     </Text>
                     <Text style={styles.leftoverCaption}>{caption}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>
@@ -445,19 +446,19 @@ function DebtIncreaseForm({ debt, onClose, goneShown }: FormProps) {
               <Text style={styles.label}>{debt.direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
                 {selectableOptions(wallets, walletId).map(w => (
-                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
+                  <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </>
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
 
           <CalendarPickerModal visible={showPicker} value={date} onSelect={d => { freeze(); setDate(d); }} onClose={() => setShowPicker(false)} />
@@ -574,26 +575,26 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
           <Text style={styles.sheetTitle} accessibilityRole="header">دين جديد</Text>
 
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
+            <PressableScale {...selectionA11y(direction === 'owed_to_me', 'radio')} onPress={() => { freeze(); setDirection('owed_to_me'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'owed_to_me', 'success')]}>
               <Text style={{ color: selectionTextColor(colors, direction === 'owed_to_me'), fontSize: typeScale.body }}>ليا (أنا قرضته)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(direction === 'i_owe', 'radio')} onPress={() => { freeze(); setDirection('i_owe'); }}
+            </PressableScale>
+            <PressableScale {...selectionA11y(direction === 'i_owe', 'radio')} onPress={() => { freeze(); setDirection('i_owe'); }}
               style={[styles.typeBtn, selectionStyle(colors, direction === 'i_owe', 'danger')]}>
               <Text style={{ color: selectionTextColor(colors, direction === 'i_owe'), fontSize: typeScale.body }}>عليا (هو قرضني)</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           <Text style={styles.label}>الدين ده مرتبط بمحفظة دلوقتي؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
+            <PressableScale {...selectionA11y(linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(true); }}
               style={[styles.typeBtn, selectionStyle(colors, linkedToWallet)]}>
               <Text style={{ color: linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أيوة، فلوس حقيقية</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
+            </PressableScale>
+            <PressableScale {...selectionA11y(!linkedToWallet, 'radio')} onPress={() => { freeze(); setLinkedToWallet(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !linkedToWallet)]}>
               <Text style={{ color: !linkedToWallet ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>لأ (بالأجل مثلاً)</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           {linkedToWallet ? (
             <Text style={styles.hintText}>
@@ -608,7 +609,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
 
           <View style={styles.labelRow}>
             <Text style={styles.labelInRow}>اسم الشخص</Text>
-            <TouchableOpacity
+            <PressableScale
               onPress={picker.open}
               style={styles.contactBtn}
               hitSlop={8}
@@ -616,7 +617,7 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               accessibilityLabel="اختار من جهات الاتصال">
               <LineIcon name="person-circle-outline" size={18} color={colors.accent} />
               <Text style={styles.contactBtnText}>من جهات الاتصال</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           <TextInput accessibilityLabel="اسم الشخص" maxLength={NAME_MAX_LENGTH} testID="debt_add_person" style={styles.input} value={personName} onChangeText={v => { freeze(); setPersonName(v); }}
             placeholder="مثلاً: أحمد" placeholderTextColor={colors.textSecondary} textAlign="right" />
@@ -631,29 +632,29 @@ export function AddDebtModal({ onClose, prefill }: { onClose: () => void; prefil
               <Text style={styles.label}>{direction === 'owed_to_me' ? 'من محفظة' : 'إلى محفظة'}</Text>
               <View style={styles.chipRow}>
                 {selectableOptions(wallets, walletId).map(w => (
-                  <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
+                  <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                     style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                     <Text style={{ color: colors.text, fontSize: typeScale.body }}>{w.name}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </>
           )}
 
           <Text style={styles.label}>التاريخ</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(!isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(false); }}
+            <PressableScale {...selectionA11y(!isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(false); }}
               style={[styles.typeBtn, selectionStyle(colors, !isInstallment)]}>
               <Text style={{ color: !isInstallment ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>مبلغ واحد</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(true); }}
+            </PressableScale>
+            <PressableScale {...selectionA11y(isInstallment, 'radio')} onPress={() => { freeze(); setIsInstallment(true); }}
               style={[styles.typeBtn, selectionStyle(colors, isInstallment)]}>
               <Text style={{ color: isInstallment ? colors.text : colors.textSecondary, fontSize: typeScale.body }}>أقساط</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           {isInstallment && (

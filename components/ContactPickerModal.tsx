@@ -2,9 +2,10 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayStyle, sheetStyle, space, typeScale, radius } from '@/lib/tokens';
 import { filterContacts, normalizePhone, phoneForDisplay, type ContactEntry } from '@/lib/contacts';
 import { memo, useDeferredValue, useMemo, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { contactsPhrase, resultsPhrase } from '@/lib/archiving';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * أقل ارتفاع للصف (مش ثابت): الخط الكبير من إعدادات النظام بيطوّل الصف، فارتفاع ثابت كان بيقص الاسم والرقم.
@@ -20,11 +21,11 @@ const ContactRow = memo(function ContactRow({
   onPick: (c: ContactEntry) => void;
 }) {
   return (
-    <TouchableOpacity accessibilityRole="button" style={styles.contactRow} onPress={() => onPick(contact)}
+    <PressableScale accessibilityRole="button" style={styles.contactRow} onPress={() => onPick(contact)}
       accessibilityLabel={`${contact.name}، ${contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}`}>
       <Text style={styles.contactName} numberOfLines={1}>{contact.name}</Text>
       <Text style={styles.contactPhone} numberOfLines={1}>{contact.phone ? phoneForDisplay(contact.phone) : 'مفيش رقم محفوظ'}</Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 
@@ -80,14 +81,14 @@ export default function ContactPickerModal({
               زرار الرجوع الظاهر من فوق بقى موجود جنب العنوان */}
           <View style={styles.headerRow}>
             <Text style={styles.sheetTitle} accessibilityRole="header">اختار من جهات الاتصال</Text>
-            <TouchableOpacity
+            <PressableScale
               onPress={close}
               style={styles.closeBtn}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="إغلاق">
               <Text style={styles.closeBtnText} importantForAccessibility="no">✕ إغلاق</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
           <TextInput
             accessibilityLabel="دور بالاسم أو الرقم"
@@ -119,7 +120,7 @@ export default function ContactPickerModal({
                 <Text style={styles.emptyState}>مفيش جهة اتصال بالاسم أو الرقم ده</Text>
                 {/* الإضافة بتتعرض هنا بس — عند اللحظة اللي المستخدم دوّر فيها وملقاش */}
                 {!!onCreateContact && !!query && (
-                  <TouchableOpacity accessibilityRole="button"
+                  <PressableScale accessibilityRole="button"
                     style={styles.createBtn}
                     onPress={() => onCreateContact(
                       queryIsPhone ? { name: '', phone: query } : { name: query, phone: '' }
@@ -128,7 +129,7 @@ export default function ContactPickerModal({
                       {queryIsPhone ? `ضيف الرقم ده لجهات الاتصال` : `ضيف «${query}» لجهات الاتصال`}
                     </Text>
                     <Text style={styles.createBtnHint}>هتتفتح شاشة الموبايل وإنت اللي بتحفظ</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 )}
               </View>
             }

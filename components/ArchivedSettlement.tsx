@@ -6,10 +6,11 @@ import { archivedWalletDeltas, type ArchivedDelta, type TxChange } from '@/lib/a
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 import { useNotice } from '@/components/NoticeProvider';
+import { PressableScale } from '@/components/PressableScale';
 
 export const SETTLE_TITLE = 'المحفظة دي مؤرشفة';
 /** أكتر من مؤرشفة في نفس التغيير (arabic-copy-reviewer، الميزة 10) */
@@ -194,7 +195,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                 {!blocked && (
                   <View style={styles.chipRow}>
                     {targets.map(t => (
-                      <TouchableOpacity
+                      <PressableScale
                         key={t.id}
                         onPress={() => setPicked(p => ({ ...p, [d.walletId]: t.id }))}
                         testID={`settle_target_${t.id}`}
@@ -202,7 +203,7 @@ function SettleSheet({ deltas, isDelete, intro, confirmLabel, targets, onConfirm
                         {...selectionA11y(picked[d.walletId] === t.id, 'radio')}
                         style={[styles.chip, selectionStyle(colors, picked[d.walletId] === t.id)]}>
                         <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
-                      </TouchableOpacity>
+                      </PressableScale>
                     ))}
                   </View>
                 )}

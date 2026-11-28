@@ -5,13 +5,14 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useNotice } from '@/components/NoticeProvider';
 import { LOCK_SETTING_NOT_SAVED } from '@/lib/lockMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /** خيارات مهلة السماح — نفس اللي كانت في شاشة الإعدادات القديمة بالظبط */
 export const GRACE_OPTIONS = [
@@ -91,20 +92,20 @@ export default function LockScreen_Settings() {
 
           <Text style={styles.hint}>يطلب الكود إمتى؟</Text>
           <View style={styles.row}>
-            <TouchableOpacity
+            <PressableScale
               testID="lock_freq_on_open"
               {...selectionA11y(frequency === 'onOpen', 'radio')}
               onPress={() => chooseFrequency('onOpen')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'onOpen')]}>
               <Text style={styles.btnLabel}>مرة واحدة (فتح التطبيق)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </PressableScale>
+            <PressableScale
               testID="lock_freq_every_resume"
               {...selectionA11y(frequency === 'everyResume', 'radio')}
               onPress={() => chooseFrequency('everyResume')}
               style={[styles.typeBtn, selectionStyle(colors, frequency === 'everyResume')]}>
               <Text style={styles.btnLabel}>كل مرة ترجع للتطبيق</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           {frequency === 'everyResume' && (
@@ -112,14 +113,14 @@ export default function LockScreen_Settings() {
               <Text style={[styles.hint, { marginTop: space.xl }]}>يقفل بعد قد إيه من خروجك من التطبيق؟</Text>
               <View style={styles.row}>
                 {GRACE_OPTIONS.map(opt => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={opt.m}
                     testID={`lock_grace_${opt.m}`}
                     {...selectionA11y(graceMinutes === opt.m, 'radio')}
                     onPress={() => chooseGrace(opt.m)}
                     style={[styles.graceBtn, selectionStyle(colors, graceMinutes === opt.m)]}>
                     <Text style={styles.graceLabel}>{opt.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
               </View>
             </>

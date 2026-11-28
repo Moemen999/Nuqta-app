@@ -1,9 +1,10 @@
 import { useTheme } from '@/context/ThemeContext';
 import { CHARGE_MODE_LABEL, type ChargeMode } from '@/lib/autoCharge';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { radius, space, typeScale } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "بيسألك الأول" (الافتراضي — أي حاجة بتخصم فلوس) أو "بيتسجل لوحده". نفس شكل اختيار
@@ -24,13 +25,13 @@ export default function ChargeModePicker({ value, onChange, what, verb, testIDPr
           ? `هيظهرلك كارت في الرئيسية: "${verb}؟" — تأكد أو تعدّل المبلغ. مفيش حاجة بتتسجل من غيرك.`
           : `أول ما تفتح التطبيق بعد المعاد هيتسجل، وهيجيلك إشعار إنه اتسجل عشان لو الرقم مختلف تعدّله. بيبدأ من يوم ما تفعّله (حتى لو معاده النهارده) — اللي فات قبله بيسألك.${what === 'القسط' ? ' شهر الاستلام بيسألك دايمًا.' : ''}`;
         return (
-        <TouchableOpacity key={m} testID={`${testIDPrefix}_mode_${m}`} onPress={() => onChange(m)}
+        <PressableScale key={m} testID={`${testIDPrefix}_mode_${m}`} onPress={() => onChange(m)}
           accessibilityLabel={`لما معاد ${what} ييجي: ${CHARGE_MODE_LABEL[m]}${m === 'confirm' ? ' (مقترح)' : ''}. ${body}`}
           {...selectionA11y(value === m, 'radio')}
           style={[styles.card, selectionStyle(colors, value === m)]}>
           <Text style={[styles.title, { color: colors.text }]}>{CHARGE_MODE_LABEL[m]}{m === 'confirm' ? ' (مقترح)' : ''}</Text>
           <Text style={[styles.body, { color: selectionTextColor(colors, value === m) }]}>{body}</Text>
-        </TouchableOpacity>
+        </PressableScale>
         );
       })}
     </View>

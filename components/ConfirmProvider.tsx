@@ -3,8 +3,9 @@ import { useAppLock } from '@/context/AppLockContext';
 import { spoken } from '@/components/NoticeProvider';
 import { MIN_TOUCH, overlayCenteredStyle, space, radius, typeScale } from '@/lib/tokens';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Dimensions, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * تأكيد فيه اختيار ("امسح" / "إلغاء") بشكل التطبيق — بديل `Alert.alert` بأزرار (خط النهاية:
@@ -164,20 +165,20 @@ function ConfirmDialog({ pending, onChoose }: { pending: Pending | null; onChoos
               {actions.map((b, i) => {
                 const danger = b.style === 'destructive';
                 return (
-                  <TouchableOpacity key={`${b.text}_${i}`} testID={`confirm_action_${i}`}
+                  <PressableScale key={`${b.text}_${i}`} testID={`confirm_action_${i}`}
                     style={[styles.btn, danger ? styles.dangerBtn : styles.primaryBtn]}
                     onPress={() => pending && onChoose(pending, b.onPress)} accessibilityRole="button"
                     // الخطر مش باللون بس (a11y-architect): القارئ بيقوله، والليبل نفسه = النص الظاهر (أوامر الصوت)
                     accessibilityHint={danger ? 'تأكيد فعل خطر' : undefined}>
                     <Text style={danger ? styles.dangerText : styles.primaryText}>{b.text}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
               {cancel && (
-                <TouchableOpacity testID="confirm_cancel" style={[styles.btn, styles.cancelBtn]}
+                <PressableScale testID="confirm_cancel" style={[styles.btn, styles.cancelBtn]}
                   onPress={() => pending && onChoose(pending, cancel.onPress)} accessibilityRole="button">
                   <Text style={styles.cancelText}>{cancel.text}</Text>
-                </TouchableOpacity>
+                </PressableScale>
               )}
             </View>
           </View>

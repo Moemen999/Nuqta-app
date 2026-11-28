@@ -27,10 +27,11 @@ import { subscriptionOpenCharges, subscriptionPayConfirmBody, subscriptionPayKey
 import { cardElevation, MIN_TOUCH, categoryIconSize, overlayStyle, radius, sheetStyle, sheetTitleStyle, space, stickyFooterStyle, typeScale, bigAmountInputStyle } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useEffect, useMemo, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { EmptyHint } from '@/components/EmptyHint';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 // الاسم من مكان واحد: "كل 45 يوم" بدل "مخصص" (lib/frequencyLabel.ts)
 
@@ -230,11 +231,11 @@ export default function SubscriptionsView() {
               onPress={() => confirmPay(s)} busy={busyKey === `pay_${s.id}`} />
           )}
           {/* دراسة الشكل خطوة 3: زرار أساسي واحد (اتخصم/رجّعه) والباقي في "⋯" — نفس كارت الدين */}
-          <TouchableOpacity testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
+          <PressableScale testID={`subscription_more_${s.id}`} accessibilityRole="button" accessibilityLabel={`باقي الاختيارات لاشتراك ${s.name}`}
             accessibilityHint="بيفتح قايمة" disabled={busyKey === `del_${s.id}`} accessibilityState={{ disabled: busyKey === `del_${s.id}`, busy: busyKey === `del_${s.id}` }}
             style={[styles.moreBtn, busyKey === `del_${s.id}` && styles.btnBusy]} onPress={() => { setMenuSnapshot(s); setMenuSubId(s.id); }}>
             <Text style={styles.moreBtnText}>{busyKey === `del_${s.id}` ? '...' : '⋯'}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       </View>
     );
@@ -355,37 +356,37 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
+              <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => pickWallet(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
+              <PressableScale {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => { freeze(); setCategoryId(categoryId === c.id ? undefined : c.id); }}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
                   <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => { freeze(); setFrequency('monthly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
+            <PressableScale {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => { freeze(); setFrequency('monthly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => { freeze(); setFrequency('yearly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
+            </PressableScale>
+            <PressableScale {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => { freeze(); setFrequency('yearly'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => { freeze(); setFrequency('custom'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
+            </PressableScale>
+            <PressableScale {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => { freeze(); setFrequency('custom'); }} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           {frequency === 'custom' && (
@@ -397,9 +398,9 @@ function AddSubscriptionModal({ visible, onClose }: { visible: boolean; onClose:
           )}
 
           <Text style={styles.label}>أول موعد استحقاق</Text>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`أول موعد استحقاق، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`أول موعد استحقاق، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
           <TextInput accessibilityLabel="عدد أيام التذكير" style={styles.input} value={reminderDays} onChangeText={v => { freeze(); setReminderDays(v); }}
@@ -548,37 +549,37 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           <Text style={styles.label}>المحفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
+              <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => setWalletId(w.id)}
                 style={[styles.chip, selectionStyle(colors, walletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
           <Text style={styles.label}>الفئة (اختياري)</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+              <PressableScale {...selectionA11y(categoryId === c.id)} key={c.id} onPress={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
                 style={[styles.chip, selectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
                   <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
 
           <Text style={styles.label}>التكرار</Text>
           <View style={styles.row}>
-            <TouchableOpacity {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
+            <PressableScale {...selectionA11y(frequency === 'monthly', 'radio')} onPress={() => setFrequency('monthly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'monthly')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>شهري</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
+            </PressableScale>
+            <PressableScale {...selectionA11y(frequency === 'yearly', 'radio')} onPress={() => setFrequency('yearly')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'yearly')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>سنوي</Text>
-            </TouchableOpacity>
-            <TouchableOpacity {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
+            </PressableScale>
+            <PressableScale {...selectionA11y(frequency === 'custom', 'radio')} onPress={() => setFrequency('custom')} style={[styles.typeBtn, selectionStyle(colors, frequency === 'custom')]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>{CUSTOM_FREQUENCY_BUTTON}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
 
           {frequency === 'custom' && (
@@ -590,9 +591,9 @@ function EditSubscriptionModal({ sub, onClose }: { sub: Subscription; onClose: (
           )}
 
           <Text style={styles.label}>موعد الاستحقاق الجاي</Text>
-          <TouchableOpacity testID="subscription_edit_due" accessibilityRole="button" accessibilityLabel={`موعد الاستحقاق الجاي، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+          <PressableScale testID="subscription_edit_due" accessibilityRole="button" accessibilityLabel={`موعد الاستحقاق الجاي، ${dateText(nextDueDate, todayStr())}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
             <Text style={styles.dateBtnText}>{dateText(nextDueDate, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           <Text style={styles.label}>التذكير قبل الموعد بكام يوم؟</Text>
           <TextInput accessibilityLabel="عدد أيام التذكير" style={styles.input} value={reminderDays} onChangeText={setReminderDays}

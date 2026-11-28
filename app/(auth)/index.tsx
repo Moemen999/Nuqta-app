@@ -5,13 +5,11 @@ import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import { GOOGLE_ANDROID_CLIENT_ID, GOOGLE_REVERSED_SCHEME, GOOGLE_WEB_CLIENT_ID } from '@/lib/googleAuthConfig';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  StyleSheet, TouchableOpacity, View,
-} from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { glyphSize, radius, space, typeScale } from '@/lib/tokens';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
+import { PressableScale } from '@/components/PressableScale';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -152,12 +150,12 @@ export default function AuthScreen() {
       <Text style={styles.tagline}>نقطة على السطر</Text>
       <Text style={styles.subtitle}>{mode === 'login' ? 'سجّل دخولك' : 'اعمل حسابك'}</Text>
 
-      <TouchableOpacity testID="auth_google_button" accessibilityRole="button" style={[styles.googleBtn, !request && { opacity: 0.6 }]}
+      <PressableScale testID="auth_google_button" accessibilityRole="button" style={[styles.googleBtn, !request && { opacity: 0.6 }]}
         onPress={openGoogle} disabled={googleBusy || !request} accessibilityState={{ disabled: googleBusy || !request, busy: googleBusy }}>
         {googleBusy ? <ActivityIndicator color={colors.text} /> : (
           <Text style={{ color: colors.text, fontWeight: '600', fontSize: typeScale.body }}>تسجيل الدخول بحساب جوجل</Text>
         )}
-      </TouchableOpacity>
+      </PressableScale>
 
       <View style={styles.dividerRow}>
         <View style={styles.dividerLine} />
@@ -176,25 +174,25 @@ export default function AuthScreen() {
 
       {!!error && <Text style={styles.error}>{error}</Text>}
 
-      <TouchableOpacity accessibilityRole="button" testID="auth_submit_button" style={styles.button} onPress={handleSubmit} disabled={busy}>
+      <PressableScale accessibilityRole="button" testID="auth_submit_button" style={styles.button} onPress={handleSubmit} disabled={busy}>
         {busy ? <ActivityIndicator color={colors.onAccent} /> : (
           <Text style={styles.buttonText}>{mode === 'login' ? 'دخول' : 'إنشاء حساب'}</Text>
         )}
-      </TouchableOpacity>
+      </PressableScale>
 
       {mode === 'login' && (
-        <TouchableOpacity hitSlop={{ top: 12, bottom: 6 }} accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
+        <PressableScale hitSlop={{ top: 12, bottom: 6 }} accessibilityRole="button" testID="auth_reset_button" onPress={handleReset} disabled={resetBusy}>
           <Text style={[styles.resetText, resetBusy && { opacity: 0.6 }]}>
             {resetBusy ? 'بنبعت…' : RESET_LABEL}
           </Text>
-        </TouchableOpacity>
+        </PressableScale>
       )}
 
-      <TouchableOpacity testID="auth_switch_mode" hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
+      <PressableScale testID="auth_switch_mode" hitSlop={{ top: 12, bottom: 12 }} accessibilityRole="button" onPress={() => { setError(''); setMode(mode === 'login' ? 'signup' : 'login'); }}>
         <Text style={styles.switchText}>
           {mode === 'login' ? 'لسه معندكش حساب؟ سجّل واحد' : 'عندك حساب؟ سجّل دخول'}
         </Text>
-      </TouchableOpacity>
+      </PressableScale>
       </ScrollView>
     </KeyboardAvoidingView>
   );

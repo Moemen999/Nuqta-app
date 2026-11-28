@@ -24,7 +24,7 @@ import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { reportAtomicFailure } from '@/lib/atomicFailure';
 import { BUSY_NOTICE, useBusy, useBusyKey } from '@/lib/useBusy';
 import { useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { useConfirm } from '@/components/ConfirmProvider';
 import { useNotice } from '@/components/NoticeProvider';
 import { cardElevation, MIN_TOUCH, space, typeScale, radius } from '@/lib/tokens';
@@ -33,6 +33,7 @@ import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME_MAX_LENGTH } from '@/lib/textLimits';
+import { PressableScale } from '@/components/PressableScale';
 
 /** قارئ الشاشة بس — مفيش حاجة تتعمل لو المنصة مبتدعمش */
 function announce(text: string) {
@@ -437,12 +438,12 @@ export default function WalletsScreen() {
                 textAlign="right"
                 accessibilityLabel={`اسم المحفظة ${w.name}`}
               />
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
+              <PressableScale accessibilityRole="button" accessibilityLabel={`امسح محفظة ${w.name}`} accessibilityState={{ busy: deletingKey === w.id, disabled: deletingKey === w.id }}
                 testID={`wallet_delete_${w.id}`} style={styles.deleteBtn} onPress={() => confirmDelete(w.id, w.name)} disabled={deletingKey === w.id}>
                 <Text style={[styles.deleteText, deletingKey === w.id && styles.btnBusy]}>
                   {deletingKey === w.id ? '...' : 'امسح'}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             </View>
             <View style={styles.walletRow}>
               <View style={{ flex: 1 }}>

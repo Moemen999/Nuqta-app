@@ -10,10 +10,11 @@ import { todayStr, debtExcess, debtGrandTotal, debtPaid, findPersonGroup, snapPi
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 type Row = {
   date: string;
@@ -183,23 +184,23 @@ export default function PersonLedgerScreen() {
       <View style={styles.sectionTitleRow}>
         {/* من غير اتجاه مقفول هنا — الصفحة دي بتجمّع اتجاهين ممكنين لنفس
             الشخص، فمفيش اتجاه "عكسي" واحد نحدده تلقائي زي كارت الدين */}
-        <TouchableOpacity accessibilityRole="button" style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
+        <PressableScale accessibilityRole="button" style={styles.addDebtBtn} onPress={() => setShowAddDebt(true)}>
           <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>+ دين جديد</Text>
-        </TouchableOpacity>
+        </PressableScale>
         <Text style={[styles.sectionTitle, { marginTop: 0 }]}>سجّل حركة</Text>
       </View>
       {soleOpenDebt ? (
         <>
           <Text style={styles.hintText}>دين واحد مفتوح بس، فالحركة هتتسجل عليه</Text>
           <View style={styles.actionsRow}>
-            <TouchableOpacity accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(soleOpenDebt)}>
+            <PressableScale accessibilityRole="button" style={styles.payBtn} onPress={() => setPaymentForDebt(soleOpenDebt)}>
               <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>
                 تسجيل دفعة على: {debtLabelOf(soleOpenDebt)}
               </Text>
-            </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(soleOpenDebt)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
+            </PressableScale>
+            <PressableScale accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(soleOpenDebt)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(soleOpenDebt)}>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         </>
       ) : (
@@ -220,12 +221,12 @@ export default function PersonLedgerScreen() {
                   </Text>
                 </View>
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`تسجيل دفعة على ${debtLabelOf(d)}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`تسجيل دفعة على ${debtLabelOf(d)}`} style={styles.payBtn} onPress={() => setPaymentForDebt(d)}>
                     <Text style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }}>تسجيل دفعة</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(d)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
+                  </PressableScale>
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`زيادة على ${debtLabelOf(d)}`} style={styles.secondaryBtn} onPress={() => setIncreaseForDebt(d)}>
                     <Text style={{ color: colors.text, fontWeight: '700', fontSize: typeScale.body }}>زيادة</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
               </View>
             );

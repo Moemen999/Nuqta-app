@@ -1,8 +1,9 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, space, radius, typeScale } from '@/lib/tokens';
 import { useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * قسم مطوي افتراضيًا والعنوان فيه العدد — غلاف واحد للمؤرشف (`ArchivedList`) وأقسام
@@ -43,7 +44,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
   const label = status ? `${base} — ${status}` : base;
 
   const toggle = (
-    <TouchableOpacity style={[styles.head, !framed && styles.headAlone, !framed && open && !action && styles.headOpen, action && styles.headGrow]}
+    <PressableScale style={[styles.head, !framed && styles.headAlone, !framed && open && !action && styles.headOpen, action && styles.headGrow]}
       onPress={() => setOpen(o => !o)}
       testID={testID ? `${testID}_toggle` : undefined}
       accessibilityRole="button" accessibilityState={{ expanded: open }}
@@ -58,7 +59,7 @@ export default function FoldedSection({ title, count, children, testID, framed =
       </View>
       {/* RTL: المطوي بيشاور ناحية الشمال (اتجاه القراية) */}
       <Text style={styles.chevron} importantForAccessibility="no" accessibilityElementsHidden>{open ? '▾' : '◂'}</Text>
-    </TouchableOpacity>
+    </PressableScale>
   );
 
   return (
@@ -66,10 +67,10 @@ export default function FoldedSection({ title, count, children, testID, framed =
       {action ? (
         <View style={[styles.headRow, !framed && open && styles.headOpen]}>
           {toggle}
-          <TouchableOpacity style={[styles.head, styles.headAlone]} onPress={action.onPress} testID={action.testID}
+          <PressableScale style={[styles.head, styles.headAlone]} onPress={action.onPress} testID={action.testID}
             accessibilityRole="button" accessibilityLabel={action.a11yLabel ?? action.label}>
             <Text style={styles.title}>{action.label}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       ) : toggle}
       {open && children}

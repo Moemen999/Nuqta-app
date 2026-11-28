@@ -25,12 +25,13 @@ import { CategoryIcon, CategoryIconSpacer, categoryInlineRow } from '@/component
 import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { memo, useCallback, useMemo, useState } from 'react';
-import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as XLSX from 'xlsx';
+import { PressableScale } from '@/components/PressableScale';
 
 type Preset = 'thisMonth' | 'last7' | 'lastMonth' | 'all' | 'custom';
 const ARCHIVE_PRESETS: Preset[] = ['thisMonth', 'last7', 'lastMonth', 'all', 'custom'];
@@ -184,12 +185,12 @@ export default function ArchiveScreen() {
 
       {preset === 'custom' && (
         <View style={styles.dateRow}>
-          <TouchableOpacity accessibilityRole="button" testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
+          <PressableScale accessibilityRole="button" testID="archive_date_from" style={styles.dateBtn} onPress={() => setPickerFor('from')}>
             <Text style={styles.dateBtnText}>من: {dateText(customFrom, todayStr())}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
+          </PressableScale>
+          <PressableScale accessibilityRole="button" testID="archive_date_to" style={styles.dateBtn} onPress={() => setPickerFor('to')}>
             <Text style={styles.dateBtnText}>لحد: {dateText(customTo, todayStr())}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         </View>
       )}
       {/* لو «من» بعد «لحد» الفترة بتتقلب لوحدها — السطر ده بيقول الفترة اللي اتطبّقت فعلاً (زي التقارير) */}
@@ -217,7 +218,7 @@ export default function ArchiveScreen() {
         <Text testID="archive_transfers_note" style={styles.transfersNote}>{TRANSFERS_NOTE}</Text>
       )}
 
-      <TouchableOpacity accessibilityRole="button"
+      <PressableScale accessibilityRole="button"
         testID="archive_export_button"
         style={[styles.exportBtn, { opacity: exportDisabled ? 0.5 : 1 }]}
         onPress={handleExport}
@@ -229,13 +230,13 @@ export default function ArchiveScreen() {
         {exporting ? <ActivityIndicator color={colors.onAccent} /> : (
           <CountedText title={PERIOD_EXPORT_TITLE} count={transactionsPhrase(filtered.length)} style={{ color: colors.onAccent, fontWeight: '700', fontSize: typeScale.body }} />
         )}
-      </TouchableOpacity>
+      </PressableScale>
       {exportBlock && (
         <Text testID="archive_export_block" style={styles.fullExportWait} accessibilityLiveRegion="polite">{exportBlock}</Text>
       )}
 
       {/* كل البيانات (مش الفترة بس): المحافظ والديون والاشتراكات والجمعية والدخل والميزانية والشخبطة */}
-      <TouchableOpacity
+      <PressableScale
         testID="archive_full_export_button"
         style={[styles.fullExportBtn, { opacity: !fullExportReady || exportingAll ? 0.5 : 1 }]}
         onPress={handleFullExport}
@@ -248,7 +249,7 @@ export default function ArchiveScreen() {
         {exportingAll ? <ActivityIndicator color={colors.accent} /> : (
           <Text style={styles.fullExportText}>صدّر كل بياناتك (إكسيل)</Text>
         )}
-      </TouchableOpacity>
+      </PressableScale>
       {!fullExportReady && (
         <Text testID="archive_full_export_wait" style={styles.fullExportWait} accessibilityLiveRegion="polite">
           {FULL_EXPORT_WAIT}
@@ -330,7 +331,7 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
   return (
     // نفس مودال الرئيسية — فيه التسوية والتأكيد والقيود، مفيش مسار تاني.
     // من غير ده العملية اللي نزلت تحت أحدث 10 مالهاش تصليح (بند 14)
-    <TouchableOpacity
+    <PressableScale
       testID={`archive_tx_${t.id}`}
       style={styles.txRow}
       accessibilityRole="button"
@@ -355,7 +356,7 @@ const TxRow = memo(function TxRow({ t, catLabel, catIcon, catFound, catTint, wal
         {t.autoRecorded && <AutoRecordedMark />}
         {transfer && <TransferMark />}
       </View>
-    </TouchableOpacity>
+    </PressableScale>
   );
 });
 

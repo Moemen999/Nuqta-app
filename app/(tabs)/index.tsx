@@ -35,7 +35,7 @@ import { COLD_KIND_LABEL, coldFiguresText } from '@/lib/coldCache';
 import { dayText } from '@/lib/dateText';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
 import { Text } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
@@ -45,6 +45,7 @@ import { STALE_FIGURES_TEXT, useStaleFigures } from '@/lib/staleFigures';
 import { BROKEN_TX_ACTION, BROKEN_WALLET_ACTION, brokenArchivedWalletBannerText, brokenTransactionsBannerText, brokenWalletBannerText } from '@/lib/brokenDocs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFabScroll } from '@/context/FabScrollContext';
+import { PressableScale } from '@/components/PressableScale';
 
 const TOTAL_BUDGET_KEY = 'total_budget';
 const DELETE_PENDING_TEXT = 'مسح حسابك ما خلصش — جزء من بياناتك ممكن يكون اتمسح، والتسجيل التلقائي واقف. كمّل المسح، أو اخرج من الحساب.';
@@ -245,7 +246,7 @@ function HomeScreen() {
       <View style={styles.fixedTop}>
         <View style={styles.balanceCard}>
           <View style={styles.balanceHeadRow}>
-            <TouchableOpacity
+            <PressableScale
               onPress={toggleAmounts}
               style={styles.eyeBtn}
               hitSlop={13}
@@ -255,7 +256,7 @@ function HomeScreen() {
               accessibilityHint="في الرئيسية بس — مبالغ آخر العمليات بتفضل ظاهرة"
               accessibilityState={{ checked: amountsHidden }}>
               <LineIcon name={amountsHidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={colors.textSecondary} />
-            </TouchableOpacity>
+            </PressableScale>
             {/* كاش: "قديم" جنب الإجمالي نفسه — الرصيد فوق برّه التمرير، والبانر تحت ممكن يتمرر أو قارئ الشاشة يقرا
                 الرقم قبله (a11y-architect) */}
             {/* العلامة جنب الإجمالي متتقفلش: قديم / ناقص / ممكن يكون قديم (`heroLabel`، الميزة 7) */}
@@ -324,10 +325,10 @@ function HomeScreen() {
           <View testID="home_banner_delete_pending" style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{DELETE_PENDING_TEXT}</Text>
-            <TouchableOpacity testID="home_delete_pending_go" onPress={() => router.push('/settings-screens/delete-account')}
+            <PressableScale testID="home_delete_pending_go" onPress={() => router.push('/settings-screens/delete-account')}
               accessibilityRole="button" accessibilityHint="بيفتح شاشة مسح الحساب" style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>كمّل المسح</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
         {/* الأرقام اللي فوق قديمة ← بانر خطر **من غير ✕**: عمرها ما تتعرض من غير ما يبان (قرار مؤمن) */}
@@ -365,10 +366,10 @@ function HomeScreen() {
           <View testID="home_banner_broken_tx" style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{brokenTransactionsBannerText(brokenTransactions.length)}</Text>
-            <TouchableOpacity testID="home_broken_tx_go" onPress={() => router.push('/archive')}
+            <PressableScale testID="home_broken_tx_go" onPress={() => router.push('/archive')}
               accessibilityRole="button" accessibilityHint="بيفتح الأرشيف" style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{BROKEN_TX_ACTION}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
         {/* المؤرشفة كمان (silent-failure-hunter): الرقم الغلط مبيبطلش يبقى غلط لما المحفظة تتأرشف */}
@@ -376,10 +377,10 @@ function HomeScreen() {
           <View key={w.id} testID={`home_banner_broken_wallet_${w.id}`} style={[styles.banner, styles.bannerDanger]}
             accessibilityRole="alert" accessibilityLiveRegion="polite">
             <Text style={[styles.bannerText, { color: colors.dangerText }]}>{w.archived ? brokenArchivedWalletBannerText(w.name) : brokenWalletBannerText(w.name)}</Text>
-            <TouchableOpacity testID={`home_broken_wallet_go_${w.id}`} onPress={() => router.push('/settings-screens/wallets')}
+            <PressableScale testID={`home_broken_wallet_go_${w.id}`} onPress={() => router.push('/settings-screens/wallets')}
               accessibilityRole="button" accessibilityLabel={`${BROKEN_WALLET_ACTION} — ${w.name}`} style={styles.bannerAction}>
               <Text style={[styles.bannerActionText, { color: colors.dangerText }]}>{BROKEN_WALLET_ACTION}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         ))}
         {noWallets && !cold && (
@@ -391,10 +392,10 @@ function HomeScreen() {
                 ? 'كل محافظك متأرشفة. ضيف محفظة جديدة، أو رجّع واحدة من الإعدادات، عشان تقدر تسجل مصاريفك ودخلك.'
                 : 'ضيف محفظة (كاش، حساب بنكي…) عشان تقدر تسجل مصاريفك ودخلك.'}
             </Text>
-            <TouchableOpacity testID="home_add_wallet" style={styles.noWalletsBtn}
+            <PressableScale testID="home_add_wallet" style={styles.noWalletsBtn}
               onPress={() => router.push('/settings-screens/wallets')} accessibilityRole="button">
               <Text style={styles.noWalletsBtnText}>ضيف محفظة</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
         {/* رسايل التسجيل التلقائي في الرئيسية نفسها ("ما سجلناش" لازم تبان)، والكروت
@@ -461,7 +462,7 @@ function HomeScreen() {
             pending: pendingTxIds.has(t.id), autoRecorded: !!t.autoRecorded, transfer: isTransferTx(t, transfers),
           });
           return (
-            <TouchableOpacity accessibilityRole="button"
+            <PressableScale accessibilityRole="button"
               key={t.id}
               testID={`home_tx_${t.id}`}
               style={styles.txRow}
@@ -488,11 +489,11 @@ function HomeScreen() {
                 {t.autoRecorded && <AutoRecordedMark />}
                 {isTransferTx(t, transfers) && <TransferMark />}
               </View>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
         {transactions.length > recent.length && (
-          <TouchableOpacity
+          <PressableScale
             testID="home_see_all"
             style={styles.seeAll}
             onPress={() => router.push({ pathname: '/archive', params: { preset: 'all' } })}
@@ -501,7 +502,7 @@ function HomeScreen() {
             accessibilityHint="بيفتح الأرشيف بكل عملياتك">
             <CountedText title="شوف كل العمليات" count={transactions.length} style={styles.seeAllText} />
             <Text style={styles.seeAllChevron} accessible={false}>‹</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
         </View>
       </ScrollView>

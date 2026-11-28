@@ -11,10 +11,11 @@ import { MIN_TOUCH, stickyFooterStyle, typeScale, space, radius } from '@/lib/to
 import { useBusy } from '@/lib/useBusy';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "شاركنا رأيك".
@@ -70,13 +71,13 @@ export default function FeedbackScreen() {
         <Text style={styles.label}>الرأي ده عن إيه؟</Text>
         <View style={styles.chipRow}>
           {FEEDBACK_TYPES.map(t => (
-            <TouchableOpacity {...selectionA11y(type === t, 'radio')}
+            <PressableScale {...selectionA11y(type === t, 'radio')}
               key={t}
               testID={`feedback_type_${t}`}
               onPress={() => setType(t)}
               style={[styles.chip, selectionStyle(colors, type === t)]}>
               <Text style={{ color: colors.text, fontSize: typeScale.body }}>{FEEDBACK_TYPE_LABEL[t]}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           ))}
         </View>
 
@@ -106,16 +107,16 @@ export default function FeedbackScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
+        <PressableScale accessibilityRole="button" style={styles.cancelBtn} onPress={() => router.back()} disabled={busy}>
           <Text style={{ color: colors.textSecondary }}>إلغاء</Text>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityRole="button"
+        </PressableScale>
+        <PressableScale accessibilityRole="button"
           testID="feedback_send_button"
           style={[styles.sendBtn, !canSend && styles.btnBusy]}
           disabled={!canSend}
           onPress={handleSend}>
           <Text style={{ color: colors.onAccent, fontWeight: '700' }}>{busy ? '...' : 'ابعت'}</Text>
-        </TouchableOpacity>
+        </PressableScale>
       </View>
     </KeyboardAvoidingView>
   );

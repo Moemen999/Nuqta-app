@@ -13,12 +13,10 @@ import { MIN_TOUCH, categoryIconSize, heroIconGap, heroIconSize, stickyFooterSty
 import { HeroIcon } from '@/components/HeroIcon';
 import { CategoryIcon, categoryInlineRow } from '@/components/CategoryIcon';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet,
-  TouchableOpacity, View,
-} from 'react-native';
+import { AccessibilityInfo, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * "نبدأ بإيه؟" — أول تجهيز للحساب الجديد (بتظهر بس لما السيرفر يأكد إنه
@@ -208,13 +206,13 @@ export default function FirstRunSetup() {
               const on = pickedWallets.has(r.key);
               return (
                 <View key={r.key} style={[styles.row, selectionStyle(colors, on)]}>
-                  <TouchableOpacity testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
+                  <PressableScale testID={`setup_wallet_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.rowToggle}
                     onPress={() => setPickedWallets(p => toggle(p, r.key))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }} accessibilityLabel={r.name}>
                     <Text numberOfLines={2} style={[styles.rowName, { color: selectionTextColor(colors, on) }, on && styles.bold]}>
                       {on ? '✓ ' : ''}{r.name}
                     </Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                   {on && (
                     <TextInput testID={`setup_balance_${r.custom ? `custom_${r.idx}` : r.key}`} style={styles.balanceInput}
                       value={balances[r.key] ?? ''} onChangeText={v => setBalances(b => ({ ...b, [r.key]: v }))}
@@ -242,7 +240,7 @@ export default function FirstRunSetup() {
               {[...CATEGORY_OPTIONS, ...customCats].map((c, i) => {
                 const on = pickedCats.has(c);
                 return (
-                  <TouchableOpacity key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
+                  <PressableScale key={c} testID={`setup_cat_${i}`} style={[styles.chip, selectionStyle(colors, on)]}
                     accessibilityLabel={c}
                     onPress={() => setPickedCats(p => toggle(p, c))}
                     accessibilityRole="checkbox" accessibilityState={{ checked: on }}>
@@ -250,7 +248,7 @@ export default function FirstRunSetup() {
                       <CategoryIcon icon={setupCategoryIcon(c)} size={categoryIconSize.chip} onSelected={on} />
                       <Text style={[styles.chipText, { color: selectionTextColor(colors, on) }, on && styles.bold]}>{on ? '✓ ' : ''}{categoryLabel({ name: c }, { icon: false })}</Text>
                     </View>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>

@@ -1,10 +1,11 @@
 import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { MIN_TOUCH, overlayCenteredStyle, radius, space, typeScale } from '@/lib/tokens';
 import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, Alert, Animated, Dimensions, Easing, Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { LineIcon } from '@/components/LineIcon';
 import { hapticSuccess } from '@/lib/haptics';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * رسالة نتيجة بزرار واحد ("تمام") بشكل التطبيق نفسه — بديل `Alert.alert` في
@@ -141,9 +142,9 @@ function NoticeDialog({ notice, onDismiss }: { notice: Notice | null; onDismiss:
                 <Text testID="notice_body" style={styles.body}>{notice.body}</Text>
               </View>
             </ScrollView>
-            <TouchableOpacity testID="notice_ok" style={styles.okBtn} onPress={dismiss} accessibilityRole="button">
+            <PressableScale testID="notice_ok" style={styles.okBtn} onPress={dismiss} accessibilityRole="button">
               <Text style={styles.okText}>تمام</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         )}
       </View>

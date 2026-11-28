@@ -25,10 +25,11 @@ import { moneyText, speakable } from '@/lib/money';
 import { useAmountDrafts } from '@/lib/useAmountDrafts';
 import { useBusy } from '@/lib/useBusy';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
 import CountedText from '@/components/CountedText';
 import { useFabScroll } from '@/context/FabScrollContext';
+import { PressableScale } from '@/components/PressableScale';
 
 const BUCKET_META = [
   { key: 'needs', label: 'احتياجات' },
@@ -214,20 +215,20 @@ export default function ShakhbataView() {
         {percentDrafts ? (
           <View style={styles.percentActions}>
             {/* الاسم ثابت والحالة في `accessibilityState` (a11y-architect) — مش «...» بيتقري نقط */}
-            <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="حفظ النسب"
+            <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="حفظ النسب"
               accessibilityState={{ disabled: savingPercents, busy: savingPercents }} onPress={savePercents} disabled={savingPercents}>
               <Text style={[styles.textBtnLabel, { opacity: savingPercents ? 0.6 : 1 }]}>حفظ النسب</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="إلغاء تعديل النسب"
+            </PressableScale>
+            <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="إلغاء تعديل النسب"
               accessibilityState={{ disabled: savingPercents }} onPress={() => setPercentDrafts(null)} disabled={savingPercents}>
               <Text style={[styles.textBtnLabel, { color: colors.textSecondary }]}>إلغاء</Text>
-            </TouchableOpacity>
+            </PressableScale>
           </View>
         ) : (
-          <TouchableOpacity style={styles.textBtn} accessibilityRole="button" accessibilityLabel="عدّل النسب"
+          <PressableScale style={styles.textBtn} accessibilityRole="button" accessibilityLabel="عدّل النسب"
             accessibilityState={{ disabled: !percentsReady }} onPress={startEditingPercents} disabled={!percentsReady}>
             <Text style={[styles.textBtnLabel, { opacity: percentsReady ? 1 : 0.5 }]}>عدّل النسب</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
         <Text style={styles.label}>نسبك الحالية</Text>
       </View>
@@ -322,13 +323,13 @@ export default function ShakhbataView() {
               {BUCKET_META.map(b => {
                 const active = c.bucket === b.key;
                 return (
-                  <TouchableOpacity {...selectionA11y(active)}
+                  <PressableScale {...selectionA11y(active)}
                     key={b.key}
                     accessibilityLabel={`${categoryLabel(c, { icon: false })} — ${b.label}`}
                     onPress={() => updateCategory(c.id, { bucket: active ? '' : b.key })}
                     style={[styles.catBtn, quietSelectionStyle(colors, active)]}>
                     <Text style={{ color: active ? colors.text : colors.textSecondary, fontSize: typeScale.caption }}>{b.label}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 );
               })}
             </View>

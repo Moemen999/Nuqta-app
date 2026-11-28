@@ -5,7 +5,8 @@ import { hapticSelect } from '@/lib/haptics';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useReduceMotion } from '@/lib/useReduceMotion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, I18nManager, StyleSheet, TouchableOpacity, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, I18nManager, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
+import { PressableScale } from '@/components/PressableScale';
 
 export type Segment<K extends string> = { key: K; label: string; testID?: string };
 
@@ -57,10 +58,10 @@ export function SegmentedControl<K extends string>({ segments, value, onChange, 
       {segments.map(s => {
         const selected = s.key === value;
         return (
-          <TouchableOpacity key={s.key} testID={s.testID} {...selectionA11y(selected, 'tab')} onLayout={onSegLayout(s.key)}
+          <PressableScale key={s.key} testID={s.testID} {...selectionA11y(selected, 'tab')} onLayout={onSegLayout(s.key)}
             onPress={() => { if (!selected) hapticSelect(); onChange(s.key); }} style={[styles.segment, selected && !ready && styles.segmentSelected]}>
             <Text style={[styles.label, selected && styles.labelSelected]}>{s.label}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         );
       })}
     </View>

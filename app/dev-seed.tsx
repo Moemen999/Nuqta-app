@@ -13,11 +13,12 @@ import {
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { doc, writeBatch } from 'firebase/firestore';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { radius, space, typeScale } from '@/lib/tokens';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * تعبئة حساب الاختبار ببيانات وهمية ثابتة — **في نسخ التطوير بس** (`__DEV__`).
@@ -194,12 +195,12 @@ function DevSeed() {
             )}
           </View>
 
-          <TouchableOpacity accessibilityRole="button" testID="dev_seed_start" style={[styles.btn, busy && styles.btnBusy]} onPress={startSeed} disabled={busy}>
+          <PressableScale accessibilityRole="button" testID="dev_seed_start" style={[styles.btn, busy && styles.btnBusy]} onPress={startSeed} disabled={busy}>
             {busy ? <ActivityIndicator color={colors.onAccent} /> : <Text style={styles.btnText}>عبّي بيانات التجربة</Text>}
-          </TouchableOpacity>
-          <TouchableOpacity accessibilityRole="button" testID="dev_seed_wipe" style={[styles.btnDanger, busy && styles.btnBusy]} onPress={wipe} disabled={busy}>
+          </PressableScale>
+          <PressableScale accessibilityRole="button" testID="dev_seed_wipe" style={[styles.btnDanger, busy && styles.btnBusy]} onPress={wipe} disabled={busy}>
             <Text style={styles.btnDangerText}>امسح بيانات التجربة</Text>
-          </TouchableOpacity>
+          </PressableScale>
 
           {!!status && (
             <Text testID={`dev_seed_status_${phase}`} style={phase === 'failed' ? styles.error : styles.status}>{status}</Text>

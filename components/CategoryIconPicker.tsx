@@ -6,10 +6,9 @@ import { CATEGORY_ICONS, DEFAULT_CATEGORY_ICON, categoryIconLabel } from '@/lib/
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, radius, sheetStyle, sheetTitleStyle, stickyFooterStyle, space, typeScale } from '@/lib/tokens';
 import { useEffect, useMemo, useState } from 'react';
-import {
-  AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View,
-} from 'react-native';
+import { AccessibilityInfo, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 // أحجام زينة (إيموجي/مدخل) مالهاش درجة في `typeScale` — ثوابت مسمّاة بدل أرقام حرفية
 const CATEGORY_GLYPH_SIZE = 24;
@@ -93,14 +92,14 @@ export default function CategoryIconPicker({
               <View style={styles.noteRow}>
                 <Text style={styles.noteText}>{note.text}</Text>
                 {note.suggestion && (
-                  <TouchableOpacity
+                  <PressableScale
                     testID="icon_pick_suggestion"
                     style={styles.suggestBtn}
                     onPress={() => { onPick(note.suggestion!); onClose(); }}
                     accessibilityRole="button"
                     accessibilityLabel={`خد ${note.suggestion} بدالها`}>
                     <Text style={styles.suggestText}>خد {note.suggestion} بدالها</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 )}
               </View>
             )}
@@ -136,7 +135,7 @@ export default function CategoryIconPicker({
               </View>
             ) : (
               <View style={styles.grid}>
-                <TouchableOpacity
+                <PressableScale
                   testID="icon_pick_default"
                   onPress={() => pick(undefined)}
                   // اختيار واحد من مجموعة ← radio (selectionA11y)، مش زرار بحالة "selected"
@@ -145,10 +144,10 @@ export default function CategoryIconPicker({
                   style={[styles.cell, styles.wideCell, selectionStyle(colors, !current)]}>
                   <Text style={styles.icon}>{DEFAULT_CATEGORY_ICON}</Text>
                   <Text style={styles.wideLabel}>{ICON_PICKER_DEFAULT_LABEL}</Text>
-                </TouchableOpacity>
+                </PressableScale>
 
                 {CATEGORY_ICONS.map(ic => (
-                  <TouchableOpacity
+                  <PressableScale
                     key={ic}
                     testID={`icon_pick_${ic}`}
                     onPress={() => pick(ic)}
@@ -157,11 +156,11 @@ export default function CategoryIconPicker({
                     accessibilityLabel={`أيقونة ${categoryIconLabel(ic)}`}
                     style={[styles.cell, selectionStyle(colors, current === ic)]}>
                     <Text style={styles.icon}>{ic}</Text>
-                  </TouchableOpacity>
+                  </PressableScale>
                 ))}
 
                 {/* الأيقونة من الكيبورد: لو المختارة مش في القايمة بتبان هنا */}
-                <TouchableOpacity
+                <PressableScale
                   testID="icon_pick_keyboard"
                   onPress={() => { setNote(null); setTyping(true); }}
                   {...selectionA11y(customPicked, 'radio')}
@@ -174,7 +173,7 @@ export default function CategoryIconPicker({
                   ]}>
                   <Text style={styles.icon}>{current && !CATEGORY_ICONS.includes(current) ? current : '⌨️'}</Text>
                   <Text style={styles.wideLabel}>{ICON_PICKER_KEYBOARD_LABEL}</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </View>
             )}
           </ScrollView>
@@ -182,10 +181,10 @@ export default function CategoryIconPicker({
           <View style={styles.footer}>
             {typing ? (
               <>
-                <TouchableOpacity testID="icon_keyboard_back" accessibilityRole="button" style={styles.closeBtn} onPress={() => { setTyping(false); setRaw(''); }}>
+                <PressableScale testID="icon_keyboard_back" accessibilityRole="button" style={styles.closeBtn} onPress={() => { setTyping(false); setRaw(''); }}>
                   <Text style={{ color: colors.textSecondary }}>رجوع</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </PressableScale>
+                <PressableScale
                   testID="icon_keyboard_save"
                   accessibilityRole="button"
                   style={[styles.saveBtn, !parsed.ok && styles.saveBtnOff]}
@@ -193,12 +192,12 @@ export default function CategoryIconPicker({
                   onPress={() => { if (parsed.ok) pick(parsed.icon); }}
                   accessibilityState={{ disabled: !parsed.ok }}>
                   <Text style={{ color: colors.onAccent, fontWeight: '700' }}>حفظ</Text>
-                </TouchableOpacity>
+                </PressableScale>
               </>
             ) : (
-              <TouchableOpacity testID="icon_pick_close" accessibilityRole="button" style={styles.closeBtn} onPress={onClose}>
+              <PressableScale testID="icon_pick_close" accessibilityRole="button" style={styles.closeBtn} onPress={onClose}>
                 <Text style={{ color: colors.textSecondary }}>تمام</Text>
-              </TouchableOpacity>
+              </PressableScale>
             )}
           </View>
         </View>

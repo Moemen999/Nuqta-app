@@ -2,9 +2,10 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { selectionA11y, selectionStyle } from '@/lib/selection';
 import { MIN_TOUCH, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, radius, space, typeScale } from '@/lib/tokens';
 import { useMemo, useRef, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 export type ReassignTarget = { id: string; name: string };
 /** حاجة شغّالة مربوطة باللي بنأرشفه ولازم تلاقي بديل قبل ما نكمّل */
@@ -69,14 +70,14 @@ export default function ArchiveSheet({
                 <Text style={styles.label}>{targetLabel}</Text>
                 <View style={styles.chipRow}>
                   {targets.map(t => (
-                    <TouchableOpacity {...selectionA11y(assignments[item.id] === t.id, 'radio')}
+                    <PressableScale {...selectionA11y(assignments[item.id] === t.id, 'radio')}
                       key={t.id}
                       // "البنك" لوحدها كانت بتتكرر لكل حاجة من غير ما تقول لأنهي (a11y-architect، الميزة 10)
                       accessibilityLabel={`${t.name}، ل${item.kind} ${item.name}`}
                       onPress={() => setAssignments(a => ({ ...a, [item.id]: t.id }))}
                       style={[styles.chip, selectionStyle(colors, assignments[item.id] === t.id)]}>
                       <Text style={{ color: colors.text, fontSize: typeScale.body }}>{t.name}</Text>
-                    </TouchableOpacity>
+                    </PressableScale>
                   ))}
                 </View>
               </View>

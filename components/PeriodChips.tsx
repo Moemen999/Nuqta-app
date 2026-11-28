@@ -4,7 +4,8 @@ import { periodPresets, type PeriodPresetKey } from '@/lib/periodPresets';
 import { selectionA11y } from '@/lib/selection';
 import { MIN_TOUCH, radius, space, typeScale } from '@/lib/tokens';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
+import { PressableScale } from '@/components/PressableScale';
 
 /**
  * شرايح الفترة — **مكوّن واحد** للتقارير والأرشيف (كانوا نسختين، دراسة الشكل 2026-11-05). من غير حد: الخلفية
@@ -83,11 +84,11 @@ export function PeriodChips<K extends PeriodPresetKey>({ keys, value, onChange, 
         {periodPresets(keys).map(p => {
           const selected = p.key === value;
           return (
-            <TouchableOpacity key={p.key} testID={`${testIDPrefix}_${p.key}`} {...selectionA11y(selected, 'radio')}
+            <PressableScale key={p.key} testID={`${testIDPrefix}_${p.key}`} {...selectionA11y(selected, 'radio')}
               onLayout={e => { chipBox.current[p.key] = { x: e.nativeEvent.layout.x, w: e.nativeEvent.layout.width }; }}
               onPress={() => onChange(p.key as K)} style={[styles.chip, selected && styles.chipSelected]}>
               <Text numberOfLines={1} style={[styles.label, selected && styles.labelSelected]}>{p.label}</Text>
-            </TouchableOpacity>
+            </PressableScale>
           );
         })}
       </ScrollView>

@@ -1,6 +1,6 @@
 import BackButton from '@/components/BackButton';
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { useTheme, type ThemeColors } from '@/context/ThemeContext';
 import { PERIOD_PRESET_WORDS as P, PREVIOUS_MONTH_LABEL, PREVIOUS_PERIOD_LABEL, SAME_DAYS_LABEL } from '@/lib/periodPresets';
 import { cardElevation, glyphSize, radius, space, typeScale } from '@/lib/tokens';
 import { TIMELINE_PARTIAL_NOTE } from '@/lib/spendTimeline';
+import { PressableScale } from '@/components/PressableScale';
 
 type Section = { id: string; icon: string; title: string; body: string[] };
 
@@ -216,10 +217,10 @@ export default function UserGuideScreen() {
         return (
           <View key={s.id} style={styles.cardShadow}>
           <View style={styles.card}>
-            <TouchableOpacity accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
+            <PressableScale accessibilityRole="button" style={styles.cardHead} onPress={() => setOpenId(isOpen ? null : s.id)}>
               <Text style={styles.cardTitle}>{s.icon}  {s.title}</Text>
               <Text style={styles.chevron}>{isOpen ? '−' : '+'}</Text>
-            </TouchableOpacity>
+            </PressableScale>
             {isOpen && (
               <View style={styles.cardBody}>
                 {s.body.map((line, i) => (

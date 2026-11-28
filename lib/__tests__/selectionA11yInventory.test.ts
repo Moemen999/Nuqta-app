@@ -12,6 +12,8 @@ import { selectionA11y } from '@/lib/selection';
 // شاشات القفل كانت مستثناة لحد دمج بند A (اتدمج 1a19f46) — الاستثناء اتشال
 
 const ROOT = path.join(__dirname, '..', '..');
+/** الزرار اللي بيتمسح — كان `<TouchableOpacity` لحد 9.5-5 خطوة 3 (اتنقل كله لـ`PressableScale`) */
+const TAG = '<PressableScale';
 function files(dir: string): string[] {
   return fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(e => {
     const rel = path.posix.join(dir, e.name);
@@ -25,7 +27,7 @@ it('selectionA11y بيدّي الدور والحالة', () => {
   expect(selectionA11y(false, 'tab')).toEqual({ accessibilityRole: 'tab', accessibilityState: { selected: false } });
 });
 
-it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ الشاشة', () => {
+it('كل PressableScale فيه selectionStyle عنده حالة لقارئ الشاشة', () => {
   const offenders: string[] = [];
   let checked = 0;
   for (const f of [...files('app'), ...files('components')]) {
@@ -36,7 +38,7 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
     let mm: RegExpExecArray | null;
     while ((mm = re.exec(s)) !== null) {
       idx = mm.index;
-      const tagStart = s.lastIndexOf('<TouchableOpacity', idx);
+      const tagStart = s.lastIndexOf(TAG, idx);
       // آخر الـtag = أول '>' برّه الأقواس ({ } و( )) — '=>' جوه onPress مش نهايته
       let tagClose = tagStart, depth = 0;
       for (; tagClose < s.length; tagClose++) {
@@ -48,7 +50,7 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
       if (tagStart !== -1) {
         const tag = s.slice(tagStart, tagClose + 1);
         // الـselectionStyle جوه نفس الـtag (مفيش عنصر تاني بدأ بينهم)
-        if (!/\n\s*<[A-Za-z]/.test(s.slice(tagStart + 17, idx))) {
+        if (!/\n\s*<[A-Za-z]/.test(s.slice(tagStart + TAG.length, idx))) {
           checked++;
           if (!tag.includes('selectionA11y(') && !tag.includes('accessibilityState')) offenders.push(`${f}:${s.slice(0, idx).split('\n').length}`);
         }
@@ -59,14 +61,14 @@ it('كل TouchableOpacity فيه selectionStyle عنده حالة لقارئ ا�
   expect(offenders).toEqual([]);
 });
 
-it('بند E جولة 2: كل TouchableOpacity ليه دور لقارئ الشاشة (أو accessible={false} بقصد)', () => {
+it('بند E جولة 2: كل PressableScale ليه دور لقارئ الشاشة (أو accessible={false} بقصد)', () => {
   const offenders: string[] = [];
   let checked = 0;
   for (const f of [...files('app'), ...files('components')]) {
     const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
     let idx = 0;
-    while ((idx = s.indexOf('<TouchableOpacity', idx)) !== -1) {
-      const next = s[idx + '<TouchableOpacity'.length];
+    while ((idx = s.indexOf(TAG, idx)) !== -1) {
+      const next = s[idx + TAG.length];
       if (next !== ' ' && next !== '\n' && next !== '>') { idx++; continue; }
       let end = idx, depth = 0;
       for (; end < s.length; end++) {

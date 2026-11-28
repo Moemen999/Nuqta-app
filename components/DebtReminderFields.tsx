@@ -5,8 +5,9 @@ import { todayStr } from '@/lib/finance';
 import { selectionA11y, selectionStyle, selectionTextColor } from '@/lib/selection';
 import { MIN_TOUCH, typeScale, space, radius } from '@/lib/tokens';
 import { useMemo, useState } from 'react';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
+import { PressableScale } from '@/components/PressableScale';
 
 /** الاختيارات الجاهزة للتذكير — بالأيام قبل المعاد */
 const DAYS_OPTIONS = [
@@ -38,16 +39,16 @@ export default function DebtReminderFields({
     <>
       <Text style={styles.label}>معاد الدين (اختياري)</Text>
       <View style={styles.row}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`معاد الدين، ${dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
+        <PressableScale accessibilityRole="button" accessibilityLabel={`معاد الدين، ${dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}`} style={styles.dateBtn} onPress={() => setShowPicker(true)}>
           <Text style={styles.dateBtnText}>{dueDate ? dateText(dueDate, todayStr()) : 'من غير معاد'}</Text>
-        </TouchableOpacity>
+        </PressableScale>
         {!!dueDate && (
-          <TouchableOpacity accessibilityRole="button"
+          <PressableScale accessibilityRole="button"
             style={styles.clearBtn}
             onPress={() => { onChangeDueDate(''); onChangeReminder(null); }}
             hitSlop={8}>
             <Text style={styles.clearText}>شيل المعاد</Text>
-          </TouchableOpacity>
+          </PressableScale>
         )}
       </View>
 
@@ -55,18 +56,18 @@ export default function DebtReminderFields({
         <>
           <Text style={styles.label}>فكّرني قبله</Text>
           <View style={styles.chipRow}>
-            <TouchableOpacity {...selectionA11y(reminderDaysBefore === null, 'radio')}
+            <PressableScale {...selectionA11y(reminderDaysBefore === null, 'radio')}
               onPress={() => onChangeReminder(null)}
               style={[styles.chip, selectionStyle(colors, reminderDaysBefore === null)]}>
               <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === null), fontSize: typeScale.body }}>من غير تذكير</Text>
-            </TouchableOpacity>
+            </PressableScale>
             {DAYS_OPTIONS.map(opt => (
-              <TouchableOpacity {...selectionA11y(reminderDaysBefore === opt.days, 'radio')}
+              <PressableScale {...selectionA11y(reminderDaysBefore === opt.days, 'radio')}
                 key={opt.days}
                 onPress={() => onChangeReminder(opt.days)}
                 style={[styles.chip, selectionStyle(colors, reminderDaysBefore === opt.days)]}>
                 <Text style={{ color: selectionTextColor(colors, reminderDaysBefore === opt.days), fontSize: typeScale.body }}>{opt.label}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
           {reminderDaysBefore !== null && (

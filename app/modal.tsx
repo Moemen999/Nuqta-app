@@ -27,7 +27,7 @@ import { useChartColors } from '@/hooks/use-chart-colors';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavigationContext, usePreventRemove } from '@react-navigation/native';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Text, TextInput } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
@@ -37,6 +37,7 @@ import { hapticSuccess } from '@/lib/haptics';
 import { useBusy } from '@/lib/useBusy';
 import { useFormError } from '@/lib/useFormError';
 import { announceAfterLeave } from '@/lib/announceLater';
+import { PressableScale } from '@/components/PressableScale';
 
 /** حقول النوع الجديد مبيستخدمهاش — تغيير النوع في التعديل بيشيلها (الميزة 8، L) */
 const UNUSED_FIELDS: Record<'expense' | 'income' | 'withdraw', TxClearableField[]> = {
@@ -582,13 +583,13 @@ export default function AddTransactionModal() {
 
       <View style={styles.row}>
         {TYPES.map(t => (
-          <TouchableOpacity accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { edited(); if (t.key !== type) changed(); setType(t.key); }}
+          <PressableScale accessibilityRole="radio" key={t.key} testID={`tx_type_${t.key}`} onPress={() => { edited(); if (t.key !== type) changed(); setType(t.key); }}
             disabled={typeLocked && type !== t.key}
             accessibilityState={{ checked: type === t.key, disabled: typeLocked && type !== t.key }}
             accessibilityHint={typeLocked ? 'النوع ثابت للعملية دي — السبب مكتوب تحت' : undefined}
             style={[styles.typeBtn, quietSelectionStyle(colors, type === t.key, t.tone), typeLocked && type !== t.key && styles.btnBusy]}>
             <Text style={{ color: selectionTextColor(colors, type === t.key), fontSize: typeScale.body }}>{t.label}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       </View>
       {typeLocked && (
@@ -612,10 +613,10 @@ export default function AddTransactionModal() {
       <Text style={styles.label}>{type === 'withdraw' ? 'من محفظة' : 'المحفظة'}</Text>
       <View style={styles.chipRow}>
         {selectableOptions(wallets, walletId).map(w => (
-          <TouchableOpacity {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== walletId) changed(); fromW.pickWallet(w.id); }}
+          <PressableScale {...selectionA11y(walletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== walletId) changed(); fromW.pickWallet(w.id); }}
             style={[styles.chip, quietSelectionStyle(colors, walletId === w.id)]}>
             <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-          </TouchableOpacity>
+          </PressableScale>
         ))}
       </View>
 
@@ -624,10 +625,10 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>إلى محفظة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(wallets, toWalletId).filter(w => w.id !== walletId).map(w => (
-              <TouchableOpacity {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== toWalletId) changed(); fromW.freeze(); toW.pickWallet(w.id); }}
+              <PressableScale {...selectionA11y(toWalletId === w.id, 'radio')} key={w.id} onPress={() => { if (error) setError(''); if (w.id !== toWalletId) changed(); fromW.freeze(); toW.pickWallet(w.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, toWalletId === w.id)]}>
                 <Text style={{ color: colors.text, fontSize: typeScale.body }}>{walletHistoryName(wallets, w.id)}</Text>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
         </>
@@ -638,23 +639,23 @@ export default function AddTransactionModal() {
           <Text style={styles.label}>الفئة</Text>
           <View style={styles.chipRow}>
             {selectableOptions(categories, categoryId).map(c => (
-              <TouchableOpacity {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { edited(); if (c.id !== categoryId) changed(); setCategoryId(c.id); }}
+              <PressableScale {...selectionA11y(categoryId === c.id, 'radio')} key={c.id} onPress={() => { edited(); if (c.id !== categoryId) changed(); setCategoryId(c.id); }}
                 style={[styles.chip, quietSelectionStyle(colors, categoryId === c.id)]}>
                 <View style={categoryInlineRow}>
                   <CategoryIcon icon={c.icon} size={categoryIconSize.chip} tint={categoryColors.get(c.id)} onSelected={categoryId === c.id} />
                   <Text numberOfLines={1} ellipsizeMode="middle" style={{ color: colors.text, fontSize: typeScale.body, flexShrink: 1 }}>{categoryLabel(c, { icon: false })}</Text>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
             ))}
           </View>
         </>
       )}
 
       <Text style={styles.label} accessible={false} importantForAccessibility="no">التاريخ</Text>
-      <TouchableOpacity testID="tx_date_button" accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}
+      <PressableScale testID="tx_date_button" accessibilityRole="button" style={styles.dateBtn} onPress={() => setShowDatePicker(true)}
         accessibilityLabel={`التاريخ، ${dateText(date, todayStr())}`} accessibilityHint="يفتح التقويم">
         <Text style={styles.dateBtnText}>{dateText(date, todayStr())}</Text>
-      </TouchableOpacity>
+      </PressableScale>
 
       <Text style={styles.label} accessible={false} importantForAccessibility="no">ملاحظة</Text>
       <TextInput maxLength={NOTE_MAX_LENGTH} style={styles.input} value={note} onChangeText={v => { edited(); changed(); setNote(v); }} accessibilityLabel="ملاحظة"
