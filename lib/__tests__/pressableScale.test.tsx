@@ -61,6 +61,7 @@ it('جرد: مفيش TouchableOpacity في app/ ولا components/ — الضغ�
     return /\.tsx?$/.test(f) ? [rel] : [];
   });
   const offenders = [...walk('app'), ...walk('components')].filter(f =>
-    /<TouchableOpacity\b|\bTouchableOpacity\b[^\n]*from 'react-native'|import\s*\{[^}]*\bTouchableOpacity\b[^}]*\}\s*from 'react-native'/.test(readFileSync(join(root, f), 'utf8')));
+    // ومعاه TouchableHighlight/TouchableWithoutFeedback: أي واحد فيهم بيفلت من مسح الأدوار والاختيار (a11y-architect 2026-11-28)
+    /<Touchable(Opacity|Highlight|WithoutFeedback)\b|import\s*\{[^}]*\bTouchable(Opacity|Highlight|WithoutFeedback)\b[^}]*\}\s*from 'react-native'/.test(readFileSync(join(root, f), 'utf8')));
   expect(offenders).toEqual([]);
 });

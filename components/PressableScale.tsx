@@ -12,6 +12,8 @@ import { Pressable, type PressableProps, type StyleProp, type View, type ViewSty
  * - معطّل: مفيش رد فعل خالص (زي `TouchableOpacity` — الشكل المعطّل مسؤولية الشاشة).
  * - `collapsable={false}`: الشفافية 1↔0.85 على Pressable من غير خلفية كانت هتخلّي Fabric يعمل unflatten للـView
  *   ويحرّك ولاده وقت الضغط — نفس كراش NUQTA-3 اللي اتصلح في `Button`.
+ * - وقت الضغط `opacity` و`transform` بتوعنا بيغلبوا اللي في `style` — زرار متعتّم (مشغول مثلاً) لازم ياخد `disabled`
+ *   كمان، وإلا هينوّر لـ0.85 وهو بيتداس (كل اللي موجودين النهارده ماشيين كده — react-reviewer 2026-11-28).
  */
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
