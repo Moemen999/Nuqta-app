@@ -249,8 +249,8 @@ function makeStyles(c: ThemeColors) {
     intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginBottom: space.xxl, lineHeight: leading.caption },
     // الظل على غلاف برّاني: `overflow: 'hidden'` على iOS بيقص الظل
     cardShadow: { borderRadius: radius.lg, backgroundColor: c.surface, marginBottom: space.md, ...cardElevation(c) },
-    // الغامق مالوش ظل (shadow = null) فالإطار بيفضل هناك زي ما كان
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, overflow: 'hidden', ...(c.shadow ? null : { borderWidth: 1, borderColor: c.border }) },
+    // من غير إطار في الثيمين (9.5-6): الغامق مالوش ظل، والكارت بيبان بفرق السطح عن الخلفية زي كروت الرئيسية
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, overflow: 'hidden' },
     cardHead: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', padding: 14 },
     cardTitle: { color: c.text, fontSize: typeScale.body, fontWeight: '700' },
     chevron: { color: c.accentText, fontSize: glyphSize.chevron, fontWeight: '700' },

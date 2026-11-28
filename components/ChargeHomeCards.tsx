@@ -18,7 +18,7 @@ import { chargeDateLabel, gamiyaOpenCharges, subscriptionOpenCharges, type OpenC
 import { todayStr, walletHistoryName } from '@/lib/finance';
 import { MONEY_MASK, moneyText, speakable } from '@/lib/money';
 import { incomeDiffNote, morePeriodsPhrase } from '@/lib/recurringIncome';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
+import { cardElevation, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useChargeAutoRecord } from '@/lib/useChargeAutoRecord';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
@@ -195,7 +195,7 @@ export function ChargeAutoNotices() {
   return (
     <View style={styles.wrap}>
       {notices.map(n => (
-        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}>
+        <View key={n.id} testID={`charge_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderWidth: 1, borderColor: colors.dangerBorder }]}>
           {n.kind === 'recorded' && <View style={styles.noticeIcon}><LineIcon name="checkmark-circle-outline" size={16} color={colors.textSecondary} /></View>}
           <Text style={[styles.noticeText, n.kind === 'error' && { color: colors.dangerText }]}>
             {n.text}
@@ -488,7 +488,7 @@ function makeStyles(c: ThemeColors) {
     cardActions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
-      borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,
+      borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, ...cardElevation(c),
     },
     noticeText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     overlay: overlayStyle,

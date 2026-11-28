@@ -249,7 +249,7 @@ function makeStyles(c: ThemeColors) {
     scrollArea: { flexShrink: 1 },
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
-    card: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
+    card: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
     body: { color: c.text, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body, marginBottom: space.md },
     bodyBlocked: { marginBottom: 0 },
     hint: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body, marginTop: space.xl },

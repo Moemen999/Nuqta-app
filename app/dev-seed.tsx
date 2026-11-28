@@ -17,7 +17,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/AppText';
 import { ScreenTitle } from '@/components/ScreenTitle';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { radius, space, typeScale } from '@/lib/tokens';
+import { cardElevation, radius, space, typeScale } from '@/lib/tokens';
 import { PressableScale } from '@/components/PressableScale';
 
 /**
@@ -217,7 +217,7 @@ function makeStyles(c: ThemeColors) {
     container: { flex: 1, backgroundColor: c.bg },
     content: { padding: 16, paddingBottom: 40 },
     headerRow: { flexDirection: 'row-reverse', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xxl, borderWidth: 1, borderColor: c.border, marginBottom: space.xxl },
+    card: { backgroundColor: c.surface, borderRadius: radius.lg, padding: space.xxl, marginBottom: space.xxl, ...cardElevation(c) },
     label: { color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', marginTop: space.xs },
     value: { color: c.text, fontSize: typeScale.body, textAlign: 'right' },
     errorValue: { color: c.dangerText, fontSize: typeScale.body, textAlign: 'right' },

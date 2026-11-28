@@ -11,7 +11,7 @@ import { MONEY_MASK, speakable } from '@/lib/money';
 import {
   incomeDiffNote, incomeOpenPeriods, incomePeriodLabel, morePeriodsPhrase, type RecurringIncome,
 } from '@/lib/recurringIncome';
-import { overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
+import { cardElevation, overlayStyle, sheetStyle, sheetTitleStyle, stickyFooterStyle, typeScale, radius, space, bigAmountInputStyle, leading } from '@/lib/tokens';
 import { BUSY_NOTICE, useBusyKey } from '@/lib/useBusy';
 import { useIncomeAutoRecord } from '@/lib/useIncomeAutoRecord';
 import { useLockAwareAnnounce } from '@/lib/useLockAwareAnnounce';
@@ -74,7 +74,7 @@ export function IncomeAutoNotices() {
   return (
     <View style={styles.wrap}>
       {notices.map(n => (
-        <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderColor: colors.dangerBorder }]}
+        <View key={n.id} testID={`income_notice_${n.kind}`} style={[styles.notice, n.kind === 'error' && { borderWidth: 1, borderColor: colors.dangerBorder }]}
           accessibilityLiveRegion="polite">
           {/* علامة «اتسجل» شكل بس (`LineIcon` مخفية) — الاسم المنطوق من غيرها */}
           {n.kind === 'recorded' && <View style={styles.noticeIcon}><LineIcon name="checkmark-circle-outline" size={16} color={colors.textSecondary} /></View>}
@@ -262,7 +262,7 @@ function makeStyles(c: ThemeColors) {
     actions: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: space.sm, marginTop: space.lg },
     notice: {
       flexDirection: 'row-reverse', alignItems: 'flex-start', gap: space.sm, backgroundColor: c.surface,
-      borderRadius: radius.lg, borderWidth: 1, borderColor: c.borderStrong, padding: space.lg, marginBottom: space.md,
+      borderRadius: radius.lg, padding: space.lg, marginBottom: space.md, ...cardElevation(c),
     },
     noticeText: { flex: 1, color: c.textSecondary, fontSize: typeScale.body, textAlign: 'right', lineHeight: leading.body },
     overlay: overlayStyle,

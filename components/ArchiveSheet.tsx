@@ -117,7 +117,7 @@ function makeStyles(c: ThemeColors) {
     sheetContent: { padding: 20 },
     sheetTitle: sheetTitleStyle(c, 4),
     intro: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', lineHeight: leading.caption, marginTop: space.xs },
-    itemCard: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl, borderWidth: 1, borderColor: c.border },
+    itemCard: { backgroundColor: c.surface2, borderRadius: radius.lg, padding: space.lg, marginTop: space.xl },
     itemName: { color: c.text, fontSize: typeScale.body, fontWeight: '700', textAlign: 'right' },
     label: { color: c.textSecondary, fontSize: typeScale.caption, textAlign: 'right', marginTop: space.md, marginBottom: space.xs },
     chipRow: { flexDirection: 'row-reverse', flexWrap: 'wrap', gap: 8 },
